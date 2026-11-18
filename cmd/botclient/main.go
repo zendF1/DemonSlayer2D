@@ -315,13 +315,16 @@ func (s *loadStats) errorSummary() []string {
 }
 
 func cmdLoad(args []string) error {
-	fs, url, _, _ := flags("load")
+	// -p comes from flags(); for load it is the password shared by every bot.
+	fs, url, _, pass := flags("load")
 	n := fs.Int("n", 100, "number of bots")
 	prefix := fs.String("prefix", "bot", "username/name prefix (letters only)")
-	pass := fs.String("p", "botpass123", "password for every bot")
 	dur := fs.Duration("for", 60*time.Second, "test duration")
 	ramp := fs.Duration("ramp", 20*time.Millisecond, "delay between bot starts")
 	_ = fs.Parse(args)
+	if *pass == "" {
+		*pass = "botpass123"
+	}
 
 	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
