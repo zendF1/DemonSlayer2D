@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+package ds.v1;
+
+option go_package = "demonslayer2d/internal/pb;pb";
+
+// Every WebSocket binary message carries exactly one Envelope.
+// Requests use seq >= 1; the response reuses the same seq.
+// Server-initiated messages use seq = 0.
+message Envelope {
+  uint32 seq = 1;
+  oneof payload {
+    Error error = 2;
+
+    RegisterReq register_req = 10;
+    RegisterResp register_resp = 11;
+    LoginReq login_req = 12;
+    LoginResp login_resp = 13;
+    CharListReq char_list_req = 14;
+    CharListResp char_list_resp = 15;
+    CreateCharReq create_char_req = 16;
+    CreateCharResp create_char_resp = 17;
+    DeleteCharReq delete_char_req = 18;
+    DeleteCharResp delete_char_resp = 19;
+    EnterWorldReq enter_world_req = 20;
+    EnterWorldResp enter_world_resp = 21;
+    LeaveWorldReq leave_world_req = 22;
+    LeaveWorldResp leave_world_resp = 23;
+
+    MoveInput move_input = 30;
+    EntityEnter entity_enter = 31;
+    EntityLeave entity_leave = 32;
+    WorldTick world_tick = 33;
+
+    Ping ping = 40;
+    Pong pong = 41;
+    Kicked kicked = 42;
+  }
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_BAD_REQUEST = 1;
+  ERROR_CODE_VERSION_MISMATCH = 2;
+  ERROR_CODE_RATE_LIMITED = 3;
+  ERROR_CODE_AUTH_FAILED = 4;
+  ERROR_CODE_USERNAME_TAKEN = 5;
+  ERROR_CODE_USERNAME_INVALID = 6;
+  ERROR_CODE_PASSWORD_INVALID = 7;
+  ERROR_CODE_NAME_TAKEN = 8;
+  ERROR_CODE_NAME_INVALID = 9;
+  ERROR_CODE_SLOT_OCCUPIED = 10;
+  ERROR_CODE_CHAR_NOT_FOUND = 11;
+  ERROR_CODE_NOT_IN_WORLD = 12;
+  ERROR_CODE_ALREADY_IN_WORLD = 13;
+  ERROR_CODE_ZONE_FULL = 14;
+  ERROR_CODE_INTERNAL = 15;
+}
+
+enum KickReason {
+  KICK_REASON_UNSPECIFIED = 0;
+  KICK_REASON_DUPLICATE_LOGIN = 1;
+  KICK_REASON_SERVER_SHUTDOWN = 2;
+  KICK_REASON_ZONE_RESTART = 3;
+  KICK_REASON_RATE_LIMITED = 4;
+  KICK_REASON_IDLE_TIMEOUT = 5;
+  KICK_REASON_SLOW_CONSUMER = 6;
+  KICK_REASON_PROTOCOL_ERROR = 7;
+}
+
+enum CharClass {
+  CHAR_CLASS_UNSPECIFIED = 0;
+  CHAR_CLASS_VIEM = 1;
+  CHAR_CLASS_THUY = 2;
+  CHAR_CLASS_MINH = 3;
+  CHAR_CLASS_NHAM = 4;
+  CHAR_CLASS_PHONG = 5;
+}
+
+enum EntityKind {
+  ENTITY_KIND_UNSPECIFIED = 0;
+  ENTITY_KIND_PLAYER = 1;
+}
+
+message Error {
+  ErrorCode code = 1;
+  string message = 2;
+}
+
+message RegisterReq {
+  string username = 1;
+  string password = 2;
+}
+
+message RegisterResp {}
+
+message LoginReq {
+  string username = 1;
+  string password = 2;
+  uint32 protocol_version = 3;
+}
+
+message LoginResp {
+  int64 account_id = 1;
+}
+
+message CharSummary {
+  int64 id = 1;
+  int32 slot = 2;
+  string name = 3;
+  CharClass class = 4;
+  int32 level = 5;
+  string map_id = 6;
+}
+
+message CharListReq {}
+
+message CharListResp {
+  repeated CharSummary chars = 1;
+}
+
+message CreateCharReq {
+  int32 slot = 1;
+  string name = 2;
+  CharClass class = 3;
+}
+
+message CreateCharResp {
+  CharSummary char = 1;
+}
+
+message DeleteCharReq {
+  int64 char_id = 1;
+  string confirm_name = 2;
+}
+
+message DeleteCharResp {}
+
+message EnterWorldReq {
+  int64 char_id = 1;
+}
+
+message EnterWorldResp {
+  uint64 self_entity_id = 1;
+  string map_id = 2;
+  int32 zone = 3;
+  float x = 4;
+  float y = 5;
+  uint32 server_tick = 6;
+  // Tiles per second.
+  float move_speed = 7;
+}
+
+message LeaveWorldReq {}
+
+message LeaveWorldResp {}
+
+// Direction from a joystick or WASD; length is clamped to 1, (0,0) stops.
+message MoveInput {
+  uint32 input_seq = 1;
+  float dir_x = 2;
+  float dir_y = 3;
+}
+
+message EntityEnter {
+  uint64 id = 1;
+  EntityKind kind = 2;
+  string name = 3;
+  CharClass class = 4;
+  int32 level = 5;
+  float x = 6;
+  float y = 7;
+  float dir_x = 8;
+  float dir_y = 9;
+}
+
+message EntityLeave {
+  uint64 id = 1;
+}
+
+message EntityMove {
+  uint64 id = 1;
+  float x = 2;
+  float y = 3;
+  float dir_x = 4;
+  float dir_y = 5;
+}
+
+// Sent every tick, even when moves is empty.
+message WorldTick {
+  uint32 tick = 1;
+  // Highest MoveInput.input_seq the server has applied for the receiver.
+  uint32 ack_input_seq = 2;
+  repeated EntityMove moves = 3;
+}
+
+message Ping {
+  int64 client_time = 1;
+}
+
+message Pong {
+  int64 client_time = 1;
+  int64 server_time = 2;
+}
+
+message Kicked {
+  KickReason reason = 1;
+}
