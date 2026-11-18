@@ -1,0 +1,214 @@
+package gateway
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"golang.org/x/text/unicode/norm"
+
+	"demonslayer2d/internal/auth"
+	"demonslayer2d/internal/classes"
+	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/store"
+	"demonslayer2d/internal/world"
+)
+
+func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
+	seq := env.Seq
+	switch p := env.Payload.(type) {
+	case *pb.Envelope_Ping:
+		c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_Pong{Pong: &pb.Pong{
+			ClientTime: p.Ping.ClientTime, ServerTime: time.Now().UnixMilli(),
+		}}})
+	case *pb.Envelope_MoveInput:
+		if c.state != stateInWorld || !c.moves.Allow() {
+			return
+		}
+		c.member.Move(p.MoveInput.InputSeq, p.MoveInput.DirX, p.MoveInput.DirY)
+	case *pb.Envelope_RegisterReq:
+		if c.expect(seq, stateConnected) {
+			c.handleRegister(ctx, seq, p.RegisterReq)
+		}
+	case *pb.Envelope_LoginReq:
+		if c.expect(seq, stateConnected) {
+			c.handleLogin(ctx, seq, p.LoginReq)
+		}
+	case *pb.Envelope_CharListReq:
+		if c.expect(seq, stateAuthed) {
+			c.handleCharList(ctx, seq)
+		}
+	case *pb.Envelope_CreateCharReq:
+		if c.expect(seq, stateAuthed) {
+			c.handleCreateChar(ctx, seq, p.CreateCharReq)
+		}
+	case *pb.Envelope_DeleteCharReq:
+		if c.expect(seq, stateAuthed) {
+			c.handleDeleteChar(ctx, seq, p.DeleteCharReq)
+		}
+	case *pb.Envelope_EnterWorldReq:
+		if c.state == stateInWorld {
+			c.fail(seq, pb.ErrorCode_ERROR_CODE_ALREADY_IN_WORLD, "already in world")
+			return
+		}
+		if c.expect(seq, stateAuthed) {
+			c.handleEnterWorld(ctx, seq, p.EnterWorldReq)
+		}
+	case *pb.Envelope_LeaveWorldReq:
+		if c.state != stateInWorld {
+			c.fail(seq, pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD, "not in world")
+			return
+		}
+		c.handleLeaveWorld(seq)
+	default:
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
+	}
+}
+
+func (c *conn) expect(seq uint32, want connState) bool {
+	if c.state == want {
+		return true
+	}
+	c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "not allowed in the current state")
+	return false
+}
+
+func (c *conn) handleRegister(ctx context.Context, seq uint32, r *pb.RegisterReq) {
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	if _, err := c.srv.deps.Auth.Register(rctx, c.ip, r.Username, r.Password); err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_RegisterResp{RegisterResp: &pb.RegisterResp{}}})
+}
+
+func (c *conn) handleLogin(ctx context.Context, seq uint32, r *pb.LoginReq) {
+	if r.ProtocolVersion != ProtocolVersion {
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_VERSION_MISMATCH, fmt.Sprintf("server speaks protocol %d", ProtocolVersion))
+		return
+	}
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	id, err := c.srv.deps.Auth.Login(rctx, c.ip, r.Username, r.Password)
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	if prev := c.srv.deps.World.Claim(id, c); prev != nil {
+		prev.Kick(pb.KickReason_KICK_REASON_DUPLICATE_LOGIN)
+		select {
+		case <-prev.Done(): // previous session has left the world and saved its character
+		case <-time.After(requestTimeout):
+			c.log.Warn("previous session did not close in time", "account_id", id)
+		}
+	}
+	c.authTimer.Stop()
+	c.accountID = id
+	c.state = stateAuthed
+	c.log.Info("login", "account_id", id)
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_LoginResp{LoginResp: &pb.LoginResp{AccountId: id}}})
+}
+
+func summary(ch store.Character) *pb.CharSummary {
+	return &pb.CharSummary{
+		Id: ch.ID, Slot: int32(ch.Slot), Name: ch.Name, Class: classes.ToPB(ch.Class),
+		Level: int32(ch.Level), MapId: ch.MapID,
+	}
+}
+
+func (c *conn) handleCharList(ctx context.Context, seq uint32) {
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	chars, err := c.srv.deps.Chars.ListCharacters(rctx, c.accountID)
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	resp := &pb.CharListResp{}
+	for _, ch := range chars {
+		resp.Chars = append(resp.Chars, summary(ch))
+	}
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_CharListResp{CharListResp: resp}})
+}
+
+func (c *conn) handleCreateChar(ctx context.Context, seq uint32, r *pb.CreateCharReq) {
+	if r.Slot < 1 || r.Slot > 3 {
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "slot must be 1-3")
+		return
+	}
+	class, ok := classes.FromPB(r.Class)
+	if !ok {
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "invalid class")
+		return
+	}
+	name, key, err := auth.NormalizeCharName(r.Name)
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	mapID, pos := c.srv.deps.World.StartPosition()
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	ch, err := c.srv.deps.Chars.CreateCharacter(rctx, store.NewCharacter{
+		AccountID: c.accountID, Slot: int(r.Slot), Name: name, NameKey: key, Class: class,
+		MapID: mapID, X: pos.X, Y: pos.Y,
+	})
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_CreateCharResp{CreateCharResp: &pb.CreateCharResp{Char: summary(ch)}}})
+}
+
+func (c *conn) handleDeleteChar(ctx context.Context, seq uint32, r *pb.DeleteCharReq) {
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	ch, err := c.srv.deps.Chars.GetCharacter(rctx, c.accountID, r.CharId)
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	if norm.NFC.String(r.ConfirmName) != ch.Name {
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "confirm_name does not match the character name")
+		return
+	}
+	if err := c.srv.deps.Chars.DeleteCharacter(rctx, c.accountID, r.CharId); err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_DeleteCharResp{DeleteCharResp: &pb.DeleteCharResp{}}})
+}
+
+func (c *conn) handleEnterWorld(ctx context.Context, seq uint32, r *pb.EnterWorldReq) {
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	ch, err := c.srv.deps.Chars.GetCharacter(rctx, c.accountID, r.CharId)
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	m, err := c.srv.deps.World.Enter(rctx, world.EnterRequest{Char: ch, Out: c.out, RespSeq: seq})
+	if err != nil {
+		c.failErr(seq, err)
+		return
+	}
+	// The zone has already queued EnterWorldResp for this seq.
+	c.member = m
+	c.state = stateInWorld
+	c.log.Info("enter world", "account_id", c.accountID, "char_id", ch.ID, "map", m.MapID, "zone", m.ZoneNo)
+}
+
+func (c *conn) handleLeaveWorld(seq uint32) {
+	select {
+	case err := <-c.member.Leave():
+		if err != nil {
+			c.log.Error("save on leave failed", "err", err)
+		}
+	case <-time.After(requestTimeout):
+		c.log.Warn("leave world timed out")
+	}
+	c.member = nil
+	c.state = stateAuthed
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_LeaveWorldResp{LeaveWorldResp: &pb.LeaveWorldResp{}}})
+}
