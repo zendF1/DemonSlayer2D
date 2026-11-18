@@ -1,6 +1,6 @@
 # Giai đoạn 0 — Nền móng server
 
-Ngày: 2026-11-18. Trạng thái: chờ duyệt.
+Ngày: 2026-11-18. Trạng thái: đã duyệt, đã triển khai.
 
 Tài liệu này là thiết kế kỹ thuật cho Giai đoạn 0 của server game. Thiết kế gameplay nằm ở [game-design.md](../../game-design.md); khi hai tài liệu khác nhau về luật chơi, game-design là chuẩn.
 
@@ -120,7 +120,8 @@ Ranh giới gateway ↔ zone chỉ là channel và gói tin, nên sau này có t
 | `id` | `bigint generated always as identity` | Khóa chính |
 | `account_id` | `bigint not null` | `references accounts(id) on delete cascade` |
 | `slot` | `smallint not null` | `check (slot between 1 and 3)`; `unique (account_id, slot)` |
-| `name` | `text not null` | 2–16 ký tự sau chuẩn hóa NFC; chữ cái (kể cả tiếng Việt có dấu) và chữ số, không khoảng trắng hay ký tự đặc biệt; chỉ mục duy nhất trên `lower(name)` |
+| `name` | `text not null` | 2–16 ký tự sau chuẩn hóa NFC; chữ cái (kể cả tiếng Việt có dấu) và chữ số, không khoảng trắng hay ký tự đặc biệt; tính duy nhất kiểm bằng cột `name_key` |
+| `name_key` | `text not null` | Tên chữ thường sau chuẩn hóa NFC, tính trong Go; unique |
 | `class` | `text not null` | `check (class in ('viem','thuy','minh','nham','phong'))` |
 | `level` | `int not null default 1` | `check (level >= 1)` |
 | `exp` | `bigint not null default 0` | Được phép âm (phạt PK, game-design mục 5.7) |
@@ -224,11 +225,11 @@ Một `WorldTick` vẫn được gửi khi không có thay đổi nào, để cl
 
 | Giới hạn | Giá trị | Vượt thì |
 | --- | --- | --- |
-| Kích thước một tin nhắn | 4 KB | Đóng kết nối, `PROTOCOL_ERROR` |
+| Kích thước một tin nhắn | 4 KB | Đóng WebSocket với mã 1009 (message too big) |
 | Số gói mỗi kết nối | 30 gói/giây | Bỏ gói; vượt liên tục 5 giây thì `RATE_LIMITED` và đóng |
 | `MoveInput` | 20 gói/giây | Bỏ gói vượt mức |
 | Đăng nhập sai | 5 lần/phút theo cặp IP + tên tài khoản | `RATE_LIMITED` |
-| Đăng ký | 5 lần/giờ theo IP | `RATE_LIMITED` |
+| Đăng ký | `REGISTER_PER_HOUR` lần/giờ theo IP (mặc định 5) | `RATE_LIMITED` |
 | Chưa đăng nhập | 30 giây kể từ khi kết nối | `IDLE_TIMEOUT` |
 | Không nhận gói nào | 30 giây | `IDLE_TIMEOUT` |
 | Gói không giải mã được | 1 lần | `PROTOCOL_ERROR` |
@@ -292,10 +293,10 @@ Mỗi zone là một goroutine với hộp thư lệnh (channel đệm 1.024) v�
 ### 5.4. Di chuyển và va chạm
 
 - Tọa độ theo ô, kiểu `float32`. Ô (i, j) phủ vùng `[i, i+1) × [j, j+1)`.
-- Nhân vật là hình tròn bán kính 0,3 ô.
+- Nhân vật là hộp vuông cạnh 0,6 ô (nửa cạnh 0,3 ô) đặt giữa vị trí.
 - `move_speed` = hệ số tốc độ × `MOVE_SPEED_TILES` (mặc định 4 ô/giây ứng với hệ số 1, game-design mục 2.2). Con số 4 là tạm thời, chỉnh sau khi chơi thử.
 - Mỗi tick, di chuyển trục X trước, kiểm tra va chạm, rồi trục Y. Trục nào đụng ô bị chặn thì dừng sát mép ô trên trục đó, trục còn lại vẫn đi. Kết quả là trượt dọc theo tường.
-- Bước di chuyển mỗi tick nhỏ hơn bán kính, nên không thể xuyên qua tường mỏng một ô.
+- Mỗi bước được chia nhỏ thành các bước con tối đa 0,25 ô, nên dù đi nhanh cũng không thể xuyên qua tường mỏng một ô.
 - Server chỉ dùng hướng; vị trí do server tính. Client gửi bao nhiêu `MoveInput` cũng không đi nhanh hơn `move_speed`.
 - Client tự dự đoán vị trí của mình theo cùng thuật toán. Khi nhận `WorldTick`, client lấy vị trí server cho mình kèm `ack_input_seq`, chạy lại các input chưa được ack để sửa sai lệch.
 
@@ -337,6 +338,7 @@ Mỗi zone là một goroutine với hộp thư lệnh (channel đệm 1.024) v�
 | `AOI_CELL_SIZE` | `10` | Cạnh ô lưới tầm nhìn, tính theo ô |
 | `ZONE_CAPACITY` | `50` | Số người tối đa mỗi zone |
 | `SAVE_INTERVAL` | `60s` | Chu kỳ lưu vị trí |
+| `REGISTER_PER_HOUR` | `5` | Số lần đăng ký tối đa mỗi giờ theo IP (nâng lên khi thử tải) |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 
 ## 6. Xử lý lỗi và vận hành
@@ -371,7 +373,7 @@ Mỗi zone là một goroutine với hộp thư lệnh (channel đệm 1.024) v�
 ## 9. Tiêu chí hoàn thành
 
 1. `make db-up && make run` khởi động Postgres và server với map `kumotori_1`.
-2. `botclient` có các lệnh `register`, `login`, `chars`, `create`, `delete`, `enter`, `move`, `load`.
+2. `botclient` có các lệnh `register`, `chars`, `create`, `delete`, `play` (vào game, di chuyển và in những gì nhìn thấy), `load`.
 3. Test end-to-end đạt: hai bot thấy nhau di chuyển, vị trí mới đến bot kia trong vòng 200 ms trên máy dev.
 4. Có test chứng minh không xuyên tường và không vượt tốc độ.
 5. Đăng nhập trùng đá phiên cũ; thoát rồi vào lại đúng vị trí đã lưu.
