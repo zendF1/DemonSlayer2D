@@ -1,0 +1,1121 @@
+source,tier,collection,slot,required_level,class,name,upgrade,hp,physical_attack,magical_attack,physical_defense,magical_defense
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,0,0,25,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,0,0,0,25,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,0,0,25,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,0,0,25,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,0,0,0,25,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,0,35,5,5,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,0,226,10,10,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,0,214,10,10,4,4
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,0,206,10,10,2,2
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,0,294,15,15,6,6
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,0,268,5,5,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,0,274,10,10,1,1
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,0,305,5,5,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,0,330,5,5,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,1,0,26,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,1,0,0,26,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,1,0,26,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,1,0,26,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,1,0,0,26,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,1,44,5,5,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,1,228,11,11,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,1,219,10,10,4,4
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,1,206,10,10,2,2
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,1,304,16,16,6,6
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,1,270,5,5,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,1,274,10,10,1,1
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,1,310,5,5,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,1,330,5,5,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,2,0,27,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,2,0,0,27,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,2,0,27,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,2,0,27,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,2,0,0,27,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,2,50,5,5,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,2,232,11,11,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,2,230,11,11,4,4
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,2,212,11,11,2,2
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,2,308,16,16,6,6
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,2,270,5,5,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,2,274,11,11,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,2,312,5,5,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,2,337,5,5,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,3,0,28,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,3,0,0,28,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,3,0,28,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,3,0,28,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,3,0,0,28,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,3,66,6,6,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,3,232,11,11,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,3,230,11,11,4,4
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,3,216,11,11,2,2
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,3,314,17,17,6,6
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,3,277,6,6,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,3,283,11,11,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,3,327,6,6,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,3,337,5,5,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,4,0,29,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,4,0,0,29,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,4,0,29,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,4,0,29,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,4,0,0,29,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,4,70,6,6,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,4,242,12,12,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,4,240,12,12,4,4
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,4,226,12,12,2,2
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,4,314,17,17,7,7
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,4,278,6,6,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,4,290,12,12,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,4,328,6,6,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,4,343,6,6,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,5,0,31,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,5,0,0,31,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,5,0,31,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,5,0,31,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,5,0,0,31,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,5,92,6,6,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,5,244,13,13,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,5,254,13,13,4,4
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,5,226,13,13,3,3
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,5,328,19,19,7,7
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,5,286,6,6,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,5,306,13,13,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,5,328,6,6,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,5,348,6,6,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,6,2,34,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,6,2,0,34,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,6,2,34,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,6,2,34,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,6,2,0,34,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,6,120,7,7,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,6,258,14,14,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,6,254,14,14,5,5
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,6,228,13,13,3,3
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,6,336,20,20,8,8
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,6,292,7,7,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,6,306,13,13,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,6,340,7,7,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,6,366,7,7,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,7,22,37,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,7,22,0,37,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,7,22,37,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,7,22,37,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,7,22,0,37,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,7,128,8,8,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,7,268,15,15,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,7,262,15,15,6,6
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,7,248,15,15,3,3
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,7,343,22,22,9,9
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,7,310,8,8,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,7,326,15,15,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,7,350,7,7,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,7,366,7,7,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,8,48,41,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,8,48,0,41,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,8,48,41,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,8,48,41,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,8,48,0,41,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,8,136,8,8,2,2
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,8,286,17,17,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,8,273,17,17,6,6
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,8,266,17,17,4,4
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,8,360,25,25,10,10
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,8,320,8,8,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,8,338,16,16,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,8,366,8,8,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,8,385,8,8,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,9,88,46,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,9,88,0,46,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,9,88,46,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,9,88,46,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,9,88,0,46,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,9,138,9,9,3,3
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,9,302,19,19,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,9,288,19,19,7,7
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,9,284,19,19,4,4
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,9,385,28,28,11,11
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,9,330,9,9,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,9,370,18,18,2,2
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,9,374,9,9,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,9,404,9,9,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,10,140,53,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,10,140,0,53,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,10,140,53,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,10,140,53,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,10,140,0,53,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,10,154,11,11,3,3
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,10,326,21,21,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,10,300,21,21,8,8
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,10,298,21,21,5,5
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,10,411,32,32,12,12
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,10,350,10,10,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,10,390,21,21,3,3
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,10,400,10,10,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,10,420,10,10,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,11,196,60,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,11,196,0,60,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,11,196,60,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,11,196,60,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,11,196,0,60,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,11,154,12,12,4,4
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,11,355,24,24,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,11,316,24,24,9,9
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,11,330,24,24,5,5
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,11,432,36,36,14,14
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,11,374,12,12,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,11,420,24,24,4,4
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,11,427,12,12,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,11,453,12,12,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,12,262,69,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,12,262,0,69,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,12,262,69,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,12,262,69,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,12,262,0,69,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,12,172,14,14,4,4
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,12,391,28,28,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,12,342,27,27,10,10
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,12,348,27,27,6,6
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,12,456,41,41,17,17
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,12,398,14,14,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,12,454,27,27,4,4
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,12,462,14,14,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,12,486,14,14,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,13,337,79,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,13,337,0,79,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,13,337,79,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,13,337,79,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,13,337,0,79,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,13,184,16,16,5,5
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,13,429,32,32,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,13,360,31,31,12,12
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,13,375,31,31,7,7
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,13,494,47,47,19,19
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,13,426,16,16,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,13,502,31,31,4,4
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,13,490,16,16,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,13,524,16,16,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,14,424,91,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,14,424,0,91,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,14,424,91,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,14,424,91,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,14,424,0,91,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,14,206,18,18,5,5
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,14,476,37,37,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,14,393,37,37,14,14
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,14,424,37,37,8,8
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,14,534,55,55,22,22
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,14,462,18,18,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,14,546,36,36,5,5
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,14,526,18,18,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,14,558,18,18,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Viêm,Viêm Nha Lữ Hành Kiếm,15,553,108,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Thủy,Thủy Nguyệt Lữ Hành Kiếm,15,553,0,108,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Minh,Lôi Ảnh Lữ Hành Kiếm,15,553,108,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Nham,Nham Trấn Lữ Hành Phủ–Chùy,15,553,108,0,0,0
+Thường,10,Lữ Hành,Vũ khí,10,Phong,Phong Vũ Lữ Hành Kiếm,15,553,0,108,0,0
+Thường,10,Lữ Hành,Giày,11,Tất cả,Giày Lữ Hành,15,232,22,22,6,6
+Thường,10,Lữ Hành,Hộ uyển,12,Tất cả,Hộ uyển Lữ Hành,15,534,43,43,0,0
+Thường,10,Lữ Hành,Quần,13,Tất cả,Quần Lữ Hành,15,430,43,43,16,16
+Thường,10,Lữ Hành,Mũ,14,Tất cả,Mũ Lữ Hành,15,462,43,43,10,10
+Thường,10,Lữ Hành,Áo,15,Tất cả,Áo Lữ Hành,15,574,65,65,26,26
+Thường,10,Lữ Hành,Dây chuyền,16,Tất cả,Dây chuyền Lữ Hành,15,505,21,21,0,0
+Thường,10,Lữ Hành,Ngọc bội,17,Tất cả,Ngọc bội Lữ Hành,15,610,43,43,6,6
+Thường,10,Lữ Hành,Nhẫn trái,18,Tất cả,Nhẫn trái Lữ Hành,15,574,21,21,0,0
+Thường,10,Lữ Hành,Nhẫn phải,19,Tất cả,Nhẫn phải Lữ Hành,15,610,21,21,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,0,316,50,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,0,316,0,50,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,0,316,50,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,0,316,50,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,0,316,0,50,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,0,187,10,10,3,3
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,0,440,20,20,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,0,324,20,20,8,8
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,0,403,20,20,4,4
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,0,503,30,30,12,12
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,0,366,10,10,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,0,467,20,20,3,3
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,0,462,10,10,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,0,428,10,10,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,1,321,51,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,1,321,0,51,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,1,321,51,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,1,321,51,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,1,321,0,51,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,1,191,10,10,3,3
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,1,442,21,21,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,1,344,21,21,8,8
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,1,410,21,21,4,4
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,1,510,31,31,12,12
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,1,371,10,10,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,1,478,21,21,3,3
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,1,466,10,10,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,1,428,10,10,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,2,336,54,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,2,336,0,54,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,2,336,54,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,2,336,54,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,2,336,0,54,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,2,206,11,11,3,3
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,2,448,21,21,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,2,344,21,21,8,8
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,2,410,21,21,5,5
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,2,510,32,32,13,13
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,2,374,11,11,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,2,478,21,21,3,3
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,2,480,11,11,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,2,443,11,11,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,3,344,56,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,3,344,0,56,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,3,344,56,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,3,344,56,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,3,344,0,56,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,3,206,11,11,4,4
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,3,464,23,23,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,3,365,23,23,8,8
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,3,410,22,22,5,5
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,3,542,34,34,13,13
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,3,374,11,11,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,3,494,22,22,3,3
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,3,484,11,11,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,3,445,11,11,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,4,373,59,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,4,373,0,59,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,4,373,59,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,4,373,59,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,4,373,0,59,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,4,222,12,12,4,4
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,4,470,24,24,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,4,370,24,24,9,9
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,4,420,23,23,5,5
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,4,544,35,35,14,14
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,4,386,12,12,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,4,506,23,23,3,3
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,4,499,12,12,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,4,450,12,12,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,5,392,63,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,5,392,0,63,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,5,392,63,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,5,392,63,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,5,392,0,63,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,5,248,13,13,4,4
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,5,482,25,25,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,5,381,25,25,9,9
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,5,437,25,25,5,5
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,5,563,38,38,15,15
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,5,406,13,13,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,5,522,25,25,4,4
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,5,506,13,13,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,5,458,12,12,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,6,414,68,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,6,414,0,68,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,6,414,68,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,6,414,68,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,6,414,0,68,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,6,280,14,14,4,4
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,6,504,27,27,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,6,391,27,27,10,10
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,6,454,27,27,6,6
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,6,587,41,41,16,16
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,6,412,14,14,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,6,541,27,27,4,4
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,6,522,14,14,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,6,475,13,13,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,7,465,74,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,7,465,0,74,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,7,465,74,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,7,465,74,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,7,465,0,74,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,7,292,15,15,4,4
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,7,536,30,30,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,7,415,30,30,11,11
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,7,474,30,30,7,7
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,7,594,44,44,18,18
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,7,430,15,15,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,7,574,30,30,4,4
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,7,543,15,15,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,7,496,15,15,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,8,544,83,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,8,544,0,83,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,8,544,83,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,8,544,83,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,8,544,0,83,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,8,308,17,17,5,5
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,8,567,33,33,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,8,424,33,33,12,12
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,8,518,33,33,7,7
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,8,630,50,50,20,20
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,8,444,16,16,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,8,602,33,33,5,5
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,8,555,16,16,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,8,518,16,16,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,9,638,93,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,9,638,0,93,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,9,638,93,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,9,638,93,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,9,638,0,93,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,9,324,19,19,6,6
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,9,595,37,37,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,9,454,37,37,14,14
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,9,539,37,37,8,8
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,9,677,56,56,22,22
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,9,472,18,18,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,9,649,37,37,5,5
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,9,578,18,18,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,9,542,18,18,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,10,740,105,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,10,740,0,105,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,10,740,105,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,10,740,105,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,10,740,0,105,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,10,340,21,21,6,6
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,10,660,42,42,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,10,474,42,42,16,16
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,10,578,42,42,10,10
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,10,700,63,63,25,25
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,10,518,21,21,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,10,686,42,42,6,6
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,10,626,21,21,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,10,587,21,21,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,11,874,120,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,11,874,0,120,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,11,874,120,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,11,874,120,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,11,874,0,120,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,11,358,24,24,7,7
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,11,720,48,48,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,11,514,48,48,18,18
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,11,626,48,48,11,11
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,11,750,72,72,29,29
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,11,546,24,24,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,11,750,48,48,7,7
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,11,664,24,24,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,11,627,24,24,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,12,1030,138,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,12,1030,0,138,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,12,1030,138,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,12,1030,138,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,12,1030,0,138,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,12,388,28,28,8,8
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,12,789,55,55,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,12,548,55,55,21,21
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,12,682,55,55,12,12
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,12,816,83,83,33,33
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,12,584,27,27,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,12,807,55,55,8,8
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,12,716,27,27,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,12,677,27,27,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,13,1208,158,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,13,1208,0,158,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,13,1208,158,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,13,1208,158,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,13,1208,0,158,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,13,416,32,32,9,9
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,13,874,63,63,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,13,584,63,63,24,24
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,13,735,63,63,14,14
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,13,864,95,95,38,38
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,13,638,31,31,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,13,884,63,63,9,9
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,13,764,31,31,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,13,734,31,31,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,14,1429,183,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,14,1429,0,183,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,14,1429,183,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,14,1429,183,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,14,1429,0,183,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,14,441,37,37,11,11
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,14,971,73,73,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,14,643,73,73,27,27
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,14,806,73,73,16,16
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,14,917,110,110,44,44
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,14,700,36,36,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,14,970,73,73,11,11
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,14,832,36,36,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,14,804,36,36,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Viêm,Viêm Nha Thanh Thiết Kiếm,15,1702,215,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Thủy,Thủy Nguyệt Thanh Thiết Kiếm,15,1702,0,215,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Minh,Lôi Ảnh Thanh Thiết Kiếm,15,1702,215,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Nham,Nham Trấn Thanh Thiết Phủ–Chùy,15,1702,215,0,0,0
+Thường,20,Thanh Thiết,Vũ khí,20,Phong,Phong Vũ Thanh Thiết Kiếm,15,1702,0,215,0,0
+Thường,20,Thanh Thiết,Giày,21,Tất cả,Giày Thanh Thiết,15,471,43,43,13,13
+Thường,20,Thanh Thiết,Hộ uyển,22,Tất cả,Hộ uyển Thanh Thiết,15,1098,86,86,0,0
+Thường,20,Thanh Thiết,Quần,23,Tất cả,Quần Thanh Thiết,15,694,86,86,32,32
+Thường,20,Thanh Thiết,Mũ,24,Tất cả,Mũ Thanh Thiết,15,896,86,86,19,19
+Thường,20,Thanh Thiết,Áo,25,Tất cả,Áo Thanh Thiết,15,972,129,129,52,52
+Thường,20,Thanh Thiết,Dây chuyền,26,Tất cả,Dây chuyền Thanh Thiết,15,795,43,43,0,0
+Thường,20,Thanh Thiết,Ngọc bội,27,Tất cả,Ngọc bội Thanh Thiết,15,1064,86,86,13,13
+Thường,20,Thanh Thiết,Nhẫn trái,28,Tất cả,Nhẫn trái Thanh Thiết,15,932,43,43,0,0
+Thường,20,Thanh Thiết,Nhẫn phải,29,Tất cả,Nhẫn phải Thanh Thiết,15,894,43,43,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,0,777,88,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,0,777,0,88,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,0,777,88,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,0,777,88,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,0,777,0,88,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,0,291,18,18,6,6
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,0,586,35,35,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,0,479,35,35,13,13
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,0,559,35,35,8,8
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,0,643,53,53,21,21
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,0,477,17,17,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,0,644,35,35,5,5
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,0,512,17,17,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,0,537,17,17,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,1,792,90,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,1,792,0,90,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,1,792,90,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,1,792,90,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,1,792,0,90,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,1,292,18,18,6,6
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,1,586,36,36,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,1,492,36,36,14,14
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,1,569,36,36,8,8
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,1,643,54,54,22,22
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,1,486,18,18,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,1,656,36,36,5,5
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,1,526,18,18,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,1,547,18,18,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,2,818,94,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,2,818,0,94,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,2,818,94,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,2,818,94,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,2,818,0,94,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,2,307,19,19,6,6
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,2,604,37,37,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,2,497,37,37,14,14
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,2,592,37,37,8,8
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,2,652,56,56,22,22
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,2,495,19,19,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,2,656,37,37,6,6
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,2,539,19,19,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,2,561,19,19,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,3,845,98,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,3,845,0,98,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,3,845,98,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,3,845,98,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,3,845,0,98,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,3,330,20,20,6,6
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,3,617,39,39,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,3,507,39,39,15,15
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,3,592,39,39,9,9
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,3,682,59,59,23,23
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,3,507,20,20,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,3,677,39,39,6,6
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,3,555,20,20,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,3,564,19,19,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,4,892,103,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,4,892,0,103,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,4,892,103,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,4,892,103,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,4,892,0,103,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,4,347,21,21,6,6
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,4,634,41,41,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,4,520,41,41,16,16
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,4,609,41,41,9,9
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,4,691,62,62,25,25
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,4,520,21,21,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,4,697,41,41,6,6
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,4,568,21,21,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,4,581,21,21,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,5,951,111,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,5,951,0,111,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,5,951,111,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,5,951,111,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,5,951,0,111,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,5,360,22,22,7,7
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,5,663,44,44,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,5,552,44,44,16,16
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,5,624,44,44,10,10
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,5,722,66,66,26,26
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,5,535,22,22,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,5,723,44,44,7,7
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,5,571,22,22,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,5,598,22,22,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,6,1006,119,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,6,1006,0,119,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,6,1006,119,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,6,1006,119,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,6,1006,0,119,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,6,399,24,24,7,7
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,6,706,48,48,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,6,571,48,48,18,18
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,6,648,47,47,11,11
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,6,735,71,71,29,29
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,6,556,24,24,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,6,746,47,47,7,7
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,6,600,24,24,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,6,622,24,24,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,7,1117,131,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,7,1117,0,131,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,7,1117,131,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,7,1117,131,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,7,1117,0,131,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,7,409,26,26,8,8
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,7,744,52,52,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,7,602,52,52,19,19
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,7,686,52,52,12,12
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,7,781,78,78,31,31
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,7,578,26,26,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,7,791,52,52,8,8
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,7,627,26,26,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,7,640,26,26,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,8,1235,144,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,8,1235,0,144,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,8,1235,144,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,8,1235,144,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,8,1235,0,144,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,8,431,29,29,9,9
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,8,804,58,58,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,8,613,58,58,22,22
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,8,749,58,58,13,13
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,8,806,86,86,35,35
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,8,613,29,29,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,8,845,57,57,8,8
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,8,657,29,29,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,8,682,29,29,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,9,1409,162,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,9,1409,0,162,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,9,1409,162,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,9,1409,162,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,9,1409,0,162,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,9,454,32,32,10,10
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,9,860,65,65,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,9,669,65,65,24,24
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,9,782,65,65,15,15
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,9,873,97,97,39,39
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,9,646,32,32,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,9,904,65,65,10,10
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,9,690,32,32,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,9,713,32,32,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,10,1608,184,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,10,1608,0,184,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,10,1608,184,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,10,1608,184,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,10,1608,0,184,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,10,486,37,37,11,11
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,10,961,74,74,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,10,688,73,73,28,28
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,10,843,73,73,17,17
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,10,919,110,110,44,44
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,10,708,37,37,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,10,966,73,73,11,11
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,10,755,37,37,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,10,775,37,37,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,11,1850,210,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,11,1850,0,210,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,11,1850,210,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,11,1850,210,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,11,1850,0,210,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,11,504,42,42,13,13
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,11,1061,84,84,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,11,739,84,84,32,32
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,11,924,84,84,19,19
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,11,980,126,126,51,51
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,11,758,42,42,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,11,1070,84,84,12,12
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,11,809,42,42,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,11,834,42,42,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,12,2121,241,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,12,2121,0,241,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,12,2121,241,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,12,2121,241,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,12,2121,0,241,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,12,539,48,48,15,15
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,12,1170,96,96,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,12,802,96,96,36,36
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,12,991,96,96,22,22
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,12,1068,145,145,58,58
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,12,820,48,48,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,12,1153,96,96,14,14
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,12,886,48,48,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,12,910,48,48,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,13,2440,276,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,13,2440,0,276,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,13,2440,276,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,13,2440,276,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,13,2440,0,276,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,13,575,55,55,17,17
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,13,1311,110,110,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,13,851,110,110,41,41
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,13,1077,110,110,25,25
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,13,1136,166,166,66,66
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,13,902,55,55,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,13,1254,110,110,17,17
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,13,956,55,55,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,13,988,55,55,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,14,2818,319,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,14,2818,0,319,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,14,2818,319,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,14,2818,319,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,14,2818,0,319,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,14,614,64,64,20,20
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,14,1480,128,128,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,14,912,128,128,48,48
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,14,1178,128,128,29,29
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,14,1182,191,191,77,77
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,14,996,64,64,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,14,1389,127,127,19,19
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,14,1061,64,64,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,14,1093,64,64,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Viêm,Viêm Nha Tinh Cương Kiếm,15,3311,376,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Thủy,Thủy Nguyệt Tinh Cương Kiếm,15,3311,0,376,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Minh,Lôi Ảnh Tinh Cương Kiếm,15,3311,376,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Nham,Nham Trấn Tinh Cương Phủ–Chùy,15,3311,376,0,0,0
+Thường,30,Tinh Cương,Vũ khí,30,Phong,Phong Vũ Tinh Cương Kiếm,15,3311,0,376,0,0
+Thường,30,Tinh Cương,Giày,31,Tất cả,Giày Tinh Cương,15,666,75,75,23,23
+Thường,30,Tinh Cương,Hộ uyển,32,Tất cả,Hộ uyển Tinh Cương,15,1691,151,151,0,0
+Thường,30,Tinh Cương,Quần,33,Tất cả,Quần Tinh Cương,15,966,151,151,57,57
+Thường,30,Tinh Cương,Mũ,34,Tất cả,Mũ Tinh Cương,15,1313,151,151,34,34
+Thường,30,Tinh Cương,Áo,35,Tất cả,Áo Tinh Cương,15,1248,226,226,91,91
+Thường,30,Tinh Cương,Dây chuyền,36,Tất cả,Dây chuyền Tinh Cương,15,1127,75,75,0,0
+Thường,30,Tinh Cương,Ngọc bội,37,Tất cả,Ngọc bội Tinh Cương,15,1543,150,150,22,22
+Thường,30,Tinh Cương,Nhẫn trái,38,Tất cả,Nhẫn trái Tinh Cương,15,1189,75,75,0,0
+Thường,30,Tinh Cương,Nhẫn phải,39,Tất cả,Nhẫn phải Tinh Cương,15,1218,75,75,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,0,1380,138,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,0,1380,0,138,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,0,1380,138,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,0,1380,138,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,0,1380,0,138,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,0,406,28,28,8,8
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,0,884,55,55,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,0,695,55,55,21,21
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,0,748,55,55,13,13
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,0,919,83,83,33,33
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,0,670,27,27,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,0,850,55,55,8,8
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,0,710,27,27,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,0,730,27,27,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,1,1401,141,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,1,1401,0,141,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,1,1401,141,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,1,1401,141,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,1,1401,0,141,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,1,406,28,28,9,9
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,1,885,57,57,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,1,730,57,57,21,21
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,1,766,57,57,13,13
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,1,928,85,85,34,34
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,1,683,28,28,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,1,872,57,57,8,8
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,1,720,28,28,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,1,741,28,28,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,2,1448,147,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,2,1448,0,147,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,2,1448,147,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,2,1448,147,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,2,1448,0,147,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,2,422,30,30,9,9
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,2,922,59,59,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,2,733,59,59,22,22
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,2,799,59,59,13,13
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,2,937,88,88,35,35
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,2,688,29,29,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,2,883,59,59,9,9
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,2,734,29,29,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,2,758,29,29,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,3,1506,154,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,3,1506,0,154,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,3,1506,154,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,3,1506,154,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,3,1506,0,154,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,3,442,31,31,9,9
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,3,946,62,62,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,3,751,62,62,23,23
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,3,799,61,61,14,14
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,3,964,92,92,37,37
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,3,715,31,31,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,3,899,61,61,9,9
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,3,759,31,31,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,3,780,31,31,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,4,1581,162,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,4,1581,0,162,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,4,1581,162,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,4,1581,162,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,4,1581,0,162,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,4,460,33,33,10,10
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,4,971,65,65,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,4,775,65,65,24,24
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,4,834,65,65,14,14
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,4,989,97,97,39,39
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,4,737,33,33,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,4,932,65,65,10,10
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,4,774,32,32,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,4,784,32,32,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,5,1670,173,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,5,1670,0,173,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,5,1670,173,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,5,1670,173,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,5,1670,0,173,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,5,494,35,35,10,10
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,5,1011,69,69,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,5,792,69,69,26,26
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,5,846,69,69,16,16
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,5,1031,104,104,42,42
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,5,761,35,35,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,5,975,69,69,10,10
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,5,798,35,35,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,5,824,35,35,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,6,1784,187,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,6,1784,0,187,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,6,1784,187,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,6,1784,187,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,6,1784,0,187,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,6,531,38,38,11,11
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,6,1074,75,75,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,6,830,75,75,28,28
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,6,898,75,75,17,17
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,6,1066,112,112,45,45
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,6,784,37,37,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,6,1015,75,75,11,11
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,6,830,37,37,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,6,847,37,37,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,7,1940,204,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,7,1940,0,204,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,7,1940,204,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,7,1940,204,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,7,1940,0,204,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,7,552,41,41,12,12
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,7,1142,82,82,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,7,864,82,82,31,31
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,7,944,82,82,19,19
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,7,1127,123,123,49,49
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,7,825,41,41,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,7,1076,82,82,12,12
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,7,876,41,41,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,7,888,41,41,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,8,2155,227,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,8,2155,0,227,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,8,2155,227,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,8,2155,227,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,8,2155,0,227,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,8,571,45,45,14,14
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,8,1230,91,91,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,8,900,91,91,34,34
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,8,1032,91,91,20,20
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,8,1178,136,136,54,54
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,8,872,45,45,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,8,1148,91,91,14,14
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,8,916,45,45,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,8,942,45,45,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,9,2415,254,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,9,2415,0,254,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,9,2415,254,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,9,2415,254,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,9,2415,0,254,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,9,605,51,51,16,16
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,9,1329,102,102,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,9,965,102,102,38,38
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,9,1092,102,102,23,23
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,9,1248,152,152,61,61
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,9,933,51,51,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,9,1236,101,101,15,15
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,9,980,51,51,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,9,1003,51,51,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,10,2731,289,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,10,2731,0,289,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,10,2731,289,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,10,2731,289,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,10,2731,0,289,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,10,656,58,58,17,17
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,10,1478,116,116,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,10,1001,115,115,44,44
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,10,1182,115,115,26,26
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,10,1305,173,173,70,70
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,10,1020,58,58,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,10,1334,115,115,17,17
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,10,1069,58,58,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,10,1087,58,58,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,11,3106,330,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,11,3106,0,330,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,11,3106,330,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,11,3106,330,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,11,3106,0,330,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,11,694,66,66,20,20
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,11,1628,132,132,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,11,1074,132,132,50,50
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,11,1287,132,132,30,30
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,11,1404,198,198,79,79
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,11,1103,66,66,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,11,1466,132,132,20,20
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,11,1149,66,66,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,11,1180,66,66,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,12,3526,378,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,12,3526,0,378,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,12,3526,378,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,12,3526,378,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,12,3526,0,378,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,12,748,76,76,23,23
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,12,1807,151,151,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,12,1150,151,151,57,57
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,12,1394,151,151,34,34
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,12,1497,227,227,91,91
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,12,1205,76,76,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,12,1593,151,151,23,23
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,12,1266,76,76,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,12,1285,75,75,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,13,4020,433,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,13,4020,0,433,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,13,4020,433,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,13,4020,433,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,13,4020,0,433,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,13,804,87,87,26,26
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,13,2019,173,173,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,13,1214,173,173,65,65
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,13,1514,173,173,39,39
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,13,1563,260,260,105,105
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,13,1326,87,87,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,13,1754,173,173,26,26
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,13,1384,87,87,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,13,1401,86,86,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,14,4611,502,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,14,4611,0,502,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,14,4611,502,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,14,4611,502,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,14,4611,0,502,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,14,860,100,100,30,30
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,14,2281,201,201,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,14,1281,201,201,76,76
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,14,1666,201,201,45,45
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,14,1636,301,301,121,121
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,14,1458,100,100,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,14,1950,201,201,30,30
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,14,1526,100,100,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,14,1556,100,100,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Viêm,Viêm Nha Huyền Cương Kiếm,15,5359,591,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Thủy,Thủy Nguyệt Huyền Cương Kiếm,15,5359,0,591,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Minh,Lôi Ảnh Huyền Cương Kiếm,15,5359,591,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Nham,Nham Trấn Huyền Cương Phủ–Chùy,15,5359,591,0,0,0
+Thường,40,Huyền Cương,Vũ khí,40,Phong,Phong Vũ Huyền Cương Kiếm,15,5359,0,591,0,0
+Thường,40,Huyền Cương,Giày,41,Tất cả,Giày Huyền Cương,15,920,118,118,36,36
+Thường,40,Huyền Cương,Hộ uyển,42,Tất cả,Hộ uyển Huyền Cương,15,2603,237,237,0,0
+Thường,40,Huyền Cương,Quần,43,Tất cả,Quần Huyền Cương,15,1360,237,237,89,89
+Thường,40,Huyền Cương,Mũ,44,Tất cả,Mũ Huyền Cương,15,1843,237,237,53,53
+Thường,40,Huyền Cương,Áo,45,Tất cả,Áo Huyền Cương,15,1709,355,355,142,142
+Thường,40,Huyền Cương,Dây chuyền,46,Tất cả,Dây chuyền Huyền Cương,15,1654,118,118,0,0
+Thường,40,Huyền Cương,Ngọc bội,47,Tất cả,Ngọc bội Huyền Cương,15,2147,236,236,36,36
+Thường,40,Huyền Cương,Nhẫn trái,48,Tất cả,Nhẫn trái Huyền Cương,15,1720,118,118,0,0
+Thường,40,Huyền Cương,Nhẫn phải,49,Tất cả,Nhẫn phải Huyền Cương,15,1750,118,118,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,0,2038,200,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,0,2038,0,200,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,0,2038,200,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,0,2038,200,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,0,2038,0,200,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,0,582,40,40,12,12
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,0,1230,80,80,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,0,889,80,80,30,30
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,0,1042,80,80,18,18
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,0,1228,120,120,48,48
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,0,837,40,40,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,0,1152,80,80,12,12
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,0,940,40,40,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,0,1793,40,40,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,1,2090,206,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,1,2090,0,206,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,1,2090,206,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,1,2090,206,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,1,2090,0,206,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,1,600,41,41,12,12
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,1,1245,83,83,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,1,920,83,83,31,31
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,1,1047,82,82,19,19
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,1,1258,124,124,49,49
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,1,848,41,41,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,1,1178,82,82,12,12
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,1,944,41,41,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,1,1803,41,41,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,2,2154,214,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,2,2154,0,214,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,2,2154,214,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,2,2154,214,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,2,2154,0,214,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,2,608,43,43,13,13
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,2,1290,86,86,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,2,932,86,86,32,32
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,2,1090,85,85,19,19
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,2,1261,128,128,51,51
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,2,864,43,43,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,2,1198,85,85,13,13
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,2,970,43,43,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,2,1831,43,43,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,3,2242,224,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,3,2242,0,224,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,3,2242,224,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,3,2242,224,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,3,2242,0,224,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,3,638,45,45,13,13
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,3,1324,90,90,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,3,947,90,90,34,34
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,3,1110,89,89,20,20
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,3,1295,134,134,54,54
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,3,890,45,45,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,3,1232,89,89,13,13
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,3,997,45,45,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,3,1849,45,45,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,4,2356,236,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,4,2356,0,236,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,4,2356,236,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,4,2356,236,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,4,2356,0,236,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,4,655,47,47,14,14
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,4,1371,95,95,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,4,986,95,95,35,35
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,4,1144,94,94,21,21
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,4,1336,142,142,57,57
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,4,912,47,47,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,4,1274,94,94,14,14
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,4,1023,47,47,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,4,1863,47,47,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,5,2490,252,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,5,2490,0,252,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,5,2490,252,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,5,2490,252,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,5,2490,0,252,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,5,698,51,51,15,15
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,5,1430,101,101,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,5,1008,101,101,38,38
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,5,1185,101,101,23,23
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,5,1392,151,151,60,60
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,5,946,50,50,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,5,1334,101,101,15,15
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,5,1047,50,50,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,5,1910,50,50,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,6,2662,272,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,6,2662,0,272,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,6,2662,272,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,6,2662,272,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,6,2662,0,272,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,6,741,55,55,16,16
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,6,1514,109,109,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,6,1051,109,109,41,41
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,6,1242,109,109,25,25
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,6,1440,163,163,65,65
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,6,988,54,54,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,6,1390,109,109,16,16
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,6,1102,54,54,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,6,1953,54,54,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,7,2901,298,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,7,2901,0,298,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,7,2901,298,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,7,2901,298,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,7,2901,0,298,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,7,772,60,60,18,18
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,7,1610,119,119,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,7,1114,119,119,44,44
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,7,1308,119,119,27,27
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,7,1516,179,179,71,71
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,7,1052,60,60,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,7,1470,119,119,18,18
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,7,1166,60,60,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,7,2012,59,59,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,8,3195,330,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,8,3195,0,330,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,8,3195,330,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,8,3195,330,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,8,3195,0,330,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,8,811,66,66,20,20
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,8,1734,132,132,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,8,1156,132,132,49,49
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,8,1414,132,132,30,30
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,8,1574,198,198,79,79
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,8,1118,66,66,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,8,1578,132,132,20,20
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,8,1226,66,66,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,8,2114,66,66,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,9,3574,370,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,9,3574,0,370,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,9,3574,370,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,9,3574,370,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,9,3574,0,370,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,9,860,74,74,22,22
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,9,1880,148,148,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,9,1224,148,148,56,56
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,9,1513,148,148,33,33
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,9,1669,222,222,89,89
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,9,1198,74,74,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,9,1703,148,148,22,22
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,9,1313,74,74,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,9,2228,74,74,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,10,4021,420,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,10,4021,0,420,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,10,4021,420,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,10,4021,420,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,10,4021,0,420,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,10,913,84,84,25,25
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,10,2086,168,168,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,10,1298,168,168,63,63
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,10,1638,168,168,38,38
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,10,1746,252,252,101,101
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,10,1318,84,84,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,10,1840,168,168,25,25
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,10,1432,84,84,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,10,2392,84,84,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,11,4556,480,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,11,4556,0,480,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,11,4556,480,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,11,4556,480,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,11,4556,0,480,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,11,975,96,96,29,29
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,11,2306,192,192,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,11,1384,192,192,72,72
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,11,1784,192,192,43,43
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,11,1852,288,288,115,115
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,11,1440,96,96,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,11,2018,192,192,29,29
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,11,1550,96,96,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,11,2607,96,96,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,12,5163,550,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,12,5163,0,550,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,12,5163,550,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,12,5163,550,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,12,5163,0,550,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,12,1046,110,110,33,33
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,12,2570,220,220,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,12,1462,220,220,83,83
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,12,1934,220,220,49,49
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,12,1958,330,330,132,132
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,12,1582,110,110,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,12,2200,220,220,33,33
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,12,1709,110,110,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,12,2875,110,110,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,13,5858,630,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,13,5858,0,630,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,13,5858,630,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,13,5858,630,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,13,5858,0,630,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,13,1112,126,126,38,38
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,13,2871,252,252,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,13,1547,252,252,94,94
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,13,2082,252,252,57,57
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,13,2044,378,378,151,151
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,13,1750,126,126,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,13,2408,252,252,38,38
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,13,1878,126,126,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,13,3193,126,126,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,14,6690,730,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,14,6690,0,730,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,14,6690,730,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,14,6690,730,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,14,6690,0,730,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,14,1194,146,146,44,44
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,14,3236,292,292,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,14,1624,292,292,109,109
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,14,2272,292,292,66,66
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,14,2104,438,438,175,175
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,14,1948,146,146,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,14,2660,292,292,44,44
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,14,2086,146,146,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,14,3637,146,146,0,0
+Thường,50,Xích Cương,Vũ khí,50,Viêm,Viêm Nha Xích Cương Kiếm,15,7742,860,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Thủy,Thủy Nguyệt Xích Cương Kiếm,15,7742,0,860,0,0
+Thường,50,Xích Cương,Vũ khí,50,Minh,Lôi Ảnh Xích Cương Kiếm,15,7742,860,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Nham,Nham Trấn Xích Cương Phủ–Chùy,15,7742,860,0,0,0
+Thường,50,Xích Cương,Vũ khí,50,Phong,Phong Vũ Xích Cương Kiếm,15,7742,0,860,0,0
+Thường,50,Xích Cương,Giày,51,Tất cả,Giày Xích Cương,15,1281,172,172,52,52
+Thường,50,Xích Cương,Hộ uyển,52,Tất cả,Hộ uyển Xích Cương,15,3689,344,344,0,0
+Thường,50,Xích Cương,Quần,53,Tất cả,Quần Xích Cương,15,1684,344,344,129,129
+Thường,50,Xích Cương,Mũ,54,Tất cả,Mũ Xích Cương,15,2508,344,344,77,77
+Thường,50,Xích Cương,Áo,55,Tất cả,Áo Xích Cương,15,2143,516,516,206,206
+Thường,50,Xích Cương,Dây chuyền,56,Tất cả,Dây chuyền Xích Cương,15,2213,172,172,0,0
+Thường,50,Xích Cương,Ngọc bội,57,Tất cả,Ngọc bội Xích Cương,15,2950,344,344,52,52
+Thường,50,Xích Cương,Nhẫn trái,58,Tất cả,Nhẫn trái Xích Cương,15,2352,172,172,0,0
+Thường,50,Xích Cương,Nhẫn phải,59,Tất cả,Nhẫn phải Xích Cương,15,4252,172,172,0,0

@@ -1,0 +1,673 @@
+source,tier,collection,slot,required_level,class,name,upgrade,hp,physical_attack,magical_attack,physical_defense,magical_defense
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,0,917,101,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,0,917,0,101,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,0,917,101,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,0,917,101,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,0,917,0,101,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,0,308,20,20,6,6
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,0,652,41,41,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,0,508,40,40,15,15
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,0,605,40,40,9,9
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,0,678,61,61,25,25
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,0,509,20,20,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,0,683,40,40,6,6
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,0,539,20,20,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,0,567,20,20,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,1,942,104,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,1,942,0,104,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,1,942,104,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,1,942,104,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,1,942,0,104,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,1,330,21,21,6,6
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,1,652,42,42,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,1,511,41,41,16,16
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,1,613,41,41,9,9
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,1,683,62,62,25,25
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,1,524,21,21,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,1,690,41,41,6,6
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,1,555,21,21,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,1,576,21,21,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,2,968,108,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,2,968,0,108,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,2,968,108,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,2,968,108,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,2,968,0,108,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,2,331,22,22,7,7
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,2,664,43,43,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,2,540,43,43,16,16
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,2,630,43,43,10,10
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,2,701,65,65,26,26
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,2,526,22,22,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,2,710,43,43,6,6
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,2,555,21,21,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,2,581,21,21,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,3,1006,113,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,3,1006,0,113,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,3,1006,113,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,3,1006,113,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,3,1006,0,113,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,3,348,23,23,7,7
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,3,679,45,45,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,3,550,45,45,17,17
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,3,641,45,45,10,10
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,3,729,68,68,27,27
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,3,539,23,23,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,3,723,45,45,7,7
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,3,571,22,22,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,3,592,22,22,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,4,1066,119,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,4,1066,0,119,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,4,1066,119,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,4,1066,119,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,4,1066,0,119,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,4,362,24,24,7,7
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,4,707,48,48,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,4,560,47,47,18,18
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,4,650,47,47,11,11
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,4,749,71,71,28,28
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,4,548,24,24,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,4,744,47,47,7,7
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,4,597,24,24,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,4,606,24,24,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,5,1124,127,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,5,1124,0,127,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,5,1124,127,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,5,1124,127,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,5,1124,0,127,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,5,376,25,25,8,8
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,5,738,51,51,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,5,591,51,51,19,19
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,5,687,51,51,11,11
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,5,773,76,76,30,30
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,5,565,25,25,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,5,778,51,51,8,8
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,5,600,25,25,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,5,625,25,25,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,6,1200,137,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,6,1200,0,137,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,6,1200,137,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,6,1200,137,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,6,1200,0,137,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,6,425,28,28,8,8
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,6,780,55,55,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,6,606,55,55,21,21
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,6,720,55,55,12,12
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,6,799,82,82,33,33
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,6,579,27,27,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,6,820,55,55,8,8
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,6,623,27,27,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,6,650,27,27,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,7,1319,150,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,7,1319,0,150,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,7,1319,150,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,7,1319,150,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,7,1319,0,150,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,7,439,30,30,9,9
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,7,826,60,60,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,7,638,60,60,23,23
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,7,754,60,60,13,13
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,7,836,90,90,36,36
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,7,619,30,30,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,7,855,60,60,9,9
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,7,664,30,30,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,7,679,30,30,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,8,1465,166,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,8,1465,0,166,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,8,1465,166,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,8,1465,166,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,8,1465,0,166,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,8,463,33,33,10,10
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,8,899,67,67,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,8,666,67,67,25,25
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,8,801,66,66,15,15
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,8,884,100,100,40,40
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,8,646,33,33,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,8,907,66,66,10,10
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,8,696,33,33,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,8,720,33,33,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,9,1662,186,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,9,1662,0,186,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,9,1662,186,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,9,1662,186,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,9,1662,0,186,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,9,494,37,37,11,11
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,9,961,75,75,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,9,720,75,75,28,28
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,9,856,75,75,17,17
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,9,937,112,112,45,45
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,9,693,37,37,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,9,978,74,74,11,11
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,9,734,37,37,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,9,756,37,37,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,10,1887,211,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,10,1887,0,211,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,10,1887,211,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,10,1887,211,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,10,1887,0,211,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,10,511,42,42,13,13
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,10,1075,85,85,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,10,750,85,85,32,32
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,10,937,85,85,19,19
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,10,985,127,127,51,51
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,10,755,42,42,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,10,1053,85,85,13,13
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,10,798,42,42,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,10,820,42,42,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,11,2178,242,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,11,2178,0,242,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,11,2178,242,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,11,2178,242,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,11,2178,0,242,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,11,540,48,48,15,15
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,11,1188,97,97,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,11,812,97,97,36,36
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,11,1005,97,97,22,22
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,11,1063,145,145,58,58
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,11,809,48,48,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,11,1151,97,97,15,15
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,11,861,48,48,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,11,888,48,48,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,12,2493,277,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,12,2493,0,277,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,12,2493,277,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,12,2493,277,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,12,2493,0,277,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,12,586,56,56,17,17
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,12,1319,111,111,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,12,859,111,111,42,42
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,12,1087,111,111,25,25
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,12,1128,166,166,67,67
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,12,886,55,55,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,12,1257,111,111,16,16
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,12,948,55,55,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,12,972,55,55,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,13,2855,317,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,13,2855,0,317,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,13,2855,317,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,13,2855,317,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,13,2855,0,317,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,13,628,64,64,19,19
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,13,1482,127,127,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,13,903,127,127,48,48
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,13,1174,127,127,29,29
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,13,1185,190,190,77,77
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,13,978,64,64,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,13,1372,127,127,19,19
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,13,1027,63,63,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,13,1062,63,63,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,14,3303,368,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,14,3303,0,368,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,14,3303,368,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,14,3303,368,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,14,3303,0,368,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,14,680,74,74,22,22
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,14,1662,147,147,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,14,956,147,147,56,56
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,14,1289,147,147,33,33
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,14,1246,221,221,89,89
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,14,1079,73,73,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,14,1514,147,147,22,22
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,14,1135,73,73,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,14,1174,73,73,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Viêm,Viêm Nha Tử Đằng Kiếm,15,3868,433,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Thủy,Thủy Nguyệt Tử Đằng Kiếm,15,3868,0,433,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Minh,Lôi Ảnh Tử Đằng Kiếm,15,3868,433,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Nham,Nham Trấn Tử Đằng Phủ–Chùy,15,3868,433,0,0,0
+Chế,30,Tử Đằng,Vũ khí,30,Phong,Phong Vũ Tử Đằng Kiếm,15,3868,0,433,0,0
+Chế,30,Tử Đằng,Giày,31,Tất cả,Giày Tử Đằng,15,728,87,87,26,26
+Chế,30,Tử Đằng,Hộ uyển,32,Tất cả,Hộ uyển Tử Đằng,15,1896,173,173,0,0
+Chế,30,Tử Đằng,Quần,33,Tất cả,Quần Tử Đằng,15,1008,173,173,66,66
+Chế,30,Tử Đằng,Mũ,34,Tất cả,Mũ Tử Đằng,15,1424,173,173,39,39
+Chế,30,Tử Đằng,Áo,35,Tất cả,Áo Tử Đằng,15,1297,260,260,105,105
+Chế,30,Tử Đằng,Dây chuyền,36,Tất cả,Dây chuyền Tử Đằng,15,1228,87,87,0,0
+Chế,30,Tử Đằng,Ngọc bội,37,Tất cả,Ngọc bội Tử Đằng,15,1665,173,173,26,26
+Chế,30,Tử Đằng,Nhẫn trái,38,Tất cả,Nhẫn trái Tử Đằng,15,1291,87,87,0,0
+Chế,30,Tử Đằng,Nhẫn phải,39,Tất cả,Nhẫn phải Tử Đằng,15,1314,86,86,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,0,2340,230,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,0,2340,0,230,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,0,2340,230,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,0,2340,230,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,0,2340,0,230,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,0,623,46,46,14,14
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,0,1348,92,92,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,0,963,92,92,34,34
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,0,1128,92,92,21,21
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,0,1325,138,138,55,55
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,0,895,46,46,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,0,1248,92,92,14,14
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,0,998,46,46,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,0,956,46,46,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,1,2400,237,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,1,2400,0,237,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,1,2400,237,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,1,2400,237,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,1,2400,0,237,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,1,640,47,47,14,14
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,1,1365,95,95,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,1,984,95,95,36,36
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,1,1154,95,95,21,21
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,1,1338,142,142,57,57
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,1,910,47,47,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,1,1280,95,95,14,14
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,1,1010,47,47,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,1,962,47,47,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,2,2476,246,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,2,2476,0,246,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,2,2476,246,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,2,2476,246,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,2,2476,0,246,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,2,642,49,49,15,15
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,2,1419,99,99,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,2,1007,99,99,37,37
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,2,1186,98,98,22,22
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,2,1362,148,148,59,59
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,2,924,49,49,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,2,1312,98,98,14,14
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,2,1029,49,49,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,2,998,49,49,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,3,2583,258,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,3,2583,0,258,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,3,2583,258,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,3,2583,258,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,3,2583,0,258,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,3,686,52,52,15,15
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,3,1452,103,103,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,3,1018,103,103,39,39
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,3,1212,103,103,23,23
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,3,1406,155,155,62,62
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,3,952,51,51,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,3,1339,103,103,15,15
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,3,1058,51,51,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,3,1015,51,51,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,4,2704,271,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,4,2704,0,271,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,4,2704,271,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,4,2704,271,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,4,2704,0,271,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,4,702,54,54,16,16
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,4,1511,109,109,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,4,1055,109,109,41,41
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,4,1254,109,109,24,24
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,4,1444,163,163,65,65
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,4,981,54,54,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,4,1386,108,108,16,16
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,4,1088,54,54,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,4,1038,54,54,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,5,2859,289,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,5,2859,0,289,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,5,2859,289,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,5,2859,289,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,5,2859,0,289,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,5,732,58,58,18,18
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,5,1579,116,116,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,5,1092,116,116,43,43
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,5,1295,116,116,26,26
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,5,1502,174,174,69,69
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,5,1026,58,58,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,5,1452,116,116,17,17
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,5,1125,58,58,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,5,1092,58,58,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,6,3066,313,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,6,3066,0,313,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,6,3066,313,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,6,3066,313,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,6,3066,0,313,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,6,786,63,63,19,19
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,6,1668,125,125,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,6,1136,125,125,47,47
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,6,1360,125,125,28,28
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,6,1548,188,188,75,75
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,6,1079,63,63,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,6,1516,125,125,18,18
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,6,1176,62,62,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,6,1134,62,62,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,7,3341,343,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,7,3341,0,343,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,7,3341,343,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,7,3341,343,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,7,3341,0,343,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,7,824,69,69,21,21
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,7,1784,137,137,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,7,1196,137,137,51,51
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,7,1436,137,137,31,31
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,7,1626,206,206,82,82
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,7,1129,68,68,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,7,1610,137,137,20,20
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,7,1243,68,68,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,7,1192,68,68,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,8,3672,379,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,8,3672,0,379,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,8,3672,379,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,8,3672,379,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,8,3672,0,379,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,8,869,76,76,23,23
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,8,1928,152,152,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,8,1242,152,152,57,57
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,8,1548,152,152,34,34
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,8,1685,227,227,91,91
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,8,1211,76,76,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,8,1735,152,152,22,22
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,8,1323,76,76,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,8,1282,76,76,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,9,4111,426,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,9,4111,0,426,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,9,4111,426,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,9,4111,426,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,9,4111,0,426,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,9,912,85,85,26,26
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,9,2096,170,170,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,9,1318,170,170,64,64
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,9,1649,170,170,38,38
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,9,1798,256,256,102,102
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,9,1302,85,85,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,9,1862,170,170,25,25
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,9,1418,85,85,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,9,1373,85,85,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,10,4618,483,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,10,4618,0,483,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,10,4618,483,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,10,4618,483,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,10,4618,0,483,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,10,978,97,97,29,29
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,10,2323,193,193,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,10,1402,193,193,72,72
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,10,1794,193,193,43,43
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,10,1870,290,290,116,116
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,10,1440,97,97,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,10,2002,193,193,29,29
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,10,1553,97,97,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,10,1497,96,96,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,11,5230,552,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,11,5230,0,552,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,11,5230,552,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,11,5230,552,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,11,5230,0,552,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,11,1054,111,111,33,33
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,11,2578,221,221,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,11,1479,221,221,83,83
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,11,1938,221,221,50,50
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,11,1973,331,331,132,132
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,11,1569,110,110,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,11,2202,221,221,33,33
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,11,1680,110,110,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,11,1646,110,110,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,12,5923,633,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,12,5923,0,633,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,12,5923,633,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,12,5923,633,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,12,5923,0,633,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,12,1126,127,127,38,38
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,12,2873,253,253,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,12,1560,253,253,95,95
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,12,2100,253,253,57,57
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,12,2083,380,380,151,151
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,12,1718,126,126,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,12,2406,253,253,38,38
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,12,1850,126,126,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,12,1816,126,126,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,13,6704,724,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,13,6704,0,724,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,13,6704,724,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,13,6704,724,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,13,6704,0,724,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,13,1198,145,145,43,43
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,13,3211,290,290,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,13,1626,290,290,109,109
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,13,2278,290,290,65,65
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,13,2127,434,434,174,174
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,13,1915,145,145,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,13,2636,290,290,43,43
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,13,2041,145,145,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,13,2002,145,145,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,14,7647,839,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,14,7647,0,839,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,14,7647,839,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,14,7647,839,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,14,7647,0,839,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,14,1283,168,168,50,50
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,14,3620,336,336,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,14,1697,336,336,126,126
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,14,2462,336,336,76,76
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,14,2175,503,503,201,201
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,14,2129,168,168,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,14,2910,336,336,50,50
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,14,2271,168,168,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,14,2230,168,168,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Viêm,Viêm Nha Phá Dạ Kiếm,15,8838,989,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Thủy,Thủy Nguyệt Phá Dạ Kiếm,15,8838,0,989,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Minh,Lôi Ảnh Phá Dạ Kiếm,15,8838,989,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Nham,Nham Trấn Phá Dạ Phủ–Chùy,15,8838,989,0,0,0
+Chế,50,Phá Dạ,Vũ khí,50,Phong,Phong Vũ Phá Dạ Kiếm,15,8838,0,989,0,0
+Chế,50,Phá Dạ,Giày,51,Tất cả,Giày Phá Dạ,15,1356,198,198,60,60
+Chế,50,Phá Dạ,Hộ uyển,52,Tất cả,Hộ uyển Phá Dạ,15,4130,396,396,0,0
+Chế,50,Phá Dạ,Quần,53,Tất cả,Quần Phá Dạ,15,1748,396,396,148,148
+Chế,50,Phá Dạ,Mũ,54,Tất cả,Mũ Phá Dạ,15,2700,395,395,89,89
+Chế,50,Phá Dạ,Áo,55,Tất cả,Áo Phá Dạ,15,2175,593,593,237,237
+Chế,50,Phá Dạ,Dây chuyền,56,Tất cả,Dây chuyền Phá Dạ,15,2424,198,198,0,0
+Chế,50,Phá Dạ,Ngọc bội,57,Tất cả,Ngọc bội Phá Dạ,15,3210,395,395,59,59
+Chế,50,Phá Dạ,Nhẫn trái,58,Tất cả,Nhẫn trái Phá Dạ,15,2560,198,198,0,0
+Chế,50,Phá Dạ,Nhẫn phải,59,Tất cả,Nhẫn phải Phá Dạ,15,2524,198,198,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,0,4962,403,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,0,4962,0,403,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,0,4962,403,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,0,4962,403,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,0,4962,0,403,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,0,896,81,81,24,24
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,0,2132,161,161,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,0,1438,161,161,61,61
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,0,1668,161,161,36,36
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,0,1950,242,242,97,97
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,0,1330,80,80,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,0,1837,161,161,24,24
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,0,1430,80,80,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,0,1394,80,80,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,1,5067,414,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,1,5067,0,414,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,1,5067,414,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,1,5067,414,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,1,5067,0,414,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,1,910,83,83,25,25
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,1,2170,166,166,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,1,1484,166,166,62,62
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,1,1702,166,166,37,37
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,1,1964,248,248,100,100
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,1,1364,83,83,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,1,1872,166,166,25,25
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,1,1464,83,83,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,1,1414,83,83,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,2,5221,431,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,2,5221,0,431,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,2,5221,431,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,2,5221,431,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,2,5221,0,431,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,2,918,86,86,26,26
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,2,2242,172,172,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,2,1512,172,172,64,64
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,2,1744,172,172,39,39
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,2,2020,259,259,103,103
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,2,1386,86,86,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,2,1918,172,172,26,26
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,2,1492,86,86,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,2,1463,86,86,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,3,5414,451,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,3,5414,0,451,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,3,5414,451,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,3,5414,451,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,3,5414,0,451,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,3,960,90,90,27,27
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,3,2323,181,181,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,3,1530,180,180,68,68
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,3,1783,180,180,41,41
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,3,2076,271,271,108,108
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,3,1432,90,90,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,3,1970,180,180,27,27
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,3,1541,90,90,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,3,1498,90,90,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,4,5646,474,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,4,5646,0,474,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,4,5646,474,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,4,5646,474,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,4,5646,0,474,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,4,986,95,95,29,29
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,4,2408,190,190,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,4,1586,190,190,71,71
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,4,1848,190,190,43,43
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,4,2117,285,285,114,114
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,4,1480,95,95,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,4,2063,190,190,28,28
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,4,1586,95,95,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,4,1541,95,95,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,5,5948,507,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,5,5948,0,507,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,5,5948,507,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,5,5948,507,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,5,5948,0,507,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,5,1057,102,102,30,30
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,5,2532,203,203,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,5,1632,203,203,76,76
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,5,1928,203,203,46,46
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,5,2180,304,304,122,122
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,5,1544,101,101,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,5,2156,203,203,30,30
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,5,1644,101,101,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,5,1610,101,101,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,6,6322,547,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,6,6322,0,547,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,6,6322,547,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,6,6322,547,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,6,6322,0,547,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,6,1111,110,110,33,33
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,6,2688,219,219,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,6,1700,219,219,82,82
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,6,2034,219,219,49,49
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,6,2247,328,328,132,132
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,6,1632,110,110,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,6,2251,219,219,33,33
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,6,1729,109,109,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,6,1692,109,109,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,7,6823,599,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,7,6823,0,599,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,7,6823,599,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,7,6823,599,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,7,6823,0,599,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,7,1166,120,120,36,36
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,7,2886,240,240,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,7,1774,240,240,90,90
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,7,2156,240,240,54,54
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,7,2344,359,359,144,144
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,7,1730,120,120,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,7,2400,240,240,36,36
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,7,1844,120,120,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,7,1794,120,120,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,8,7448,664,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,8,7448,0,664,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,8,7448,664,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,8,7448,664,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,8,7448,0,664,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,8,1233,133,133,40,40
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,8,3128,266,266,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,8,1846,266,266,100,100
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,8,2296,265,265,60,60
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,8,2444,398,398,159,159
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,8,1858,133,133,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,8,2569,265,265,40,40
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,8,1970,133,133,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,8,1931,133,133,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,9,8220,744,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,9,8220,0,744,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,9,8220,744,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,9,8220,744,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,9,8220,0,744,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,9,1300,149,149,45,45
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,9,3421,298,298,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,9,1941,298,298,112,112
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,9,2472,298,298,67,67
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,9,2544,446,446,179,179
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,9,2009,149,149,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,9,2798,298,298,44,44
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,9,2124,149,149,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,9,2082,149,149,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,10,9174,846,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,10,9174,0,846,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,10,9174,846,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,10,9174,846,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,10,9174,0,846,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,10,1380,169,169,51,51
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,10,3793,338,338,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,10,2033,338,338,127,127
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,10,2676,338,338,76,76
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,10,2632,507,507,203,203
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,10,2214,169,169,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,10,3013,338,338,51,51
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,10,2328,169,169,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,10,2286,169,169,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,11,10289,966,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,11,10289,0,966,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,11,10289,966,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,11,10289,966,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,11,10289,0,966,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,11,1484,193,193,58,58
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,11,4219,387,387,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,11,2131,387,387,145,145
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,11,2890,386,386,87,87
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,11,2721,580,580,232,232
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,11,2433,193,193,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,11,3304,386,386,58,58
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,11,2547,193,193,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,11,2516,193,193,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,12,11562,1107,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,12,11562,0,1107,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,12,11562,1107,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,12,11562,1107,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,12,11562,0,1107,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,12,1569,221,221,67,67
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,12,4710,443,443,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,12,2200,443,443,166,166
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,12,3122,443,443,100,100
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,12,2770,664,664,266,266
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,12,2678,221,221,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,12,3620,443,443,66,66
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,12,2817,221,221,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,12,2780,221,221,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,13,13004,1268,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,13,13004,0,1268,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,13,13004,1268,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,13,13004,1268,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,13,13004,0,1268,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,13,1677,254,254,76,76
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,13,5256,507,507,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,13,2222,507,507,191,191
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,13,3359,507,507,114,114
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,13,2770,761,761,305,305
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,13,2980,254,254,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,13,3935,507,507,76,76
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,13,3099,253,253,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,13,3068,253,253,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,14,14743,1469,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,14,14743,0,1469,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,14,14743,1469,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,14,14743,1469,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,14,14743,0,1469,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,14,1775,294,294,88,88
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,14,5926,588,588,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,14,2238,588,588,221,221
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,14,3599,587,587,133,133
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,14,2770,881,881,353,353
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,14,3230,294,294,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,14,4321,587,587,88,88
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,14,3462,294,294,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,14,3426,294,294,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Viêm,Viêm Nha Nhật Luân Kiếm,15,16934,1731,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Thủy,Thủy Nguyệt Nhật Luân Kiếm,15,16934,0,1731,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Minh,Lôi Ảnh Nhật Luân Kiếm,15,16934,1731,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Nham,Nham Trấn Nhật Luân Phủ–Chùy,15,16934,1731,0,0,0
+Chế,70,Nhật Luân,Vũ khí,70,Phong,Phong Vũ Nhật Luân Kiếm,15,16934,0,1731,0,0
+Chế,70,Nhật Luân,Giày,71,Tất cả,Giày Nhật Luân,15,1864,346,346,104,104
+Chế,70,Nhật Luân,Hộ uyển,72,Tất cả,Hộ uyển Nhật Luân,15,6754,693,693,0,0
+Chế,70,Nhật Luân,Quần,73,Tất cả,Quần Nhật Luân,15,2238,692,692,260,260
+Chế,70,Nhật Luân,Mũ,74,Tất cả,Mũ Nhật Luân,15,3832,692,692,156,156
+Chế,70,Nhật Luân,Áo,75,Tất cả,Áo Nhật Luân,15,2770,1039,1039,416,416
+Chế,70,Nhật Luân,Dây chuyền,76,Tất cả,Dây chuyền Nhật Luân,15,3492,346,346,0,0
+Chế,70,Nhật Luân,Ngọc bội,77,Tất cả,Ngọc bội Nhật Luân,15,4746,692,692,104,104
+Chế,70,Nhật Luân,Nhẫn trái,78,Tất cả,Nhẫn trái Nhật Luân,15,3900,346,346,0,0
+Chế,70,Nhật Luân,Nhẫn phải,79,Tất cả,Nhẫn phải Nhật Luân,15,3870,346,346,0,0
