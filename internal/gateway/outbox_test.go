@@ -46,7 +46,7 @@ func TestOutboxKeepsRoomForFinalMessage(t *testing.T) {
 // fillOutbox sends until the outbox is full and checks it accepted exactly want envelopes.
 func fillOutbox(t *testing.T, o *outbox, want int) {
 	t.Helper()
-	for i := 0; i < want; i++ {
+	for i := range want {
 		if !o.Send(&pb.Envelope{}) {
 			t.Fatalf("send %d of %d was rejected", i+1, want)
 		}
