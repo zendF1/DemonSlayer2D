@@ -39,6 +39,14 @@ message Envelope {
     Ping ping = 40;
     Pong pong = 41;
     Kicked kicked = 42;
+
+    AttackReq attack_req = 50;
+    AttackResp attack_resp = 51;
+    AllocatePointsReq allocate_points_req = 52;
+    AllocatePointsResp allocate_points_resp = 53;
+    RespawnReq respawn_req = 54;
+    RespawnResp respawn_resp = 55;
+    SelfStats self_stats = 56;
   }
 }
 
@@ -59,6 +67,17 @@ enum ErrorCode {
   ERROR_CODE_ALREADY_IN_WORLD = 13;
   ERROR_CODE_ZONE_FULL = 14;
   ERROR_CODE_INTERNAL = 15;
+  // The attack target does not exist, is dead or is not attackable.
+  ERROR_CODE_INVALID_TARGET = 16;
+  ERROR_CODE_OUT_OF_RANGE = 17;
+  ERROR_CODE_ON_COOLDOWN = 18;
+  // The attacker or the target stands in a safe zone.
+  ERROR_CODE_IN_SAFE_ZONE = 19;
+  // The action needs a living character.
+  ERROR_CODE_DEAD = 20;
+  // Respawn was requested while alive.
+  ERROR_CODE_NOT_DEAD = 21;
+  ERROR_CODE_NOT_ENOUGH_POINTS = 22;
 }
 
 enum KickReason {
@@ -84,6 +103,7 @@ enum CharClass {
 enum EntityKind {
   ENTITY_KIND_UNSPECIFIED = 0;
   ENTITY_KIND_PLAYER = 1;
+  ENTITY_KIND_MONSTER = 2;
 }
 
 message ErrorResp {
@@ -155,6 +175,8 @@ message EnterWorldResp {
   float move_speed = 7;
   // Zone ticks per second; each tick moves move_speed / tick_rate tiles.
   uint32 tick_rate = 8;
+  // The character's own stats at entry.
+  SelfStats stats = 9;
 }
 
 message LeaveWorldReq {}
@@ -178,6 +200,10 @@ message EntityEnter {
   float y = 7;
   float dir_x = 8;
   float dir_y = 9;
+  int32 hp = 10;
+  int32 max_hp = 11;
+  // True for a corpse still visible in the zone.
+  bool dead = 12;
 }
 
 message EntityLeave {
@@ -190,6 +216,8 @@ message EntityMove {
   float y = 3;
   float dir_x = 4;
   float dir_y = 5;
+  // Client jumps to this position instead of interpolating.
+  bool snap = 6;
 }
 
 // Sent every tick, even when moves is empty.
@@ -198,6 +226,10 @@ message WorldTick {
   // Highest MoveInput.input_seq the server has applied for the receiver.
   uint32 ack_input_seq = 2;
   repeated EntityMove moves = 3;
+  repeated Hit hits = 4;
+  repeated Death deaths = 5;
+  repeated HpChange hp_changes = 6;
+  repeated LevelUp level_ups = 7;
 }
 
 message Ping {
@@ -211,4 +243,79 @@ message Pong {
 
 message Kicked {
   KickReason reason = 1;
+}
+
+// Default slash at one target; the result arrives as a Hit in WorldTick.
+message AttackReq {
+  uint64 target_id = 1;
+}
+
+message AttackResp {}
+
+// Spends free potential points; each field is the number of points to add.
+message AllocatePointsReq {
+  uint32 strength = 1;
+  uint32 agility = 2;
+  uint32 vitality = 3;
+  uint32 intellect = 4;
+}
+
+message AllocatePointsResp {
+  SelfStats stats = 1;
+}
+
+message RespawnReq {}
+
+// Where the character stands after respawning.
+message RespawnResp {
+  float x = 1;
+  float y = 2;
+}
+
+// The own character's progression and derived stats; pushed with seq = 0
+// whenever they change.
+message SelfStats {
+  int32 level = 1;
+  int64 exp = 2;
+  // EXP needed to reach the next level.
+  int64 exp_next = 3;
+  int32 free_points = 4;
+  int32 strength = 5;
+  int32 agility = 6;
+  int32 vitality = 7;
+  int32 intellect = 8;
+  int32 hp = 9;
+  int32 max_hp = 10;
+  int32 mp = 11;
+  int32 max_mp = 12;
+  int32 phys_attack = 13;
+  int32 magic_attack = 14;
+  int32 phys_defense = 15;
+  int32 magic_defense = 16;
+  int32 accuracy = 17;
+  int32 evasion = 18;
+  // Critical rate in basis points (100 = 1%).
+  int32 crit_rate_bp = 19;
+}
+
+message Hit {
+  uint64 attacker_id = 1;
+  uint64 target_id = 2;
+  int32 damage = 3;
+  int32 hp_after = 4;
+}
+
+message Death {
+  uint64 id = 1;
+}
+
+message HpChange {
+  uint64 id = 1;
+  int32 hp = 2;
+  int32 max_hp = 3;
+}
+
+message LevelUp {
+  uint64 id = 1;
+  int32 level = 2;
 }

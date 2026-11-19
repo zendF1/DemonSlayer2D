@@ -40,6 +40,17 @@ const (
 	ErrorCode_ERROR_CODE_ALREADY_IN_WORLD ErrorCode = 13
 	ErrorCode_ERROR_CODE_ZONE_FULL        ErrorCode = 14
 	ErrorCode_ERROR_CODE_INTERNAL         ErrorCode = 15
+	// The attack target does not exist, is dead or is not attackable.
+	ErrorCode_ERROR_CODE_INVALID_TARGET ErrorCode = 16
+	ErrorCode_ERROR_CODE_OUT_OF_RANGE   ErrorCode = 17
+	ErrorCode_ERROR_CODE_ON_COOLDOWN    ErrorCode = 18
+	// The attacker or the target stands in a safe zone.
+	ErrorCode_ERROR_CODE_IN_SAFE_ZONE ErrorCode = 19
+	// The action needs a living character.
+	ErrorCode_ERROR_CODE_DEAD ErrorCode = 20
+	// Respawn was requested while alive.
+	ErrorCode_ERROR_CODE_NOT_DEAD          ErrorCode = 21
+	ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS ErrorCode = 22
 )
 
 // Enum value maps for ErrorCode.
@@ -61,24 +72,38 @@ var (
 		13: "ERROR_CODE_ALREADY_IN_WORLD",
 		14: "ERROR_CODE_ZONE_FULL",
 		15: "ERROR_CODE_INTERNAL",
+		16: "ERROR_CODE_INVALID_TARGET",
+		17: "ERROR_CODE_OUT_OF_RANGE",
+		18: "ERROR_CODE_ON_COOLDOWN",
+		19: "ERROR_CODE_IN_SAFE_ZONE",
+		20: "ERROR_CODE_DEAD",
+		21: "ERROR_CODE_NOT_DEAD",
+		22: "ERROR_CODE_NOT_ENOUGH_POINTS",
 	}
 	ErrorCode_value = map[string]int32{
-		"ERROR_CODE_UNSPECIFIED":      0,
-		"ERROR_CODE_BAD_REQUEST":      1,
-		"ERROR_CODE_VERSION_MISMATCH": 2,
-		"ERROR_CODE_RATE_LIMITED":     3,
-		"ERROR_CODE_AUTH_FAILED":      4,
-		"ERROR_CODE_USERNAME_TAKEN":   5,
-		"ERROR_CODE_USERNAME_INVALID": 6,
-		"ERROR_CODE_PASSWORD_INVALID": 7,
-		"ERROR_CODE_NAME_TAKEN":       8,
-		"ERROR_CODE_NAME_INVALID":     9,
-		"ERROR_CODE_SLOT_OCCUPIED":    10,
-		"ERROR_CODE_CHAR_NOT_FOUND":   11,
-		"ERROR_CODE_NOT_IN_WORLD":     12,
-		"ERROR_CODE_ALREADY_IN_WORLD": 13,
-		"ERROR_CODE_ZONE_FULL":        14,
-		"ERROR_CODE_INTERNAL":         15,
+		"ERROR_CODE_UNSPECIFIED":       0,
+		"ERROR_CODE_BAD_REQUEST":       1,
+		"ERROR_CODE_VERSION_MISMATCH":  2,
+		"ERROR_CODE_RATE_LIMITED":      3,
+		"ERROR_CODE_AUTH_FAILED":       4,
+		"ERROR_CODE_USERNAME_TAKEN":    5,
+		"ERROR_CODE_USERNAME_INVALID":  6,
+		"ERROR_CODE_PASSWORD_INVALID":  7,
+		"ERROR_CODE_NAME_TAKEN":        8,
+		"ERROR_CODE_NAME_INVALID":      9,
+		"ERROR_CODE_SLOT_OCCUPIED":     10,
+		"ERROR_CODE_CHAR_NOT_FOUND":    11,
+		"ERROR_CODE_NOT_IN_WORLD":      12,
+		"ERROR_CODE_ALREADY_IN_WORLD":  13,
+		"ERROR_CODE_ZONE_FULL":         14,
+		"ERROR_CODE_INTERNAL":          15,
+		"ERROR_CODE_INVALID_TARGET":    16,
+		"ERROR_CODE_OUT_OF_RANGE":      17,
+		"ERROR_CODE_ON_COOLDOWN":       18,
+		"ERROR_CODE_IN_SAFE_ZONE":      19,
+		"ERROR_CODE_DEAD":              20,
+		"ERROR_CODE_NOT_DEAD":          21,
+		"ERROR_CODE_NOT_ENOUGH_POINTS": 22,
 	}
 )
 
@@ -236,6 +261,7 @@ type EntityKind int32
 const (
 	EntityKind_ENTITY_KIND_UNSPECIFIED EntityKind = 0
 	EntityKind_ENTITY_KIND_PLAYER      EntityKind = 1
+	EntityKind_ENTITY_KIND_MONSTER     EntityKind = 2
 )
 
 // Enum value maps for EntityKind.
@@ -243,10 +269,12 @@ var (
 	EntityKind_name = map[int32]string{
 		0: "ENTITY_KIND_UNSPECIFIED",
 		1: "ENTITY_KIND_PLAYER",
+		2: "ENTITY_KIND_MONSTER",
 	}
 	EntityKind_value = map[string]int32{
 		"ENTITY_KIND_UNSPECIFIED": 0,
 		"ENTITY_KIND_PLAYER":      1,
+		"ENTITY_KIND_MONSTER":     2,
 	}
 )
 
@@ -311,6 +339,13 @@ type Envelope struct {
 	//	*Envelope_Ping
 	//	*Envelope_Pong
 	//	*Envelope_Kicked
+	//	*Envelope_AttackReq
+	//	*Envelope_AttackResp
+	//	*Envelope_AllocatePointsReq
+	//	*Envelope_AllocatePointsResp
+	//	*Envelope_RespawnReq
+	//	*Envelope_RespawnResp
+	//	*Envelope_SelfStats
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -558,6 +593,69 @@ func (x *Envelope) GetKicked() *Kicked {
 	return nil
 }
 
+func (x *Envelope) GetAttackReq() *AttackReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_AttackReq); ok {
+			return x.AttackReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetAttackResp() *AttackResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_AttackResp); ok {
+			return x.AttackResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetAllocatePointsReq() *AllocatePointsReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_AllocatePointsReq); ok {
+			return x.AllocatePointsReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetAllocatePointsResp() *AllocatePointsResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_AllocatePointsResp); ok {
+			return x.AllocatePointsResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetRespawnReq() *RespawnReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RespawnReq); ok {
+			return x.RespawnReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetRespawnResp() *RespawnResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RespawnResp); ok {
+			return x.RespawnResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSelfStats() *SelfStats {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SelfStats); ok {
+			return x.SelfStats
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -650,6 +748,34 @@ type Envelope_Kicked struct {
 	Kicked *Kicked `protobuf:"bytes,42,opt,name=kicked,proto3,oneof"`
 }
 
+type Envelope_AttackReq struct {
+	AttackReq *AttackReq `protobuf:"bytes,50,opt,name=attack_req,json=attackReq,proto3,oneof"`
+}
+
+type Envelope_AttackResp struct {
+	AttackResp *AttackResp `protobuf:"bytes,51,opt,name=attack_resp,json=attackResp,proto3,oneof"`
+}
+
+type Envelope_AllocatePointsReq struct {
+	AllocatePointsReq *AllocatePointsReq `protobuf:"bytes,52,opt,name=allocate_points_req,json=allocatePointsReq,proto3,oneof"`
+}
+
+type Envelope_AllocatePointsResp struct {
+	AllocatePointsResp *AllocatePointsResp `protobuf:"bytes,53,opt,name=allocate_points_resp,json=allocatePointsResp,proto3,oneof"`
+}
+
+type Envelope_RespawnReq struct {
+	RespawnReq *RespawnReq `protobuf:"bytes,54,opt,name=respawn_req,json=respawnReq,proto3,oneof"`
+}
+
+type Envelope_RespawnResp struct {
+	RespawnResp *RespawnResp `protobuf:"bytes,55,opt,name=respawn_resp,json=respawnResp,proto3,oneof"`
+}
+
+type Envelope_SelfStats struct {
+	SelfStats *SelfStats `protobuf:"bytes,56,opt,name=self_stats,json=selfStats,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -693,6 +819,20 @@ func (*Envelope_Ping) isEnvelope_Payload() {}
 func (*Envelope_Pong) isEnvelope_Payload() {}
 
 func (*Envelope_Kicked) isEnvelope_Payload() {}
+
+func (*Envelope_AttackReq) isEnvelope_Payload() {}
+
+func (*Envelope_AttackResp) isEnvelope_Payload() {}
+
+func (*Envelope_AllocatePointsReq) isEnvelope_Payload() {}
+
+func (*Envelope_AllocatePointsResp) isEnvelope_Payload() {}
+
+func (*Envelope_RespawnReq) isEnvelope_Payload() {}
+
+func (*Envelope_RespawnResp) isEnvelope_Payload() {}
+
+func (*Envelope_SelfStats) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1349,7 +1489,9 @@ type EnterWorldResp struct {
 	// Tiles per second.
 	MoveSpeed float32 `protobuf:"fixed32,7,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	// Zone ticks per second; each tick moves move_speed / tick_rate tiles.
-	TickRate      uint32 `protobuf:"varint,8,opt,name=tick_rate,json=tickRate,proto3" json:"tick_rate,omitempty"`
+	TickRate uint32 `protobuf:"varint,8,opt,name=tick_rate,json=tickRate,proto3" json:"tick_rate,omitempty"`
+	// The character's own stats at entry.
+	Stats         *SelfStats `protobuf:"bytes,9,opt,name=stats,proto3" json:"stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1438,6 +1580,13 @@ func (x *EnterWorldResp) GetTickRate() uint32 {
 		return x.TickRate
 	}
 	return 0
+}
+
+func (x *EnterWorldResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
 }
 
 type LeaveWorldReq struct {
@@ -1574,16 +1723,20 @@ func (x *MoveInput) GetDirY() float32 {
 }
 
 type EntityEnter struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Kind          EntityKind             `protobuf:"varint,2,opt,name=kind,proto3,enum=ds.v1.EntityKind" json:"kind,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	CharClass     CharClass              `protobuf:"varint,4,opt,name=char_class,json=charClass,proto3,enum=ds.v1.CharClass" json:"char_class,omitempty"`
-	Level         int32                  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
-	X             float32                `protobuf:"fixed32,6,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float32                `protobuf:"fixed32,7,opt,name=y,proto3" json:"y,omitempty"`
-	DirX          float32                `protobuf:"fixed32,8,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
-	DirY          float32                `protobuf:"fixed32,9,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Kind      EntityKind             `protobuf:"varint,2,opt,name=kind,proto3,enum=ds.v1.EntityKind" json:"kind,omitempty"`
+	Name      string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	CharClass CharClass              `protobuf:"varint,4,opt,name=char_class,json=charClass,proto3,enum=ds.v1.CharClass" json:"char_class,omitempty"`
+	Level     int32                  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
+	X         float32                `protobuf:"fixed32,6,opt,name=x,proto3" json:"x,omitempty"`
+	Y         float32                `protobuf:"fixed32,7,opt,name=y,proto3" json:"y,omitempty"`
+	DirX      float32                `protobuf:"fixed32,8,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
+	DirY      float32                `protobuf:"fixed32,9,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	Hp        int32                  `protobuf:"varint,10,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp     int32                  `protobuf:"varint,11,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	// True for a corpse still visible in the zone.
+	Dead          bool `protobuf:"varint,12,opt,name=dead,proto3" json:"dead,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1681,6 +1834,27 @@ func (x *EntityEnter) GetDirY() float32 {
 	return 0
 }
 
+func (x *EntityEnter) GetHp() int32 {
+	if x != nil {
+		return x.Hp
+	}
+	return 0
+}
+
+func (x *EntityEnter) GetMaxHp() int32 {
+	if x != nil {
+		return x.MaxHp
+	}
+	return 0
+}
+
+func (x *EntityEnter) GetDead() bool {
+	if x != nil {
+		return x.Dead
+	}
+	return false
+}
+
 type EntityLeave struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1726,12 +1900,14 @@ func (x *EntityLeave) GetId() uint64 {
 }
 
 type EntityMove struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	X             float32                `protobuf:"fixed32,2,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float32                `protobuf:"fixed32,3,opt,name=y,proto3" json:"y,omitempty"`
-	DirX          float32                `protobuf:"fixed32,4,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
-	DirY          float32                `protobuf:"fixed32,5,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	X     float32                `protobuf:"fixed32,2,opt,name=x,proto3" json:"x,omitempty"`
+	Y     float32                `protobuf:"fixed32,3,opt,name=y,proto3" json:"y,omitempty"`
+	DirX  float32                `protobuf:"fixed32,4,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
+	DirY  float32                `protobuf:"fixed32,5,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	// Client jumps to this position instead of interpolating.
+	Snap          bool `protobuf:"varint,6,opt,name=snap,proto3" json:"snap,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1801,6 +1977,13 @@ func (x *EntityMove) GetDirY() float32 {
 	return 0
 }
 
+func (x *EntityMove) GetSnap() bool {
+	if x != nil {
+		return x.Snap
+	}
+	return false
+}
+
 // Sent every tick, even when moves is empty.
 type WorldTick struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1808,6 +1991,10 @@ type WorldTick struct {
 	// Highest MoveInput.input_seq the server has applied for the receiver.
 	AckInputSeq   uint32        `protobuf:"varint,2,opt,name=ack_input_seq,json=ackInputSeq,proto3" json:"ack_input_seq,omitempty"`
 	Moves         []*EntityMove `protobuf:"bytes,3,rep,name=moves,proto3" json:"moves,omitempty"`
+	Hits          []*Hit        `protobuf:"bytes,4,rep,name=hits,proto3" json:"hits,omitempty"`
+	Deaths        []*Death      `protobuf:"bytes,5,rep,name=deaths,proto3" json:"deaths,omitempty"`
+	HpChanges     []*HpChange   `protobuf:"bytes,6,rep,name=hp_changes,json=hpChanges,proto3" json:"hp_changes,omitempty"`
+	LevelUps      []*LevelUp    `protobuf:"bytes,7,rep,name=level_ups,json=levelUps,proto3" json:"level_ups,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1859,6 +2046,34 @@ func (x *WorldTick) GetAckInputSeq() uint32 {
 func (x *WorldTick) GetMoves() []*EntityMove {
 	if x != nil {
 		return x.Moves
+	}
+	return nil
+}
+
+func (x *WorldTick) GetHits() []*Hit {
+	if x != nil {
+		return x.Hits
+	}
+	return nil
+}
+
+func (x *WorldTick) GetDeaths() []*Death {
+	if x != nil {
+		return x.Deaths
+	}
+	return nil
+}
+
+func (x *WorldTick) GetHpChanges() []*HpChange {
+	if x != nil {
+		return x.HpChanges
+	}
+	return nil
+}
+
+func (x *WorldTick) GetLevelUps() []*LevelUp {
+	if x != nil {
+		return x.LevelUps
 	}
 	return nil
 }
@@ -2003,11 +2218,710 @@ func (x *Kicked) GetReason() KickReason {
 	return KickReason_KICK_REASON_UNSPECIFIED
 }
 
+// Default slash at one target; the result arrives as a Hit in WorldTick.
+type AttackReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetId      uint64                 `protobuf:"varint,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttackReq) Reset() {
+	*x = AttackReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttackReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttackReq) ProtoMessage() {}
+
+func (x *AttackReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttackReq.ProtoReflect.Descriptor instead.
+func (*AttackReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *AttackReq) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+type AttackResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttackResp) Reset() {
+	*x = AttackResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttackResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttackResp) ProtoMessage() {}
+
+func (x *AttackResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttackResp.ProtoReflect.Descriptor instead.
+func (*AttackResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{26}
+}
+
+// Spends free potential points; each field is the number of points to add.
+type AllocatePointsReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Strength      uint32                 `protobuf:"varint,1,opt,name=strength,proto3" json:"strength,omitempty"`
+	Agility       uint32                 `protobuf:"varint,2,opt,name=agility,proto3" json:"agility,omitempty"`
+	Vitality      uint32                 `protobuf:"varint,3,opt,name=vitality,proto3" json:"vitality,omitempty"`
+	Intellect     uint32                 `protobuf:"varint,4,opt,name=intellect,proto3" json:"intellect,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllocatePointsReq) Reset() {
+	*x = AllocatePointsReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocatePointsReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocatePointsReq) ProtoMessage() {}
+
+func (x *AllocatePointsReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocatePointsReq.ProtoReflect.Descriptor instead.
+func (*AllocatePointsReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *AllocatePointsReq) GetStrength() uint32 {
+	if x != nil {
+		return x.Strength
+	}
+	return 0
+}
+
+func (x *AllocatePointsReq) GetAgility() uint32 {
+	if x != nil {
+		return x.Agility
+	}
+	return 0
+}
+
+func (x *AllocatePointsReq) GetVitality() uint32 {
+	if x != nil {
+		return x.Vitality
+	}
+	return 0
+}
+
+func (x *AllocatePointsReq) GetIntellect() uint32 {
+	if x != nil {
+		return x.Intellect
+	}
+	return 0
+}
+
+type AllocatePointsResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Stats         *SelfStats             `protobuf:"bytes,1,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllocatePointsResp) Reset() {
+	*x = AllocatePointsResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocatePointsResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocatePointsResp) ProtoMessage() {}
+
+func (x *AllocatePointsResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocatePointsResp.ProtoReflect.Descriptor instead.
+func (*AllocatePointsResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *AllocatePointsResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+type RespawnReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RespawnReq) Reset() {
+	*x = RespawnReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RespawnReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RespawnReq) ProtoMessage() {}
+
+func (x *RespawnReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RespawnReq.ProtoReflect.Descriptor instead.
+func (*RespawnReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{29}
+}
+
+// Where the character stands after respawning.
+type RespawnResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	X             float32                `protobuf:"fixed32,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y             float32                `protobuf:"fixed32,2,opt,name=y,proto3" json:"y,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RespawnResp) Reset() {
+	*x = RespawnResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RespawnResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RespawnResp) ProtoMessage() {}
+
+func (x *RespawnResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RespawnResp.ProtoReflect.Descriptor instead.
+func (*RespawnResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *RespawnResp) GetX() float32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *RespawnResp) GetY() float32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+// The own character's progression and derived stats; pushed with seq = 0
+// whenever they change.
+type SelfStats struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Level int32                  `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
+	Exp   int64                  `protobuf:"varint,2,opt,name=exp,proto3" json:"exp,omitempty"`
+	// EXP needed to reach the next level.
+	ExpNext      int64 `protobuf:"varint,3,opt,name=exp_next,json=expNext,proto3" json:"exp_next,omitempty"`
+	FreePoints   int32 `protobuf:"varint,4,opt,name=free_points,json=freePoints,proto3" json:"free_points,omitempty"`
+	Strength     int32 `protobuf:"varint,5,opt,name=strength,proto3" json:"strength,omitempty"`
+	Agility      int32 `protobuf:"varint,6,opt,name=agility,proto3" json:"agility,omitempty"`
+	Vitality     int32 `protobuf:"varint,7,opt,name=vitality,proto3" json:"vitality,omitempty"`
+	Intellect    int32 `protobuf:"varint,8,opt,name=intellect,proto3" json:"intellect,omitempty"`
+	Hp           int32 `protobuf:"varint,9,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp        int32 `protobuf:"varint,10,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	Mp           int32 `protobuf:"varint,11,opt,name=mp,proto3" json:"mp,omitempty"`
+	MaxMp        int32 `protobuf:"varint,12,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
+	PhysAttack   int32 `protobuf:"varint,13,opt,name=phys_attack,json=physAttack,proto3" json:"phys_attack,omitempty"`
+	MagicAttack  int32 `protobuf:"varint,14,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
+	PhysDefense  int32 `protobuf:"varint,15,opt,name=phys_defense,json=physDefense,proto3" json:"phys_defense,omitempty"`
+	MagicDefense int32 `protobuf:"varint,16,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
+	Accuracy     int32 `protobuf:"varint,17,opt,name=accuracy,proto3" json:"accuracy,omitempty"`
+	Evasion      int32 `protobuf:"varint,18,opt,name=evasion,proto3" json:"evasion,omitempty"`
+	// Critical rate in basis points (100 = 1%).
+	CritRateBp    int32 `protobuf:"varint,19,opt,name=crit_rate_bp,json=critRateBp,proto3" json:"crit_rate_bp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SelfStats) Reset() {
+	*x = SelfStats{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SelfStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SelfStats) ProtoMessage() {}
+
+func (x *SelfStats) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SelfStats.ProtoReflect.Descriptor instead.
+func (*SelfStats) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SelfStats) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *SelfStats) GetExp() int64 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *SelfStats) GetExpNext() int64 {
+	if x != nil {
+		return x.ExpNext
+	}
+	return 0
+}
+
+func (x *SelfStats) GetFreePoints() int32 {
+	if x != nil {
+		return x.FreePoints
+	}
+	return 0
+}
+
+func (x *SelfStats) GetStrength() int32 {
+	if x != nil {
+		return x.Strength
+	}
+	return 0
+}
+
+func (x *SelfStats) GetAgility() int32 {
+	if x != nil {
+		return x.Agility
+	}
+	return 0
+}
+
+func (x *SelfStats) GetVitality() int32 {
+	if x != nil {
+		return x.Vitality
+	}
+	return 0
+}
+
+func (x *SelfStats) GetIntellect() int32 {
+	if x != nil {
+		return x.Intellect
+	}
+	return 0
+}
+
+func (x *SelfStats) GetHp() int32 {
+	if x != nil {
+		return x.Hp
+	}
+	return 0
+}
+
+func (x *SelfStats) GetMaxHp() int32 {
+	if x != nil {
+		return x.MaxHp
+	}
+	return 0
+}
+
+func (x *SelfStats) GetMp() int32 {
+	if x != nil {
+		return x.Mp
+	}
+	return 0
+}
+
+func (x *SelfStats) GetMaxMp() int32 {
+	if x != nil {
+		return x.MaxMp
+	}
+	return 0
+}
+
+func (x *SelfStats) GetPhysAttack() int32 {
+	if x != nil {
+		return x.PhysAttack
+	}
+	return 0
+}
+
+func (x *SelfStats) GetMagicAttack() int32 {
+	if x != nil {
+		return x.MagicAttack
+	}
+	return 0
+}
+
+func (x *SelfStats) GetPhysDefense() int32 {
+	if x != nil {
+		return x.PhysDefense
+	}
+	return 0
+}
+
+func (x *SelfStats) GetMagicDefense() int32 {
+	if x != nil {
+		return x.MagicDefense
+	}
+	return 0
+}
+
+func (x *SelfStats) GetAccuracy() int32 {
+	if x != nil {
+		return x.Accuracy
+	}
+	return 0
+}
+
+func (x *SelfStats) GetEvasion() int32 {
+	if x != nil {
+		return x.Evasion
+	}
+	return 0
+}
+
+func (x *SelfStats) GetCritRateBp() int32 {
+	if x != nil {
+		return x.CritRateBp
+	}
+	return 0
+}
+
+type Hit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AttackerId    uint64                 `protobuf:"varint,1,opt,name=attacker_id,json=attackerId,proto3" json:"attacker_id,omitempty"`
+	TargetId      uint64                 `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	Damage        int32                  `protobuf:"varint,3,opt,name=damage,proto3" json:"damage,omitempty"`
+	HpAfter       int32                  `protobuf:"varint,4,opt,name=hp_after,json=hpAfter,proto3" json:"hp_after,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Hit) Reset() {
+	*x = Hit{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Hit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Hit) ProtoMessage() {}
+
+func (x *Hit) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Hit.ProtoReflect.Descriptor instead.
+func (*Hit) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *Hit) GetAttackerId() uint64 {
+	if x != nil {
+		return x.AttackerId
+	}
+	return 0
+}
+
+func (x *Hit) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *Hit) GetDamage() int32 {
+	if x != nil {
+		return x.Damage
+	}
+	return 0
+}
+
+func (x *Hit) GetHpAfter() int32 {
+	if x != nil {
+		return x.HpAfter
+	}
+	return 0
+}
+
+type Death struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Death) Reset() {
+	*x = Death{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Death) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Death) ProtoMessage() {}
+
+func (x *Death) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Death.ProtoReflect.Descriptor instead.
+func (*Death) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *Death) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type HpChange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Hp            int32                  `protobuf:"varint,2,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp         int32                  `protobuf:"varint,3,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HpChange) Reset() {
+	*x = HpChange{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HpChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HpChange) ProtoMessage() {}
+
+func (x *HpChange) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HpChange.ProtoReflect.Descriptor instead.
+func (*HpChange) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *HpChange) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *HpChange) GetHp() int32 {
+	if x != nil {
+		return x.Hp
+	}
+	return 0
+}
+
+func (x *HpChange) GetMaxHp() int32 {
+	if x != nil {
+		return x.MaxHp
+	}
+	return 0
+}
+
+type LevelUp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Level         int32                  `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LevelUp) Reset() {
+	*x = LevelUp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LevelUp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LevelUp) ProtoMessage() {}
+
+func (x *LevelUp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LevelUp.ProtoReflect.Descriptor instead.
+func (*LevelUp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *LevelUp) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *LevelUp) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xf3\t\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x99\r\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -2035,7 +2949,18 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"world_tick\x18! \x01(\v2\x10.ds.v1.WorldTickH\x00R\tworldTick\x12!\n" +
 	"\x04ping\x18( \x01(\v2\v.ds.v1.PingH\x00R\x04ping\x12!\n" +
 	"\x04pong\x18) \x01(\v2\v.ds.v1.PongH\x00R\x04pong\x12'\n" +
-	"\x06kicked\x18* \x01(\v2\r.ds.v1.KickedH\x00R\x06kickedB\t\n" +
+	"\x06kicked\x18* \x01(\v2\r.ds.v1.KickedH\x00R\x06kicked\x121\n" +
+	"\n" +
+	"attack_req\x182 \x01(\v2\x10.ds.v1.AttackReqH\x00R\tattackReq\x124\n" +
+	"\vattack_resp\x183 \x01(\v2\x11.ds.v1.AttackRespH\x00R\n" +
+	"attackResp\x12J\n" +
+	"\x13allocate_points_req\x184 \x01(\v2\x18.ds.v1.AllocatePointsReqH\x00R\x11allocatePointsReq\x12M\n" +
+	"\x14allocate_points_resp\x185 \x01(\v2\x19.ds.v1.AllocatePointsRespH\x00R\x12allocatePointsResp\x124\n" +
+	"\vrespawn_req\x186 \x01(\v2\x11.ds.v1.RespawnReqH\x00R\n" +
+	"respawnReq\x127\n" +
+	"\frespawn_resp\x187 \x01(\v2\x12.ds.v1.RespawnRespH\x00R\vrespawnResp\x121\n" +
+	"\n" +
+	"self_stats\x188 \x01(\v2\x10.ds.v1.SelfStatsH\x00R\tselfStatsB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -2074,7 +2999,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fconfirm_name\x18\x02 \x01(\tR\vconfirmName\"\x10\n" +
 	"\x0eDeleteCharResp\"(\n" +
 	"\rEnterWorldReq\x12\x17\n" +
-	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xda\x01\n" +
+	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\x82\x02\n" +
 	"\x0eEnterWorldResp\x12$\n" +
 	"\x0eself_entity_id\x18\x01 \x01(\x04R\fselfEntityId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x12\n" +
@@ -2085,13 +3010,14 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"serverTick\x12\x1d\n" +
 	"\n" +
 	"move_speed\x18\a \x01(\x02R\tmoveSpeed\x12\x1b\n" +
-	"\ttick_rate\x18\b \x01(\rR\btickRate\"\x0f\n" +
+	"\ttick_rate\x18\b \x01(\rR\btickRate\x12&\n" +
+	"\x05stats\x18\t \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"\x0f\n" +
 	"\rLeaveWorldReq\"\x10\n" +
 	"\x0eLeaveWorldResp\"R\n" +
 	"\tMoveInput\x12\x1b\n" +
 	"\tinput_seq\x18\x01 \x01(\rR\binputSeq\x12\x13\n" +
 	"\x05dir_x\x18\x02 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xe5\x01\n" +
+	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xa0\x02\n" +
 	"\vEntityEnter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x11.ds.v1.EntityKindR\x04kind\x12\x12\n" +
@@ -2102,20 +3028,31 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x01x\x18\x06 \x01(\x02R\x01x\x12\f\n" +
 	"\x01y\x18\a \x01(\x02R\x01y\x12\x13\n" +
 	"\x05dir_x\x18\b \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\t \x01(\x02R\x04dirY\"\x1d\n" +
+	"\x05dir_y\x18\t \x01(\x02R\x04dirY\x12\x0e\n" +
+	"\x02hp\x18\n" +
+	" \x01(\x05R\x02hp\x12\x15\n" +
+	"\x06max_hp\x18\v \x01(\x05R\x05maxHp\x12\x12\n" +
+	"\x04dead\x18\f \x01(\bR\x04dead\"\x1d\n" +
 	"\vEntityLeave\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id\"b\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"v\n" +
 	"\n" +
 	"EntityMove\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x02R\x01x\x12\f\n" +
 	"\x01y\x18\x03 \x01(\x02R\x01y\x12\x13\n" +
 	"\x05dir_x\x18\x04 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY\"l\n" +
+	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY\x12\x12\n" +
+	"\x04snap\x18\x06 \x01(\bR\x04snap\"\x8f\x02\n" +
 	"\tWorldTick\x12\x12\n" +
 	"\x04tick\x18\x01 \x01(\rR\x04tick\x12\"\n" +
 	"\rack_input_seq\x18\x02 \x01(\rR\vackInputSeq\x12'\n" +
-	"\x05moves\x18\x03 \x03(\v2\x11.ds.v1.EntityMoveR\x05moves\"'\n" +
+	"\x05moves\x18\x03 \x03(\v2\x11.ds.v1.EntityMoveR\x05moves\x12\x1e\n" +
+	"\x04hits\x18\x04 \x03(\v2\n" +
+	".ds.v1.HitR\x04hits\x12$\n" +
+	"\x06deaths\x18\x05 \x03(\v2\f.ds.v1.DeathR\x06deaths\x12.\n" +
+	"\n" +
+	"hp_changes\x18\x06 \x03(\v2\x0f.ds.v1.HpChangeR\thpChanges\x12+\n" +
+	"\tlevel_ups\x18\a \x03(\v2\x0e.ds.v1.LevelUpR\blevelUps\"'\n" +
 	"\x04Ping\x12\x1f\n" +
 	"\vclient_time\x18\x01 \x01(\x03R\n" +
 	"clientTime\"H\n" +
@@ -2125,7 +3062,62 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\vserver_time\x18\x02 \x01(\x03R\n" +
 	"serverTime\"3\n" +
 	"\x06Kicked\x12)\n" +
-	"\x06reason\x18\x01 \x01(\x0e2\x11.ds.v1.KickReasonR\x06reason*\xe4\x03\n" +
+	"\x06reason\x18\x01 \x01(\x0e2\x11.ds.v1.KickReasonR\x06reason\"(\n" +
+	"\tAttackReq\x12\x1b\n" +
+	"\ttarget_id\x18\x01 \x01(\x04R\btargetId\"\f\n" +
+	"\n" +
+	"AttackResp\"\x83\x01\n" +
+	"\x11AllocatePointsReq\x12\x1a\n" +
+	"\bstrength\x18\x01 \x01(\rR\bstrength\x12\x18\n" +
+	"\aagility\x18\x02 \x01(\rR\aagility\x12\x1a\n" +
+	"\bvitality\x18\x03 \x01(\rR\bvitality\x12\x1c\n" +
+	"\tintellect\x18\x04 \x01(\rR\tintellect\"<\n" +
+	"\x12AllocatePointsResp\x12&\n" +
+	"\x05stats\x18\x01 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"\f\n" +
+	"\n" +
+	"RespawnReq\")\n" +
+	"\vRespawnResp\x12\f\n" +
+	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\"\x91\x04\n" +
+	"\tSelfStats\x12\x14\n" +
+	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x10\n" +
+	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x19\n" +
+	"\bexp_next\x18\x03 \x01(\x03R\aexpNext\x12\x1f\n" +
+	"\vfree_points\x18\x04 \x01(\x05R\n" +
+	"freePoints\x12\x1a\n" +
+	"\bstrength\x18\x05 \x01(\x05R\bstrength\x12\x18\n" +
+	"\aagility\x18\x06 \x01(\x05R\aagility\x12\x1a\n" +
+	"\bvitality\x18\a \x01(\x05R\bvitality\x12\x1c\n" +
+	"\tintellect\x18\b \x01(\x05R\tintellect\x12\x0e\n" +
+	"\x02hp\x18\t \x01(\x05R\x02hp\x12\x15\n" +
+	"\x06max_hp\x18\n" +
+	" \x01(\x05R\x05maxHp\x12\x0e\n" +
+	"\x02mp\x18\v \x01(\x05R\x02mp\x12\x15\n" +
+	"\x06max_mp\x18\f \x01(\x05R\x05maxMp\x12\x1f\n" +
+	"\vphys_attack\x18\r \x01(\x05R\n" +
+	"physAttack\x12!\n" +
+	"\fmagic_attack\x18\x0e \x01(\x05R\vmagicAttack\x12!\n" +
+	"\fphys_defense\x18\x0f \x01(\x05R\vphysDefense\x12#\n" +
+	"\rmagic_defense\x18\x10 \x01(\x05R\fmagicDefense\x12\x1a\n" +
+	"\baccuracy\x18\x11 \x01(\x05R\baccuracy\x12\x18\n" +
+	"\aevasion\x18\x12 \x01(\x05R\aevasion\x12 \n" +
+	"\fcrit_rate_bp\x18\x13 \x01(\x05R\n" +
+	"critRateBp\"v\n" +
+	"\x03Hit\x12\x1f\n" +
+	"\vattacker_id\x18\x01 \x01(\x04R\n" +
+	"attackerId\x12\x1b\n" +
+	"\ttarget_id\x18\x02 \x01(\x04R\btargetId\x12\x16\n" +
+	"\x06damage\x18\x03 \x01(\x05R\x06damage\x12\x19\n" +
+	"\bhp_after\x18\x04 \x01(\x05R\ahpAfter\"\x17\n" +
+	"\x05Death\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"A\n" +
+	"\bHpChange\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x0e\n" +
+	"\x02hp\x18\x02 \x01(\x05R\x02hp\x12\x15\n" +
+	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHp\"/\n" +
+	"\aLevelUp\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level*\xa9\x05\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -2143,7 +3135,14 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x17ERROR_CODE_NOT_IN_WORLD\x10\f\x12\x1f\n" +
 	"\x1bERROR_CODE_ALREADY_IN_WORLD\x10\r\x12\x18\n" +
 	"\x14ERROR_CODE_ZONE_FULL\x10\x0e\x12\x17\n" +
-	"\x13ERROR_CODE_INTERNAL\x10\x0f*\x84\x02\n" +
+	"\x13ERROR_CODE_INTERNAL\x10\x0f\x12\x1d\n" +
+	"\x19ERROR_CODE_INVALID_TARGET\x10\x10\x12\x1b\n" +
+	"\x17ERROR_CODE_OUT_OF_RANGE\x10\x11\x12\x1a\n" +
+	"\x16ERROR_CODE_ON_COOLDOWN\x10\x12\x12\x1b\n" +
+	"\x17ERROR_CODE_IN_SAFE_ZONE\x10\x13\x12\x13\n" +
+	"\x0fERROR_CODE_DEAD\x10\x14\x12\x17\n" +
+	"\x13ERROR_CODE_NOT_DEAD\x10\x15\x12 \n" +
+	"\x1cERROR_CODE_NOT_ENOUGH_POINTS\x10\x16*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -2160,11 +3159,12 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x0fCHAR_CLASS_THUY\x10\x02\x12\x13\n" +
 	"\x0fCHAR_CLASS_MINH\x10\x03\x12\x13\n" +
 	"\x0fCHAR_CLASS_NHAM\x10\x04\x12\x14\n" +
-	"\x10CHAR_CLASS_PHONG\x10\x05*A\n" +
+	"\x10CHAR_CLASS_PHONG\x10\x05*Z\n" +
 	"\n" +
 	"EntityKind\x12\x1b\n" +
 	"\x17ENTITY_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
-	"\x12ENTITY_KIND_PLAYER\x10\x01B\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
+	"\x12ENTITY_KIND_PLAYER\x10\x01\x12\x17\n" +
+	"\x13ENTITY_KIND_MONSTER\x10\x02B\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
 
 var (
 	file_ds_v1_protocol_proto_rawDescOnce sync.Once
@@ -2179,37 +3179,48 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_ds_v1_protocol_proto_goTypes = []any{
-	(ErrorCode)(0),         // 0: ds.v1.ErrorCode
-	(KickReason)(0),        // 1: ds.v1.KickReason
-	(CharClass)(0),         // 2: ds.v1.CharClass
-	(EntityKind)(0),        // 3: ds.v1.EntityKind
-	(*Envelope)(nil),       // 4: ds.v1.Envelope
-	(*ErrorResp)(nil),      // 5: ds.v1.ErrorResp
-	(*RegisterReq)(nil),    // 6: ds.v1.RegisterReq
-	(*RegisterResp)(nil),   // 7: ds.v1.RegisterResp
-	(*LoginReq)(nil),       // 8: ds.v1.LoginReq
-	(*LoginResp)(nil),      // 9: ds.v1.LoginResp
-	(*CharSummary)(nil),    // 10: ds.v1.CharSummary
-	(*CharListReq)(nil),    // 11: ds.v1.CharListReq
-	(*CharListResp)(nil),   // 12: ds.v1.CharListResp
-	(*CreateCharReq)(nil),  // 13: ds.v1.CreateCharReq
-	(*CreateCharResp)(nil), // 14: ds.v1.CreateCharResp
-	(*DeleteCharReq)(nil),  // 15: ds.v1.DeleteCharReq
-	(*DeleteCharResp)(nil), // 16: ds.v1.DeleteCharResp
-	(*EnterWorldReq)(nil),  // 17: ds.v1.EnterWorldReq
-	(*EnterWorldResp)(nil), // 18: ds.v1.EnterWorldResp
-	(*LeaveWorldReq)(nil),  // 19: ds.v1.LeaveWorldReq
-	(*LeaveWorldResp)(nil), // 20: ds.v1.LeaveWorldResp
-	(*MoveInput)(nil),      // 21: ds.v1.MoveInput
-	(*EntityEnter)(nil),    // 22: ds.v1.EntityEnter
-	(*EntityLeave)(nil),    // 23: ds.v1.EntityLeave
-	(*EntityMove)(nil),     // 24: ds.v1.EntityMove
-	(*WorldTick)(nil),      // 25: ds.v1.WorldTick
-	(*Ping)(nil),           // 26: ds.v1.Ping
-	(*Pong)(nil),           // 27: ds.v1.Pong
-	(*Kicked)(nil),         // 28: ds.v1.Kicked
+	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
+	(KickReason)(0),            // 1: ds.v1.KickReason
+	(CharClass)(0),             // 2: ds.v1.CharClass
+	(EntityKind)(0),            // 3: ds.v1.EntityKind
+	(*Envelope)(nil),           // 4: ds.v1.Envelope
+	(*ErrorResp)(nil),          // 5: ds.v1.ErrorResp
+	(*RegisterReq)(nil),        // 6: ds.v1.RegisterReq
+	(*RegisterResp)(nil),       // 7: ds.v1.RegisterResp
+	(*LoginReq)(nil),           // 8: ds.v1.LoginReq
+	(*LoginResp)(nil),          // 9: ds.v1.LoginResp
+	(*CharSummary)(nil),        // 10: ds.v1.CharSummary
+	(*CharListReq)(nil),        // 11: ds.v1.CharListReq
+	(*CharListResp)(nil),       // 12: ds.v1.CharListResp
+	(*CreateCharReq)(nil),      // 13: ds.v1.CreateCharReq
+	(*CreateCharResp)(nil),     // 14: ds.v1.CreateCharResp
+	(*DeleteCharReq)(nil),      // 15: ds.v1.DeleteCharReq
+	(*DeleteCharResp)(nil),     // 16: ds.v1.DeleteCharResp
+	(*EnterWorldReq)(nil),      // 17: ds.v1.EnterWorldReq
+	(*EnterWorldResp)(nil),     // 18: ds.v1.EnterWorldResp
+	(*LeaveWorldReq)(nil),      // 19: ds.v1.LeaveWorldReq
+	(*LeaveWorldResp)(nil),     // 20: ds.v1.LeaveWorldResp
+	(*MoveInput)(nil),          // 21: ds.v1.MoveInput
+	(*EntityEnter)(nil),        // 22: ds.v1.EntityEnter
+	(*EntityLeave)(nil),        // 23: ds.v1.EntityLeave
+	(*EntityMove)(nil),         // 24: ds.v1.EntityMove
+	(*WorldTick)(nil),          // 25: ds.v1.WorldTick
+	(*Ping)(nil),               // 26: ds.v1.Ping
+	(*Pong)(nil),               // 27: ds.v1.Pong
+	(*Kicked)(nil),             // 28: ds.v1.Kicked
+	(*AttackReq)(nil),          // 29: ds.v1.AttackReq
+	(*AttackResp)(nil),         // 30: ds.v1.AttackResp
+	(*AllocatePointsReq)(nil),  // 31: ds.v1.AllocatePointsReq
+	(*AllocatePointsResp)(nil), // 32: ds.v1.AllocatePointsResp
+	(*RespawnReq)(nil),         // 33: ds.v1.RespawnReq
+	(*RespawnResp)(nil),        // 34: ds.v1.RespawnResp
+	(*SelfStats)(nil),          // 35: ds.v1.SelfStats
+	(*Hit)(nil),                // 36: ds.v1.Hit
+	(*Death)(nil),              // 37: ds.v1.Death
+	(*HpChange)(nil),           // 38: ds.v1.HpChange
+	(*LevelUp)(nil),            // 39: ds.v1.LevelUp
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -2234,20 +3245,33 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	26, // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
 	27, // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
 	28, // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
-	0,  // 22: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,  // 23: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10, // 24: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,  // 25: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10, // 26: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	3,  // 27: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,  // 28: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	24, // 29: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	1,  // 30: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	29, // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
+	30, // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
+	31, // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
+	32, // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
+	33, // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
+	34, // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
+	35, // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
+	0,  // 29: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,  // 30: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10, // 31: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,  // 32: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10, // 33: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	35, // 34: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	3,  // 35: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,  // 36: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	24, // 37: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	36, // 38: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	37, // 39: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	38, // 40: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	39, // 41: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	1,  // 42: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	35, // 43: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	44, // [44:44] is the sub-list for method output_type
+	44, // [44:44] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -2278,6 +3302,13 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_Ping)(nil),
 		(*Envelope_Pong)(nil),
 		(*Envelope_Kicked)(nil),
+		(*Envelope_AttackReq)(nil),
+		(*Envelope_AttackResp)(nil),
+		(*Envelope_AllocatePointsReq)(nil),
+		(*Envelope_AllocatePointsResp)(nil),
+		(*Envelope_RespawnReq)(nil),
+		(*Envelope_RespawnResp)(nil),
+		(*Envelope_SelfStats)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2285,7 +3316,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   25,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -292,7 +292,7 @@ func TestRequestErrors(t *testing.T) {
 	}
 	expect(c.Register(ctx, "ERIN01", "password123"), pb.ErrorCode_ERROR_CODE_USERNAME_TAKEN)
 	expect(c.Register(ctx, "x", "password123"), pb.ErrorCode_ERROR_CODE_USERNAME_INVALID)
-	_, err = c.LoginVersion(ctx, "erin01", "password123", 999)
+	_, err = c.LoginVersion(ctx, "erin01", "password123", 1)
 	expect(err, pb.ErrorCode_ERROR_CODE_VERSION_MISMATCH)
 	_, err = c.Login(ctx, "erin01", "wrongpass")
 	expect(err, pb.ErrorCode_ERROR_CODE_AUTH_FAILED)
