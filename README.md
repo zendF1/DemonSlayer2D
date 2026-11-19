@@ -58,6 +58,18 @@ go run ./cmd/botclient chars    -u tanjiro -p password123
 go run ./cmd/botclient play     -u tanjiro -p password123 -id 1 -dir 1,0 -for 10s
 ```
 
+Fight mode registers a new account (unless `-u`/`-p` are given), creates a
+character, walks out of the safe zone and kills N monsters, logging the level and
+EXP after each kill. It exits 0 after N kills and 1 after `-timeout` (default 2m):
+
+```bash
+go run ./cmd/botclient -fight 3                      # against ws://localhost:8080/ws
+go run ./cmd/botclient -fight 3 -url ws://localhost:8099/ws -timeout 1m
+```
+
+With no monster in view it walks towards `-seek` (default `20,10`, camp c1 on
+`kumotori_1`). Each run without `-u` counts against `REGISTER_PER_HOUR`.
+
 Load test (lift the registration limit on the server first, e.g. `REGISTER_PER_HOUR=100000`):
 
 ```bash
@@ -70,6 +82,19 @@ started in a few seconds exhausts the 10-second request deadline. `-ramp 150ms`
 spreads the sign-ups over 150 s and leaves the rest of the run measuring the
 game loop. Measured on an 8-core dev machine with 1,000 bots in world across 20
 zones: tick p99 ≈ 9 ms, no dropped clients.
+
+## Game data
+
+Maps live in [`maps/`](maps/) (collision, spawn points, safe zones, rest points and
+monster camps). Monster kinds and per-level stats live in
+[`data/monsters.json`](data/monsters.json), which is generated: edit
+[`docs/balance/monster_stats.py`](docs/balance/monster_stats.py), then run
+
+```bash
+python3 docs/balance/monster_stats.py --write-json
+```
+
+A Go test checks that the committed JSON matches the script's output.
 
 ## Develop
 
