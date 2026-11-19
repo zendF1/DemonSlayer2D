@@ -24,3 +24,9 @@ func FromPB(c pb.CharClass) (string, bool) {
 	}
 	return "", false
 }
+
+// IsMagic reports whether a class is a magic class (Thuy, Phong), which gets
+// less HP per level and per VIT than the physical classes (game-design 2.2).
+func IsMagic(c pb.CharClass) bool {
+	return c == pb.CharClass_CHAR_CLASS_THUY || c == pb.CharClass_CHAR_CLASS_PHONG
+}

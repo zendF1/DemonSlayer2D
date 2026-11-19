@@ -27,3 +27,20 @@ func TestUnknown(t *testing.T) {
 		t.Fatal("FromPB(UNSPECIFIED) should fail")
 	}
 }
+
+// ______________________TEST IS MAGIC_____________________
+
+func TestIsMagic(t *testing.T) {
+	cases := map[pb.CharClass]bool{
+		pb.CharClass_CHAR_CLASS_VIEM:  false,
+		pb.CharClass_CHAR_CLASS_THUY:  true,
+		pb.CharClass_CHAR_CLASS_MINH:  false,
+		pb.CharClass_CHAR_CLASS_NHAM:  false,
+		pb.CharClass_CHAR_CLASS_PHONG: true,
+	}
+	for c, want := range cases {
+		if got := IsMagic(c); got != want {
+			t.Errorf("IsMagic(%v) = %v, want %v", c, got, want)
+		}
+	}
+}
