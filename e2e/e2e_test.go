@@ -16,10 +16,15 @@ import (
 	"demonslayer2d/internal/client"
 	"demonslayer2d/internal/config"
 	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/store/storetest"
 )
 
-type server struct{ ws, http string }
+type server struct {
+	ws, http string
+	app      *app.App
+	store    *store.Store
+}
 
 func startServer(t *testing.T) server {
 	t.Helper()
@@ -47,7 +52,7 @@ func startServer(t *testing.T) server {
 		}
 		srv.Close()
 	})
-	return server{ws: "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws", http: srv.URL}
+	return server{ws: "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws", http: srv.URL, app: a, store: st}
 }
 
 func ctxT(t *testing.T) context.Context {
@@ -67,9 +72,10 @@ func dial(t *testing.T, s server) *client.Client {
 }
 
 type player struct {
-	c      *client.Client
-	charID int64
-	enter  *pb.EnterWorldResp
+	c         *client.Client
+	accountID int64
+	charID    int64
+	enter     *pb.EnterWorldResp
 }
 
 func newPlayer(t *testing.T, s server, username, charName string, class pb.CharClass) player {
@@ -79,7 +85,8 @@ func newPlayer(t *testing.T, s server, username, charName string, class pb.CharC
 	if err := c.Register(ctx, username, "password123"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Login(ctx, username, "password123"); err != nil {
+	accountID, err := c.Login(ctx, username, "password123")
+	if err != nil {
 		t.Fatal(err)
 	}
 	ch, err := c.CreateChar(ctx, 1, charName, class)
@@ -90,7 +97,7 @@ func newPlayer(t *testing.T, s server, username, charName string, class pb.CharC
 	if err != nil {
 		t.Fatal(err)
 	}
-	return player{c: c, charID: ch.Id, enter: ew}
+	return player{c: c, accountID: accountID, charID: ch.Id, enter: ew}
 }
 
 func waitFor(t *testing.T, c *client.Client, d time.Duration, match func(*pb.Envelope) bool) *pb.Envelope {
@@ -179,9 +186,27 @@ func TestDuplicateLoginKicksOldSession(t *testing.T) {
 func TestLeaveAndReenterRestoresPosition(t *testing.T) {
 	s := startServer(t)
 	p := newPlayer(t, s, "dave01", "Dave", pb.CharClass_CHAR_CLASS_NHAM)
+	ctx := ctxT(t)
+	last := walkRightAndStop(t, p)
+
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(float64(again.X-last)) > 1e-3 || again.Y != p.enter.Y {
+		t.Fatalf("re-entered at (%v, %v), want (%v, %v)", again.X, again.Y, last, p.enter.Y)
+	}
+}
+
+// walkRightAndStop moves p at least one tile to the right, stops, and returns the
+// x position the server reported once it stopped.
+func walkRightAndStop(t *testing.T, p player) float32 {
+	t.Helper()
 	self := p.enter.SelfEntityId
 	ctx := ctxT(t)
-
 	if _, err := p.c.Move(ctx, 1, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -206,16 +231,31 @@ func TestLeaveAndReenterRestoresPosition(t *testing.T) {
 		}
 		return false
 	})
+	return last
+}
 
-	if err := p.c.LeaveWorld(ctx); err != nil {
-		t.Fatal(err)
+// The saver must still flush when the gateway has used up the shutdown deadline,
+// otherwise every player still connected at shutdown loses their position.
+func TestShutdownFlushesSavesAfterGatewayTimeout(t *testing.T) {
+	s := startServer(t)
+	p := newPlayer(t, s, "gina01", "Gina", pb.CharClass_CHAR_CLASS_VIEM)
+	last := walkRightAndStop(t, p)
+
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := s.app.Shutdown(expired)
+	if err == nil || !strings.Contains(err.Error(), "gateway") {
+		t.Fatalf("Shutdown = %v, want only the gateway wait to time out", err)
 	}
-	again, err := p.c.EnterWorld(ctx, p.charID)
+	if strings.Contains(err.Error(), "saver") {
+		t.Fatalf("Shutdown = %v, the saver must not time out", err)
+	}
+	ch, err := s.store.GetCharacter(context.Background(), p.accountID, p.charID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if math.Abs(float64(again.X-last)) > 1e-3 || again.Y != p.enter.Y {
-		t.Fatalf("re-entered at (%v, %v), want (%v, %v)", again.X, again.Y, last, p.enter.Y)
+	if math.Abs(float64(ch.X-last)) > 1e-3 {
+		t.Fatalf("saved x = %v, want %v: the position was lost during shutdown", ch.X, last)
 	}
 }
 

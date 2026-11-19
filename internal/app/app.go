@@ -36,7 +36,12 @@ type App struct {
 
 	cancelSaver, cancelWorld, cancelStats context.CancelFunc
 	statsWG                               sync.WaitGroup
+	shutdownOnce                          sync.Once
 }
+
+// flushTimeout bounds the final save flush on shutdown. It is separate from the
+// Shutdown context because the gateway may already have used that one up.
+const flushTimeout = 30 * time.Second
 
 func New(ctx context.Context, cfg config.Config, log *slog.Logger, opts Options) (*App, error) {
 	a := &App{cfg: cfg, log: log, store: opts.Store}
@@ -105,7 +110,20 @@ func (a *App) Start() {
 }
 
 // Shutdown kicks every player, stops the zones, flushes pending saves and closes the store.
+// ctx bounds waiting for connections to close; the save flush gets its own flushTimeout so a
+// slow or stuck client can never cause saves to be thrown away. Calls after the first return nil.
 func (a *App) Shutdown(ctx context.Context) error {
+	err := errAlreadyShutDown
+	a.shutdownOnce.Do(func() { err = a.shutdown(ctx) })
+	if err == errAlreadyShutDown {
+		return nil
+	}
+	return err
+}
+
+var errAlreadyShutDown = errors.New("app: already shut down")
+
+func (a *App) shutdown(ctx context.Context) error {
 	var errs []error
 	if err := a.gw.Shutdown(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("gateway shutdown: %w", err))
@@ -113,11 +131,13 @@ func (a *App) Shutdown(ctx context.Context) error {
 	a.cancelStats()
 	a.statsWG.Wait()
 	a.cancelWorld()
-	a.world.Wait()
+	a.world.Wait() // zones have now queued a save for every player still inside
 	a.saver.Stop()
+	fctx, fcancel := context.WithTimeout(context.Background(), flushTimeout)
+	defer fcancel()
 	select {
 	case <-a.saver.Done():
-	case <-ctx.Done():
+	case <-fctx.Done():
 		a.cancelSaver()
 		<-a.saver.Done()
 		errs = append(errs, errors.New("saver: flush timed out, some saves were lost"))
