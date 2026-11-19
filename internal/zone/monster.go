@@ -22,6 +22,18 @@ const (
 	wanderMaxSec = 8.0
 	wanderSpeed  = 0.5 // factor of the kind's speed
 	arriveEps    = 1e-3
+	// minProgress is the fraction of a step a walk must gain towards its target
+	// each tick. Sliding along a wall gains less and less, so below this the
+	// monster counts as stuck instead of crawling in place.
+	minProgress = 0.1
+)
+
+type walkResult int
+
+const (
+	walkMoving  walkResult = iota // still on its way
+	walkArrived                   // at the target, stopped
+	walkStuck                     // can make no real progress, stopped
 )
 
 type monster struct {
@@ -49,7 +61,9 @@ func (z *Zone) thinkMonsters() {
 	}
 }
 
-// wander walks an idle monster to a random spot near home every 4-8 s.
+// wander walks an idle monster to a random spot near home every 4-8 s. The
+// straight path stays within wanderRadius of home, but sliding along a wall can
+// take it a little beyond.
 func (z *Zone) wander(m *monster) {
 	if m.dir == (Vec2{}) {
 		if z.tickNo < m.nextWander {
@@ -63,7 +77,7 @@ func (z *Zone) wander(m *monster) {
 		m.wanderTo = to
 	}
 	step := wanderSpeed * float32(m.camp.Kind.Speed) * z.cfg.MoveSpeed / float32(z.cfg.TickRate)
-	if z.walkTo(m, m.wanderTo, step) {
+	if z.walkTo(m, m.wanderTo, step) != walkMoving { // stuck just ends this walk
 		m.nextWander = z.tickNo + z.wanderDelay()
 	}
 }
@@ -93,27 +107,29 @@ func (z *Zone) wanderDelay() uint32 {
 }
 
 // walkTo moves m one tick of at most step tiles straight towards to, on the
-// monster grid. It stops m and returns true once m has arrived or is stuck.
-func (z *Zone) walkTo(m *monster, to Vec2, step float32) bool {
+// monster grid, sliding along walls. Once m arrives, or would gain less than
+// minProgress of a step towards to, it stops m and says which.
+func (z *Zone) walkTo(m *monster, to Vec2, step float32) walkResult {
 	d := distance(m.pos, to)
 	if d < arriveEps {
 		z.stopMonster(m)
-		return true
+		return walkArrived
 	}
+	move := min(step, d)
 	dir := Vec2{(to.X - m.pos.X) / d, (to.Y - m.pos.Y) / d}
-	np := Step(z.mgrid, m.pos, dir, min(step, d))
-	if np == m.pos {
+	np := Step(z.mgrid, m.pos, dir, move)
+	left := distance(np, to)
+	if left >= arriveEps && d-left < minProgress*move {
 		z.stopMonster(m)
-		return true
+		return walkStuck
 	}
-	arrived := distance(np, to) < arriveEps
-	if arrived {
-		np = to
-		dir = Vec2{}
+	res := walkMoving
+	if left < arriveEps {
+		np, dir, res = to, Vec2{}, walkArrived
 	}
 	m.pos, m.dir, m.changed = np, dir, true
 	z.updateCell(&m.entity)
-	return arrived
+	return res
 }
 
 func (z *Zone) stopMonster(m *monster) {

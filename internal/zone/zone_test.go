@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -314,6 +315,23 @@ func TestSlowConsumerIsKickedAndSaved(t *testing.T) {
 	}
 }
 
+func TestStateSavesEntityHPAndLevel(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	joinNow(t, z, 1, 5.5, 5.5) // HP -1: full
+	joinNow(t, z, 2, 6.5, 5.5)
+	p := z.players[2]
+	p.hp, p.level = 120, 3
+	<-z.leave(1)
+	<-z.leave(2)
+	saves := sv.all()
+	if len(saves) != 2 || saves[0].HP != 500 || saves[0].Level != 1 {
+		t.Fatalf("a full player saves its real HP 500, got %+v", saves)
+	}
+	if saves[1].HP != 120 || saves[1].Level != 3 {
+		t.Fatalf("saves must come from the entity's hp and level, got %+v", saves[1])
+	}
+}
+
 func TestPeriodicSave(t *testing.T) {
 	z, sv := newTestZone(10, openGrid(64, 64))
 	joinNow(t, z, 1, 5.5, 5.5)
@@ -551,6 +569,7 @@ func TestMonstersWander(t *testing.T) {
 	step := 0.5 * testKind.Speed * 4 / 10
 	moved := map[uint64]bool{}
 	broadcast := map[uint64]bool{}
+	prev := maps.Clone(home)
 	now := time.Now()
 	for i := 0; i < 300; i++ { // 30 s: several wander cycles of 4-8 s
 		z.advance(now)
@@ -561,6 +580,10 @@ func TestMonstersWander(t *testing.T) {
 			if m.pos != home[id] {
 				moved[id] = true
 			}
+			if d := dist(m.pos, prev[id]); d > step+1e-4 {
+				t.Fatalf("tick %d: monster %d moved %.4f tiles, faster than the wander step %.4f", i, id, d, step)
+			}
+			prev[id] = m.pos
 			if d := dist(m.pos, home[id]); d > 2+step/2 {
 				t.Fatalf("tick %d: monster %d is %.3f tiles from home", i, id, d)
 			}
@@ -584,6 +607,109 @@ func TestMonstersNeverEnterSafeZone(t *testing.T) {
 				t.Fatalf("tick %d: monster %d at %v is in the safe zone", i, id, m.pos)
 			}
 		}
+	}
+}
+
+// A wall right next to home: walks towards tiles behind it slide along the wall.
+// Each walk must end soon, and a walking monster must really move every tick.
+func TestWanderStopsAtWalls(t *testing.T) {
+	rows := make([]string, 60)
+	for y := range rows {
+		r := []byte(strings.Repeat(".", 60))
+		if y >= 25 && y <= 36 {
+			r[32] = '#'
+		}
+		rows[y] = string(r)
+	}
+	z, _ := newMonsterZone(t, Vec2{31.5, 30.5}, Vec2{31.5, 29.5}, Vec2{31.5, 31.5})
+	z.area.Grid = gridFrom(rows...)
+	z.mgrid = z.area.monsterGrid()
+	step := 0.5 * testKind.Speed * 4 / 10
+	prev := map[uint64]Vec2{}
+	walk := map[uint64]int{}
+	walks := 0
+	now := time.Now()
+	for id, m := range z.monsters {
+		prev[id] = m.pos
+	}
+	for i := 0; i < 2000; i++ {
+		z.advance(now)
+		for id, m := range z.monsters {
+			if m.dir == (Vec2{}) {
+				if walk[id] > 0 {
+					walks++
+				}
+				walk[id] = 0
+			} else {
+				if d := dist(m.pos, prev[id]); d < 0.1*step-1e-4 {
+					t.Fatalf("tick %d: monster %d walks (dir %v) but moved only %.5f tiles", i, id, m.dir, d)
+				}
+				if walk[id]++; walk[id] > 30 {
+					t.Fatalf("tick %d: monster %d has been walking for %d ticks", i, id, walk[id])
+				}
+			}
+			prev[id] = m.pos
+		}
+	}
+	if walks < 20 {
+		t.Fatalf("only %d wander walks finished", walks)
+	}
+}
+
+func TestWalkToResults(t *testing.T) {
+	z, _ := newMonsterZone(t, campTiles...)
+	z.area.Grid = gridFrom(
+		"......",
+		"...#..",
+		"......",
+	)
+	z.area.Safe = nil
+	z.mgrid = z.area.monsterGrid()
+	m := &monster{entity: entity{pos: Vec2{1.5, 1.5}}}
+	if r := z.walkTo(m, Vec2{2.5, 1.5}, 0.4); r != walkMoving || m.dir != (Vec2{1, 0}) {
+		t.Fatalf("first step: result %v dir %v, want moving east", r, m.dir)
+	}
+	for i := 0; i < 5 && z.walkTo(m, Vec2{2.5, 1.5}, 0.4) == walkMoving; i++ {
+	}
+	if m.pos != (Vec2{2.5, 1.5}) || m.dir != (Vec2{}) {
+		t.Fatalf("want arrived and stopped at the target, at %v dir %v", m.pos, m.dir)
+	}
+	if r := z.walkTo(m, Vec2{2.5, 1.5}, 0.4); r != walkArrived {
+		t.Fatalf("standing on the target: result %v, want arrived", r)
+	}
+	// Straight into the wall at x=3: it reaches the wall, then is stuck.
+	var r walkResult
+	for i := 0; i < 10; i++ {
+		if r = z.walkTo(m, Vec2{4.5, 1.5}, 0.4); r != walkMoving {
+			break
+		}
+	}
+	if r != walkStuck || m.dir != (Vec2{}) || m.pos.X != 3-halfSize {
+		t.Fatalf("result %v at %v dir %v, want stuck and stopped at the wall", r, m.pos, m.dir)
+	}
+}
+
+func TestMonsterGridBlocksSafeTiles(t *testing.T) {
+	z, _ := newMonsterZone(t, Vec2{10.5, 5.5}, Vec2{10.5, 6.5}, Vec2{11.5, 5.5})
+	g := z.area.monsterGrid()
+	if !g.Blocked(5, 5) || !g.Blocked(9, 0) || z.area.Grid.Blocked(5, 5) {
+		t.Fatal("safe tiles must block monsters but not the map grid")
+	}
+	if g.Blocked(10, 5) || !g.Blocked(-1, 5) {
+		t.Fatal("outside the safe rect the monster grid follows the map grid")
+	}
+	if (&Area{Grid: z.area.Grid}).monsterGrid() != z.area.Grid {
+		t.Fatal("without safe zones the monster grid is the map grid")
+	}
+	m := &monster{entity: entity{pos: Vec2{10.5, 5.5}}, home: Vec2{10.5, 5.5}}
+	for i := 0; i < 1000; i++ {
+		to, ok := z.wanderTarget(m)
+		if !ok || z.area.InSafe(to) || dist(to, m.home) > wanderRadius {
+			t.Fatalf("wander target %v ok=%v, want a non-safe tile within 2 of home", to, ok)
+		}
+	}
+	if p := Step(z.mgrid, Vec2{11.5, 5.5}, Vec2{-1, 0}, 5); p.X != 10+halfSize {
+		t.Fatalf("a monster walking into the safe rect stops at %v, want x=%v", p, 10+halfSize)
 	}
 }
 

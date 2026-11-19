@@ -393,9 +393,11 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 	}
 }
 
+// state is what gets saved. Level and HP come from the entity, which the zone
+// keeps current; a full player saves its real HP rather than -1.
 func (z *Zone) state(p *player) store.CharState {
-	return store.CharState{ID: p.info.CharID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.info.Level, Exp: p.info.Exp,
-		Points: p.info.Points, FreePoints: p.info.FreePoints, HP: p.info.HP, MP: p.info.MP}
+	return store.CharState{ID: p.info.CharID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.info.Exp,
+		Points: p.info.Points, FreePoints: p.info.FreePoints, HP: p.hp, MP: p.info.MP}
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick. It returns false if p's outbox is full.
