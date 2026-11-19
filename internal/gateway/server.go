@@ -95,13 +95,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.cleanup()
 }
 
+// track adds or removes c. A connection added after Shutdown took its snapshot
+// kicks itself, so Shutdown never waits on a connection it did not kick.
 func (s *Server) track(c *conn, add bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if add {
-		s.conns[c] = struct{}{}
-	} else {
+	if !add {
 		delete(s.conns, c)
+		s.mu.Unlock()
+		return
+	}
+	s.conns[c] = struct{}{}
+	closing := s.closing
+	s.mu.Unlock()
+	if closing {
+		c.Kick(pb.KickReason_KICK_REASON_SERVER_SHUTDOWN)
 	}
 }
 
