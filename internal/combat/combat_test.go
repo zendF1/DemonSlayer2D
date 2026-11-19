@@ -3,6 +3,7 @@ package combat
 import (
 	"encoding/csv"
 	"os"
+	"slices"
 	"strconv"
 	"testing"
 )
@@ -121,5 +122,43 @@ func TestGainExp(t *testing.T) {
 func TestMonsterExp(t *testing.T) {
 	if got := MonsterExp(7); got != 70 {
 		t.Fatalf("got %d", got)
+	}
+}
+
+func TestExpShare(t *testing.T) {
+	for _, c := range []struct {
+		total      int64
+		maxHP, dmg int
+		want       int64
+	}{
+		{100, 1000, 100, 10}, // the design example
+		{10, 56, 14, 2},      // 2.5 rounds down
+		{10, 56, 55, 9},      // 9.8 rounds down
+		{10, 56, 56, 10},     // all of it
+		{10, 56, 200, 10},    // capped at maxHP
+		{10, 56, 0, 0},
+		{10, 56, -3, 0},
+		{10, 0, 14, 0},
+		{0, 56, 14, 0},
+		{900, 1 << 30, 1 << 30, 900}, // no overflow
+	} {
+		if got := ExpShare(c.total, c.maxHP, c.dmg); got != c.want {
+			t.Errorf("ExpShare(%d, %d, %d) = %d, want %d", c.total, c.maxHP, c.dmg, got, c.want)
+		}
+	}
+}
+
+// Paying the share of the summed damage less what was paid loses nothing: a
+// level-1 monster (56 HP, 10 EXP) slashed for 14 four times pays 2, 3, 2, 3.
+func TestExpShareCumulative(t *testing.T) {
+	var paid int64
+	var got []int64
+	for sum := 14; sum <= 56; sum += 14 {
+		share := ExpShare(MonsterExp(1), 56, sum)
+		got = append(got, share-paid)
+		paid = share
+	}
+	if !slices.Equal(got, []int64{2, 3, 2, 3}) || paid != 10 {
+		t.Fatalf("payments %v total %d, want [2 3 2 3] and 10", got, paid)
 	}
 }

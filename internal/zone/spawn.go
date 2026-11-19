@@ -52,6 +52,8 @@ func (z *Zone) spawn(c *campState) {
 		camp:       c,
 		home:       pos,
 		attackers:  make(map[uint64]struct{}),
+		dmgBy:      make(map[uint64]int),
+		expPaid:    make(map[uint64]int64),
 		state:      idle,
 		nextWander: z.tickNo + z.wanderDelay(),
 	}

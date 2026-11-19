@@ -241,36 +241,53 @@ func abs(v int) int {
 	return v
 }
 
-// slash lands p's default slash on m: an idle monster turns on its attacker,
-// and one brought to 0 HP dies.
+// slash lands p's default slash on m: p earns its EXP share of the hit, an
+// idle monster turns on its attacker, and one brought to 0 HP dies.
 func (z *Zone) slash(p *player, m *monster) {
 	dmg := combat.Damage(combat.SlashBase(p.stats), z.area.Levels[m.level].Defense, p.level)
-	m.hp = max(m.hp-dmg, 0)
+	counted := min(dmg, m.hp) // overkill earns no EXP
+	m.hp -= counted
 	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: p.id, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp)})
 	m.attackers[p.id] = struct{}{}
+	z.payExpShare(p, m, counted)
 	if m.state == idle {
 		m.target, m.state = p.id, chase
 	}
 	if m.hp == 0 {
-		z.killMonster(m, p)
+		z.killMonster(m)
 	}
 }
 
-// killMonster makes m a corpse, schedules its camp's respawn and gives the
-// killer its EXP.
-func (z *Zone) killMonster(m *monster, killer *player) {
+// payExpShare gives p the EXP that counted more damage on m earns (spec 3.4):
+// the share of p's summed damage on m, less what m has already paid p, so
+// no fraction is lost over several hits.
+func (z *Zone) payExpShare(p *player, m *monster, counted int) {
+	m.dmgBy[p.id] += counted
+	share := combat.ExpShare(combat.MonsterExp(m.level), m.maxHP, m.dmgBy[p.id])
+	gain := share - m.expPaid[p.id]
+	m.expPaid[p.id] = share
+	z.gainExp(p, gain)
+}
+
+// killMonster makes m a corpse and schedules its camp's respawn. Its EXP has
+// already been paid hit by hit; drops, when they come, go to the killer
+// (game-design 5.8).
+func (z *Zone) killMonster(m *monster) {
 	m.dead, m.diedAt = true, z.tickNo
 	z.stopMonster(m)
 	m.target = 0
 	clear(m.attackers)
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: m.id})
 	m.camp.pending = append(m.camp.pending, m.diedAt+z.ticks(m.camp.Kind.RespawnSec))
-	z.gainExp(killer, combat.MonsterExp(m.level))
 }
 
-// gainExp adds gain to p's EXP. Each level gained brings PointsPerLevel free
-// points and full HP and MP, and is saved at once (spec 6.3).
+// gainExp adds gain to p's EXP and pushes p its new stats. Each level gained
+// brings PointsPerLevel free points and full HP and MP, and is saved at once
+// (spec 6.3). A player at MaxLevel, or a gain of 0, changes nothing.
 func (z *Zone) gainExp(p *player, gain int64) {
+	if gain <= 0 {
+		return
+	}
 	level, exp := combat.GainExp(p.level, p.exp, gain)
 	if level == p.level && exp == p.exp {
 		return // at the level cap

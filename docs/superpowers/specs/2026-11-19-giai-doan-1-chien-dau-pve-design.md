@@ -25,6 +25,7 @@ Từ Giai đoạn 1, mỗi giai đoạn có một spec chung cho server và clie
 | Gửi diễn biến chiến đấu | Gói theo tick trong `WorldTick`, thêm push `SelfStats` cho chỉ số của mình | Một khung WebSocket mỗi tick; sự kiện gắn đúng tick |
 | Quái khi rảnh | Đi lang thang quanh điểm sinh | Bãi quái có chuyển động |
 | Lên cấp | Hồi đầy HP/MP | Giai đoạn 1 không có cách hồi nào khác ngoài điểm nghỉ. Game-design chưa ghi luật này |
+| EXP theo sát thương | Mỗi đòn trúng trả ngay EXP theo phần sát thương trên HP tối đa của quái, thay vì người kết liễu nhận hết (mục 3.4) | Người chơi cùng đánh một con đều nhận EXP theo công sức |
 
 ### 1.4. Không làm ở Giai đoạn 1
 
@@ -138,7 +139,12 @@ Chính xác, né tránh và tỷ lệ chí mạng chỉ hiển thị ở Giai đ
 
 ### 3.4. EXP và lên cấp
 
-- Hạ quái: người ra đòn kết liễu nhận 10 × cấp quái EXP (mục 5.12). Chưa có tổ đội nên không chia EXP.
+- EXP gốc của quái là 10 × cấp quái (mục 5.12), chia theo sát thương (game-design mục 5.8):
+  1. Mỗi đòn trúng quái cho EXP ngay: EXP = sát thương × EXP gốc / HP tối đa của quái. Ví dụ quái 1.000 HP, 100 EXP: đòn 100 sát thương cho 10 EXP.
+  2. Sát thương thừa không tính: sát thương tính EXP tối đa bằng HP còn lại của quái trước đòn, nên một con không trả quá EXP gốc. `Hit.damage` vẫn gửi đủ sát thương.
+  3. Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và EXP đã trả cho từng người chơi. Mỗi đòn trả floor(EXP gốc × tổng sát thương / HP tối đa) − EXP đã trả. Một người tự hạ quái cấp 1 (56 HP, 10 EXP, mỗi nhát 14) nhận đúng 10 EXP, lần lượt 2, 3, 2, 3.
+  4. Quái về chỗ và hồi đầy HP (kéo quá xa rồi về, hoặc kẹt rồi được đặt lại chỗ cũ): EXP đã trả giữ nguyên, bảng sát thương và EXP đã trả của con quái về 0.
+  5. Đồ rơi (Giai đoạn 3) vẫn thuộc người kết liễu (game-design mục 5.8). Thưởng 5% tổ đội định lại ở Giai đoạn 5; Giai đoạn 1 chưa có tổ đội.
 - EXP cần để lên từ cấp L: 10 × L × (10 + 2 × (L − 1)^1,5) × hệ số cấp, làm tròn đến 10. Hệ số cấp: 4 × L / 3 khi L ≤ 9; 10 + 0,5 × (L − 10) khi L ≥ 10 (mục 2.2).
 - EXP lưu theo tổng tích lũy trong cấp hiện tại (`exp` là EXP đã có của cấp hiện tại). Đủ EXP thì lên cấp, trừ phần đã dùng, phần dư giữ lại; đủ thì lên nhiều cấp liền.
 - Cấp tối đa 90. Ở cấp 90 không nhận thêm EXP.
@@ -241,7 +247,7 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 - `Move` thêm `bool snap`: client đặt thẳng vị trí, không nội suy. Bật khi hồi sinh.
 - `SelfStats`: `level`, `int64 exp`, `int64 exp_next`, `free_points`, `strength`, `agility`, `vitality`, `intellect`, `hp`, `max_hp`, `mp`, `max_mp`, `phys_attack`, `magic_attack`, `phys_defense`, `magic_defense`, `accuracy`, `evasion`, `crit_rate_bp`.
   - Là trường `SelfStats stats = 9` của `EnterWorldResp`.
-  - Là push riêng (seq 0) sau `WorldTick` của tick mà EXP, cấp, điểm, HP tối đa hoặc MP đổi không qua `Hit`: hạ quái, lên cấp, hồi sinh, hồi ở điểm nghỉ.
+  - Là push riêng (seq 0) sau `WorldTick` của tick mà EXP, cấp, điểm, HP tối đa hoặc MP đổi không qua `Hit`: mỗi đòn trúng quái làm EXP đổi, lên cấp, hồi sinh, hồi ở điểm nghỉ.
   - Nằm trong `AllocatePointsResp`.
   - HP của mình khi bị đánh đã có trong `Hit.hp_after`, không gửi `SelfStats` cho mỗi đòn.
 
@@ -346,7 +352,8 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
   - mất mục tiêu thì chuyển sang người đã đánh nó, rồi người gần trong 4 ô;
   - quái không bước vào khu an toàn;
   - mỗi lỗi `AttackReq` trả đúng mã; đòn hợp lệ trừ đúng HP;
-  - hạ quái thì nhận EXP, lên cấp, +10 điểm, đầy HP/MP và có yêu cầu lưu ngay;
+  - mỗi đòn trúng trả EXP theo sát thương (2, 3, 2, 3 khi tự hạ quái cấp 1), sát thương thừa không tính, hai người cùng đánh đều nhận phần mình, quái về chỗ thì bảng sát thương về 0;
+  - EXP từ một đòn đủ lên cấp thì lên cấp, +10 điểm, đầy HP/MP và có yêu cầu lưu ngay;
   - cộng điểm đúng, sai thì trả lỗi;
   - người chết không đi được, được tự hồi sinh sau 60 giây ở spawn `default` với `snap`;
   - đứng ở điểm nghỉ 5 giây thì hồi đầy, di chuyển thì đếm lại;

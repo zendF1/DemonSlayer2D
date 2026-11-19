@@ -702,7 +702,11 @@ Khi chết, người chơi chọn một trong hai cách:
 ### 5.8. EXP tổ đội và quyền nhặt đồ
 
 - **Tổ đội tối đa 5 người.**
-- Người hạ quái nhận EXP gốc của quái. Mỗi đồng đội trong tổ đội đủ điều kiện bên dưới nhận **thêm 5% EXP gốc**, không khấu trừ từ EXP người hạ quái.
+- **EXP chia theo sát thương, trả ngay mỗi đòn trúng**: EXP = sát thương × EXP gốc của quái / HP tối đa của quái. Ví dụ quái 1.000 HP, 100 EXP: đòn 100 sát thương cho 10 EXP. Ai cùng đánh một con đều nhận EXP theo phần sát thương của mình, không chỉ người hạ quái.
+- Sát thương thừa không tính: sát thương tính EXP của một đòn tối đa bằng HP còn lại của quái trước đòn đó, nên một con quái không trả quá EXP gốc của nó.
+- Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và số EXP đã trả cho từng người. Mỗi đòn trả floor(EXP gốc × tổng sát thương của người đó / HP tối đa) − EXP đã trả. Ví dụ quái cấp 1 (56 HP, 10 EXP), mỗi nhát 14: một người tự đánh nhận đúng 10 EXP, trả lần lượt 2, 3, 2, 3.
+- Quái về chỗ và hồi đầy HP (bị kéo quá xa hoặc kẹt rồi được đặt lại chỗ cũ): EXP đã trả giữ nguyên cho người chơi; bảng sát thương và EXP đã trả của con quái về 0.
+- Mỗi đồng đội trong tổ đội đủ điều kiện bên dưới nhận **thêm 5% EXP gốc**, không khấu trừ từ EXP người hạ quái. Luật 5% này sẽ được định lại ở Giai đoạn 5 cho khớp với luật EXP theo sát thương; các dòng ví dụ và điều kiện bên dưới là bản cũ.
 - Ví dụ quái cho 100 EXP, tổ đội năm người: người hạ nhận **100 EXP**, bốn đồng đội mỗi người nhận **5 EXP**, tổng phát ra 120 EXP.
 - Đây là chủ đích: ai trong tổ đội hạ quái thì các thành viên còn lại đều nhận 5%. Nếu cả năm người cùng tự đánh quái với tốc độ như nhau, mỗi người nhận thêm khoảng **20%** so với EXP tự đánh (4 đồng đội × 5%).
 - Điều kiện nhận EXP chia sẻ: **cùng map, cùng khu** với người hạ quái; không giới hạn khoảng cách và không yêu cầu đồng đội phải trực tiếp gây sát thương.
@@ -798,7 +802,7 @@ Chiêu vùng của tinh anh đánh tối đa **3 người**, thủ lĩnh tối �
 - Đồ Đỏ dành cho hoạt động lớn/sự kiện, không nằm trong lượt rơi trang bị thường của bảng này.
 - v1.0.0.0 không có nguyên liệu chế tạo (da, tơ, gỗ, quặng…); hai dòng nguyên liệu cũ được đổi thành đá cường hóa và đá tẩy luyện, giữ nguyên tỷ lệ rơi.
 - Các lượt rơi trang bị/đá độc lập; tỷ lệ phẩm chất chỉ xét sau khi có trang bị rơi. Thủ lĩnh xét phẩm chất riêng cho từng món trong hai món rơi.
-- Người kết liễu giữ quyền nhặt; đồng đội cùng map/khu nhận thêm 5% EXP như mục 5.8. Phần thưởng nhân vật/người chơi khác không làm nhân bản lượt rơi đồ của một con quái.
+- EXP chia cho mọi người đánh theo phần sát thương của từng người (mục 5.8); đồ rơi vẫn thuộc người kết liễu. Phần thưởng nhân vật/người chơi khác không làm nhân bản lượt rơi đồ của một con quái.
 
 ### 5.13. Chuyến Tàu Vô Tận thường và sự kiện
 

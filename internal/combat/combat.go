@@ -107,5 +107,18 @@ func GainExp(level int, exp, gain int64) (newLevel int, newExp int64) {
 	return MaxLevel, 0
 }
 
-// MonsterExp is the EXP a same-level kill gives: 10 * level (spec 3.4).
+// MonsterExp is a monster's total EXP, paid out over the hits on it by
+// damage share (ExpShare): 10 * level (spec 3.4).
 func MonsterExp(level int) int64 { return 10 * int64(level) }
+
+// ExpShare is the part of a monster's total EXP that damage of its maxHP earns:
+// floor(total * damage / maxHP), with damage capped at maxHP so a monster
+// never pays more than total (spec 3.4). Integer math only. Paying the share
+// of each attacker's summed damage, less what it was already paid, keeps the
+// fractions that single hits would lose.
+func ExpShare(total int64, maxHP, damage int) int64 {
+	if total <= 0 || maxHP <= 0 || damage <= 0 {
+		return 0
+	}
+	return total * int64(min(damage, maxHP)) / int64(maxHP)
+}

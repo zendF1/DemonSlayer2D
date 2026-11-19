@@ -227,6 +227,7 @@ func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
 	z.area.Grid = gridFrom(rows...)
 	z.mgrid = z.area.monsterGrid()
 	m.pos, m.hp, m.state = Vec2{35.5, 30.5}, 10, returning
+	m.dmgBy[1], m.expPaid[1] = 46, 8
 	z.updateCell(&m.entity)
 	v := joinNow(t, z, 1, 36.5, 36.5) // in view, out of aggro range of home
 	now := time.Now()
@@ -260,6 +261,9 @@ func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
 	}
 	if heal == nil || heal.Hp != int32(m.maxHP) {
 		t.Fatalf("viewer HpChange %v, want full HP", heal)
+	}
+	if m.dmgBy == nil || m.expPaid == nil || len(m.dmgBy) != 0 || len(m.expPaid) != 0 {
+		t.Fatalf("dmgBy %v expPaid %v, want EXP tracking reset and still allocated", m.dmgBy, m.expPaid)
 	}
 }
 
@@ -653,7 +657,9 @@ func TestLineBlocked(t *testing.T) {
 	}
 }
 
-func TestKillGivesExpAndRespawns(t *testing.T) {
+// Each slash pays its EXP share at once: 14 of 56 HP of a 10-EXP monster
+// pays 2, 3, 2, 3 (spec 3.4), with a SelfStats push after each.
+func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)
 	v := joinNow(t, z, 2, 30.5, 36.5)
@@ -675,20 +681,20 @@ func TestKillGivesExpAndRespawns(t *testing.T) {
 		if m.hp != 56-14*(i+1) && !(i == 3 && m.hp == 0) {
 			t.Fatalf("after slash %d hp %d", i+1, m.hp)
 		}
+		want := []int64{2, 5, 7, 10}[i]
+		if p := z.players[1]; p.exp != want || p.level != 1 {
+			t.Fatalf("after slash %d level %d exp %d, want level 1 with %d EXP", i+1, p.level, p.exp, want)
+		}
+		ss := selfStatsIn(envs)
+		if len(ss) != 1 || ss[0].Exp != want || envs[len(envs)-1].GetSelfStats() == nil || envs[len(envs)-1].Seq != 0 {
+			t.Fatalf("after slash %d SelfStats %v, want one push with %d EXP after the WorldTick", i+1, ss, want)
+		}
 		if i < 3 {
 			continue
 		}
 		diedAt = z.tickNo
 		if !m.dead || !slices.Equal(deathsIn(envs), []uint64{m.id}) || !slices.Equal(deathsIn(v.take()), []uint64{m.id}) {
 			t.Fatalf("dead=%v deaths %v, want the monster dead and a Death for everyone", m.dead, deathsIn(envs))
-		}
-		p := z.players[1]
-		if p.exp != 10 || p.level != 1 {
-			t.Fatalf("killer level %d exp %d, want level 1 with 10 EXP", p.level, p.exp)
-		}
-		ss := selfStatsIn(envs)
-		if len(ss) != 1 || ss[0].Exp != 10 || envs[len(envs)-1].GetSelfStats() == nil || envs[len(envs)-1].Seq != 0 {
-			t.Fatalf("SelfStats %v, want one push with 10 EXP after the WorldTick", ss)
 		}
 	}
 	if z.camps[0] != camp || camp.present != 1 {
@@ -730,22 +736,26 @@ func TestKillGivesExpAndRespawns(t *testing.T) {
 
 // ______________________TEST PROGRESSION_____________________
 
+// A hit's EXP share can level a player up mid-fight, with no kill.
 func TestLevelUp(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	in := info(1, 31.5, 30.5)
-	in.Exp, in.HP, in.MP = 125, 100, 20
+	in.Exp, in.HP, in.MP = 129, 100, 20
 	a := &fakeOut{}
 	if err := z.join(in, a); err != nil {
 		t.Fatal(err)
 	}
 	v := joinNow(t, z, 2, 30.5, 36.5)
-	m.hp = 1
 	sv := z.saver.(*fakeSaver)
+	m.nextAttack = 1 << 30 // it survives the slash; keep it from hitting back
 	attackNow(t, z, 1, 1, m.id)
 	p := z.players[1]
-	// 125 + 10 = 135 of 130 needed: level 2 with 5 EXP left over.
-	if p.level != 2 || p.exp != 5 || p.freePoints != 10 {
-		t.Fatalf("level %d exp %d free %d, want 2, 5, 10", p.level, p.exp, p.freePoints)
+	if m.dead || m.hp != 42 {
+		t.Fatalf("monster dead=%v hp %d, want it alive at 42", m.dead, m.hp)
+	}
+	// 129 + 2 (14 of 56 HP of 10 EXP) = 131 of 130 needed: level 2 with 1 left over.
+	if p.level != 2 || p.exp != 1 || p.freePoints != 10 {
+		t.Fatalf("level %d exp %d free %d, want 2, 1, 10", p.level, p.exp, p.freePoints)
 	}
 	if p.maxHP != 560 || p.hp != 560 || p.mp != 120 || p.stats.MaxMP != 120 || p.stats.PhysAttack != 25 {
 		t.Fatalf("hp %d/%d mp %d stats %+v, want full at level-2 stats", p.hp, p.maxHP, p.mp, p.stats)
@@ -773,7 +783,7 @@ func TestLevelUp(t *testing.T) {
 		t.Fatalf("SelfStats %v, want level 2 with 10 free points", ss)
 	}
 	saves := sv.all()
-	if len(saves) != 1 || saves[0].Level != 2 || saves[0].Exp != 5 || saves[0].FreePoints != 10 || saves[0].HP != 560 || saves[0].MP != 120 {
+	if len(saves) != 1 || saves[0].Level != 2 || saves[0].Exp != 1 || saves[0].FreePoints != 10 || saves[0].HP != 560 || saves[0].MP != 120 {
 		t.Fatalf("saves %+v, want one immediate save at level 2", saves)
 	}
 }
@@ -791,9 +801,8 @@ func TestLevelUpThenHitSameTick(t *testing.T) {
 	z := New(testConfig(10), area, &fakeSaver{}, quietLog())
 	ids := slices.Sorted(maps.Keys(z.monsters))
 	victim := z.monsters[ids[0]]
-	victim.hp = 1
 	in := info(1, 31.5, 30.5)
-	in.Exp, in.HP = 125, 100
+	in.Exp, in.HP = 128, 100 // the slash's 2 EXP share reaches level 2
 	a := &fakeOut{}
 	if err := z.join(in, a); err != nil {
 		t.Fatal(err)
@@ -825,6 +834,119 @@ func TestLevelUpThenHitSameTick(t *testing.T) {
 		if hp != int32(p.hp) {
 			t.Fatalf("%s sees HP %d, real HP %d", name, hp, p.hp)
 		}
+	}
+}
+
+// Two players on one monster each earn the share of their own damage, the
+// one who does not land the kill included, and together never more than it
+// is worth.
+func TestExpSharedByDamage(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	joinNow(t, z, 1, 31.5, 30.5) // slashes for 14
+	in := info(2, 29.5, 30.5)
+	in.Points = combat.Points{Str: 5} // phys attack 30: slashes for 21
+	if err := z.join(in, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	p1, p2 := z.players[1], z.players[2]
+	now := time.Now()
+	// Tick 1: 1 hits for 14 (42 left, 2 EXP), then 2 for 21 (21 left, 3 EXP).
+	z.Attack(1, 1, m.id)
+	attackNow(t, z, 2, 1, m.id)
+	if m.hp != 21 || p1.exp != 2 || p2.exp != 3 {
+		t.Fatalf("hp %d exp %d/%d, want 21 and 2/3", m.hp, p1.exp, p2.exp)
+	}
+	// 1 hits twice more: 14 (7 left) and the kill, which counts only 7.
+	for seq := uint32(2); seq <= 3; seq++ {
+		for range 7 {
+			z.advance(now)
+		}
+		attackNow(t, z, 1, seq, m.id)
+	}
+	if !m.dead {
+		t.Fatalf("monster hp %d, want it dead", m.hp)
+	}
+	// 1 counted 35 of 56 HP: floor(6.25) = 6. 2 counted 21: floor(3.75) = 3.
+	if p1.exp != 6 || p2.exp != 3 {
+		t.Fatalf("exp %d/%d, want 6 for the killer and 3 for the other", p1.exp, p2.exp)
+	}
+	if total := p1.exp + p2.exp; total > combat.MonsterExp(1) {
+		t.Fatalf("paid %d in all, more than the monster's %d", total, combat.MonsterExp(1))
+	}
+}
+
+// Damage past the monster's remaining HP earns nothing, though the Hit still
+// shows all of it.
+func TestOverkillEarnsNoExp(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 31.5, 30.5)
+	m.hp = 11
+	a.take()
+	attackNow(t, z, 1, 1, m.id)
+	hs := hitsIn(a.take())
+	if len(hs) != 1 || hs[0].Damage != 14 || hs[0].HpAfter != 0 || !m.dead {
+		t.Fatalf("hits %v dead %v, want a 14-damage kill", hs, m.dead)
+	}
+	// 11 of 56 HP counts: floor(110/56) = 1, not the 2 that 14 would earn.
+	if p := z.players[1]; p.exp != 1 || m.dmgBy[1] != 11 {
+		t.Fatalf("exp %d counted %d, want 1 EXP for 11 damage", p.exp, m.dmgBy[1])
+	}
+}
+
+// A monster that heals at home starts its damage tracking again; players
+// keep the EXP it paid.
+func TestLeashHealResetsExpTracking(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	joinNow(t, z, 1, 31.5, 30.5)
+	p := z.players[1]
+	attackNow(t, z, 1, 1, m.id)
+	if p.exp != 2 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 {
+		t.Fatalf("exp %d dmgBy %v expPaid %v, want 2, 14, 2", p.exp, m.dmgBy, m.expPaid)
+	}
+	// Drag it past the leash range: it walks home and heals.
+	m.pos = Vec2{home.X + 11, home.Y}
+	z.updateCell(&m.entity)
+	now := time.Now()
+	for i := 0; i < 100 && !(m.state == idle && m.pos == home); i++ {
+		z.advance(now)
+	}
+	if m.pos != home || m.hp != m.maxHP {
+		t.Fatalf("at %v hp %d, want home with full HP", m.pos, m.hp)
+	}
+	if p.exp != 2 {
+		t.Fatalf("exp %d, want the 2 already paid kept", p.exp)
+	}
+	if m.dmgBy == nil || m.expPaid == nil || len(m.dmgBy) != 0 || len(m.expPaid) != 0 {
+		t.Fatalf("dmgBy %v expPaid %v, want empty and still allocated", m.dmgBy, m.expPaid)
+	}
+	// A fresh 14 pays 2 again, not the 3 that 28 summed would.
+	attackNow(t, z, 1, 2, m.id)
+	if p.exp != 4 {
+		t.Fatalf("exp %d, want 4", p.exp)
+	}
+}
+
+// A player at the level cap gains nothing and gets no SelfStats push.
+func TestNoExpAtMaxLevel(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	in := info(1, 31.5, 30.5)
+	in.Level = combat.MaxLevel
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	a.take()
+	attackNow(t, z, 1, 1, m.id)
+	p := z.players[1]
+	if p.level != combat.MaxLevel || p.exp != 0 {
+		t.Fatalf("level %d exp %d, want the cap with 0 EXP", p.level, p.exp)
+	}
+	if ss := selfStatsIn(a.take()); len(ss) != 0 {
+		t.Fatalf("SelfStats %v, want none", ss)
+	}
+	if n := len(z.saver.(*fakeSaver).all()); n != 0 {
+		t.Fatalf("%d saves, want none", n)
 	}
 }
 

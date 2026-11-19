@@ -55,6 +55,11 @@ type monster struct {
 	stuck      uint32              // consecutive ticks a returning monster could not move
 	diedAt     uint32              // tick it died at, while dead
 
+	// Since it last healed at home: the damage each player has done to it
+	// that counts for EXP (overkill does not), and the EXP paid to each.
+	dmgBy   map[uint64]int
+	expPaid map[uint64]int64
+
 	wanderTo   Vec2
 	nextWander uint32 // tick at which an idle monster picks a new wander target
 }
@@ -216,7 +221,8 @@ func (z *Zone) goHome(m *monster) {
 	}
 }
 
-// arriveHome makes a returned monster idle at home with full HP.
+// arriveHome makes a returned monster idle at home with full HP. Players keep
+// the EXP it paid them, and its damage tracking starts again.
 func (z *Zone) arriveHome(m *monster) {
 	if m.pos != m.home {
 		m.pos, m.changed = m.home, true
@@ -227,6 +233,8 @@ func (z *Zone) arriveHome(m *monster) {
 		m.hp = m.maxHP
 		z.hpChanged(&m.entity)
 	}
+	clear(m.dmgBy)
+	clear(m.expPaid)
 	m.state, m.stuck = idle, 0
 	m.nextWander = z.tickNo + z.wanderDelay()
 }
