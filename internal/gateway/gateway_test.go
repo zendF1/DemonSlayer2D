@@ -1,0 +1,191 @@
+package gateway
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+
+	"demonslayer2d/internal/auth"
+	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/store"
+	"demonslayer2d/internal/zone"
+)
+
+// ______________________TEST OUTBOX_____________________
+
+func TestOutbox(t *testing.T) {
+	var kicked []pb.KickReason
+	o := newOutbox(2, func(r pb.KickReason) { kicked = append(kicked, r) })
+	e := &pb.Envelope{}
+	fillOutbox(t, o, 2)
+	<-o.ch
+	o.closeWith(&pb.Envelope{Seq: 9})
+	o.closeWith(nil) // no-op
+	if o.Send(e) {
+		t.Fatal("send after close must fail")
+	}
+	var got []*pb.Envelope
+	for env := range o.ch {
+		got = append(got, env)
+	}
+	if len(got) != 2 || got[1].Seq != 9 {
+		t.Fatalf("drained %v, want the queued envelope then the final one", got)
+	}
+	o.Kick(pb.KickReason_KICK_REASON_IDLE_TIMEOUT)
+	if len(kicked) != 1 || kicked[0] != pb.KickReason_KICK_REASON_IDLE_TIMEOUT {
+		t.Fatalf("kicked = %v", kicked)
+	}
+}
+
+func TestOutboxKeepsRoomForFinalMessage(t *testing.T) {
+	o := newOutbox(2, func(pb.KickReason) {})
+	fillOutbox(t, o, 2)
+	o.closeWith(&pb.Envelope{Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{Reason: pb.KickReason_KICK_REASON_SLOW_CONSUMER}}})
+	var got []*pb.Envelope
+	for env := range o.ch {
+		got = append(got, env)
+	}
+	if len(got) != 3 || got[2].GetKicked().GetReason() != pb.KickReason_KICK_REASON_SLOW_CONSUMER {
+		t.Fatalf("a full queue must still deliver the final Kicked message, got %v", got)
+	}
+}
+
+// fillOutbox sends until the outbox is full and checks it accepted exactly want envelopes.
+func fillOutbox(t *testing.T, o *outbox, want int) {
+	t.Helper()
+	for i := range want {
+		if !o.Send(&pb.Envelope{}) {
+			t.Fatalf("send %d of %d was rejected", i+1, want)
+		}
+	}
+	if o.Send(&pb.Envelope{}) {
+		t.Fatalf("send %d should report a full queue", want+1)
+	}
+}
+
+// ______________________TEST ERRORS_____________________
+
+func TestErrorCode(t *testing.T) {
+	cases := map[error]pb.ErrorCode{
+		auth.ErrUsernameInvalid: pb.ErrorCode_ERROR_CODE_USERNAME_INVALID,
+		auth.ErrPasswordInvalid: pb.ErrorCode_ERROR_CODE_PASSWORD_INVALID,
+		auth.ErrNameInvalid:     pb.ErrorCode_ERROR_CODE_NAME_INVALID,
+		auth.ErrAuthFailed:      pb.ErrorCode_ERROR_CODE_AUTH_FAILED,
+		auth.ErrRateLimited:     pb.ErrorCode_ERROR_CODE_RATE_LIMITED,
+		store.ErrUsernameTaken:  pb.ErrorCode_ERROR_CODE_USERNAME_TAKEN,
+		store.ErrNameTaken:      pb.ErrorCode_ERROR_CODE_NAME_TAKEN,
+		store.ErrSlotOccupied:   pb.ErrorCode_ERROR_CODE_SLOT_OCCUPIED,
+		store.ErrNotFound:       pb.ErrorCode_ERROR_CODE_CHAR_NOT_FOUND,
+		zone.ErrZoneFull:        pb.ErrorCode_ERROR_CODE_ZONE_FULL,
+		errors.New("boom"):      pb.ErrorCode_ERROR_CODE_INTERNAL,
+	}
+	for err, want := range cases {
+		if got := errorCode(fmt.Errorf("wrapped: %w", err)); got != want {
+			t.Errorf("errorCode(%v) = %v, want %v", err, got, want)
+		}
+	}
+}
+
+// ______________________TEST CLIENT IP_____________________
+
+func TestClientIP(t *testing.T) {
+	proxies := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("127.0.0.1/32")}
+	cases := []struct {
+		name    string
+		remote  string
+		xff     []string
+		trusted []netip.Prefix
+		want    string
+	}{
+		{"direct", "203.0.113.7:5000", nil, proxies, "203.0.113.7"},
+		{"untrusted peer ignores header", "203.0.113.7:5000", []string{"1.2.3.4"}, proxies, "203.0.113.7"},
+		{"no proxies configured", "10.0.0.2:5000", []string{"1.2.3.4"}, nil, "10.0.0.2"},
+		{"one proxy", "10.0.0.2:5000", []string{"198.51.100.9"}, proxies, "198.51.100.9"},
+		{"spoofed left entry is ignored", "10.0.0.2:5000", []string{"6.6.6.6, 198.51.100.9"}, proxies, "198.51.100.9"},
+		{"proxy chain", "127.0.0.1:5000", []string{"198.51.100.9, 10.1.1.1"}, proxies, "198.51.100.9"},
+		{"several headers", "10.0.0.2:5000", []string{"6.6.6.6", "198.51.100.9"}, proxies, "198.51.100.9"},
+		{"trusted peer without header", "10.0.0.2:5000", nil, proxies, "10.0.0.2"},
+		{"malformed hop", "10.0.0.2:5000", []string{"198.51.100.9, junk"}, proxies, "10.0.0.2"},
+		{"only proxies", "10.0.0.2:5000", []string{"10.3.3.3"}, proxies, "10.3.3.3"},
+		{"ipv6 peer", "[2001:db8::1]:5000", nil, proxies, "2001:db8::1"},
+		{"ipv4-mapped peer", "[::ffff:10.0.0.2]:5000", []string{"198.51.100.9"}, proxies, "198.51.100.9"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &http.Request{RemoteAddr: tc.remote, Header: http.Header{}}
+			for _, v := range tc.xff {
+				r.Header.Add("X-Forwarded-For", v)
+			}
+			if got := clientIP(r, tc.trusted); got != tc.want {
+				t.Fatalf("clientIP = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// ______________________TEST SERVER_____________________
+
+// A connection that registers after Shutdown has taken its snapshot must kick itself,
+// otherwise Shutdown would wait for it until its deadline.
+func TestConnTrackedDuringShutdownIsKicked(t *testing.T) {
+	s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if err := s.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	c := s.newConn(nil, "127.0.0.1")
+	defer c.idle.Stop()
+	defer c.authTimer.Stop()
+
+	s.track(c, true)
+	if !c.kicked.Load() {
+		t.Fatal("connection tracked after shutdown started was not kicked")
+	}
+	env := <-c.out.ch
+	if env.GetKicked().GetReason() != pb.KickReason_KICK_REASON_SERVER_SHUTDOWN {
+		t.Fatalf("final message = %v, want Kicked{SERVER_SHUTDOWN}", env)
+	}
+}
+
+// Behind a trusted proxy the connection must be keyed on the player's address from
+// X-Forwarded-For, not on the proxy's.
+func TestConnUsesForwardedIPFromTrustedProxy(t *testing.T) {
+	s := NewServer(Deps{
+		Log:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32"), netip.MustParsePrefix("::1/128")},
+	})
+	srv := httptest.NewServer(s)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ws, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), &websocket.DialOptions{
+		HTTPHeader: http.Header{"X-Forwarded-For": {"198.51.100.9"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.CloseNow()
+
+	var ip string
+	for ip == "" && ctx.Err() == nil {
+		s.mu.Lock()
+		for c := range s.conns {
+			ip = c.ip
+		}
+		s.mu.Unlock()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if ip != "198.51.100.9" {
+		t.Fatalf("connection ip = %q, want the forwarded player address", ip)
+	}
+}
