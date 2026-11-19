@@ -365,7 +365,7 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
   - người chết không đi được, được tự hồi sinh sau 60 giây ở spawn `default` với `snap`;
   - đứng ở điểm nghỉ 5 giây thì hồi đầy, di chuyển thì đếm lại;
   - quái sinh lại sau 8 giây với id mới; xác bị xóa sau 1 giây.
-- `gateway`: fixture mới (`TestClientFixtures`); rate limit `AttackReq` ở `handlers.go` (đã làm, chưa có test riêng cho giới hạn này).
+- `gateway`: fixture mới (`TestClientFixtures`); rate limit `AttackReq` ở `handlers.go` (đã làm, test ở `e2e` `TestAttackRateLimit`).
 - e2e: botclient hạ một quái qua WebSocket thật và nhận `SelfStats` với EXP tăng (đã làm: `e2e/e2e_test.go`).
 
 **Client**
