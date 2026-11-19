@@ -10,7 +10,7 @@ import (
 // campState is a camp's live state in this zone.
 type campState struct {
 	Camp
-	alive   int      // monsters in the zone, corpses included
+	present int      // monsters in the zone, corpses included
 	pending []uint32 // ticks at which a new monster is due, one per death
 }
 
@@ -19,7 +19,7 @@ func (z *Zone) spawnAll() {
 	for i := range z.area.Camps {
 		c := &campState{Camp: z.area.Camps[i]}
 		z.camps = append(z.camps, c)
-		for n := c.Count - c.alive; n > 0; n-- {
+		for n := c.Count - c.present; n > 0; n-- {
 			z.spawn(c)
 		}
 	}
@@ -58,7 +58,7 @@ func (z *Zone) spawn(c *campState) {
 	m.cell = z.cellOf(pos)
 	z.monsters[m.id] = m
 	z.addToCell(&m.entity)
-	c.alive++
+	c.present++
 }
 
 // runSpawnTimers removes corpses corpseSec after death, so viewers get
@@ -69,7 +69,7 @@ func (z *Zone) runSpawnTimers() {
 		if m := z.monsters[id]; m.dead && z.tickNo >= m.diedAt+gone {
 			z.removeFromCell(&m.entity)
 			delete(z.monsters, id)
-			m.camp.alive--
+			m.camp.present--
 		}
 	}
 	for _, c := range z.camps {

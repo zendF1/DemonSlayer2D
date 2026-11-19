@@ -1,6 +1,7 @@
 package zone
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -506,12 +507,24 @@ func TestAttackValidation(t *testing.T) {
 			}
 			return m.id
 		}, Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN},
+		// Several failures at once: the first check in spec 5.1 order wins.
+		{"dead in a safe zone with a bad target", func(z *Zone, m *monster) uint64 { z.players[1].dead = true; return 999999 },
+			Vec2{5.5, 5.5}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"in a safe zone with a bad target", func(z *Zone, m *monster) uint64 { return 999999 },
+			Vec2{5.5, 5.5}, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+		{"far and on cooldown", func(z *Zone, m *monster) uint64 {
+			attackNow(t, z, 1, 41, m.id)
+			p := z.players[1]
+			p.pos = Vec2{m.pos.X + 3, m.pos.Y}
+			z.updateCell(&p.entity)
+			return m.id
+		}, Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			z, m := newFightZone(t, 1, home)
 			a := joinNow(t, z, 1, c.player.X, c.player.Y)
 			target := c.setup(z, m)
-			hp := m.hp
+			hp, last := m.hp, z.players[1].lastAttack
 			a.take()
 			attackNow(t, z, 1, 42, target)
 			envs := a.take()
@@ -521,6 +534,9 @@ func TestAttackValidation(t *testing.T) {
 			}
 			if attackRespAt(envs, 42) >= 0 || m.hp != hp {
 				t.Fatalf("a rejected attack must not land: hp %d, want %d", m.hp, hp)
+			}
+			if got := z.players[1].lastAttack; got != last {
+				t.Fatalf("lastAttack %d, want %d: a rejected attack must not start the cooldown", got, last)
 			}
 		})
 	}
@@ -610,9 +626,29 @@ func TestLineBlocked(t *testing.T) {
 		{Vec2{0.5, 0.5}, Vec2{4.5, 0.5}, false},
 		{Vec2{1.5, 1.5}, Vec2{2.9, 1.5}, false}, // an endpoint's own tile does not count
 		{Vec2{1.5, 1.5}, Vec2{1.5, 1.5}, false},
+		{Vec2{0.5, 2.5}, Vec2{5.5, 0.5}, true}, // a shallow slope through the wall tile
+		{Vec2{0.5, 0.5}, Vec2{1.9, 2.9}, false},
 	} {
 		if got := lineBlocked(g, c.a, c.b); got != c.want {
 			t.Errorf("lineBlocked(%v, %v) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+
+	// A diagonal through the corner between two walls is blocked, even with
+	// one of them, but not with both side tiles open.
+	for _, c := range []struct {
+		rows []string
+		want bool
+	}{
+		{[]string{".#.", "#..", "..."}, true},
+		{[]string{".#.", "...", "..."}, true},
+		{[]string{"...", "#..", "..."}, true},
+		{[]string{"...", "...", "..."}, false},
+	} {
+		for _, ab := range [][2]Vec2{{{0.5, 0.5}, {1.5, 1.5}}, {{1.5, 1.5}, {0.5, 0.5}}, {{0.5, 0.5}, {2.5, 2.5}}} {
+			if got := lineBlocked(gridFrom(c.rows...), ab[0], ab[1]); got != c.want {
+				t.Errorf("grid %v: lineBlocked(%v, %v) = %v, want %v", c.rows, ab[0], ab[1], got, c.want)
+			}
 		}
 	}
 }
@@ -655,8 +691,8 @@ func TestKillGivesExpAndRespawns(t *testing.T) {
 			t.Fatalf("SelfStats %v, want one push with 10 EXP after the WorldTick", ss)
 		}
 	}
-	if z.camps[0] != camp || camp.alive != 1 {
-		t.Fatalf("a corpse still counts as alive until removed, alive %d", camp.alive)
+	if z.camps[0] != camp || camp.present != 1 {
+		t.Fatalf("a corpse still counts as present until removed, present %d", camp.present)
 	}
 	z.advance(now)
 	if ss := selfStatsIn(a.take()); len(ss) != 0 {
@@ -687,8 +723,8 @@ func TestKillGivesExpAndRespawns(t *testing.T) {
 	if newAt != diedAt+80 || newID == 0 {
 		t.Fatalf("new monster %d at tick %d, want a new id at %d (8 s after death)", newID, newAt, diedAt+80)
 	}
-	if nm := z.monsters[newID]; nm == nil || nm.hp != 56 || nm.dead || camp.alive != 1 || len(camp.pending) != 0 {
-		t.Fatalf("respawned monster %+v alive %d pending %v, want a full one", nm, camp.alive, camp.pending)
+	if nm := z.monsters[newID]; nm == nil || nm.hp != 56 || nm.dead || camp.present != 1 || len(camp.pending) != 0 {
+		t.Fatalf("respawned monster %+v present %d pending %v, want a full one", nm, camp.present, camp.pending)
 	}
 }
 
@@ -739,6 +775,71 @@ func TestLevelUp(t *testing.T) {
 	saves := sv.all()
 	if len(saves) != 1 || saves[0].Level != 2 || saves[0].Exp != 5 || saves[0].FreePoints != 10 || saves[0].HP != 560 || saves[0].MP != 120 {
 		t.Fatalf("saves %+v, want one immediate save at level 2", saves)
+	}
+}
+
+// HpChange carries end-of-tick HP: a level-up heal at step 2 followed by a
+// monster hit at step 4 must leave viewers with the real HP.
+func TestLevelUpThenHitSameTick(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	area := Area{
+		Grid:    openGrid(60, 60),
+		Respawn: Vec2{5.5, 5.5},
+		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 2, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
+		Levels:  testLevels,
+	}
+	z := New(testConfig(10), area, &fakeSaver{}, quietLog())
+	ids := slices.Sorted(maps.Keys(z.monsters))
+	victim := z.monsters[ids[0]]
+	victim.hp = 1
+	in := info(1, 31.5, 30.5)
+	in.Exp, in.HP = 125, 100
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	v := joinNow(t, z, 2, 30.5, 36.5)
+	attackNow(t, z, 1, 1, victim.id)
+	p := z.players[1]
+	if p.level != 2 || p.hp == p.maxHP {
+		t.Fatalf("level %d hp %d/%d, want a level-up and then a hit in the same tick", p.level, p.hp, p.maxHP)
+	}
+	for name, envs := range map[string][]*pb.Envelope{"player": a.take(), "viewer": v.take()} {
+		// A client applies hits, then hp_changes.
+		hp := int32(-1)
+		for _, wt := range ticksIn(envs) {
+			for _, h := range wt.Hits {
+				if h.TargetId == 1 {
+					hp = h.HpAfter
+				}
+			}
+			for _, c := range wt.HpChanges {
+				if c.Id == 1 {
+					hp = c.Hp
+					if c.MaxHp != int32(p.maxHP) {
+						t.Fatalf("%s: HpChange max %d, want %d", name, c.MaxHp, p.maxHP)
+					}
+				}
+			}
+		}
+		if hp != int32(p.hp) {
+			t.Fatalf("%s sees HP %d, real HP %d", name, hp, p.hp)
+		}
+	}
+}
+
+func TestHpChangeOncePerEntityPerTick(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 30.5, 36.5)
+	z.advance(time.Now())
+	a.take()
+	z.hpChanged(&m.entity)
+	m.hp = 9
+	z.hpChanged(&m.entity)
+	wt := &pb.WorldTick{}
+	z.addEvents(z.players[1], wt)
+	if len(wt.HpChanges) != 1 || wt.HpChanges[0].Hp != 9 {
+		t.Fatalf("hp changes %v, want one with the latest HP 9", wt.HpChanges)
 	}
 }
 

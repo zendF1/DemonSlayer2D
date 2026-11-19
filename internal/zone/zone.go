@@ -399,13 +399,6 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	return nil
 }
 
-// setStats gives p new derived stats and the max HP that goes with them.
-// Current HP is the caller's business.
-func setStats(p *player, s combat.Stats) {
-	p.stats = s
-	p.maxHP = s.MaxHP
-}
-
 func (z *Zone) leave(id uint64) <-chan error {
 	if p, ok := z.players[id]; ok {
 		return z.remove(p)
@@ -496,37 +489,6 @@ func (z *Zone) syncView(p *player) bool {
 		send(&pb.Envelope{Payload: &pb.Envelope_SelfStats{SelfStats: selfStats(p)}})
 	}
 	return ok
-}
-
-// addEvents puts into wt the events p may see: hits whose attacker or target
-// is visible to p, and deaths, HP changes and level-ups of visible entities.
-// A player always sees its own events. A Hit can name an entity p has had no
-// EntityEnter for (only one side in view); the client ignores unknown ids.
-func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
-	sees := func(id uint64) bool {
-		_, ok := p.visible[id]
-		return ok || id == p.id
-	}
-	for _, h := range z.events.hits {
-		if sees(h.AttackerId) || sees(h.TargetId) {
-			wt.Hits = append(wt.Hits, h)
-		}
-	}
-	for _, d := range z.events.deaths {
-		if sees(d.Id) {
-			wt.Deaths = append(wt.Deaths, d)
-		}
-	}
-	for _, c := range z.events.hpChanges {
-		if sees(c.Id) {
-			wt.HpChanges = append(wt.HpChanges, c)
-		}
-	}
-	for _, l := range z.events.levelUps {
-		if sees(l.Id) {
-			wt.LevelUps = append(wt.LevelUps, l)
-		}
-	}
 }
 
 func (z *Zone) setCount() {

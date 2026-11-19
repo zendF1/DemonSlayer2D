@@ -1984,7 +1984,10 @@ func (x *EntityMove) GetSnap() bool {
 	return false
 }
 
-// Sent every tick, even when moves is empty.
+// Sent every tick, even when moves is empty. Events only cover entities in
+// the receiver's view. Clients apply hits in order, then hp_changes: each
+// HpChange is an entity's HP and max HP at the end of the tick, so it
+// overrides any hp_after of the same tick.
 type WorldTick struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Tick  uint32                 `protobuf:"varint,1,opt,name=tick,proto3" json:"tick,omitempty"`

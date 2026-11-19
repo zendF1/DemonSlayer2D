@@ -2,6 +2,7 @@ package zone
 
 import (
 	"maps"
+	"math"
 	"slices"
 
 	"demonslayer2d/internal/classes"
@@ -16,18 +17,22 @@ const (
 	// attackRangeSlack is added to the slash range because the client sees
 	// monsters two ticks late (spec 5.1).
 	attackRangeSlack = 0.5
-	// lineSampleStep is how often lineBlocked samples a segment, in tiles.
-	lineSampleStep = 0.25
 	// corpseSec is how long a dead monster lies before it is removed (spec 4.2).
 	corpseSec = 1.0
 )
 
 // tickEvents are the combat events of one tick. syncView sends each viewer the
 // ones about entities it can see.
+//
+// Hits, deaths and level-ups are snapshots taken when they happen. An HP
+// change records only the entity id, once per tick, and addEvents fills in
+// the HP and max HP the entity has at the end of the tick: clients apply hits
+// first and hp_changes last, so a heal recorded before a later hit in the
+// same tick cannot leave them showing too much HP.
 type tickEvents struct {
 	hits      []*pb.Hit
 	deaths    []*pb.Death
-	hpChanges []*pb.HpChange
+	hpChanges []uint64 // entity ids, without duplicates
 	levelUps  []*pb.LevelUp
 }
 
@@ -55,9 +60,61 @@ func (z *Zone) killPlayer(p *player) {
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: p.id})
 }
 
-// hpChanged records an HP change that did not come from a hit.
+// hpChanged records an HP change that did not come from a hit. Viewers get
+// e's HP as it stands at the end of the tick.
 func (z *Zone) hpChanged(e *entity) {
-	z.events.hpChanges = append(z.events.hpChanges, &pb.HpChange{Id: e.id, Hp: int32(e.hp), MaxHp: int32(e.maxHP)})
+	if !slices.Contains(z.events.hpChanges, e.id) {
+		z.events.hpChanges = append(z.events.hpChanges, e.id)
+	}
+}
+
+// entityByID finds a player or monster in the zone.
+func (z *Zone) entityByID(id uint64) *entity {
+	if p := z.players[id]; p != nil {
+		return &p.entity
+	}
+	if m := z.monsters[id]; m != nil {
+		return &m.entity
+	}
+	return nil
+}
+
+// addEvents puts into wt the events p may see: hits whose attacker or target
+// is visible to p, and deaths, HP changes and level-ups of visible entities.
+// A player always sees its own events. A Hit can name an entity p has had no
+// EntityEnter for (only one side in view); the client ignores unknown ids.
+func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
+	sees := func(id uint64) bool {
+		_, ok := p.visible[id]
+		return ok || id == p.id
+	}
+	for _, h := range z.events.hits {
+		if sees(h.AttackerId) || sees(h.TargetId) {
+			wt.Hits = append(wt.Hits, h)
+		}
+	}
+	for _, d := range z.events.deaths {
+		if sees(d.Id) {
+			wt.Deaths = append(wt.Deaths, d)
+		}
+	}
+	for _, id := range z.events.hpChanges {
+		if e := z.entityByID(id); e != nil && sees(id) {
+			wt.HpChanges = append(wt.HpChanges, &pb.HpChange{Id: id, Hp: int32(e.hp), MaxHp: int32(e.maxHP)})
+		}
+	}
+	for _, l := range z.events.levelUps {
+		if sees(l.Id) {
+			wt.LevelUps = append(wt.LevelUps, l)
+		}
+	}
+}
+
+// setStats gives p new derived stats and the max HP that goes with them.
+// Current HP is the caller's business.
+func setStats(p *player, s combat.Stats) {
+	p.stats = s
+	p.maxHP = s.MaxHP
 }
 
 // queueAttack makes c its player's pending attack for this tick. A newer
@@ -65,10 +122,12 @@ func (z *Zone) hpChanged(e *entity) {
 func (z *Zone) queueAttack(c attackCmd) {
 	p, ok := z.players[c.id]
 	if !ok {
+		// The player has left or been evicted, so there is no outbox to answer
+		// on; the gateway sees the membership end and stops sending.
 		return
 	}
 	if old := p.pendingAttack; old != nil {
-		z.fail(p, old.seq, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN)
+		z.replyError(p, old.seq, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN)
 	}
 	p.pendingAttack = &c
 }
@@ -85,7 +144,7 @@ func (z *Zone) resolveAttacks() {
 		p.pendingAttack = nil
 		m, code := z.checkAttack(p, c.target)
 		if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
-			z.fail(p, c.seq, code)
+			z.replyError(p, c.seq, code)
 			continue
 		}
 		p.lastAttack = z.tickNo
@@ -116,22 +175,67 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// lineBlocked reports whether the segment from a to b crosses a blocked tile,
-// sampling it every lineSampleStep tiles. The endpoints' own tiles do not count.
+// lineBlocked reports whether the segment from a to b crosses a blocked tile.
+// It walks every tile the segment passes through (Amanatides-Woo traversal).
+// Where the segment passes exactly through a tile corner, it counts as
+// blocked if either tile beside the corner is. The endpoints' own tiles do
+// not count.
 func lineBlocked(g Grid, a, b Vec2) bool {
-	ax, ay, bx, by := floor(a.X), floor(a.Y), floor(b.X), floor(b.Y)
-	n := int(distance(a, b)/lineSampleStep) + 1
-	for i := 1; i < n; i++ {
-		f := float32(i) / float32(n)
-		tx, ty := floor(a.X+(b.X-a.X)*f), floor(a.Y+(b.Y-a.Y)*f)
-		if tx == ax && ty == ay || tx == bx && ty == by {
-			continue
+	sx, sy := floor(a.X), floor(a.Y)
+	ex, ey := floor(b.X), floor(b.Y)
+	x, y := sx, sy
+	blocked := func(tx, ty int) bool {
+		return !(tx == sx && ty == sy) && !(tx == ex && ty == ey) && g.Blocked(tx, ty)
+	}
+	dx, dy := float64(b.X-a.X), float64(b.Y-a.Y)
+	stepX, tMaxX, tDeltaX := axis(float64(a.X), dx, x)
+	stepY, tMaxY, tDeltaY := axis(float64(a.Y), dy, y)
+	// Each step moves one tile along x or y (two at a corner), so the walk
+	// ends after at most this many tiles even if float error skips the end tile.
+	for n := abs(ex-x) + abs(ey-y); n > 0 && (x != ex || y != ey); {
+		switch d := tMaxX - tMaxY; {
+		case math.Abs(d) < 1e-9: // through a corner
+			if blocked(x+stepX, y) || blocked(x, y+stepY) {
+				return true
+			}
+			x, y = x+stepX, y+stepY
+			tMaxX, tMaxY = tMaxX+tDeltaX, tMaxY+tDeltaY
+			n -= 2
+		case d < 0:
+			x += stepX
+			tMaxX += tDeltaX
+			n--
+		default:
+			y += stepY
+			tMaxY += tDeltaY
+			n--
 		}
-		if g.Blocked(tx, ty) {
+		if blocked(x, y) {
 			return true
 		}
 	}
 	return false
+}
+
+// axis sets up one axis of the tile traversal from position p moving by d,
+// starting in tile t: the step direction, the segment fraction at which the
+// first tile edge is crossed, and the fraction between edges.
+func axis(p, d float64, t int) (step int, tMax, tDelta float64) {
+	switch {
+	case d > 0:
+		return 1, (float64(t+1) - p) / d, 1 / d
+	case d < 0:
+		return -1, (p - float64(t)) / -d, 1 / -d
+	default:
+		return 0, math.Inf(1), math.Inf(1)
+	}
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // slash lands p's default slash on m: an idle monster turns on its attacker,
@@ -182,8 +286,8 @@ func (z *Zone) gainExp(p *player, gain int64) {
 	z.saver.Save(z.state(p), nil)
 }
 
-// fail answers seq with an ErrorResp carrying code.
-func (z *Zone) fail(p *player, seq uint32, code pb.ErrorCode) {
+// replyError answers seq with an ErrorResp carrying code.
+func (z *Zone) replyError(p *player, seq uint32, code pb.ErrorCode) {
 	p.out.Send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{Code: code, Detail: code.String()}}})
 }
 
