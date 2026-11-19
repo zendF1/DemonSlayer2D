@@ -34,3 +34,19 @@ func TestOutbox(t *testing.T) {
 		t.Fatalf("kicked = %v", kicked)
 	}
 }
+
+func TestOutboxKeepsRoomForFinalMessage(t *testing.T) {
+	o := newOutbox(2, func(pb.KickReason) {})
+	e := &pb.Envelope{}
+	if !o.Send(e) || !o.Send(e) || o.Send(e) {
+		t.Fatal("queue of 2 should accept exactly 2 envelopes")
+	}
+	o.closeWith(&pb.Envelope{Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{Reason: pb.KickReason_KICK_REASON_SLOW_CONSUMER}}})
+	var got []*pb.Envelope
+	for env := range o.ch {
+		got = append(got, env)
+	}
+	if len(got) != 3 || got[2].GetKicked().GetReason() != pb.KickReason_KICK_REASON_SLOW_CONSUMER {
+		t.Fatalf("a full queue must still deliver the final Kicked message, got %v", got)
+	}
+}
