@@ -268,3 +268,68 @@ func TestTakeoverWithoutPreviousSession(t *testing.T) {
 		t.Fatalf("online = %d", w.Online())
 	}
 }
+
+// A is online and saving slowly. B logs in and waits for A, C logs in while B is
+// still waiting, then B gives up and closes. C must still wait for A's save.
+func TestTakeoverChainWaitsForOldestSession(t *testing.T) {
+	w := newTestWorld(t, 10)
+	a, b, c := newKickSess(), newKickSess(), newKickSess()
+	w.Claim(7, a)
+
+	bErr := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		err := w.Takeover(ctx, 7, b)
+		close(b.done) // B's connection closes after its login fails
+		bErr <- err
+	}()
+	<-a.kicked // B is now waiting for A
+	go func() {
+		time.Sleep(200 * time.Millisecond) // A's save is slow
+		close(a.done)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := w.Takeover(ctx, 7, c); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-a.done:
+	default:
+		t.Fatal("C logged in before A's save landed")
+	}
+	if err := <-bErr; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("B's takeover = %v, want DeadlineExceeded", err)
+	}
+	if cur := w.Claim(7, a); cur != c {
+		t.Fatalf("online session = %v, want C", cur)
+	}
+	w.mu.Lock()
+	n := len(w.handoffs)
+	w.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("%d account locks left after every takeover finished", n)
+	}
+}
+
+func TestTakeoverGivesUpWhileQueued(t *testing.T) {
+	w := newTestWorld(t, 10)
+	a, b, c := newKickSess(), newKickSess(), newKickSess() // a never finishes
+	w.Claim(7, a)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = w.Takeover(ctx, 7, b)
+	}()
+	<-a.kicked
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if err := w.Takeover(ctx, 7, c); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Takeover = %v, want DeadlineExceeded", err)
+	}
+	if cur := w.Claim(7, b); cur != b {
+		t.Fatalf("a queued takeover that gave up must not change the online session, got %v", cur)
+	}
+}

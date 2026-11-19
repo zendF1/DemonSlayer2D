@@ -49,9 +49,10 @@ type World struct {
 	ctx context.Context
 	wg  sync.WaitGroup
 
-	mu     sync.Mutex
-	zones  map[string][]*slot // index i holds zone number i+1; nil = closed
-	online map[int64]Session
+	mu       sync.Mutex
+	zones    map[string][]*slot // index i holds zone number i+1; nil = closed
+	online   map[int64]Session
+	handoffs map[int64]*accountLock // per-account Takeover serialisation
 
 	nextEntity atomic.Uint64
 }
@@ -70,9 +71,10 @@ func New(cfg Config, maps map[string]*mapdata.Map, saver zone.Saver, log *slog.L
 	}
 	return &World{
 		cfg: cfg, maps: maps, saver: saver, log: log,
-		start:  m.Spawns["default"],
-		zones:  make(map[string][]*slot),
-		online: make(map[int64]Session),
+		start:    m.Spawns["default"],
+		zones:    make(map[string][]*slot),
+		online:   make(map[int64]Session),
+		handoffs: make(map[int64]*accountLock),
 	}, nil
 }
 
@@ -254,9 +256,17 @@ func (w *World) Claim(accountID int64, s Session) Session {
 
 // Takeover makes s the online session of accountID. A previous session is kicked
 // with DUPLICATE_LOGIN and Takeover waits until it has left the world and saved its
-// character, so s never loads stale data. If ctx ends first, the previous session
-// stays registered (so the next attempt waits for it again) and ctx.Err() is returned.
+// character, so s never loads stale data. Takeovers of one account run one at a
+// time: a login arriving while another is still waiting queues behind it, so it can
+// never skip past a session whose save has not landed. If ctx ends first, the online
+// session is left unchanged (so the next attempt waits for it again) and ctx.Err()
+// is returned.
 func (w *World) Takeover(ctx context.Context, accountID int64, s Session) error {
+	unlock, err := w.lockAccount(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	prev := w.Claim(accountID, s)
 	if prev == nil {
 		return nil
@@ -272,6 +282,38 @@ func (w *World) Takeover(ctx context.Context, accountID int64, s Session) error 
 		}
 		w.mu.Unlock()
 		return ctx.Err()
+	}
+}
+
+// accountLock is a mutex that can be waited on with a context.
+type accountLock struct {
+	token chan struct{} // holds one value while locked
+	refs  int           // holders and waiters; the entry is dropped at zero
+}
+
+// lockAccount waits until no other Takeover of accountID is running, or ctx ends.
+func (w *World) lockAccount(ctx context.Context, accountID int64) (unlock func(), err error) {
+	w.mu.Lock()
+	l := w.handoffs[accountID]
+	if l == nil {
+		l = &accountLock{token: make(chan struct{}, 1)}
+		w.handoffs[accountID] = l
+	}
+	l.refs++
+	w.mu.Unlock()
+	release := func() {
+		w.mu.Lock()
+		if l.refs--; l.refs == 0 {
+			delete(w.handoffs, accountID)
+		}
+		w.mu.Unlock()
+	}
+	select {
+	case l.token <- struct{}{}:
+		return func() { <-l.token; release() }, nil
+	case <-ctx.Done():
+		release()
+		return nil, ctx.Err()
 	}
 }
 
