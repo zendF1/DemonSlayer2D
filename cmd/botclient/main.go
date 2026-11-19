@@ -29,8 +29,14 @@ Commands:
   delete   -u USER -p PASS -id CHAR_ID -name NAME
   play     -u USER -p PASS -id CHAR_ID [-dir 1,0] [-for 10s]
   load     [-n 100] [-prefix bot] [-p botpass123] [-for 60s] [-ramp 20ms]
+  -fight N [-timeout 2m] [-u USER -p PASS] [-id CHAR_ID] [-class viem] [-seek 20,10]
 
 Every command accepts -url (default ws://localhost:8080/ws).
+
+-fight enters the world and kills N monsters, walking to the nearest one it
+sees (or towards -seek, camp c1 on kumotori_1, when it sees none). Without -u
+it registers a new account; without -id it plays the first character, creating
+one if the account has none. It exits 0 after N kills and 1 on timeout.
 `
 
 var classByName = map[string]pb.CharClass{
@@ -41,18 +47,22 @@ var classByName = map[string]pb.CharClass{
 func main() {
 	cmds := map[string]func([]string) error{
 		"register": cmdRegister, "chars": cmdChars, "create": cmdCreate,
-		"delete": cmdDelete, "play": cmdPlay, "load": cmdLoad,
+		"delete": cmdDelete, "play": cmdPlay, "load": cmdLoad, "fight": cmdFight,
 	}
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
-	run, ok := cmds[os.Args[1]]
+	name, args := os.Args[1], os.Args[2:]
+	if strings.HasPrefix(name, "-fight") || strings.HasPrefix(name, "--fight") {
+		name, args = "fight", os.Args[1:] // fight mode is selected by its -fight flag
+	}
+	run, ok := cmds[name]
 	if !ok {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
-	if err := run(os.Args[2:]); err != nil {
+	if err := run(args); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -258,6 +268,87 @@ func printEvent(env *pb.Envelope, self uint64, lastSelf *time.Time) {
 			fmt.Printf("move   %d to (%.2f, %.2f) dir (%.2f, %.2f)\n", m.Id, m.X, m.Y, m.DirX, m.DirY)
 		}
 	}
+}
+
+func cmdFight(args []string) error {
+	fs, url, user, pass := flags("fight")
+	n := fs.Int("fight", 1, "number of monsters to kill")
+	limit := fs.Duration("timeout", 2*time.Minute, "give up after this long")
+	id := fs.Int64("id", 0, "character id (default: the first character, created if needed)")
+	className := fs.String("class", "viem", "class of a newly created character")
+	seek := fs.String("seek", "20,10", "where to walk when no monster is in view, x,y")
+	_ = fs.Parse(args)
+	class, ok := classByName[*className]
+	if !ok {
+		return fmt.Errorf("unknown class %q", *className)
+	}
+	sx, sy, err := parseDir(*seek)
+	if err != nil {
+		return fmt.Errorf("-seek: %w", err)
+	}
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	ctx, cancel := context.WithTimeout(sigCtx, *limit)
+	defer cancel()
+
+	c, err := client.Dial(ctx, *url)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	if *user == "" {
+		*user, *pass = fmt.Sprintf("fighter_%06d", rand.IntN(1_000_000)), "fighterpass1"
+		if err := c.Register(ctx, *user, *pass); err != nil {
+			return err
+		}
+		fmt.Println("registered", *user)
+	}
+	if _, err := c.Login(ctx, *user, *pass); err != nil {
+		return err
+	}
+	charID := *id
+	if charID == 0 {
+		if charID, err = firstChar(ctx, c, class); err != nil {
+			return err
+		}
+	}
+	ew, err := c.EnterWorld(ctx, charID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("entered map=%s entity=%d at (%.2f, %.2f) level=%d exp=%d\n",
+		ew.MapId, ew.SelfEntityId, ew.X, ew.Y, ew.Stats.GetLevel(), ew.Stats.GetExp())
+
+	start := time.Now()
+	f := client.NewFighter(c, ew)
+	f.Seek = [2]float32{sx, sy}
+	kills := 0
+	err = f.Fight(ctx, *n, func(k client.Kill) {
+		kills++
+		fmt.Printf("kill %d/%d monster=%d level=%d exp=%d after %v\n",
+			kills, *n, k.ID, k.Level, k.Exp, time.Since(start).Round(100*time.Millisecond))
+	})
+	if err != nil {
+		return fmt.Errorf("after %d of %d kills: %w", kills, *n, err)
+	}
+	return leave(c)
+}
+
+// firstChar returns the account's first character, creating one if it has none.
+func firstChar(ctx context.Context, c *client.Client, class pb.CharClass) (int64, error) {
+	chars, err := c.ListChars(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(chars) > 0 {
+		return chars[0].Id, nil
+	}
+	ch, err := c.CreateChar(ctx, 1, fmt.Sprintf("Fighter%06d", rand.IntN(1_000_000)), class)
+	if err != nil {
+		return 0, err
+	}
+	fmt.Printf("created id=%d name=%s\n", ch.Id, ch.Name)
+	return ch.Id, nil
 }
 
 type loadStats struct {

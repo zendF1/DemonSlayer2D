@@ -11,9 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"demonslayer2d/internal/app"
 	"demonslayer2d/internal/auth"
 	"demonslayer2d/internal/client"
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/config"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -312,6 +315,11 @@ func TestRequestErrors(t *testing.T) {
 	_, err = c.EnterWorld(ctx, 999999)
 	expect(err, pb.ErrorCode_ERROR_CODE_CHAR_NOT_FOUND)
 	expect(c.LeaveWorld(ctx), pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
+	expect(c.Attack(ctx, 1), pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
+	_, err = c.AllocatePoints(ctx, combat.Points{Str: 1})
+	expect(err, pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
+	_, err = c.Respawn(ctx)
+	expect(err, pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
 	expect(c.DeleteChar(ctx, ch.Id, "Wrong"), pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
 
 	other := dial(t, s)
@@ -349,5 +357,82 @@ func TestHealthz(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+// ______________________TEST COMBAT_____________________
+
+// campC1 is camp c1 on kumotori_1: wanderers of level 1-2 east of the safe zone.
+var campC1 = [2]float32{20, 10}
+
+func TestKillMonsterOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	p := newPlayer(t, s, "hana01", "Hana", pb.CharClass_CHAR_CLASS_VIEM)
+	if p.enter.Stats.GetExp() != 0 {
+		t.Fatalf("a new character starts with exp %d", p.enter.Stats.GetExp())
+	}
+
+	deaths := make(map[uint64]bool)
+	var stats *pb.SelfStats
+	f := client.NewFighter(p.c, p.enter)
+	f.Seek = campC1
+	f.Observe = func(env *pb.Envelope) {
+		for _, d := range env.GetWorldTick().GetDeaths() {
+			deaths[d.Id] = true
+		}
+		if st := env.GetSelfStats(); st != nil {
+			stats = st
+		}
+	}
+	var kills []client.Kill
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := f.Fight(ctx, 1, func(k client.Kill) { kills = append(kills, k) }); err != nil {
+		t.Fatalf("fight: %v (kills %v)", err, kills)
+	}
+	if len(kills) != 1 {
+		t.Fatalf("kills = %v, want 1", kills)
+	}
+	k := kills[0]
+	if !deaths[k.ID] {
+		t.Fatalf("no Death for monster %d; deaths %v", k.ID, deaths)
+	}
+	if stats.GetExp() <= 0 || k.Exp != stats.GetExp() {
+		t.Fatalf("SelfStats exp = %d, kill exp = %d: want the same value > 0", stats.GetExp(), k.Exp)
+	}
+}
+
+// AttackReq is limited to 5 per second with a burst of 5, so the 6th of six
+// written back to back is refused by the gateway. The first five reach the
+// zone, which may refuse them for its own reasons; only the 6th must be
+// RATE_LIMITED. Raw seqs are used so the replies can be matched by seq.
+func TestAttackRateLimit(t *testing.T) {
+	s := startServer(t)
+	p := newPlayer(t, s, "ivan01", "Ivan", pb.CharClass_CHAR_CLASS_VIEM)
+	ctx := ctxT(t)
+	const first, n = 1001, 6
+	for seq := uint32(first); seq < first+n; seq++ {
+		data, err := proto.Marshal(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_AttackReq{AttackReq: &pb.AttackReq{TargetId: 1}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.c.SendRaw(ctx, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	replies := make(map[uint32]*pb.Envelope)
+	waitFor(t, p.c, 3*time.Second, func(e *pb.Envelope) bool {
+		if e.Seq >= first && e.Seq < first+n {
+			replies[e.Seq] = e
+		}
+		return len(replies) == n
+	})
+	for seq := uint32(first); seq < first+n-1; seq++ {
+		if code := replies[seq].GetError().GetCode(); code == pb.ErrorCode_ERROR_CODE_RATE_LIMITED {
+			t.Errorf("attack %d was rate limited, want only the 6th", seq-first+1)
+		}
+	}
+	if code := replies[first+n-1].GetError().GetCode(); code != pb.ErrorCode_ERROR_CODE_RATE_LIMITED {
+		t.Fatalf("6th attack: %v, want RATE_LIMITED", replies[first+n-1])
 	}
 }
