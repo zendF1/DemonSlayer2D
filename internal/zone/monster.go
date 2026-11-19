@@ -2,7 +2,6 @@ package zone
 
 import (
 	"maps"
-	"math"
 	"slices"
 
 	"demonslayer2d/internal/combat"
@@ -177,8 +176,11 @@ func (z *Zone) fight(m *monster) {
 // chaseStep walks m straight towards t until it is chaseStop tiles away. A
 // stuck monster just stands; it keeps its state (spec 4.2).
 func (z *Zone) chaseStep(m *monster, t *player) {
-	// Stop within attack range even for a kind whose range is under chaseStop.
-	stop := min(chaseStop, float32(m.camp.Kind.AttackRange))
+	// Stop a little inside the attack range: a walk ends within arriveEps of
+	// its target, and float error must not leave m just beyond reach. The
+	// reach/2 floor only matters for absurdly short ranges.
+	reach := float32(m.camp.Kind.AttackRange)
+	stop := min(chaseStop, max(reach-2*arriveEps, reach/2))
 	d := distance(m.pos, t.pos)
 	if d <= stop {
 		z.stopMonster(m)
@@ -308,15 +310,4 @@ func (z *Zone) stopMonster(m *monster) {
 		m.dir = Vec2{}
 		m.changed = true
 	}
-}
-
-// ticks converts seconds to a whole number of ticks, rounding up, at least 1.
-func (z *Zone) ticks(sec float64) uint32 {
-	// The epsilon keeps float error (0.7*10 = 7.000000000000001) from adding a tick.
-	n := math.Ceil(sec*float64(z.cfg.TickRate) - 1e-9)
-	return uint32(max(n, 1))
-}
-
-func distance(a, b Vec2) float32 {
-	return float32(math.Hypot(float64(a.X-b.X), float64(a.Y-b.Y)))
 }

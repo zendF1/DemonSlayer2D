@@ -35,6 +35,10 @@ func bad(v float32) bool {
 
 func floor(v float32) int { return int(math.Floor(float64(v))) }
 
+func distance(a, b Vec2) float32 {
+	return float32(math.Hypot(float64(a.X-b.X), float64(a.Y-b.Y)))
+}
+
 // Step moves pos by dir*dist, resolving X then Y in sub-steps so the box slides along walls.
 func Step(g Grid, pos, dir Vec2, dist float32) Vec2 {
 	if dist <= 0 || dir == (Vec2{}) {

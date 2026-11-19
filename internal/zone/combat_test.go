@@ -6,19 +6,25 @@ import (
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
 )
 
 // newFightZone builds a zone on a 60x60 open grid with the safe rect (0,0,10,10)
-// and a single monster of the given level standing at home.
+// and a single testKind monster of the given level standing at home.
 func newFightZone(t *testing.T, level int, home Vec2) (*Zone, *monster) {
+	t.Helper()
+	return newFightZoneOf(t, testKind, level, home)
+}
+
+func newFightZoneOf(t *testing.T, kind gamedata.Kind, level int, home Vec2) (*Zone, *monster) {
 	t.Helper()
 	cfg := testConfig(10)
 	area := Area{
 		Grid:    openGrid(60, 60),
 		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
 		Respawn: Vec2{5.5, 5.5},
-		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 1, MinLevel: level, MaxLevel: level, Kind: testKind}},
+		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 1, MinLevel: level, MaxLevel: level, Kind: kind}},
 		Levels:  testLevels,
 	}
 	z := New(cfg, area, &fakeSaver{}, quietLog())
@@ -199,6 +205,9 @@ func TestMonsterLeashesAndHeals(t *testing.T) {
 	if m.nextWander <= z.tickNo {
 		t.Fatalf("nextWander %d, want a fresh one after tick %d", m.nextWander, z.tickNo)
 	}
+	if m.attackers == nil {
+		t.Fatal("attackers must stay allocated after a return")
+	}
 }
 
 func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
@@ -248,6 +257,30 @@ func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
 	}
 	if heal == nil || heal.Hp != int32(m.maxHP) {
 		t.Fatalf("viewer HpChange %v, want full HP", heal)
+	}
+}
+
+// The chase stops inside the attack range even when the range is not above
+// the 1.3-tile chase stop, so float error cannot leave it chasing forever.
+func TestMonsterHitsWithShortAttackRange(t *testing.T) {
+	// Approaches from several angles: each rounds the stop point differently.
+	starts := []Vec2{{33.5, 30.5}, {33.1, 32.3}, {32.7, 33.2}, {28.1, 32.9}, {31.9, 27.4}}
+	for _, reach := range []float64{1.3, 1.2, 1.0} {
+		for _, p := range starts {
+			k := testKind
+			k.AttackRange = reach
+			z, m := newFightZoneOf(t, k, 1, Vec2{30.5, 30.5})
+			joinNow(t, z, 1, p.X, p.Y)
+			now := time.Now()
+			hit := false
+			for i := 0; i < 40 && !hit; i++ {
+				z.advance(now)
+				hit = len(z.events.hits) > 0
+			}
+			if !hit {
+				t.Fatalf("attack range %v from %v: never hit, %v at %.7f tiles", reach, p, m.state, dist(m.pos, z.players[1].pos))
+			}
+		}
 	}
 }
 
@@ -366,5 +399,21 @@ func TestEventsOnlyForVisible(t *testing.T) {
 	ef := f.take()
 	if hs, ds := hitsIn(ef), deathsIn(ef); len(hs) != 0 || len(ds) != 0 {
 		t.Fatalf("a far viewer got hits %v deaths %v", hs, ds)
+	}
+}
+
+// A viewer who sees only the attacker still gets the Hit; the client ignores
+// ids it has no EntityEnter for.
+func TestHitWithOnlyAttackerVisible(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{39.5, 30.5}) // AOI cell (3,3)
+	joinNow(t, z, 1, 40.5, 30.5)                 // target in cell (4,3)
+	v := joinNow(t, z, 2, 20.5, 30.5)            // cell (2,3): sees (3,3), not (4,3)
+	z.advance(time.Now())
+	envs := v.take()
+	if slices.Contains(enters(envs), 1) || !slices.Contains(enters(envs), m.id) {
+		t.Fatalf("viewer enters %v, want the monster but not the target", enters(envs))
+	}
+	if hs := hitsIn(envs); len(hs) != 1 || hs[0].AttackerId != m.id || hs[0].TargetId != 1 {
+		t.Fatalf("viewer hits %v, want the monster's hit on 1", hs)
 	}
 }

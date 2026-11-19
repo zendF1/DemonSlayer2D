@@ -75,6 +75,12 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 	if monsters == nil {
 		return nil, errors.New("world: no monster data")
 	}
+	// Monsters look for players only in the 3x3 AOI cells around them.
+	for _, k := range monsters.Kinds {
+		if float64(cfg.AOICellSize) < k.AggroRange {
+			return nil, fmt.Errorf("world: AOI cell size %d is below the aggro range %v of monster %q", cfg.AOICellSize, k.AggroRange, k.ID)
+		}
+	}
 	areas := make(map[string]zone.Area, len(maps))
 	for id, mp := range maps {
 		areas[id] = areaOf(mp, monsters)

@@ -133,6 +133,20 @@ func TestNewRejectsUnknownStartMap(t *testing.T) {
 	}
 }
 
+// Monsters look for players only in the 3x3 AOI cells around them, so a cell
+// must be at least as wide as the largest aggro range (4 in testMonsters).
+func TestNewRejectsAggroBeyondAOICell(t *testing.T) {
+	for _, c := range []struct {
+		cell int
+		ok   bool
+	}{{3, false}, {4, true}} {
+		_, err := New(Config{StartMap: "m1", AOICellSize: c.cell}, testMaps(t), testMonsters, nopSaver{}, slog.Default())
+		if (err == nil) != c.ok {
+			t.Fatalf("AOI cell %d: err = %v, want ok=%v", c.cell, err, c.ok)
+		}
+	}
+}
+
 func TestEnterUsesSavedPosition(t *testing.T) {
 	w := newTestWorld(t, 10)
 	out := newRecOut()

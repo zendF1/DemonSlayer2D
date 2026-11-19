@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"math/rand/v2"
 	"runtime/debug"
 	"slices"
@@ -327,17 +328,17 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	if _, dup := z.players[info.EntityID]; dup {
 		return fmt.Errorf("zone: duplicate entity %d", info.EntityID)
 	}
-	stats := combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points)
-	hp := info.HP // -1 = full
-	if hp < 0 || hp > stats.MaxHP {
-		hp = stats.MaxHP
-	}
 	p := &player{
 		entity: entity{
 			id: info.EntityID, kind: pb.EntityKind_ENTITY_KIND_PLAYER, name: info.Name, class: info.Class, level: info.Level,
-			pos: info.Pos, hp: hp, maxHP: stats.MaxHP,
+			pos: info.Pos,
 		},
-		info: info, out: out, visible: make(map[uint64]struct{}), stats: stats,
+		info: info, out: out, visible: make(map[uint64]struct{}),
+	}
+	setStats(p, combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points))
+	p.hp = info.HP // -1 = full
+	if p.hp < 0 || p.hp > p.maxHP {
+		p.hp = p.maxHP
 	}
 	p.cell = z.cellOf(p.pos)
 	z.players[info.EntityID] = p
@@ -354,6 +355,13 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		TickRate:     uint32(z.cfg.TickRate),
 	}}})
 	return nil
+}
+
+// setStats gives p new derived stats and the max HP that goes with them.
+// Current HP is the caller's business.
+func setStats(p *player, s combat.Stats) {
+	p.stats = s
+	p.maxHP = s.MaxHP
 }
 
 func (z *Zone) leave(id uint64) <-chan error {
@@ -445,7 +453,8 @@ func (z *Zone) syncView(p *player) bool {
 
 // addEvents puts into wt the events p may see: hits whose attacker or target
 // is visible to p, and deaths, HP changes and level-ups of visible entities.
-// A player always sees its own events.
+// A player always sees its own events. A Hit can name an entity p has had no
+// EntityEnter for (only one side in view); the client ignores unknown ids.
 func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
 	sees := func(id uint64) bool {
 		_, ok := p.visible[id]
@@ -481,6 +490,13 @@ func (z *Zone) setCount() {
 	} else if z.emptySince.Load() == 0 {
 		z.emptySince.Store(time.Now().UnixNano())
 	}
+}
+
+// ticks converts seconds to a whole number of ticks, rounding up, at least 1.
+func (z *Zone) ticks(sec float64) uint32 {
+	// The epsilon keeps float error (0.7*10 = 7.000000000000001) from adding a tick.
+	n := math.Ceil(sec*float64(z.cfg.TickRate) - 1e-9)
+	return uint32(max(n, 1))
 }
 
 func closedNil() <-chan error {

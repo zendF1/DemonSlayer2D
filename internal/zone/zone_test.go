@@ -507,6 +507,9 @@ func TestSpawnFillsCamps(t *testing.T) {
 		if _, in := z.cells[m.cell][id]; !in {
 			t.Fatalf("monster %d is not in its AOI cell", id)
 		}
+		if m.attackers == nil {
+			t.Fatalf("monster %d has no attackers map", id)
+		}
 	}
 }
 
