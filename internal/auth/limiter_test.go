@@ -12,8 +12,10 @@ func TestLimiterWindow(t *testing.T) {
 	l := NewLimiter(2, time.Minute)
 	l.now = func() time.Time { return now }
 
-	if !l.Take("k") || !l.Take("k") {
-		t.Fatal("the first 2 takes should succeed")
+	for i := range 2 {
+		if !l.Take("k") {
+			t.Fatalf("take %d of 2 should succeed", i+1)
+		}
 	}
 	if l.Take("k") {
 		t.Fatal("should be blocked after 2 takes")
