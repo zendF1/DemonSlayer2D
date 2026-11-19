@@ -2,18 +2,23 @@ package gateway
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
+	"google.golang.org/protobuf/proto"
 
 	"demonslayer2d/internal/auth"
 	"demonslayer2d/internal/pb"
@@ -187,5 +192,70 @@ func TestConnUsesForwardedIPFromTrustedProxy(t *testing.T) {
 	}
 	if ip != "198.51.100.9" {
 		t.Fatalf("connection ip = %q, want the forwarded player address", ip)
+	}
+}
+
+// ______________________TEST CLIENT FIXTURES_____________________
+
+var updateFixtures = flag.Bool("update", false, "rewrite testdata/client")
+
+// The Godot client (DemonSlayer2DGame) must encode/decode exactly these bytes; it copies them via tools/sync_server.sh.
+func clientFixtures() map[string]*pb.Envelope {
+	return map[string]*pb.Envelope{
+		"login_req": {Seq: 3, Payload: &pb.Envelope_LoginReq{LoginReq: &pb.LoginReq{
+			Username: "tanjiro", Password: "password123", ProtocolVersion: ProtocolVersion}}},
+		"create_char_req": {Seq: 5, Payload: &pb.Envelope_CreateCharReq{CreateCharReq: &pb.CreateCharReq{
+			Slot: 2, Name: "Hoàng", CharClass: pb.CharClass_CHAR_CLASS_THUY}}},
+		"move_input": {Payload: &pb.Envelope_MoveInput{MoveInput: &pb.MoveInput{
+			InputSeq: 9, DirX: -0.6, DirY: 0.8}}},
+		"char_list_resp": {Seq: 4, Payload: &pb.Envelope_CharListResp{CharListResp: &pb.CharListResp{
+			Chars: []*pb.CharSummary{
+				{Id: 11, Slot: 1, Name: "Kaito", CharClass: pb.CharClass_CHAR_CLASS_VIEM, Level: 3, MapId: "kumotori_1"},
+				{Id: 12, Slot: 3, Name: "Hana", CharClass: pb.CharClass_CHAR_CLASS_PHONG, Level: 1, MapId: "kumotori_1"},
+			}}}},
+		"enter_world_resp": {Seq: 6, Payload: &pb.Envelope_EnterWorldResp{EnterWorldResp: &pb.EnterWorldResp{
+			SelfEntityId: 77, MapId: "kumotori_1", Zone: 2, X: 5.5, Y: 6.25,
+			ServerTick: 1234, MoveSpeed: 4, TickRate: 10}}},
+		"entity_enter": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
+			Id: 78, Kind: pb.EntityKind_ENTITY_KIND_PLAYER, Name: "Mai", CharClass: pb.CharClass_CHAR_CLASS_MINH,
+			Level: 2, X: 7.5, Y: 8.5, DirX: 0, DirY: -1}}},
+		"world_tick": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 42, AckInputSeq: 7, Moves: []*pb.EntityMove{
+				{Id: 77, X: 5.5, Y: 6.25, DirX: 1},
+				{Id: 78, X: 1.3, Y: 2},
+			}}}},
+		"error_resp": {Seq: 4, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{
+			Code: pb.ErrorCode_ERROR_CODE_AUTH_FAILED, Detail: "wrong username or password"}}},
+		"kicked": {Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{
+			Reason: pb.KickReason_KICK_REASON_DUPLICATE_LOGIN}}},
+		"pong": {Payload: &pb.Envelope_Pong{Pong: &pb.Pong{
+			ClientTime: 1700000000123, ServerTime: 1700000000456}}},
+	}
+}
+
+func TestClientFixtures(t *testing.T) {
+	dir := filepath.Join("..", "..", "testdata", "client")
+	if *updateFixtures {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, env := range clientFixtures() {
+		b, err := proto.MarshalOptions{Deterministic: true}.Marshal(env)
+		if err != nil {
+			t.Fatalf("%s: marshal: %v", name, err)
+		}
+		want := hex.EncodeToString(b) + "\n"
+		path := filepath.Join(dir, name+".hex")
+		if *updateFixtures {
+			if err := os.WriteFile(path, []byte(want), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != want {
+			t.Errorf("%s missing or stale (err=%v); run: go test ./internal/gateway -run TestClientFixtures -update", path, err)
+		}
 	}
 }
