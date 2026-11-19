@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/store"
 )
 
 // newFightZone builds a zone on a 60x60 open grid with the safe rect (0,0,10,10)
@@ -415,5 +417,411 @@ func TestHitWithOnlyAttackerVisible(t *testing.T) {
 	}
 	if hs := hitsIn(envs); len(hs) != 1 || hs[0].AttackerId != m.id || hs[0].TargetId != 1 {
 		t.Fatalf("viewer hits %v, want the monster's hit on 1", hs)
+	}
+}
+
+// ______________________TEST COMBAT_____________________
+
+// attackNow queues an attack by id on target with seq and runs one tick.
+func attackNow(t *testing.T, z *Zone, id uint64, seq uint32, target uint64) {
+	t.Helper()
+	if !z.Attack(id, seq, target) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+func errorFor(envs []*pb.Envelope, seq uint32) *pb.ErrorResp {
+	for _, e := range envs {
+		if er := e.GetError(); er != nil && e.Seq == seq {
+			return er
+		}
+	}
+	return nil
+}
+
+func attackRespAt(envs []*pb.Envelope, seq uint32) int {
+	for i, e := range envs {
+		if e.GetAttackResp() != nil && e.Seq == seq {
+			return i
+		}
+	}
+	return -1
+}
+
+func selfStatsIn(envs []*pb.Envelope) []*pb.SelfStats {
+	var ss []*pb.SelfStats
+	for _, e := range envs {
+		if s := e.GetSelfStats(); s != nil {
+			ss = append(ss, s)
+		}
+	}
+	return ss
+}
+
+func TestAttackValidation(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	for _, c := range []struct {
+		name   string
+		setup  func(z *Zone, m *monster) uint64 // returns the target id
+		player Vec2
+		code   pb.ErrorCode
+	}{
+		{"dead attacker", func(z *Zone, m *monster) uint64 { z.players[1].dead = true; return m.id },
+			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"attacker in a safe zone", func(z *Zone, m *monster) uint64 {
+			m.pos, m.home = Vec2{11.0, 5.5}, Vec2{11.0, 5.5}
+			z.updateCell(&m.entity)
+			return m.id
+		}, Vec2{9.5, 5.5}, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+		{"unknown id", func(z *Zone, m *monster) uint64 { return 999999 },
+			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"a player id", func(z *Zone, m *monster) uint64 { joinNow(t, z, 2, 31.5, 31.5); return 2 },
+			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"dead monster", func(z *Zone, m *monster) uint64 { m.dead = true; return m.id },
+			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"returning monster", func(z *Zone, m *monster) uint64 {
+			m.pos, m.state = Vec2{31.0, 30.5}, returning
+			return m.id
+		}, Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"2.1 tiles away", func(z *Zone, m *monster) uint64 { return m.id },
+			Vec2{32.6, 30.5}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"a wall in between", func(z *Zone, m *monster) uint64 {
+			rows := make([]string, 60)
+			for y := range rows {
+				r := []byte(strings.Repeat(".", 60))
+				if y == 30 {
+					r[29] = '#'
+				}
+				rows[y] = string(r)
+			}
+			z.area.Grid = gridFrom(rows...)
+			z.mgrid = z.area.monsterGrid()
+			return m.id
+		}, Vec2{28.6, 30.5}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"a second attack after 7 ticks", func(z *Zone, m *monster) uint64 {
+			attackNow(t, z, 1, 41, m.id)
+			for i := 0; i < 6; i++ {
+				z.advance(time.Now())
+			}
+			return m.id
+		}, Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m := newFightZone(t, 1, home)
+			a := joinNow(t, z, 1, c.player.X, c.player.Y)
+			target := c.setup(z, m)
+			hp := m.hp
+			a.take()
+			attackNow(t, z, 1, 42, target)
+			envs := a.take()
+			er := errorFor(envs, 42)
+			if er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v with seq 42", er, c.code)
+			}
+			if attackRespAt(envs, 42) >= 0 || m.hp != hp {
+				t.Fatalf("a rejected attack must not land: hp %d, want %d", m.hp, hp)
+			}
+		})
+	}
+}
+
+func TestAttackHitsAndAggro(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	// Too short-sighted to notice the attacker by itself: only the hit can make it chase.
+	m.camp.Kind.AggroRange = 0.5
+	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range with the slack, out of its attack range
+	v := joinNow(t, z, 2, 30.5, 36.5) // a viewer
+	a.take()
+	v.take()
+	attackNow(t, z, 1, 9, m.id)
+	envs := a.take()
+	ri, wi := attackRespAt(envs, 9), -1
+	for i, e := range envs {
+		if e.GetWorldTick() != nil {
+			wi = i
+		}
+	}
+	if ri < 0 || wi < 0 || ri > wi {
+		t.Fatalf("AttackResp at %d, WorldTick at %d: the reply must come first", ri, wi)
+	}
+	// Level-1 slash (phys attack 20) on a level-1 monster (defense 8): 20*(1-8/28) = 14.
+	if m.hp != 56-14 {
+		t.Fatalf("monster hp %d, want 42", m.hp)
+	}
+	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42}
+	for name, got := range map[string][]*pb.Hit{"attacker": hitsIn(envs), "viewer": hitsIn(v.take())} {
+		if len(got) != 1 || got[0].String() != want.String() {
+			t.Fatalf("%s hits %v, want %v", name, got, want)
+		}
+	}
+	if m.state != chase || m.target != 1 {
+		t.Fatalf("state %v target %d, want an idle monster to chase its attacker", m.state, m.target)
+	}
+	if _, ok := m.attackers[1]; !ok {
+		t.Fatal("the attacker must be in the monster's attackers")
+	}
+
+	// The cooldown is 8 ticks: an attack 8 ticks after the last is accepted.
+	for i := 0; i < 7; i++ {
+		z.advance(time.Now())
+	}
+	a.take()
+	attackNow(t, z, 1, 10, m.id)
+	if envs := a.take(); attackRespAt(envs, 10) < 0 {
+		t.Fatalf("attack 8 ticks later rejected: %v", errorFor(envs, 10))
+	}
+}
+
+func TestRangeSlack(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 32.49, 30.5)
+	attackNow(t, z, 1, 3, m.id)
+	if envs := a.take(); attackRespAt(envs, 3) < 0 {
+		t.Fatalf("an attack at 1.99 tiles must be accepted, got %v", errorFor(envs, 3))
+	}
+}
+
+func TestNewerAttackReplacesPending(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 31.5, 30.5)
+	z.Attack(1, 5, m.id)
+	attackNow(t, z, 1, 6, m.id)
+	envs := a.take()
+	if er := errorFor(envs, 5); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("the replaced attack got %v, want ON_COOLDOWN", er)
+	}
+	if attackRespAt(envs, 6) < 0 || m.hp != 56-14 {
+		t.Fatalf("the newer attack must land once: hp %d", m.hp)
+	}
+}
+
+func TestLineBlocked(t *testing.T) {
+	g := gridFrom(
+		"......",
+		"..#...",
+		"......",
+	)
+	for _, c := range []struct {
+		a, b Vec2
+		want bool
+	}{
+		{Vec2{0.5, 1.5}, Vec2{4.5, 1.5}, true},
+		{Vec2{0.5, 0.5}, Vec2{4.5, 0.5}, false},
+		{Vec2{1.5, 1.5}, Vec2{2.9, 1.5}, false}, // an endpoint's own tile does not count
+		{Vec2{1.5, 1.5}, Vec2{1.5, 1.5}, false},
+	} {
+		if got := lineBlocked(g, c.a, c.b); got != c.want {
+			t.Errorf("lineBlocked(%v, %v) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+func TestKillGivesExpAndRespawns(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 31.5, 30.5)
+	v := joinNow(t, z, 2, 30.5, 36.5)
+	camp := z.camps[0]
+	now := time.Now()
+	var diedAt uint32
+	for i := 0; i < 4; i++ {
+		if i > 0 {
+			for j := 0; j < 7; j++ {
+				z.advance(now)
+			}
+		}
+		a.take()
+		attackNow(t, z, 1, uint32(10+i), m.id)
+		envs := a.take()
+		if attackRespAt(envs, uint32(10+i)) < 0 {
+			t.Fatalf("slash %d rejected: %v", i+1, errorFor(envs, uint32(10+i)))
+		}
+		if m.hp != 56-14*(i+1) && !(i == 3 && m.hp == 0) {
+			t.Fatalf("after slash %d hp %d", i+1, m.hp)
+		}
+		if i < 3 {
+			continue
+		}
+		diedAt = z.tickNo
+		if !m.dead || !slices.Equal(deathsIn(envs), []uint64{m.id}) || !slices.Equal(deathsIn(v.take()), []uint64{m.id}) {
+			t.Fatalf("dead=%v deaths %v, want the monster dead and a Death for everyone", m.dead, deathsIn(envs))
+		}
+		p := z.players[1]
+		if p.exp != 10 || p.level != 1 {
+			t.Fatalf("killer level %d exp %d, want level 1 with 10 EXP", p.level, p.exp)
+		}
+		ss := selfStatsIn(envs)
+		if len(ss) != 1 || ss[0].Exp != 10 || envs[len(envs)-1].GetSelfStats() == nil || envs[len(envs)-1].Seq != 0 {
+			t.Fatalf("SelfStats %v, want one push with 10 EXP after the WorldTick", ss)
+		}
+	}
+	if z.camps[0] != camp || camp.alive != 1 {
+		t.Fatalf("a corpse still counts as alive until removed, alive %d", camp.alive)
+	}
+	z.advance(now)
+	if ss := selfStatsIn(a.take()); len(ss) != 0 {
+		t.Fatalf("SelfStats pushed again without a change: %v", ss)
+	}
+
+	old := m.id
+	var leftAt, newAt uint32
+	var newID uint64
+	for z.tickNo < diedAt+100 && newID == 0 {
+		z.advance(now)
+		envs := v.take()
+		if slices.Contains(leaves(envs), old) {
+			leftAt = z.tickNo
+		}
+		for _, id := range enters(envs) {
+			if id != old && id != 1 {
+				newID, newAt = id, z.tickNo
+			}
+		}
+	}
+	if leftAt != diedAt+10 {
+		t.Fatalf("EntityLeave at tick %d, want %d (1 s after death)", leftAt, diedAt+10)
+	}
+	if _, still := z.monsters[old]; still {
+		t.Fatal("the corpse must be removed from the zone")
+	}
+	if newAt != diedAt+80 || newID == 0 {
+		t.Fatalf("new monster %d at tick %d, want a new id at %d (8 s after death)", newID, newAt, diedAt+80)
+	}
+	if nm := z.monsters[newID]; nm == nil || nm.hp != 56 || nm.dead || camp.alive != 1 || len(camp.pending) != 0 {
+		t.Fatalf("respawned monster %+v alive %d pending %v, want a full one", nm, camp.alive, camp.pending)
+	}
+}
+
+// ______________________TEST PROGRESSION_____________________
+
+func TestLevelUp(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	in := info(1, 31.5, 30.5)
+	in.Exp, in.HP, in.MP = 125, 100, 20
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	v := joinNow(t, z, 2, 30.5, 36.5)
+	m.hp = 1
+	sv := z.saver.(*fakeSaver)
+	attackNow(t, z, 1, 1, m.id)
+	p := z.players[1]
+	// 125 + 10 = 135 of 130 needed: level 2 with 5 EXP left over.
+	if p.level != 2 || p.exp != 5 || p.freePoints != 10 {
+		t.Fatalf("level %d exp %d free %d, want 2, 5, 10", p.level, p.exp, p.freePoints)
+	}
+	if p.maxHP != 560 || p.hp != 560 || p.mp != 120 || p.stats.MaxMP != 120 || p.stats.PhysAttack != 25 {
+		t.Fatalf("hp %d/%d mp %d stats %+v, want full at level-2 stats", p.hp, p.maxHP, p.mp, p.stats)
+	}
+	envs := a.take()
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		var lv []*pb.LevelUp
+		for _, wt := range ticksIn(es) {
+			lv = append(lv, wt.LevelUps...)
+		}
+		if len(lv) != 1 || lv[0].Id != 1 || lv[0].Level != 2 {
+			t.Fatalf("%s level-ups %v, want 1 to level 2", name, lv)
+		}
+		var hc *pb.HpChange
+		for _, c := range hpChangesIn(es) {
+			if c.Id == 1 {
+				hc = c
+			}
+		}
+		if hc == nil || hc.Hp != 560 || hc.MaxHp != 560 {
+			t.Fatalf("%s HpChange %v, want 560/560", name, hc)
+		}
+	}
+	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Level != 2 || ss[0].FreePoints != 10 || ss[0].MaxHp != 560 {
+		t.Fatalf("SelfStats %v, want level 2 with 10 free points", ss)
+	}
+	saves := sv.all()
+	if len(saves) != 1 || saves[0].Level != 2 || saves[0].Exp != 5 || saves[0].FreePoints != 10 || saves[0].HP != 560 || saves[0].MP != 120 {
+		t.Fatalf("saves %+v, want one immediate save at level 2", saves)
+	}
+}
+
+func TestJoinDeadPlayerRespawns(t *testing.T) {
+	z, _ := newFightZone(t, 1, Vec2{30.5, 30.5})
+	in := info(1, 40.5, 40.5)
+	in.HP, in.MP = 0, 3
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	p := z.players[1]
+	if p.pos != z.area.Respawn || p.cell != z.cellOf(z.area.Respawn) || p.dead {
+		t.Fatalf("at %v cell %v dead %v, want alive at the respawn point %v", p.pos, p.cell, p.dead, z.area.Respawn)
+	}
+	if p.hp != p.maxHP || p.mp != p.stats.MaxMP {
+		t.Fatalf("hp %d/%d mp %d/%d, want full", p.hp, p.maxHP, p.mp, p.stats.MaxMP)
+	}
+	r := out.take()[0].GetEnterWorldResp()
+	if r.X != z.area.Respawn.X || r.Y != z.area.Respawn.Y {
+		t.Fatalf("EnterWorldResp at %v,%v, want the respawn point", r.X, r.Y)
+	}
+}
+
+func TestJoinClampsHP(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	for _, c := range []struct {
+		hp, mp         int
+		wantHP, wantMP int
+	}{{-1, -1, 500, 100}, {9999, 9999, 500, 100}, {300, 40, 300, 40}} {
+		in := info(1, 5.5, 5.5)
+		in.HP, in.MP = c.hp, c.mp
+		if err := z.join(in, &fakeOut{}); err != nil {
+			t.Fatal(err)
+		}
+		p := z.players[1]
+		if p.hp != c.wantHP || p.mp != c.wantMP {
+			t.Fatalf("join with hp %d mp %d: got %d %d, want %d %d", c.hp, c.mp, p.hp, p.mp, c.wantHP, c.wantMP)
+		}
+		<-z.leave(1)
+	}
+}
+
+func TestEnterWorldRespHasStats(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	in := info(1, 5.5, 5.5)
+	in.Class = pb.CharClass_CHAR_CLASS_THUY
+	in.Level, in.Exp, in.FreePoints, in.HP = 3, 50, 4, 200
+	in.Points = combat.Points{Str: 1, Agi: 2, Vit: 3, Int: 4}
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	got := out.take()[0].GetEnterWorldResp().GetStats()
+	s := combat.Compute(true, 3, in.Points)
+	want := &pb.SelfStats{Level: 3, Exp: 50, ExpNext: combat.ExpToNext(3), FreePoints: 4,
+		Strength: 1, Agility: 2, Vitality: 3, Intellect: 4, Hp: 200, MaxHp: int32(s.MaxHP), Mp: int32(s.MaxMP), MaxMp: int32(s.MaxMP),
+		PhysAttack: int32(s.PhysAttack), MagicAttack: int32(s.MagicAttack), PhysDefense: int32(s.PhysDefense), MagicDefense: int32(s.MagicDefense),
+		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRateBp: int32(s.CritRateBP)}
+	if got.String() != want.String() {
+		t.Fatalf("stats %v, want %v", got, want)
+	}
+	if s.MaxHP != 500+50*2+16*3 {
+		t.Fatalf("magic class max HP %d, want the magic growth", s.MaxHP)
+	}
+}
+
+func TestStateSavesProgress(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	in := info(1, 5.5, 5.5)
+	in.Points, in.FreePoints = combat.Points{Str: 1}, 9
+	if err := z.join(in, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	p := z.players[1]
+	p.points, p.freePoints, p.hp, p.mp, p.exp = combat.Points{Str: 2, Agi: 3, Vit: 4, Int: 5}, 1, 77, 33, 88
+	t0 := time.Now()
+	z.advance(t0)
+	z.advance(t0.Add(61 * time.Second))
+	saves := sv.all()
+	want := store.CharState{ID: 100, MapID: "m1", X: 5.5, Y: 5.5, Level: 1, Exp: 88,
+		Points: combat.Points{Str: 2, Agi: 3, Vit: 4, Int: 5}, FreePoints: 1, HP: 77, MP: 33}
+	if len(saves) != 1 || saves[0] != want {
+		t.Fatalf("saves %+v, want %+v", saves, want)
 	}
 }

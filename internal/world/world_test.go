@@ -123,7 +123,8 @@ func startWorld(t *testing.T, capacity int, maps map[string]*mapdata.Map) *World
 }
 
 func char(id int64, mapID string, x, y float32) store.Character {
-	return store.Character{ID: id, AccountID: id, Slot: 1, Name: "c", Class: "viem", Level: 1, MapID: mapID, X: x, Y: y}
+	// HP and MP -1 (full) is what the store returns for NULL; 0 would mean logged out dead.
+	return store.Character{ID: id, AccountID: id, Slot: 1, Name: "c", Class: "viem", Level: 1, MapID: mapID, X: x, Y: y, HP: -1, MP: -1}
 }
 
 func TestNewRejectsUnknownStartMap(t *testing.T) {
@@ -444,6 +445,32 @@ func TestMonsterAndPlayerIDsShareCounter(t *testing.T) {
 	for id := range monsters {
 		if id > w.nextEntity.Load() {
 			t.Fatalf("monster id %d was not drawn from the world counter (at %d)", id, w.nextEntity.Load())
+		}
+	}
+}
+
+func TestMembershipAttackReachesZone(t *testing.T) {
+	w := newTestWorld(t, 10)
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: char(1, "m1", 3.5, 4.5), Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Attack(5, 999999) {
+		t.Fatal("Attack: inbox full")
+	}
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-out.ch:
+			if er := e.GetError(); er != nil {
+				if e.Seq != 5 || er.Code != pb.ErrorCode_ERROR_CODE_INVALID_TARGET {
+					t.Fatalf("got seq %d %v, want seq 5 INVALID_TARGET", e.Seq, er)
+				}
+				return
+			}
+		case <-timeout:
+			t.Fatal("no reply to the attack")
 		}
 	}
 }

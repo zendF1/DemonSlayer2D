@@ -1,11 +1,17 @@
 package zone
 
-import "demonslayer2d/internal/pb"
+import (
+	"maps"
+	"slices"
+
+	"demonslayer2d/internal/pb"
+)
 
 // campState is a camp's live state in this zone.
 type campState struct {
 	Camp
-	alive int
+	alive   int      // monsters in the zone, corpses included
+	pending []uint32 // ticks at which a new monster is due, one per death
 }
 
 // spawnAll fills every camp to its Count. It runs once, when the zone opens.
@@ -53,4 +59,30 @@ func (z *Zone) spawn(c *campState) {
 	z.monsters[m.id] = m
 	z.addToCell(&m.entity)
 	c.alive++
+}
+
+// runSpawnTimers removes corpses corpseSec after death, so viewers get
+// EntityLeave, and spawns the monsters whose respawn is due (spec 4.2).
+func (z *Zone) runSpawnTimers() {
+	gone := z.ticks(corpseSec)
+	for _, id := range slices.Sorted(maps.Keys(z.monsters)) {
+		if m := z.monsters[id]; m.dead && z.tickNo >= m.diedAt+gone {
+			z.removeFromCell(&m.entity)
+			delete(z.monsters, id)
+			m.camp.alive--
+		}
+	}
+	for _, c := range z.camps {
+		due := 0
+		c.pending = slices.DeleteFunc(c.pending, func(at uint32) bool {
+			if z.tickNo >= at {
+				due++
+				return true
+			}
+			return false
+		})
+		for ; due > 0; due-- {
+			z.spawn(c)
+		}
+	}
 }

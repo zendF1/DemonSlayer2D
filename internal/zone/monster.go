@@ -53,6 +53,7 @@ type monster struct {
 	attackers  map[uint64]struct{} // players who hit it since it last went home
 	nextAttack uint32              // first tick it may hit again
 	stuck      uint32              // consecutive ticks a returning monster could not move
+	diedAt     uint32              // tick it died at, while dead
 
 	wanderTo   Vec2
 	nextWander uint32 // tick at which an idle monster picks a new wander target

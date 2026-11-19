@@ -58,8 +58,9 @@ type PlayerInfo struct {
 	Level    int
 	Exp      int64
 	Pos      Vec2
-	// Combat state loaded from the store. The zone saves it back unchanged
-	// until combat takes it over. HP and MP are -1 for "full".
+	// Combat state loaded from the store. HP and MP are -1 for "full"; HP 0
+	// means the character logged out dead. Join copies Level, Exp and these
+	// into the player, which owns them from then on.
 	Points     combat.Points
 	FreePoints int
 	HP, MP     int
@@ -75,12 +76,22 @@ const slowTick = 50 * time.Millisecond
 
 type player struct {
 	entity
-	info      PlayerInfo
-	out       Outbox
-	inputSeq  uint32
-	visible   map[uint64]struct{}
-	stats     combat.Stats
-	deadUntil uint32 // tick at which a dead player respawns by itself
+	charID   int64
+	out      Outbox
+	inputSeq uint32
+	visible  map[uint64]struct{}
+
+	// Progression; level and hp live in entity.
+	stats      combat.Stats
+	points     combat.Points
+	freePoints int
+	exp        int64
+	mp         int
+
+	deadUntil     uint32     // tick at which a dead player respawns by itself
+	lastAttack    uint32     // tick of the last accepted attack; 0 means never
+	pendingAttack *attackCmd // this tick's attack, resolved after drain
+	statsDirty    bool       // send SelfStats after this tick's WorldTick
 }
 
 type joinCmd struct {
@@ -98,6 +109,12 @@ type moveCmd struct {
 	id  uint64
 	seq uint32
 	dir Vec2
+}
+
+type attackCmd struct {
+	id     uint64
+	seq    uint32
+	target uint64
 }
 
 type Zone struct {
@@ -220,6 +237,18 @@ func (z *Zone) Move(id uint64, seq uint32, x, y float32) {
 	}
 }
 
+// Attack queues an attack by player id on target. The zone answers seq with
+// AttackResp or ErrorResp on the player's outbox. It never blocks and reports
+// false if the inbox is full.
+func (z *Zone) Attack(id uint64, seq uint32, target uint64) bool {
+	select {
+	case z.inbox <- attackCmd{id: id, seq: seq, target: target}:
+		return true
+	default:
+		return false
+	}
+}
+
 // Run ticks until ctx is cancelled, then saves and kicks every remaining player.
 func (z *Zone) Run(ctx context.Context) {
 	defer close(z.done)
@@ -253,14 +282,16 @@ func (z *Zone) safeAdvance(now time.Time) {
 	z.advance(now)
 }
 
-// advance runs one tick in the order of spec 6.2: apply commands, move players,
-// run monsters, then send each player its view.
+// advance runs one tick in the order of spec 6.2: apply commands, resolve
+// attacks, move players, run monsters, run timers, then send each player its view.
 func (z *Zone) advance(now time.Time) {
 	z.tickNo++
 	z.events = tickEvents{}
 	z.drain()
+	z.resolveAttacks()
 	z.movePlayers()
 	z.thinkMonsters()
+	z.runSpawnTimers()
 
 	var slow []*player
 	for _, p := range z.players {
@@ -318,6 +349,8 @@ func (z *Zone) handle(c any) {
 		c.reply <- z.leave(c.id)
 	case moveCmd:
 		z.move(c)
+	case attackCmd:
+		z.queueAttack(c)
 	}
 }
 
@@ -333,12 +366,20 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 			id: info.EntityID, kind: pb.EntityKind_ENTITY_KIND_PLAYER, name: info.Name, class: info.Class, level: info.Level,
 			pos: info.Pos,
 		},
-		info: info, out: out, visible: make(map[uint64]struct{}),
+		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
+		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
 	}
 	setStats(p, combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points))
-	p.hp = info.HP // -1 = full
+	p.hp, p.mp = info.HP, info.MP // -1 = full
+	// HP 0: logged out dead, so back at the respawn point with full HP/MP (spec 3.6).
+	if p.hp == 0 {
+		p.pos, p.hp, p.mp = z.area.Respawn, -1, -1
+	}
 	if p.hp < 0 || p.hp > p.maxHP {
 		p.hp = p.maxHP
+	}
+	if p.mp < 0 || p.mp > p.stats.MaxMP {
+		p.mp = p.stats.MaxMP
 	}
 	p.cell = z.cellOf(p.pos)
 	z.players[info.EntityID] = p
@@ -353,6 +394,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		ServerTick:   z.tickNo,
 		MoveSpeed:    z.cfg.MoveSpeed,
 		TickRate:     uint32(z.cfg.TickRate),
+		Stats:        selfStats(p),
 	}}})
 	return nil
 }
@@ -407,15 +449,16 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 	}
 }
 
-// state is what gets saved. Level and HP come from the entity, which the zone
-// keeps current; a full player saves its real HP rather than -1.
+// state is what gets saved, all from the player's live state; a full player
+// saves its real HP and MP rather than -1.
 func (z *Zone) state(p *player) store.CharState {
-	return store.CharState{ID: p.info.CharID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.info.Exp,
-		Points: p.info.Points, FreePoints: p.info.FreePoints, HP: p.hp, MP: p.info.MP}
+	return store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
+		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp}
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick, with
-// this tick's events about the entities p sees. It returns false if p's outbox is full.
+// this tick's events about the entities p sees, then SelfStats if p's stats
+// changed. It returns false if p's outbox is full.
 func (z *Zone) syncView(p *player) bool {
 	ok := true
 	send := func(env *pb.Envelope) {
@@ -448,6 +491,10 @@ func (z *Zone) syncView(p *player) bool {
 	wt := &pb.WorldTick{Tick: z.tickNo, AckInputSeq: p.inputSeq, Moves: moves}
 	z.addEvents(p, wt)
 	send(&pb.Envelope{Payload: &pb.Envelope_WorldTick{WorldTick: wt}})
+	if p.statsDirty {
+		p.statsDirty = false
+		send(&pb.Envelope{Payload: &pb.Envelope_SelfStats{SelfStats: selfStats(p)}})
+	}
 	return ok
 }
 

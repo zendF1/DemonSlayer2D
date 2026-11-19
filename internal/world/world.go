@@ -194,6 +194,12 @@ type Membership struct {
 
 func (m *Membership) Move(seq uint32, x, y float32) { m.z.Move(m.EntityID, seq, x, y) }
 
+// Attack queues an attack on target; the zone answers seq on the outbox. It
+// reports false if the zone's inbox is full.
+func (m *Membership) Attack(seq uint32, target uint64) bool {
+	return m.z.Attack(m.EntityID, seq, target)
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 
