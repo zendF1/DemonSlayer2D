@@ -402,6 +402,115 @@ func TestKillMonsterOverWebSocket(t *testing.T) {
 	}
 }
 
+// Combat progress must survive a logout. The character is seeded at one EXP
+// short of level 4 with free points, spends some over the websocket, levels
+// up on the first kill and leaves; re-entering must bring back its level,
+// EXP, points and HP exactly as the stream last showed them.
+func TestCombatProgressSurvivesLogout(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	c := dial(t, s)
+	if err := c.Register(ctx, "kira01", "password123"); err != nil {
+		t.Fatal(err)
+	}
+	accountID, err := c.Login(ctx, "kira01", "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := c.CreateChar(ctx, 1, "Kira", pb.CharClass_CHAR_CLASS_VIEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := s.store.GetCharacter(ctx, accountID, ch.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const seedLevel, seedFree = 3, 20
+	seedExp := combat.ExpToNext(seedLevel) - 1
+	if err := s.store.SaveCharacterState(ctx, store.CharState{ID: row.ID, MapID: row.MapID, X: row.X, Y: row.Y,
+		Level: seedLevel, Exp: seedExp, FreePoints: seedFree, HP: -1, MP: -1}); err != nil {
+		t.Fatal(err)
+	}
+	ew, err := c.EnterWorld(ctx, ch.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := ew.Stats; st.GetLevel() != seedLevel || st.GetExp() != seedExp || st.GetFreePoints() != seedFree {
+		t.Fatalf("entered with %v, want the seeded level %d exp %d free points %d", st, seedLevel, seedExp, seedFree)
+	}
+
+	spend := combat.Points{Str: 5, Agi: 2, Vit: 4, Int: 1}
+	last, err := c.AllocatePoints(ctx, spend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last.GetFreePoints() != seedFree-int32(spend.Total()) || last.GetStrength() != 5 || last.GetVitality() != 4 {
+		t.Fatalf("after allocating %v: %v", spend, last)
+	}
+
+	// Track our own stats and HP in stream order. A hit we take moves HP
+	// without a SelfStats push, so Hit and HpChange count too.
+	self := ew.SelfEntityId
+	hp := last.GetHp()
+	observe := func(env *pb.Envelope) {
+		if wt := env.GetWorldTick(); wt != nil {
+			for _, h := range wt.Hits {
+				if h.TargetId == self {
+					hp = h.HpAfter
+				}
+			}
+			for _, hc := range wt.HpChanges {
+				if hc.Id == self {
+					hp = hc.Hp
+				}
+			}
+		}
+		if st := env.GetSelfStats(); st != nil {
+			last, hp = st, st.GetHp()
+		}
+	}
+	f := client.NewFighter(c, ew)
+	f.Seek = campC1
+	f.Observe = observe
+	fctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := f.Fight(fctx, 1, nil); err != nil {
+		t.Fatalf("fight: %v", err)
+	}
+	if last.GetLevel() != seedLevel+1 || last.GetFreePoints() != seedFree-int32(spend.Total())+combat.PointsPerLevel {
+		t.Fatalf("after the kill: %v, want level %d with 10 more free points", last, seedLevel+1)
+	}
+
+	if err := c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Every push from the zone came before the LeaveWorldResp on the wire.
+	for drained := false; !drained; {
+		select {
+		case env := <-c.Pushes():
+			observe(env)
+		default:
+			drained = true
+		}
+	}
+	again, err := c.EnterWorld(ctx, ch.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := again.Stats
+	if got.GetLevel() != last.GetLevel() || got.GetExp() != last.GetExp() || got.GetFreePoints() != last.GetFreePoints() ||
+		got.GetStrength() != last.GetStrength() || got.GetAgility() != last.GetAgility() ||
+		got.GetVitality() != last.GetVitality() || got.GetIntellect() != last.GetIntellect() ||
+		got.GetMaxHp() != last.GetMaxHp() || got.GetHp() != hp {
+		t.Fatalf("re-entered with %v\nwant level %d exp %d free %d points %d/%d/%d/%d hp %d/%d", got,
+			last.GetLevel(), last.GetExp(), last.GetFreePoints(), last.GetStrength(), last.GetAgility(),
+			last.GetVitality(), last.GetIntellect(), hp, last.GetMaxHp())
+	}
+	if got.GetExp() <= 0 {
+		t.Fatalf("re-entered with exp %d, want the EXP earned past level %d", got.GetExp(), seedLevel+1)
+	}
+}
+
 // AttackReq is limited to 5 per second with a burst of 5, so the 6th of six
 // written back to back is refused by the gateway. The first five reach the
 // zone, which may refuse them for its own reasons; only the 6th must be
