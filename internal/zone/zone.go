@@ -74,10 +74,12 @@ const slowTick = 50 * time.Millisecond
 
 type player struct {
 	entity
-	info     PlayerInfo
-	out      Outbox
-	inputSeq uint32
-	visible  map[uint64]struct{}
+	info      PlayerInfo
+	out       Outbox
+	inputSeq  uint32
+	visible   map[uint64]struct{}
+	stats     combat.Stats
+	deadUntil uint32 // tick at which a dead player respawns by itself
 }
 
 type joinCmd struct {
@@ -120,6 +122,7 @@ type Zone struct {
 	cells    map[cellKey]map[uint64]*entity
 	departed map[uint64]chan error // evicted players whose Leave has not arrived yet
 	lastSave time.Time
+	events   tickEvents // combat events of the current tick
 }
 
 // New creates a zone on area and fills its monster camps.
@@ -253,6 +256,7 @@ func (z *Zone) safeAdvance(now time.Time) {
 // run monsters, then send each player its view.
 func (z *Zone) advance(now time.Time) {
 	z.tickNo++
+	z.events = tickEvents{}
 	z.drain()
 	z.movePlayers()
 	z.thinkMonsters()
@@ -287,7 +291,7 @@ func (z *Zone) advance(now time.Time) {
 func (z *Zone) movePlayers() {
 	step := z.cfg.MoveSpeed / float32(z.cfg.TickRate)
 	for _, p := range z.players {
-		if p.dir == (Vec2{}) {
+		if p.dead || p.dir == (Vec2{}) {
 			continue
 		}
 		if np := Step(z.area.Grid, p.pos, p.dir, step); np != p.pos {
@@ -323,18 +327,17 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	if _, dup := z.players[info.EntityID]; dup {
 		return fmt.Errorf("zone: duplicate entity %d", info.EntityID)
 	}
-	// Until combat owns player stats, HP is shown from the stored value (-1 = full).
-	maxHP := combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points).MaxHP
-	hp := info.HP
-	if hp < 0 || hp > maxHP {
-		hp = maxHP
+	stats := combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points)
+	hp := info.HP // -1 = full
+	if hp < 0 || hp > stats.MaxHP {
+		hp = stats.MaxHP
 	}
 	p := &player{
 		entity: entity{
 			id: info.EntityID, kind: pb.EntityKind_ENTITY_KIND_PLAYER, name: info.Name, class: info.Class, level: info.Level,
-			pos: info.Pos, hp: hp, maxHP: maxHP,
+			pos: info.Pos, hp: hp, maxHP: stats.MaxHP,
 		},
-		info: info, out: out, visible: make(map[uint64]struct{}),
+		info: info, out: out, visible: make(map[uint64]struct{}), stats: stats,
 	}
 	p.cell = z.cellOf(p.pos)
 	z.players[info.EntityID] = p
@@ -369,7 +372,10 @@ func (z *Zone) move(c moveCmd) {
 	if !ok || c.seq < p.inputSeq {
 		return
 	}
-	p.inputSeq = c.seq
+	p.inputSeq = c.seq // acked even while dead, so the client stops resending
+	if p.dead {
+		return
+	}
 	if p.dir != c.dir {
 		p.dir = c.dir
 		p.changed = true
@@ -400,7 +406,8 @@ func (z *Zone) state(p *player) store.CharState {
 		Points: p.info.Points, FreePoints: p.info.FreePoints, HP: p.hp, MP: p.info.MP}
 }
 
-// syncView sends p its EntityLeave/EntityEnter messages and WorldTick. It returns false if p's outbox is full.
+// syncView sends p its EntityLeave/EntityEnter messages and WorldTick, with
+// this tick's events about the entities p sees. It returns false if p's outbox is full.
 func (z *Zone) syncView(p *player) bool {
 	ok := true
 	send := func(env *pb.Envelope) {
@@ -430,10 +437,40 @@ func (z *Zone) syncView(p *player) bool {
 			moves = append(moves, &pb.EntityMove{Id: id, X: e.pos.X, Y: e.pos.Y, DirX: e.dir.X, DirY: e.dir.Y, Snap: e.snap})
 		}
 	}
-	send(&pb.Envelope{Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
-		Tick: z.tickNo, AckInputSeq: p.inputSeq, Moves: moves,
-	}}})
+	wt := &pb.WorldTick{Tick: z.tickNo, AckInputSeq: p.inputSeq, Moves: moves}
+	z.addEvents(p, wt)
+	send(&pb.Envelope{Payload: &pb.Envelope_WorldTick{WorldTick: wt}})
 	return ok
+}
+
+// addEvents puts into wt the events p may see: hits whose attacker or target
+// is visible to p, and deaths, HP changes and level-ups of visible entities.
+// A player always sees its own events.
+func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
+	sees := func(id uint64) bool {
+		_, ok := p.visible[id]
+		return ok || id == p.id
+	}
+	for _, h := range z.events.hits {
+		if sees(h.AttackerId) || sees(h.TargetId) {
+			wt.Hits = append(wt.Hits, h)
+		}
+	}
+	for _, d := range z.events.deaths {
+		if sees(d.Id) {
+			wt.Deaths = append(wt.Deaths, d)
+		}
+	}
+	for _, c := range z.events.hpChanges {
+		if sees(c.Id) {
+			wt.HpChanges = append(wt.HpChanges, c)
+		}
+	}
+	for _, l := range z.events.levelUps {
+		if sees(l.Id) {
+			wt.LevelUps = append(wt.LevelUps, l)
+		}
+	}
 }
 
 func (z *Zone) setCount() {

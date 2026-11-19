@@ -561,7 +561,7 @@ func TestPlayerEnterHasHP(t *testing.T) {
 
 func TestMonstersWander(t *testing.T) {
 	z, _ := newMonsterZone(t, campTiles...)
-	a := joinNow(t, z, 1, 28.5, 30.5)
+	a := joinNow(t, z, 1, 30.5, 39.5) // in view, beyond aggro range plus the wander radius
 	home := map[uint64]Vec2{}
 	for id, m := range z.monsters {
 		home[id] = m.home
