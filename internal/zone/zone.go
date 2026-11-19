@@ -303,6 +303,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		Y:            p.pos.Y,
 		ServerTick:   z.tickNo,
 		MoveSpeed:    z.cfg.MoveSpeed,
+		TickRate:     uint32(z.cfg.TickRate),
 	}}})
 	return nil
 }
@@ -393,15 +394,15 @@ func (z *Zone) syncView(p *player) bool {
 
 func enterEnv(p *player) *pb.Envelope {
 	return &pb.Envelope{Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
-		Id:    p.info.EntityID,
-		Kind:  pb.EntityKind_ENTITY_KIND_PLAYER,
-		Name:  p.info.Name,
-		Class: p.info.Class,
-		Level: int32(p.info.Level),
-		X:     p.pos.X,
-		Y:     p.pos.Y,
-		DirX:  p.dir.X,
-		DirY:  p.dir.Y,
+		Id:        p.info.EntityID,
+		Kind:      pb.EntityKind_ENTITY_KIND_PLAYER,
+		Name:      p.info.Name,
+		CharClass: p.info.Class,
+		Level:     int32(p.info.Level),
+		X:         p.pos.X,
+		Y:         p.pos.Y,
+		DirX:      p.dir.X,
+		DirY:      p.dir.Y,
 	}}}
 }
 

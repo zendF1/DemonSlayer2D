@@ -182,7 +182,7 @@ message Envelope {
 }
 ```
 
-- Mỗi yêu cầu nhận đúng một phản hồi: gói kết quả tương ứng hoặc `Error { ErrorCode code; string message; }`.
+- Mỗi yêu cầu nhận đúng một phản hồi: gói kết quả tương ứng hoặc `ErrorResp { ErrorCode code; string detail; }`.
 - Gói tin trong game (`MoveInput`) không có phản hồi riêng; kết quả thể hiện qua `WorldTick`.
 - Thêm trường mới vào gói tin không làm hỏng client cũ (quy tắc của proto3). Thay đổi không tương thích thì tăng `PROTOCOL_VERSION`.
 
@@ -192,10 +192,10 @@ message Envelope {
 | --- | --- | --- |
 | `RegisterReq { username, password }` | `RegisterResp {}` | Tên tài khoản 4–20 ký tự `a-z 0-9 _`, không phân biệt hoa thường. Mật khẩu 8–64 ký tự |
 | `LoginReq { username, password, protocol_version }` | `LoginResp { account_id }` | Sai `protocol_version` thì `VERSION_MISMATCH`. Tài khoản bị khóa thì `AUTH_FAILED` |
-| `CharListReq {}` | `CharListResp { repeated CharSummary chars }` | `CharSummary { id, slot, name, class, level, map_id }` |
-| `CreateCharReq { slot, name, class }` | `CreateCharResp { CharSummary char }` | Nhân vật mới ở `default` spawn point của map khởi đầu |
+| `CharListReq {}` | `CharListResp { repeated CharSummary chars }` | `CharSummary { id, slot, name, char_class, level, map_id }` |
+| `CreateCharReq { slot, name, char_class }` | `CreateCharResp { CharSummary char }` | Nhân vật mới ở `default` spawn point của map khởi đầu |
 | `DeleteCharReq { char_id, confirm_name }` | `DeleteCharResp {}` | `confirm_name` phải trùng tên nhân vật |
-| `EnterWorldReq { char_id }` | `EnterWorldResp { self_entity_id, map_id, zone, x, y, server_tick, move_speed }` | `move_speed` tính bằng ô/giây |
+| `EnterWorldReq { char_id }` | `EnterWorldResp { self_entity_id, map_id, zone, x, y, server_tick, move_speed, tick_rate }` | `move_speed` tính bằng ô/giây; `tick_rate` là số tick mỗi giây của zone (mỗi tick di chuyển `move_speed` / `tick_rate` ô) |
 | `LeaveWorldReq {}` | `LeaveWorldResp {}` | Về màn chọn nhân vật, nhân vật được lưu |
 
 Các gói trước khi vào game chỉ hợp lệ khi kết nối ở đúng trạng thái (mục 4.6); sai trạng thái thì `BAD_REQUEST`.
@@ -205,7 +205,7 @@ Các gói trước khi vào game chỉ hợp lệ khi kết nối ở đúng tr�
 | Chiều | Gói tin | Quy tắc |
 | --- | --- | --- |
 | C → S | `MoveInput { input_seq, dir_x, dir_y }` | Hướng từ joystick ảo hoặc WASD. Độ dài vector được kẹp về tối đa 1; (0, 0) là dừng. Client gửi khi hướng đổi, tối đa 20 lần/giây. `input_seq` tăng dần |
-| S → C | `EntityEnter { id, kind, name, class, level, x, y, dir_x, dir_y }` | Thực thể vào tầm nhìn. `kind` ở Giai đoạn 0 chỉ có `PLAYER` |
+| S → C | `EntityEnter { id, kind, name, char_class, level, x, y, dir_x, dir_y }` | Thực thể vào tầm nhìn. `kind` ở Giai đoạn 0 chỉ có `PLAYER` |
 | S → C | `EntityLeave { id }` | Thực thể ra khỏi tầm nhìn hoặc rời zone |
 | S → C | `WorldTick { tick, ack_input_seq, repeated EntityMove moves }` | Mỗi tick (10 lần/giây). `EntityMove { id, x, y, dir_x, dir_y }` chỉ cho thực thể trong tầm nhìn có thay đổi, gồm cả chính mình. `ack_input_seq` là `input_seq` lớn nhất server đã áp dụng cho người nhận |
 | C ↔ S | `Ping { client_time }` / `Pong { client_time, server_time }` | Thời gian tính bằng mili-giây |

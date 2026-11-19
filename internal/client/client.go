@@ -135,7 +135,7 @@ func (c *Client) Request(ctx context.Context, env *pb.Envelope) (*pb.Envelope, e
 	select {
 	case resp := <-ch:
 		if e := resp.GetError(); e != nil {
-			return nil, &ServerError{Code: e.Code, Message: e.Message}
+			return nil, &ServerError{Code: e.Code, Message: e.Detail}
 		}
 		return resp, nil
 	case <-c.closed:
@@ -176,7 +176,7 @@ func (c *Client) ListChars(ctx context.Context) ([]*pb.CharSummary, error) {
 
 func (c *Client) CreateChar(ctx context.Context, slot int32, name string, class pb.CharClass) (*pb.CharSummary, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_CreateCharReq{CreateCharReq: &pb.CreateCharReq{
-		Slot: slot, Name: name, Class: class,
+		Slot: slot, Name: name, CharClass: class,
 	}}})
 	if err != nil {
 		return nil, err

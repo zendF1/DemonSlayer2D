@@ -114,7 +114,7 @@ func (c *conn) handleLogin(ctx context.Context, seq uint32, r *pb.LoginReq) {
 
 func summary(ch store.Character) *pb.CharSummary {
 	return &pb.CharSummary{
-		Id: ch.ID, Slot: int32(ch.Slot), Name: ch.Name, Class: classes.ToPB(ch.Class),
+		Id: ch.ID, Slot: int32(ch.Slot), Name: ch.Name, CharClass: classes.ToPB(ch.Class),
 		Level: int32(ch.Level), MapId: ch.MapID,
 	}
 }
@@ -139,7 +139,7 @@ func (c *conn) handleCreateChar(ctx context.Context, seq uint32, r *pb.CreateCha
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "slot must be 1-3")
 		return
 	}
-	class, ok := classes.FromPB(r.Class)
+	class, ok := classes.FromPB(r.CharClass)
 	if !ok {
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "invalid class")
 		return

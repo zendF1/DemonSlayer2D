@@ -1,0 +1,1 @@
+# Godot skips this repo when it is the client's server/ submodule (otherwise it would import docs/balance/*.csv as translations).

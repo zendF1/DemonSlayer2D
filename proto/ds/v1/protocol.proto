@@ -4,13 +4,17 @@ package ds.v1;
 
 option go_package = "demonslayer2d/internal/pb;pb";
 
+// Names must also be valid in GDScript: the client generates code with
+// godobuf. Do not name a field `message` or `class`, or a message `Error`.
+// Renames keep field numbers, so the wire format is unchanged.
+//
 // Every WebSocket binary message carries exactly one Envelope.
 // Requests use seq >= 1; the response reuses the same seq.
 // Server-initiated messages use seq = 0.
 message Envelope {
   uint32 seq = 1;
   oneof payload {
-    Error error = 2;
+    ErrorResp error = 2;
 
     RegisterReq register_req = 10;
     RegisterResp register_resp = 11;
@@ -82,9 +86,9 @@ enum EntityKind {
   ENTITY_KIND_PLAYER = 1;
 }
 
-message Error {
+message ErrorResp {
   ErrorCode code = 1;
-  string message = 2;
+  string detail = 2;
 }
 
 message RegisterReq {
@@ -108,7 +112,7 @@ message CharSummary {
   int64 id = 1;
   int32 slot = 2;
   string name = 3;
-  CharClass class = 4;
+  CharClass char_class = 4;
   int32 level = 5;
   string map_id = 6;
 }
@@ -122,7 +126,7 @@ message CharListResp {
 message CreateCharReq {
   int32 slot = 1;
   string name = 2;
-  CharClass class = 3;
+  CharClass char_class = 3;
 }
 
 message CreateCharResp {
@@ -149,6 +153,8 @@ message EnterWorldResp {
   uint32 server_tick = 6;
   // Tiles per second.
   float move_speed = 7;
+  // Zone ticks per second; each tick moves move_speed / tick_rate tiles.
+  uint32 tick_rate = 8;
 }
 
 message LeaveWorldReq {}
@@ -166,7 +172,7 @@ message EntityEnter {
   uint64 id = 1;
   EntityKind kind = 2;
   string name = 3;
-  CharClass class = 4;
+  CharClass char_class = 4;
   int32 level = 5;
   float x = 6;
   float y = 7;

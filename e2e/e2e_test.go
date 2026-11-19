@@ -97,6 +97,9 @@ func newPlayer(t *testing.T, s server, username, charName string, class pb.CharC
 	if err != nil {
 		t.Fatal(err)
 	}
+	if ew.TickRate != 10 {
+		t.Fatalf("tick_rate = %d, want 10", ew.TickRate)
+	}
 	return player{c: c, accountID: accountID, charID: ch.Id, enter: ew}
 }
 

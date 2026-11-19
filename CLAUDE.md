@@ -35,6 +35,7 @@ Config comes only from environment variables (see `README.md`). The Makefile als
 - Zone state is touched only by that zone's goroutine. Zones never write to the DB; they pass saves to `saver`.
 - On shutdown, the saver flushes under its own timeout, even when the gateway step has timed out.
 - Rate limits use `Limiter.Take` and `Refund`; never split checking and recording into separate calls.
+- Proto names must stay valid in GDScript (no field named `message` or `class`, no message named `Error`) because the client generates code with godobuf.
 
 ## Conventions
 

@@ -277,6 +277,10 @@ func (EntityKind) EnumDescriptor() ([]byte, []int) {
 	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{3}
 }
 
+// Names must also be valid in GDScript: the client generates code with
+// godobuf. Do not name a field `message` or `class`, or a message `Error`.
+// Renames keep field numbers, so the wire format is unchanged.
+//
 // Every WebSocket binary message carries exactly one Envelope.
 // Requests use seq >= 1; the response reuses the same seq.
 // Server-initiated messages use seq = 0.
@@ -356,7 +360,7 @@ func (x *Envelope) GetPayload() isEnvelope_Payload {
 	return nil
 }
 
-func (x *Envelope) GetError() *Error {
+func (x *Envelope) GetError() *ErrorResp {
 	if x != nil {
 		if x, ok := x.Payload.(*Envelope_Error); ok {
 			return x.Error
@@ -559,7 +563,7 @@ type isEnvelope_Payload interface {
 }
 
 type Envelope_Error struct {
-	Error *Error `protobuf:"bytes,2,opt,name=error,proto3,oneof"`
+	Error *ErrorResp `protobuf:"bytes,2,opt,name=error,proto3,oneof"`
 }
 
 type Envelope_RegisterReq struct {
@@ -690,28 +694,28 @@ func (*Envelope_Pong) isEnvelope_Payload() {}
 
 func (*Envelope_Kicked) isEnvelope_Payload() {}
 
-type Error struct {
+type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          ErrorCode              `protobuf:"varint,1,opt,name=code,proto3,enum=ds.v1.ErrorCode" json:"code,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Detail        string                 `protobuf:"bytes,2,opt,name=detail,proto3" json:"detail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Error) Reset() {
-	*x = Error{}
+func (x *ErrorResp) Reset() {
+	*x = ErrorResp{}
 	mi := &file_ds_v1_protocol_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Error) String() string {
+func (x *ErrorResp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Error) ProtoMessage() {}
+func (*ErrorResp) ProtoMessage() {}
 
-func (x *Error) ProtoReflect() protoreflect.Message {
+func (x *ErrorResp) ProtoReflect() protoreflect.Message {
 	mi := &file_ds_v1_protocol_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -723,21 +727,21 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Error.ProtoReflect.Descriptor instead.
-func (*Error) Descriptor() ([]byte, []int) {
+// Deprecated: Use ErrorResp.ProtoReflect.Descriptor instead.
+func (*ErrorResp) Descriptor() ([]byte, []int) {
 	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Error) GetCode() ErrorCode {
+func (x *ErrorResp) GetCode() ErrorCode {
 	if x != nil {
 		return x.Code
 	}
 	return ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-func (x *Error) GetMessage() string {
+func (x *ErrorResp) GetDetail() string {
 	if x != nil {
-		return x.Message
+		return x.Detail
 	}
 	return ""
 }
@@ -939,7 +943,7 @@ type CharSummary struct {
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Slot          int32                  `protobuf:"varint,2,opt,name=slot,proto3" json:"slot,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Class         CharClass              `protobuf:"varint,4,opt,name=class,proto3,enum=ds.v1.CharClass" json:"class,omitempty"`
+	CharClass     CharClass              `protobuf:"varint,4,opt,name=char_class,json=charClass,proto3,enum=ds.v1.CharClass" json:"char_class,omitempty"`
 	Level         int32                  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
 	MapId         string                 `protobuf:"bytes,6,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -997,9 +1001,9 @@ func (x *CharSummary) GetName() string {
 	return ""
 }
 
-func (x *CharSummary) GetClass() CharClass {
+func (x *CharSummary) GetCharClass() CharClass {
 	if x != nil {
-		return x.Class
+		return x.CharClass
 	}
 	return CharClass_CHAR_CLASS_UNSPECIFIED
 }
@@ -1102,7 +1106,7 @@ type CreateCharReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Slot          int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Class         CharClass              `protobuf:"varint,3,opt,name=class,proto3,enum=ds.v1.CharClass" json:"class,omitempty"`
+	CharClass     CharClass              `protobuf:"varint,3,opt,name=char_class,json=charClass,proto3,enum=ds.v1.CharClass" json:"char_class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1151,9 +1155,9 @@ func (x *CreateCharReq) GetName() string {
 	return ""
 }
 
-func (x *CreateCharReq) GetClass() CharClass {
+func (x *CreateCharReq) GetCharClass() CharClass {
 	if x != nil {
-		return x.Class
+		return x.CharClass
 	}
 	return CharClass_CHAR_CLASS_UNSPECIFIED
 }
@@ -1343,7 +1347,9 @@ type EnterWorldResp struct {
 	Y            float32                `protobuf:"fixed32,5,opt,name=y,proto3" json:"y,omitempty"`
 	ServerTick   uint32                 `protobuf:"varint,6,opt,name=server_tick,json=serverTick,proto3" json:"server_tick,omitempty"`
 	// Tiles per second.
-	MoveSpeed     float32 `protobuf:"fixed32,7,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
+	MoveSpeed float32 `protobuf:"fixed32,7,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
+	// Zone ticks per second; each tick moves move_speed / tick_rate tiles.
+	TickRate      uint32 `protobuf:"varint,8,opt,name=tick_rate,json=tickRate,proto3" json:"tick_rate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1423,6 +1429,13 @@ func (x *EnterWorldResp) GetServerTick() uint32 {
 func (x *EnterWorldResp) GetMoveSpeed() float32 {
 	if x != nil {
 		return x.MoveSpeed
+	}
+	return 0
+}
+
+func (x *EnterWorldResp) GetTickRate() uint32 {
+	if x != nil {
+		return x.TickRate
 	}
 	return 0
 }
@@ -1565,7 +1578,7 @@ type EntityEnter struct {
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Kind          EntityKind             `protobuf:"varint,2,opt,name=kind,proto3,enum=ds.v1.EntityKind" json:"kind,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Class         CharClass              `protobuf:"varint,4,opt,name=class,proto3,enum=ds.v1.CharClass" json:"class,omitempty"`
+	CharClass     CharClass              `protobuf:"varint,4,opt,name=char_class,json=charClass,proto3,enum=ds.v1.CharClass" json:"char_class,omitempty"`
 	Level         int32                  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
 	X             float32                `protobuf:"fixed32,6,opt,name=x,proto3" json:"x,omitempty"`
 	Y             float32                `protobuf:"fixed32,7,opt,name=y,proto3" json:"y,omitempty"`
@@ -1626,9 +1639,9 @@ func (x *EntityEnter) GetName() string {
 	return ""
 }
 
-func (x *EntityEnter) GetClass() CharClass {
+func (x *EntityEnter) GetCharClass() CharClass {
 	if x != nil {
-		return x.Class
+		return x.CharClass
 	}
 	return CharClass_CHAR_CLASS_UNSPECIFIED
 }
@@ -1994,10 +2007,10 @@ var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xef\t\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xf3\t\n" +
 	"\bEnvelope\x12\x10\n" +
-	"\x03seq\x18\x01 \x01(\rR\x03seq\x12$\n" +
-	"\x05error\x18\x02 \x01(\v2\f.ds.v1.ErrorH\x00R\x05error\x127\n" +
+	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
+	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
 	"\fregister_req\x18\n" +
 	" \x01(\v2\x12.ds.v1.RegisterReqH\x00R\vregisterReq\x12:\n" +
 	"\rregister_resp\x18\v \x01(\v2\x13.ds.v1.RegisterRespH\x00R\fregisterResp\x12.\n" +
@@ -2023,10 +2036,10 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x04ping\x18( \x01(\v2\v.ds.v1.PingH\x00R\x04ping\x12!\n" +
 	"\x04pong\x18) \x01(\v2\v.ds.v1.PongH\x00R\x04pong\x12'\n" +
 	"\x06kicked\x18* \x01(\v2\r.ds.v1.KickedH\x00R\x06kickedB\t\n" +
-	"\apayload\"G\n" +
-	"\x05Error\x12$\n" +
-	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"E\n" +
+	"\apayload\"I\n" +
+	"\tErrorResp\x12$\n" +
+	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
+	"\x06detail\x18\x02 \x01(\tR\x06detail\"E\n" +
 	"\vRegisterReq\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x0e\n" +
@@ -2037,21 +2050,23 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x10protocol_version\x18\x03 \x01(\rR\x0fprotocolVersion\"*\n" +
 	"\tLoginResp\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\x03R\taccountId\"\x9a\x01\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"\xa3\x01\n" +
 	"\vCharSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x05R\x04slot\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12&\n" +
-	"\x05class\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\x05class\x12\x14\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12/\n" +
+	"\n" +
+	"char_class\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\tcharClass\x12\x14\n" +
 	"\x05level\x18\x05 \x01(\x05R\x05level\x12\x15\n" +
 	"\x06map_id\x18\x06 \x01(\tR\x05mapId\"\r\n" +
 	"\vCharListReq\"8\n" +
 	"\fCharListResp\x12(\n" +
-	"\x05chars\x18\x01 \x03(\v2\x12.ds.v1.CharSummaryR\x05chars\"_\n" +
+	"\x05chars\x18\x01 \x03(\v2\x12.ds.v1.CharSummaryR\x05chars\"h\n" +
 	"\rCreateCharReq\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
-	"\x05class\x18\x03 \x01(\x0e2\x10.ds.v1.CharClassR\x05class\"8\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12/\n" +
+	"\n" +
+	"char_class\x18\x03 \x01(\x0e2\x10.ds.v1.CharClassR\tcharClass\"8\n" +
 	"\x0eCreateCharResp\x12&\n" +
 	"\x04char\x18\x01 \x01(\v2\x12.ds.v1.CharSummaryR\x04char\"K\n" +
 	"\rDeleteCharReq\x12\x17\n" +
@@ -2059,7 +2074,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fconfirm_name\x18\x02 \x01(\tR\vconfirmName\"\x10\n" +
 	"\x0eDeleteCharResp\"(\n" +
 	"\rEnterWorldReq\x12\x17\n" +
-	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xbd\x01\n" +
+	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xda\x01\n" +
 	"\x0eEnterWorldResp\x12$\n" +
 	"\x0eself_entity_id\x18\x01 \x01(\x04R\fselfEntityId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x12\n" +
@@ -2069,18 +2084,20 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\vserver_tick\x18\x06 \x01(\rR\n" +
 	"serverTick\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\a \x01(\x02R\tmoveSpeed\"\x0f\n" +
+	"move_speed\x18\a \x01(\x02R\tmoveSpeed\x12\x1b\n" +
+	"\ttick_rate\x18\b \x01(\rR\btickRate\"\x0f\n" +
 	"\rLeaveWorldReq\"\x10\n" +
 	"\x0eLeaveWorldResp\"R\n" +
 	"\tMoveInput\x12\x1b\n" +
 	"\tinput_seq\x18\x01 \x01(\rR\binputSeq\x12\x13\n" +
 	"\x05dir_x\x18\x02 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xdc\x01\n" +
+	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xe5\x01\n" +
 	"\vEntityEnter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x11.ds.v1.EntityKindR\x04kind\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12&\n" +
-	"\x05class\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\x05class\x12\x14\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12/\n" +
+	"\n" +
+	"char_class\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\tcharClass\x12\x14\n" +
 	"\x05level\x18\x05 \x01(\x05R\x05level\x12\f\n" +
 	"\x01x\x18\x06 \x01(\x02R\x01x\x12\f\n" +
 	"\x01y\x18\a \x01(\x02R\x01y\x12\x13\n" +
@@ -2169,7 +2186,7 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(CharClass)(0),         // 2: ds.v1.CharClass
 	(EntityKind)(0),        // 3: ds.v1.EntityKind
 	(*Envelope)(nil),       // 4: ds.v1.Envelope
-	(*Error)(nil),          // 5: ds.v1.Error
+	(*ErrorResp)(nil),      // 5: ds.v1.ErrorResp
 	(*RegisterReq)(nil),    // 6: ds.v1.RegisterReq
 	(*RegisterResp)(nil),   // 7: ds.v1.RegisterResp
 	(*LoginReq)(nil),       // 8: ds.v1.LoginReq
@@ -2195,7 +2212,7 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*Kicked)(nil),         // 28: ds.v1.Kicked
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
-	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.Error
+	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
 	6,  // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
 	7,  // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
 	8,  // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
@@ -2217,13 +2234,13 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	26, // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
 	27, // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
 	28, // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
-	0,  // 22: ds.v1.Error.code:type_name -> ds.v1.ErrorCode
-	2,  // 23: ds.v1.CharSummary.class:type_name -> ds.v1.CharClass
+	0,  // 22: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,  // 23: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
 	10, // 24: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,  // 25: ds.v1.CreateCharReq.class:type_name -> ds.v1.CharClass
+	2,  // 25: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
 	10, // 26: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
 	3,  // 27: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,  // 28: ds.v1.EntityEnter.class:type_name -> ds.v1.CharClass
+	2,  // 28: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
 	24, // 29: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
 	1,  // 30: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
 	31, // [31:31] is the sub-list for method output_type

@@ -196,7 +196,7 @@ func (c *conn) send(env *pb.Envelope) {
 }
 
 func (c *conn) fail(seq uint32, code pb.ErrorCode, msg string) {
-	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_Error{Error: &pb.Error{Code: code, Message: msg}}})
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{Code: code, Detail: msg}}})
 }
 
 func (c *conn) failErr(seq uint32, err error) {

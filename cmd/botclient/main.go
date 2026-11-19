@@ -117,7 +117,7 @@ func cmdChars(args []string) error {
 		fmt.Println("no characters")
 	}
 	for _, ch := range chars {
-		fmt.Printf("id=%d slot=%d name=%s class=%s level=%d map=%s\n", ch.Id, ch.Slot, ch.Name, ch.Class, ch.Level, ch.MapId)
+		fmt.Printf("id=%d slot=%d name=%s class=%s level=%d map=%s\n", ch.Id, ch.Slot, ch.Name, ch.CharClass, ch.Level, ch.MapId)
 	}
 	return nil
 }
@@ -242,7 +242,7 @@ func printEvent(env *pb.Envelope, self uint64, lastSelf *time.Time) {
 		if e.Id == self {
 			who += " (you)"
 		}
-		fmt.Printf("enter  %d %s %s at (%.2f, %.2f)\n", e.Id, who, e.Class, e.X, e.Y)
+		fmt.Printf("enter  %d %s %s at (%.2f, %.2f)\n", e.Id, who, e.CharClass, e.X, e.Y)
 	case env.GetEntityLeave() != nil:
 		fmt.Printf("leave  %d\n", env.GetEntityLeave().Id)
 	case env.GetKicked() != nil:

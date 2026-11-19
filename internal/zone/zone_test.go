@@ -142,7 +142,7 @@ func TestJoinSendsEnterWorldRespFirst(t *testing.T) {
 		t.Fatalf("want exactly the EnterWorldResp with seq 7, got %v", envs)
 	}
 	r := envs[0].GetEnterWorldResp()
-	if r == nil || r.SelfEntityId != 1 || r.MapId != "m1" || r.Zone != 1 || r.X != 5.5 || r.Y != 5.5 || r.MoveSpeed != 4 {
+	if r == nil || r.SelfEntityId != 1 || r.MapId != "m1" || r.Zone != 1 || r.X != 5.5 || r.Y != 5.5 || r.MoveSpeed != 4 || r.TickRate != 10 {
 		t.Fatalf("bad EnterWorldResp %v", r)
 	}
 	z.advance(time.Now())
