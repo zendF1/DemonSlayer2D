@@ -6,13 +6,16 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
+	"demonslayer2d/internal/zone"
 )
 
 type nopSaver struct{}
@@ -70,12 +73,46 @@ func testMaps(t *testing.T) map[string]*mapdata.Map {
 	return map[string]*mapdata.Map{"m1": m}
 }
 
+var testMonsters = &gamedata.Data{
+	Kinds: map[string]gamedata.Kind{"wanderer": {ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 1.5, AttackSec: 1.5,
+		Speed: 0.8, AggroRange: 4, LeashRange: 10, RespawnSec: 8}},
+	Levels: map[int]gamedata.Level{1: {Level: 1, HP: 56, Attack: 30, Defense: 8}, 2: {Level: 2, HP: 104, Attack: 39, Defense: 16}},
+}
+
+// triggerMap is a 20x20 open map with a safe zone around the default spawn,
+// a rest point in it and one camp of 3 wanderers east of it.
+func triggerMap(t *testing.T) *mapdata.Map {
+	t.Helper()
+	rows := make([]string, 20)
+	for i := range rows {
+		rows[i] = strings.Repeat(".", 20)
+	}
+	data, _ := json.Marshal(map[string]any{
+		"id": "m1", "name": "M1", "type": "training", "width": 20, "height": 20, "collision": rows,
+		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5}},
+		"safe_zones":   []map[string]any{{"id": "camp", "x": 0, "y": 0, "w": 5, "h": 5}},
+		"rest_points":  []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.5}},
+		"camps": []map[string]any{{"id": "c1", "monster": "wanderer", "x": 12, "y": 4, "radius": 1.5,
+			"count": 3, "min_level": 1, "max_level": 2}},
+	})
+	m, err := mapdata.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
 func newTestWorld(t *testing.T, capacity int) *World {
+	t.Helper()
+	return startWorld(t, capacity, testMaps(t))
+}
+
+func startWorld(t *testing.T, capacity int, maps map[string]*mapdata.Map) *World {
 	t.Helper()
 	w, err := New(Config{
 		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: capacity,
 		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
-	}, testMaps(t), nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, maps, testMonsters, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +127,7 @@ func char(id int64, mapID string, x, y float32) store.Character {
 }
 
 func TestNewRejectsUnknownStartMap(t *testing.T) {
-	_, err := New(Config{StartMap: "nope"}, testMaps(t), nopSaver{}, slog.Default())
+	_, err := New(Config{StartMap: "nope"}, testMaps(t), testMonsters, nopSaver{}, slog.Default())
 	if err == nil {
 		t.Fatal("want error for unknown start map")
 	}
@@ -182,7 +219,7 @@ func TestEnterAfterStopOpensNoZones(t *testing.T) {
 	w, err := New(Config{
 		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
 		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
-	}, testMaps(t), nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, testMaps(t), testMonsters, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,5 +368,68 @@ func TestTakeoverGivesUpWhileQueued(t *testing.T) {
 	}
 	if cur := w.Claim(7, b); cur != b {
 		t.Fatalf("a queued takeover that gave up must not change the online session, got %v", cur)
+	}
+}
+
+// ______________________TEST AREA_____________________
+
+func TestAreaOf(t *testing.T) {
+	m := triggerMap(t)
+	a := areaOf(m, testMonsters)
+	if a.Grid != zone.Grid(m) {
+		t.Fatal("the area grid must be the map")
+	}
+	if !slices.Equal(a.Safe, []zone.Rect{{X: 0, Y: 0, W: 5, H: 5}}) {
+		t.Fatalf("safe = %v", a.Safe)
+	}
+	if !slices.Equal(a.Rests, []zone.Circle{{C: zone.Vec2{X: 2.5, Y: 2.5}, R: 1.5}}) {
+		t.Fatalf("rests = %v", a.Rests)
+	}
+	if a.Respawn != (zone.Vec2{X: 2.5, Y: 2.5}) {
+		t.Fatalf("respawn = %v", a.Respawn)
+	}
+	if len(a.Camps) != 1 {
+		t.Fatalf("camps = %v", a.Camps)
+	}
+	c := a.Camps[0]
+	var want []zone.Vec2
+	for _, p := range m.CampTiles(m.Camps[0]) {
+		want = append(want, zone.Vec2{X: p.X, Y: p.Y})
+	}
+	if c.ID != "c1" || c.Count != 3 || c.MinLevel != 1 || c.MaxLevel != 2 || c.Kind != testMonsters.Kinds["wanderer"] ||
+		len(want) < 3 || !slices.Equal(c.Tiles, want) {
+		t.Fatalf("camp = %+v, want tiles %v", c, want)
+	}
+	if len(a.Levels) != 2 || a.Levels[2] != testMonsters.Levels[2] {
+		t.Fatalf("levels = %v", a.Levels)
+	}
+}
+
+func TestMonsterAndPlayerIDsShareCounter(t *testing.T) {
+	w := startWorld(t, 10, map[string]*mapdata.Map{"m1": triggerMap(t)})
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: char(1, "m1", 3.5, 3.5), Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	monsters := map[uint64]bool{}
+	timeout := time.After(2 * time.Second)
+	for len(monsters) < 3 {
+		select {
+		case e := <-out.ch:
+			if en := e.GetEntityEnter(); en != nil && en.Kind == pb.EntityKind_ENTITY_KIND_MONSTER {
+				monsters[en.Id] = true
+			}
+		case <-timeout:
+			t.Fatalf("saw %d monsters, want 3", len(monsters))
+		}
+	}
+	if monsters[m.EntityID] {
+		t.Fatalf("player id %d clashes with a monster id %v", m.EntityID, monsters)
+	}
+	for id := range monsters {
+		if id > w.nextEntity.Load() {
+			t.Fatalf("monster id %d was not drawn from the world counter (at %d)", id, w.nextEntity.Load())
+		}
 	}
 }

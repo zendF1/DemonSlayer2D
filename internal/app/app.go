@@ -81,7 +81,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger, opts Options)
 		SaveInterval: cfg.SaveInterval,
 		IdleZoneTTL:  5 * time.Minute,
 		JanitorEvery: 30 * time.Second,
-	}, maps, a.saver, log)
+	}, maps, monsters, a.saver, log)
 	if err != nil {
 		return fail(err)
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"demonslayer2d/internal/classes"
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -42,6 +43,7 @@ type Config struct {
 type World struct {
 	cfg   Config
 	maps  map[string]*mapdata.Map
+	areas map[string]zone.Area // per map, shared by its zones
 	saver zone.Saver
 	log   *slog.Logger
 	start mapdata.Point
@@ -64,18 +66,48 @@ type slot struct {
 	reserved atomic.Int32 // joins in flight
 }
 
-func New(cfg Config, maps map[string]*mapdata.Map, saver zone.Saver, log *slog.Logger) (*World, error) {
+// New creates a world over maps. monsters must already be validated against maps.
+func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, saver zone.Saver, log *slog.Logger) (*World, error) {
 	m, ok := maps[cfg.StartMap]
 	if !ok {
 		return nil, fmt.Errorf("world: start map %q not found", cfg.StartMap)
 	}
+	if monsters == nil {
+		return nil, errors.New("world: no monster data")
+	}
+	areas := make(map[string]zone.Area, len(maps))
+	for id, mp := range maps {
+		areas[id] = areaOf(mp, monsters)
+	}
 	return &World{
-		cfg: cfg, maps: maps, saver: saver, log: log,
+		cfg: cfg, maps: maps, areas: areas, saver: saver, log: log,
 		start:    m.Spawns["default"],
 		zones:    make(map[string][]*slot),
 		online:   make(map[int64]Session),
 		handoffs: make(map[int64]*accountLock),
 	}, nil
+}
+
+// areaOf converts a map's collision and triggers, and the monster data its camps
+// use, into the zone's view of the map. Camp tiles are computed here once.
+func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
+	a := zone.Area{Grid: m, Levels: d.Levels}
+	sp := m.Spawns["default"]
+	a.Respawn = zone.Vec2{X: sp.X, Y: sp.Y}
+	for _, r := range m.SafeZones {
+		a.Safe = append(a.Safe, zone.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H})
+	}
+	for _, r := range m.RestPoints {
+		a.Rests = append(a.Rests, zone.Circle{C: zone.Vec2{X: r.X, Y: r.Y}, R: r.Radius})
+	}
+	for _, c := range m.Camps {
+		camp := zone.Camp{ID: c.ID, Count: c.Count, MinLevel: c.MinLevel, MaxLevel: c.MaxLevel, Kind: d.Kinds[c.Monster]}
+		for _, p := range m.CampTiles(c) {
+			camp.Tiles = append(camp.Tiles, zone.Vec2{X: p.X, Y: p.Y})
+		}
+		a.Camps = append(a.Camps, camp)
+	}
+	return a
 }
 
 // Start opens zone 1 of every map and the idle-zone janitor. Everything stops when ctx is cancelled.
@@ -123,7 +155,8 @@ func (w *World) openZoneLocked(mapID string) *slot {
 	z := zone.New(zone.Config{
 		MapID: mapID, ZoneNo: idx + 1, TickRate: w.cfg.TickRate, MoveSpeed: w.cfg.MoveSpeed,
 		AOICellSize: w.cfg.AOICellSize, Capacity: w.cfg.ZoneCapacity, SaveInterval: w.cfg.SaveInterval,
-	}, w.maps[mapID], w.saver, w.log)
+		NewID: func() uint64 { return w.nextEntity.Add(1) },
+	}, w.areas[mapID], w.saver, w.log)
 	zctx, cancel := context.WithCancel(w.ctx)
 	s := &slot{z: z, cancel: cancel, no: idx + 1}
 	if idx == len(slots) {

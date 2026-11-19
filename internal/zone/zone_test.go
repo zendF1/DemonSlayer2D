@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
+	"math"
+	"math/rand/v2"
 	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 )
@@ -74,17 +78,31 @@ func (s *fakeSaver) all() []store.CharState {
 
 func quietLog() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
+// counterID hands out entity ids from start+1 upwards and remembers them.
+type counterID struct {
+	next   uint64
+	issued []uint64
+}
+
+func (c *counterID) id() uint64 {
+	c.next++
+	c.issued = append(c.issued, c.next)
+	return c.next
+}
+
 func testConfig(capacity int) Config {
-	return Config{MapID: "m1", ZoneNo: 1, TickRate: 10, MoveSpeed: 4, AOICellSize: 10, Capacity: capacity, SaveInterval: time.Minute}
+	ids := &counterID{next: 1000} // far above the player ids the tests use
+	return Config{MapID: "m1", ZoneNo: 1, TickRate: 10, MoveSpeed: 4, AOICellSize: 10, Capacity: capacity, SaveInterval: time.Minute,
+		NewID: ids.id, Rand: rand.New(rand.NewPCG(1, 2))}
 }
 
 func newTestZone(capacity int, g Grid) (*Zone, *fakeSaver) {
 	sv := &fakeSaver{}
-	return New(testConfig(capacity), g, sv, quietLog()), sv
+	return New(testConfig(capacity), Area{Grid: g}, sv, quietLog()), sv
 }
 
 func info(id uint64, x, y float32) PlayerInfo {
-	return PlayerInfo{EntityID: id, CharID: int64(id) * 100, Name: fmt.Sprint("p", id), Level: 1, Pos: Vec2{x, y}, RespSeq: 7}
+	return PlayerInfo{EntityID: id, CharID: int64(id) * 100, Name: fmt.Sprint("p", id), Level: 1, Pos: Vec2{x, y}, HP: -1, MP: -1, RespSeq: 7}
 }
 
 func joinNow(t *testing.T, z *Zone, id uint64, x, y float32) *fakeOut {
@@ -342,7 +360,7 @@ func TestRunJoinLeaveAndShutdown(t *testing.T) {
 	sv := &fakeSaver{}
 	cfg := testConfig(10)
 	cfg.TickRate = 50
-	z := New(cfg, openGrid(64, 64), sv, quietLog())
+	z := New(cfg, Area{Grid: openGrid(64, 64)}, sv, quietLog())
 	ctx, cancel := context.WithCancel(context.Background())
 	go z.Run(ctx)
 
@@ -411,5 +429,195 @@ func TestJoinHonoursContextBeforeQueueing(t *testing.T) {
 	defer cancel()
 	if err := z.Join(ctx, info(1, 5.5, 5.5), &fakeOut{}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Join = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+// ______________________TEST MONSTERS_____________________
+
+var testKind = gamedata.Kind{ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8,
+	AggroRange: 4, LeashRange: 10, RespawnSec: 8}
+
+var testLevels = map[int]gamedata.Level{
+	1: {Level: 1, HP: 56, Attack: 30, Defense: 8},
+	2: {Level: 2, HP: 104, Attack: 39, Defense: 16},
+}
+
+// newMonsterZone builds a zone on a 60x60 open grid with the safe rect (0,0,10,10)
+// and one camp of 3 monsters on the given tiles.
+func newMonsterZone(t *testing.T, tiles ...Vec2) (*Zone, *counterID) {
+	t.Helper()
+	ids := &counterID{next: 100}
+	cfg := testConfig(10)
+	cfg.NewID = ids.id
+	area := Area{
+		Grid:    openGrid(60, 60),
+		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
+		Rests:   []Circle{{C: Vec2{3.5, 3.5}, R: 1.5}},
+		Respawn: Vec2{5.5, 5.5},
+		Camps:   []Camp{{ID: "c1", Tiles: tiles, Count: 3, MinLevel: 1, MaxLevel: 2, Kind: testKind}},
+		Levels:  testLevels,
+	}
+	return New(cfg, area, &fakeSaver{}, quietLog()), ids
+}
+
+var campTiles = []Vec2{{30.5, 30.5}, {31.5, 30.5}, {30.5, 31.5}}
+
+func dist(a, b Vec2) float64 { return math.Hypot(float64(a.X-b.X), float64(a.Y-b.Y)) }
+
+func TestSpawnFillsCamps(t *testing.T) {
+	z, ids := newMonsterZone(t, campTiles...)
+	if len(z.monsters) != 3 {
+		t.Fatalf("monsters = %d, want 3", len(z.monsters))
+	}
+	got := slices.Sorted(maps.Keys(z.monsters))
+	if !slices.Equal(got, ids.issued) {
+		t.Fatalf("monster ids %v, want the ids NewID issued %v", got, ids.issued)
+	}
+	for id, m := range z.monsters {
+		if m.id != id || m.kind != pb.EntityKind_ENTITY_KIND_MONSTER || m.name != testKind.Name {
+			t.Fatalf("monster %d: bad identity %+v", id, m.entity)
+		}
+		if !slices.Contains(campTiles, m.pos) || m.home != m.pos {
+			t.Fatalf("monster %d at %v (home %v), want on a camp tile", id, m.pos, m.home)
+		}
+		if m.level < 1 || m.level > 2 {
+			t.Fatalf("monster %d level %d out of range", id, m.level)
+		}
+		if m.maxHP != testLevels[m.level].HP || m.hp != m.maxHP || m.dead {
+			t.Fatalf("monster %d hp %d/%d dead=%v, want full %d", id, m.hp, m.maxHP, m.dead, testLevels[m.level].HP)
+		}
+		if _, in := z.cells[m.cell][id]; !in {
+			t.Fatalf("monster %d is not in its AOI cell", id)
+		}
+	}
+}
+
+func TestPlayerSeesMonsters(t *testing.T) {
+	z, _ := newMonsterZone(t, campTiles...)
+	a := joinNow(t, z, 1, 28.5, 30.5)
+	z.advance(time.Now())
+	seen := 0
+	for _, e := range a.take() {
+		en := e.GetEntityEnter()
+		if en == nil || en.Kind != pb.EntityKind_ENTITY_KIND_MONSTER {
+			continue
+		}
+		m := z.monsters[en.Id]
+		if m == nil {
+			t.Fatalf("enter for unknown monster %d", en.Id)
+		}
+		if en.Name != testKind.Name || en.CharClass != pb.CharClass_CHAR_CLASS_UNSPECIFIED || int(en.Level) != m.level ||
+			en.Hp != en.MaxHp || int(en.MaxHp) != testLevels[m.level].HP || en.Dead {
+			t.Fatalf("bad monster enter %v", en)
+		}
+		seen++
+	}
+	if seen != 3 {
+		t.Fatalf("saw %d monsters, want 3", seen)
+	}
+}
+
+func TestPlayerEnterHasHP(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	a := joinNow(t, z, 1, 5.5, 5.5)
+	hurt := info(2, 6.5, 5.5)
+	hurt.HP = 120
+	if err := z.join(hurt, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	z.advance(time.Now())
+	got := map[uint64]*pb.EntityEnter{}
+	for _, e := range a.take() {
+		if en := e.GetEntityEnter(); en != nil {
+			got[en.Id] = en
+		}
+	}
+	// A level-1 Viêm (physical) has 500 max HP; HP -1 means full.
+	if en := got[1]; en == nil || en.Kind != pb.EntityKind_ENTITY_KIND_PLAYER || en.MaxHp != 500 || en.Hp != 500 {
+		t.Fatalf("full player: got %v", en)
+	}
+	if en := got[2]; en == nil || en.MaxHp != 500 || en.Hp != 120 {
+		t.Fatalf("hurt player: got %v", en)
+	}
+}
+
+func TestMonstersWander(t *testing.T) {
+	z, _ := newMonsterZone(t, campTiles...)
+	a := joinNow(t, z, 1, 28.5, 30.5)
+	home := map[uint64]Vec2{}
+	for id, m := range z.monsters {
+		home[id] = m.home
+	}
+	step := 0.5 * testKind.Speed * 4 / 10
+	moved := map[uint64]bool{}
+	broadcast := map[uint64]bool{}
+	now := time.Now()
+	for i := 0; i < 300; i++ { // 30 s: several wander cycles of 4-8 s
+		z.advance(now)
+		for _, mv := range lastTick(a.take()).GetMoves() {
+			broadcast[mv.Id] = true
+		}
+		for id, m := range z.monsters {
+			if m.pos != home[id] {
+				moved[id] = true
+			}
+			if d := dist(m.pos, home[id]); d > 2+step/2 {
+				t.Fatalf("tick %d: monster %d is %.3f tiles from home", i, id, d)
+			}
+		}
+	}
+	for id := range home {
+		if !moved[id] || !broadcast[id] {
+			t.Fatalf("monster %d moved=%v broadcast=%v, want both", id, moved[id], broadcast[id])
+		}
+	}
+}
+
+func TestMonstersNeverEnterSafeZone(t *testing.T) {
+	// Camp tiles border the safe rect (0,0,10,10) on its right edge.
+	z, _ := newMonsterZone(t, Vec2{10.5, 5.5}, Vec2{10.5, 6.5}, Vec2{11.5, 5.5})
+	now := time.Now()
+	for i := 0; i < 1000; i++ {
+		z.advance(now)
+		for id, m := range z.monsters {
+			if z.area.InSafe(m.pos) {
+				t.Fatalf("tick %d: monster %d at %v is in the safe zone", i, id, m.pos)
+			}
+		}
+	}
+}
+
+func TestDeadMonsterIsNotNewlyEntered(t *testing.T) {
+	z, _ := newMonsterZone(t, campTiles...)
+	a := joinNow(t, z, 1, 28.5, 30.5)
+	z.advance(time.Now())
+	a.take()
+	var id uint64
+	for id = range z.monsters {
+		break
+	}
+	z.monsters[id].dead = true
+	b := joinNow(t, z, 2, 28.5, 31.5)
+	z.advance(time.Now())
+	if slices.Contains(enters(b.take()), id) {
+		t.Fatal("a newcomer must not get EntityEnter for a corpse")
+	}
+	if _, still := z.players[2].visible[id]; still {
+		t.Fatal("a corpse must not be added to a newcomer's visible set")
+	}
+	if slices.Contains(leaves(a.take()), id) {
+		t.Fatal("a viewer who already saw the monster keeps it")
+	}
+}
+
+func TestTicksRoundsUp(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(8, 8))
+	for _, c := range []struct {
+		sec  float64
+		want uint32
+	}{{0.8, 8}, {0.05, 1}, {1.5, 15}, {0.7, 7}, {0, 1}} {
+		if got := z.ticks(c.sec); got != c.want {
+			t.Errorf("ticks(%v) = %d, want %d", c.sec, got, c.want)
+		}
 	}
 }

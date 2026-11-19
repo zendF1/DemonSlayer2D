@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"math"
+	"math/rand/v2"
 	"runtime/debug"
 	"slices"
 	"sync/atomic"
 	"time"
 
+	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -40,6 +41,12 @@ type Config struct {
 	AOICellSize  int
 	Capacity     int
 	SaveInterval time.Duration
+	// NewID hands out entity ids for monsters. It must draw from the same
+	// counter as player ids. Required when the area has camps.
+	NewID func() uint64
+	// Rand drives monster behaviour and spawns; a nil Rand is randomly seeded.
+	// Only the zone goroutine uses it.
+	Rand *rand.Rand
 }
 
 type PlayerInfo struct {
@@ -65,16 +72,12 @@ var (
 
 const slowTick = 50 * time.Millisecond
 
-type cellKey struct{ X, Y int }
-
 type player struct {
+	entity
 	info     PlayerInfo
 	out      Outbox
-	pos, dir Vec2
 	inputSeq uint32
-	cell     cellKey
 	visible  map[uint64]struct{}
-	changed  bool
 }
 
 type joinCmd struct {
@@ -96,7 +99,9 @@ type moveCmd struct {
 
 type Zone struct {
 	cfg   Config
-	grid  Grid
+	area  Area
+	mgrid Grid // area.monsterGrid()
+	rng   *rand.Rand
 	saver Saver
 	log   *slog.Logger
 
@@ -110,23 +115,37 @@ type Zone struct {
 	// Owned by the zone goroutine.
 	tickNo   uint32
 	players  map[uint64]*player
-	cells    map[cellKey]map[uint64]*player
+	monsters map[uint64]*monster
+	camps    []*campState
+	cells    map[cellKey]map[uint64]*entity
 	departed map[uint64]chan error // evicted players whose Leave has not arrived yet
 	lastSave time.Time
 }
 
-func New(cfg Config, grid Grid, saver Saver, log *slog.Logger) *Zone {
+// New creates a zone on area and fills its monster camps.
+func New(cfg Config, area Area, saver Saver, log *slog.Logger) *Zone {
+	if cfg.NewID == nil && len(area.Camps) > 0 {
+		panic("zone: Config.NewID is required when the area has camps")
+	}
+	rng := cfg.Rand
+	if rng == nil {
+		rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+	}
 	z := &Zone{
 		cfg:      cfg,
-		grid:     grid,
+		area:     area,
+		rng:      rng,
 		saver:    saver,
 		log:      log.With("map", cfg.MapID, "zone", cfg.ZoneNo),
 		inbox:    make(chan any, 1024),
 		done:     make(chan struct{}),
 		players:  make(map[uint64]*player),
-		cells:    make(map[cellKey]map[uint64]*player),
+		monsters: make(map[uint64]*monster),
+		cells:    make(map[cellKey]map[uint64]*entity),
 		departed: make(map[uint64]chan error),
 	}
+	z.mgrid = z.area.monsterGrid()
+	z.spawnAll()
 	z.emptySince.Store(time.Now().UnixNano())
 	return z
 }
@@ -230,22 +249,13 @@ func (z *Zone) safeAdvance(now time.Time) {
 	z.advance(now)
 }
 
-// advance runs one tick: apply commands, move, then send each player its view.
+// advance runs one tick in the order of spec 6.2: apply commands, move players,
+// run monsters, then send each player its view.
 func (z *Zone) advance(now time.Time) {
 	z.tickNo++
 	z.drain()
-
-	step := z.cfg.MoveSpeed / float32(z.cfg.TickRate)
-	for _, p := range z.players {
-		if p.dir == (Vec2{}) {
-			continue
-		}
-		if np := Step(z.grid, p.pos, p.dir, step); np != p.pos {
-			p.pos = np
-			p.changed = true
-			z.updateCell(p)
-		}
-	}
+	z.movePlayers()
+	z.thinkMonsters()
 
 	var slow []*player
 	for _, p := range z.players {
@@ -254,11 +264,14 @@ func (z *Zone) advance(now time.Time) {
 		}
 	}
 	for _, p := range z.players {
-		p.changed = false
+		p.changed, p.snap = false, false
+	}
+	for _, m := range z.monsters {
+		m.changed, m.snap = false, false
 	}
 	for _, p := range slow {
 		p.out.Kick(pb.KickReason_KICK_REASON_SLOW_CONSUMER)
-		z.departed[p.info.EntityID] = z.remove(p)
+		z.departed[p.id] = z.remove(p)
 	}
 
 	if z.lastSave.IsZero() {
@@ -268,6 +281,20 @@ func (z *Zone) advance(now time.Time) {
 			z.saver.Save(z.state(p), nil)
 		}
 		z.lastSave = now
+	}
+}
+
+func (z *Zone) movePlayers() {
+	step := z.cfg.MoveSpeed / float32(z.cfg.TickRate)
+	for _, p := range z.players {
+		if p.dir == (Vec2{}) {
+			continue
+		}
+		if np := Step(z.area.Grid, p.pos, p.dir, step); np != p.pos {
+			p.pos = np
+			p.changed = true
+			z.updateCell(&p.entity)
+		}
 	}
 }
 
@@ -296,10 +323,22 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	if _, dup := z.players[info.EntityID]; dup {
 		return fmt.Errorf("zone: duplicate entity %d", info.EntityID)
 	}
-	p := &player{info: info, out: out, pos: info.Pos, visible: make(map[uint64]struct{})}
+	// Until combat owns player stats, HP is shown from the stored value (-1 = full).
+	maxHP := combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points).MaxHP
+	hp := info.HP
+	if hp < 0 || hp > maxHP {
+		hp = maxHP
+	}
+	p := &player{
+		entity: entity{
+			id: info.EntityID, kind: pb.EntityKind_ENTITY_KIND_PLAYER, name: info.Name, class: info.Class, level: info.Level,
+			pos: info.Pos, hp: hp, maxHP: maxHP,
+		},
+		info: info, out: out, visible: make(map[uint64]struct{}),
+	}
 	p.cell = z.cellOf(p.pos)
 	z.players[info.EntityID] = p
-	z.addToCell(p)
+	z.addToCell(&p.entity)
 	z.setCount()
 	out.Send(&pb.Envelope{Seq: info.RespSeq, Payload: &pb.Envelope_EnterWorldResp{EnterWorldResp: &pb.EnterWorldResp{
 		SelfEntityId: info.EntityID,
@@ -339,8 +378,8 @@ func (z *Zone) move(c moveCmd) {
 
 // remove takes p out of the zone and starts saving it.
 func (z *Zone) remove(p *player) chan error {
-	delete(z.players, p.info.EntityID)
-	z.removeFromCell(p)
+	delete(z.players, p.id)
+	z.removeFromCell(&p.entity)
 	z.setCount()
 	done := make(chan error, 1)
 	z.saver.Save(z.state(p), done)
@@ -350,7 +389,7 @@ func (z *Zone) remove(p *player) chan error {
 func (z *Zone) evictAll(reason pb.KickReason) {
 	for _, p := range z.players {
 		p.out.Kick(reason)
-		z.departed[p.info.EntityID] = z.remove(p)
+		z.departed[p.id] = z.remove(p)
 	}
 }
 
@@ -367,14 +406,7 @@ func (z *Zone) syncView(p *player) bool {
 			ok = false
 		}
 	}
-	near := make(map[uint64]*player)
-	for dx := -1; dx <= 1; dx++ {
-		for dy := -1; dy <= 1; dy++ {
-			for id, o := range z.cells[cellKey{p.cell.X + dx, p.cell.Y + dy}] {
-				near[id] = o
-			}
-		}
-	}
+	near := z.nearby(p.cell)
 	for _, id := range slices.Sorted(maps.Keys(p.visible)) {
 		if _, still := near[id]; !still {
 			delete(p.visible, id)
@@ -383,65 +415,23 @@ func (z *Zone) syncView(p *player) bool {
 	}
 	var moves []*pb.EntityMove
 	for _, id := range slices.Sorted(maps.Keys(near)) {
-		o := near[id]
+		e := near[id]
 		if _, seen := p.visible[id]; !seen {
+			if e.dead && e.kind == pb.EntityKind_ENTITY_KIND_MONSTER {
+				continue // corpses are only shown to those who saw the monster alive
+			}
 			p.visible[id] = struct{}{}
-			send(enterEnv(o))
+			send(enterEnv(e))
 			continue
 		}
-		if o.changed {
-			moves = append(moves, &pb.EntityMove{Id: id, X: o.pos.X, Y: o.pos.Y, DirX: o.dir.X, DirY: o.dir.Y})
+		if e.changed {
+			moves = append(moves, &pb.EntityMove{Id: id, X: e.pos.X, Y: e.pos.Y, DirX: e.dir.X, DirY: e.dir.Y, Snap: e.snap})
 		}
 	}
 	send(&pb.Envelope{Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
 		Tick: z.tickNo, AckInputSeq: p.inputSeq, Moves: moves,
 	}}})
 	return ok
-}
-
-func enterEnv(p *player) *pb.Envelope {
-	return &pb.Envelope{Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
-		Id:        p.info.EntityID,
-		Kind:      pb.EntityKind_ENTITY_KIND_PLAYER,
-		Name:      p.info.Name,
-		CharClass: p.info.Class,
-		Level:     int32(p.info.Level),
-		X:         p.pos.X,
-		Y:         p.pos.Y,
-		DirX:      p.dir.X,
-		DirY:      p.dir.Y,
-	}}}
-}
-
-func (z *Zone) cellOf(pos Vec2) cellKey {
-	size := float64(z.cfg.AOICellSize)
-	return cellKey{int(math.Floor(float64(pos.X) / size)), int(math.Floor(float64(pos.Y) / size))}
-}
-
-func (z *Zone) addToCell(p *player) {
-	c := z.cells[p.cell]
-	if c == nil {
-		c = make(map[uint64]*player)
-		z.cells[p.cell] = c
-	}
-	c[p.info.EntityID] = p
-}
-
-func (z *Zone) removeFromCell(p *player) {
-	if c := z.cells[p.cell]; c != nil {
-		delete(c, p.info.EntityID)
-		if len(c) == 0 {
-			delete(z.cells, p.cell)
-		}
-	}
-}
-
-func (z *Zone) updateCell(p *player) {
-	if nc := z.cellOf(p.pos); nc != p.cell {
-		z.removeFromCell(p)
-		p.cell = nc
-		z.addToCell(p)
-	}
 }
 
 func (z *Zone) setCount() {
