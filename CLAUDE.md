@@ -39,4 +39,5 @@ Config comes only from environment variables (see `README.md`). The Makefile als
 ## Conventions
 
 - Run tests with `-race`. A fix comes with a test that fails on the old code.
+- Keep one or two test files per package (for example `internal/auth/auth_test.go`), not one per source file. Split sections with a comment line such as `// ______________________TEST LIMITER_____________________`.
 - Commit and push after each piece of work, with no signature or `Co-Authored-By` trailer.
