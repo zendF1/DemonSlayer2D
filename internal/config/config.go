@@ -4,7 +4,9 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,6 +23,8 @@ type Config struct {
 	LogLevel       slog.Level
 	// Registrations allowed per IP per hour; raise it for load tests.
 	RegisterPerHour int
+	// Reverse proxies (IPs or CIDRs) whose X-Forwarded-For header gives the player's IP.
+	TrustedProxies []netip.Prefix
 }
 
 // Load builds a Config from getenv (normally os.Getenv). DATABASE_URL is required.
@@ -76,10 +80,33 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		c.SaveInterval = d
 	}
+	if v := getenv("TRUSTED_PROXIES"); v != "" {
+		for _, f := range strings.Split(v, ",") {
+			p, err := parsePrefix(strings.TrimSpace(f))
+			if err != nil {
+				return Config{}, fmt.Errorf("config: TRUSTED_PROXIES entry %q is not an IP or CIDR", f)
+			}
+			c.TrustedProxies = append(c.TrustedProxies, p)
+		}
+	}
 	if v := getenv("LOG_LEVEL"); v != "" {
 		if err := c.LogLevel.UnmarshalText([]byte(v)); err != nil {
 			return Config{}, fmt.Errorf("config: LOG_LEVEL %q: %w", v, err)
 		}
 	}
 	return c, nil
+}
+
+// parsePrefix accepts a CIDR ("10.0.0.0/8") or a single address ("127.0.0.1").
+func parsePrefix(s string) (netip.Prefix, error) {
+	if strings.Contains(s, "/") {
+		p, err := netip.ParsePrefix(s)
+		return p.Masked(), err
+	}
+	a, err := netip.ParseAddr(s)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	a = a.Unmap()
+	return netip.PrefixFrom(a, a.BitLen()), nil
 }

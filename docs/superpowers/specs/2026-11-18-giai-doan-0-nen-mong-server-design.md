@@ -339,6 +339,7 @@ Mỗi zone là một goroutine với hộp thư lệnh (channel đệm 1.024) v�
 | `ZONE_CAPACITY` | `50` | Số người tối đa mỗi zone |
 | `SAVE_INTERVAL` | `60s` | Chu kỳ lưu vị trí |
 | `REGISTER_PER_HOUR` | `5` | Số lần đăng ký tối đa mỗi giờ theo IP (nâng lên khi thử tải) |
+| `TRUSTED_PROXIES` | _(trống)_ | Danh sách IP/CIDR của reverse proxy, phân cách bằng dấu phẩy, mà server tin header `X-Forwarded-For` |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 
 ## 6. Xử lý lỗi và vận hành
@@ -351,6 +352,7 @@ Mỗi zone là một goroutine với hộp thư lệnh (channel đệm 1.024) v�
 - **Thống kê:** mỗi phút một dòng log `stats` gồm số kết nối, số người trong game, số zone, thời gian tick lớn nhất và p99 trong phút đó.
 - **`GET /healthz`:** 200 nếu server chạy và `ping` được DB, ngược lại 503.
 - **TLS:** khi triển khai, server đặt sau reverse proxy (Caddy hoặc nginx) xử lý `wss://`. Môi trường dev dùng `ws://`.
+- **IP người chơi sau proxy:** giới hạn theo IP lấy từ địa chỉ kết nối. Nếu kết nối đến từ một proxy trong `TRUSTED_PROXIES`, server đọc `X-Forwarded-For` từ phải sang trái và lấy địa chỉ đầu tiên không phải proxy tin cậy; các mục bên trái do client tự ghi nên bị bỏ qua. Không đặt `TRUSTED_PROXIES` khi chạy sau proxy thì mọi người chơi dùng chung IP của proxy và chung giới hạn.
 
 ## 7. Bảo mật tài khoản
 

@@ -5,8 +5,8 @@ package gateway
 import (
 	"context"
 	"log/slog"
-	"net"
 	"net/http"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,6 +46,8 @@ type Deps struct {
 	Chars CharacterStore
 	World *world.World
 	Log   *slog.Logger
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed.
+	TrustedProxies []netip.Prefix
 }
 
 type Server struct {
@@ -80,11 +82,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws.SetReadLimit(maxMessageSize)
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		ip = r.RemoteAddr
-	}
-	c := s.newConn(ws, ip)
+	c := s.newConn(ws, clientIP(r, s.deps.TrustedProxies))
 	s.track(c, true)
 	defer s.track(c, false)
 

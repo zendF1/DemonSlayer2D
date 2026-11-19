@@ -32,7 +32,13 @@ Configuration is read from environment variables:
 | `ZONE_CAPACITY` | `50` | Players per zone |
 | `SAVE_INTERVAL` | `60s` | Periodic position save |
 | `REGISTER_PER_HOUR` | `5` | Registrations per IP per hour |
+| `TRUSTED_PROXIES` | _(empty)_ | Comma-separated IPs/CIDRs of reverse proxies whose `X-Forwarded-For` is believed, e.g. `127.0.0.1,10.0.0.0/8` |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+
+Behind nginx or Caddy, set `TRUSTED_PROXIES` to the proxy's address, otherwise every
+player shares the proxy's IP and its rate limits. Caddy sends `X-Forwarded-For` by
+default; nginx needs `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+Only list proxies you run: the header is read only when the connection comes from one.
 
 If something else already uses port 8080, pass another address:
 `LISTEN_ADDR=:8099 make run` (then use `-url ws://localhost:8099/ws` below).

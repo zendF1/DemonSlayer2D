@@ -85,7 +85,9 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger, opts Options)
 	if err != nil {
 		return fail(err)
 	}
-	a.gw = gateway.NewServer(gateway.Deps{Auth: authSvc, Chars: a.store, World: a.world, Log: log})
+	a.gw = gateway.NewServer(gateway.Deps{
+		Auth: authSvc, Chars: a.store, World: a.world, Log: log, TrustedProxies: cfg.TrustedProxies,
+	})
 	a.mux = http.NewServeMux()
 	a.mux.Handle("/ws", a.gw)
 	a.mux.HandleFunc("/healthz", a.healthz)
