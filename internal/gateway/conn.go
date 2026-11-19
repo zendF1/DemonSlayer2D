@@ -158,14 +158,8 @@ func (c *conn) cleanup() {
 	c.idle.Stop()
 	c.authTimer.Stop()
 	if c.member != nil {
-		select {
-		case err := <-c.member.Leave():
-			if err != nil {
-				c.log.Error("save on disconnect failed", "err", err)
-			}
-		case <-time.After(requestTimeout):
-			c.log.Warn("leave world timed out on disconnect")
-		}
+		// Done must only close after the save, or a duplicate login could read stale data.
+		c.waitSaved(c.member.Leave(), "save on disconnect")
 		c.member = nil
 	}
 	if c.accountID != 0 {
@@ -173,6 +167,25 @@ func (c *conn) cleanup() {
 	}
 	c.out.closeWith(nil)
 	close(c.done)
+}
+
+// waitSaved waits for a character save to finish and logs if it is slow or fails.
+// It never gives up early: continuing before the save lands would let the next
+// login or EnterWorld read an older position. The saver always answers, either
+// when the write succeeds or with an error when it is shut down.
+func (c *conn) waitSaved(done <-chan error, what string) {
+	select {
+	case err := <-done:
+		if err != nil {
+			c.log.Error(what+" failed", "err", err)
+		}
+		return
+	case <-time.After(requestTimeout):
+		c.log.Warn(what+" is slow, still waiting", "account_id", c.accountID)
+	}
+	if err := <-done; err != nil {
+		c.log.Error(what+" failed", "err", err)
+	}
 }
 
 // send queues env; a full queue means the client is not reading, so it is kicked.

@@ -95,13 +95,15 @@ func (c *conn) handleLogin(ctx context.Context, seq uint32, r *pb.LoginReq) {
 		c.failErr(seq, err)
 		return
 	}
-	if prev := c.srv.deps.World.Claim(id, c); prev != nil {
-		prev.Kick(pb.KickReason_KICK_REASON_DUPLICATE_LOGIN)
-		select {
-		case <-prev.Done(): // previous session has left the world and saved its character
-		case <-time.After(requestTimeout):
-			c.log.Warn("previous session did not close in time", "account_id", id)
-		}
+	// Kick any session already online for this account and wait until it has saved,
+	// so this session never reads an older position than the one being written.
+	tctx, tcancel := context.WithTimeout(ctx, requestTimeout)
+	err = c.srv.deps.World.Takeover(tctx, id, c)
+	tcancel()
+	if err != nil {
+		c.log.Warn("previous session did not close in time", "account_id", id, "err", err)
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_INTERNAL, "previous session is still closing, try again")
+		return
 	}
 	c.authTimer.Stop()
 	c.accountID = id
@@ -200,14 +202,7 @@ func (c *conn) handleEnterWorld(ctx context.Context, seq uint32, r *pb.EnterWorl
 }
 
 func (c *conn) handleLeaveWorld(seq uint32) {
-	select {
-	case err := <-c.member.Leave():
-		if err != nil {
-			c.log.Error("save on leave failed", "err", err)
-		}
-	case <-time.After(requestTimeout):
-		c.log.Warn("leave world timed out")
-	}
+	c.waitSaved(c.member.Leave(), "save on leave")
 	c.member = nil
 	c.state = stateAuthed
 	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_LeaveWorldResp{LeaveWorldResp: &pb.LeaveWorldResp{}}})

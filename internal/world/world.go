@@ -252,6 +252,29 @@ func (w *World) Claim(accountID int64, s Session) Session {
 	return prev
 }
 
+// Takeover makes s the online session of accountID. A previous session is kicked
+// with DUPLICATE_LOGIN and Takeover waits until it has left the world and saved its
+// character, so s never loads stale data. If ctx ends first, the previous session
+// stays registered (so the next attempt waits for it again) and ctx.Err() is returned.
+func (w *World) Takeover(ctx context.Context, accountID int64, s Session) error {
+	prev := w.Claim(accountID, s)
+	if prev == nil {
+		return nil
+	}
+	prev.Kick(pb.KickReason_KICK_REASON_DUPLICATE_LOGIN)
+	select {
+	case <-prev.Done():
+		return nil
+	case <-ctx.Done():
+		w.mu.Lock()
+		if w.online[accountID] == s {
+			w.online[accountID] = prev
+		}
+		w.mu.Unlock()
+		return ctx.Err()
+	}
+}
+
 // Release unregisters s if it is still the online session of accountID.
 func (w *World) Release(accountID int64, s Session) {
 	w.mu.Lock()

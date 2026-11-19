@@ -200,3 +200,71 @@ func TestEnterAfterStopOpensNoZones(t *testing.T) {
 	}
 	w.Wait() // must not have gained new goroutines
 }
+
+type kickSess struct {
+	done   chan struct{}
+	kicked chan pb.KickReason
+}
+
+func newKickSess() *kickSess {
+	return &kickSess{done: make(chan struct{}), kicked: make(chan pb.KickReason, 1)}
+}
+
+func (s *kickSess) Kick(r pb.KickReason) {
+	select {
+	case s.kicked <- r:
+	default:
+	}
+}
+
+func (s *kickSess) Done() <-chan struct{} { return s.done }
+
+func TestTakeoverWaitsForPreviousSession(t *testing.T) {
+	w := newTestWorld(t, 10)
+	prev, next := newKickSess(), newKickSess()
+	w.Claim(7, prev)
+	go func() {
+		if r := <-prev.kicked; r == pb.KickReason_KICK_REASON_DUPLICATE_LOGIN {
+			time.Sleep(30 * time.Millisecond) // leaving the world and saving
+			close(prev.done)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := w.Takeover(ctx, 7, next); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-prev.done:
+	default:
+		t.Fatal("Takeover returned before the previous session finished")
+	}
+	if cur := w.Claim(7, prev); cur != next {
+		t.Fatalf("online session = %v, want next", cur)
+	}
+}
+
+func TestTakeoverTimeoutKeepsPreviousSession(t *testing.T) {
+	w := newTestWorld(t, 10)
+	prev, next := newKickSess(), newKickSess() // prev never finishes
+	w.Claim(7, prev)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if err := w.Takeover(ctx, 7, next); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Takeover = %v, want DeadlineExceeded", err)
+	}
+	if cur := w.Claim(7, next); cur != prev {
+		t.Fatalf("after a failed takeover the previous session must stay online, got %v", cur)
+	}
+}
+
+func TestTakeoverWithoutPreviousSession(t *testing.T) {
+	w := newTestWorld(t, 10)
+	s := newKickSess()
+	if err := w.Takeover(context.Background(), 7, s); err != nil {
+		t.Fatal(err)
+	}
+	if w.Online() != 1 {
+		t.Fatalf("online = %d", w.Online())
+	}
+}
