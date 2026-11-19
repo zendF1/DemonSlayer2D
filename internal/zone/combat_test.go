@@ -292,6 +292,52 @@ func TestMonsterHitsWithShortAttackRange(t *testing.T) {
 	}
 }
 
+// A monster in reach but across a wall corner must not hit; it walks round
+// the corner and hits once it has a clear line, as a player's slash needs.
+// This is the 4x4 block at (45-48, 30-33) on kumotori_1 near camp c4.
+func TestMonsterNeedsLineOfSight(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{52.5, 40.5})
+	rows := make([]string, 60)
+	for y := range rows {
+		r := []byte(strings.Repeat(".", 60))
+		if y >= 30 && y <= 33 {
+			copy(r[45:49], "####")
+		}
+		rows[y] = string(r)
+	}
+	z.area.Grid = gridFrom(rows...)
+	z.mgrid = z.area.monsterGrid()
+	joinNow(t, z, 1, 49.3, 33.5)
+	m.pos, m.state, m.target = Vec2{48.5, 34.3}, chase, 1
+	z.updateCell(&m.entity)
+	p := z.players[1]
+	if d := distance(m.pos, p.pos); d > float32(testKind.AttackRange) || !lineBlocked(z.area.Grid, m.pos, p.pos) {
+		t.Fatalf("setup: %.2f tiles apart, blocked %v; want in reach behind the corner", d, lineBlocked(z.area.Grid, m.pos, p.pos))
+	}
+	start := m.pos
+	now := time.Now()
+	hitAt := 0
+	for i := 1; i <= 20 && hitAt == 0; i++ {
+		z.advance(now)
+		if len(z.events.hits) == 0 {
+			continue
+		}
+		hitAt = i
+		if lineBlocked(z.area.Grid, m.pos, p.pos) {
+			t.Fatalf("tick %d: hit from %v through the wall", i, m.pos)
+		}
+	}
+	if hitAt == 0 {
+		t.Fatalf("never hit: %v at %v, %.2f tiles away", m.state, m.pos, distance(m.pos, p.pos))
+	}
+	if hitAt == 1 || m.pos == start {
+		t.Fatalf("hit on tick %d from %v, want it to walk round the corner from %v first", hitAt, m.pos, start)
+	}
+	if m.state != attack || p.hp != 480 {
+		t.Fatalf("state %v hp %d, want attacking with one hit landed", m.state, p.hp)
+	}
+}
+
 func TestMonsterKeepsTargetWhenOthersPass(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)

@@ -200,6 +200,7 @@ Mỗi quái có điểm sinh (vị trí lúc sinh ra), danh sách người đã 
 - Đã có mục tiêu thì không đổi chỉ vì có người khác đi ngang hoặc đánh thêm.
 - Mục tiêu mất (chết, rời zone, vào khu an toàn) thì chọn theo thứ tự: người hợp lệ gần nhất trong danh sách đã đánh nó; nếu không có, người hợp lệ gần nhất trong `aggro_range`; nếu vẫn không có, chuyển sang Về.
 - Đòn đầu tiên khi vào tầm: đánh ngay nếu đã qua `attack_sec` kể từ đòn trước.
+- Quái chỉ đánh khi trong `attack_range` và đoạn thẳng tới mục tiêu không đi qua ô bị chặn, như người chơi (mục 5.1); bị chặn thì đuổi tiếp thẳng tới mục tiêu, trượt dọc tường để vòng qua góc.
 - Quái dùng chung hàm di chuyển và va chạm của người chơi (hộp 0,6 ô, trượt dọc tường), thêm luật ô thuộc khu an toàn tính là bị chặn với quái. Quái bị kẹt thì vẫn giữ trạng thái; khoảng cách tới điểm sinh vượt `leash_range` vẫn đưa nó về.
 - Quái và người chơi không chặn nhau.
 - Quái chết: `WorldTick` của tick đó có `Death`; xác nằm lại 1 giây rồi bị xóa (`EntityLeave`). Sau `respawn_sec` tính từ lúc chết, bãi sinh một quái mới: id mới, cấp bốc lại trong khoảng của bãi, vị trí là ô đi được ngẫu nhiên trong bán kính bãi, đầy HP.

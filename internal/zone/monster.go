@@ -145,7 +145,8 @@ func (z *Zone) retarget(m *monster) *player {
 
 // fight runs a monster in chase or attack: it keeps its target while the
 // target stays valid, goes home when lured past the leash range, walks up to
-// the target and hits it every AttackSec once in range.
+// the target and hits it every AttackSec once in range with a clear line, the
+// same line of sight a player's slash needs.
 func (z *Zone) fight(m *monster) {
 	t := z.validTarget(m.target)
 	if t == nil {
@@ -160,13 +161,12 @@ func (z *Zone) fight(m *monster) {
 		z.startReturn(m)
 		return
 	}
-	reach := float32(k.AttackRange)
-	if m.state == attack && distance(m.pos, t.pos) > reach {
+	if m.state == attack && !z.canHit(m, t) {
 		m.state = chase
 	}
 	if m.state == chase {
 		z.chaseStep(m, t)
-		if distance(m.pos, t.pos) > reach {
+		if !z.canHit(m, t) {
 			return
 		}
 		m.state = attack
@@ -179,9 +179,21 @@ func (z *Zone) fight(m *monster) {
 	}
 }
 
-// chaseStep walks m straight towards t until it is chaseStop tiles away. A
-// stuck monster just stands; it keeps its state (spec 4.2).
+// canHit reports whether t is within m's attack range with no blocked tile
+// between them.
+func (z *Zone) canHit(m *monster, t *player) bool {
+	return distance(m.pos, t.pos) <= float32(m.camp.Kind.AttackRange) && !lineBlocked(z.area.Grid, m.pos, t.pos)
+}
+
+// chaseStep walks m straight towards t until it is chaseStop tiles away. While
+// a wall blocks the line to t it walks at t itself, however close, so sliding
+// along the wall takes it round the corner. A stuck monster just stands; it
+// keeps its state (spec 4.2).
 func (z *Zone) chaseStep(m *monster, t *player) {
+	if lineBlocked(z.area.Grid, m.pos, t.pos) {
+		z.walkTo(m, t.pos, z.monsterStep(m))
+		return
+	}
 	// Stop a little inside the attack range: a walk ends within arriveEps of
 	// its target, and float error must not leave m just beyond reach. The
 	// reach/2 floor only matters for absurdly short ranges.
