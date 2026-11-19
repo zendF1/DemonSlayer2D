@@ -1,3 +1,8 @@
+# Local settings (see .env.example). Every variable in .env is exported to the
+# commands below; the defaults here apply only when .env does not set them.
+-include .env
+export
+
 DATABASE_URL ?= postgres://ds:ds@localhost:5433/ds?sslmode=disable
 TEST_DATABASE_URL ?= postgres://ds:ds@localhost:5433/ds_test?sslmode=disable
 

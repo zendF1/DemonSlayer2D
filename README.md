@@ -14,11 +14,16 @@ Code generators (`buf`, `protoc-gen-go`) are Go tool dependencies; nothing else 
 ## Run
 
 ```bash
+cp .env.example .env   # optional: local settings, git-ignored
 make db-up   # Postgres 17 on localhost:5433 (databases ds and ds_test)
 make run     # server on :8080 — WebSocket at /ws, health at /healthz
 ```
 
-Configuration is read from environment variables:
+Configuration is read from environment variables. `make run` and `make test-db`
+also load them from `.env` if it exists (copy [`.env.example`](.env.example)); the
+server itself never reads the file, so in production set real environment variables.
+A value in `.env` beats one exported in your shell; pass `make run VAR=value` to
+override it for one run.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -41,7 +46,7 @@ default; nginx needs `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_fo
 Only list proxies you run: the header is read only when the connection comes from one.
 
 If something else already uses port 8080, pass another address:
-`LISTEN_ADDR=:8099 make run` (then use `-url ws://localhost:8099/ws` below).
+`make run LISTEN_ADDR=:8099` (then use `-url ws://localhost:8099/ws` below).
 
 ## Try it with the bot client
 
