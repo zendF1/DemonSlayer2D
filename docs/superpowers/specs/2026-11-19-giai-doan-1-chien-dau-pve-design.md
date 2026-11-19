@@ -1,6 +1,6 @@
 # Giai đoạn 1 — Chiến đấu PvE cơ bản
 
-Ngày: 2026-11-19. Trạng thái: thiết kế đã duyệt, chưa triển khai.
+Ngày: 2026-11-19. Trạng thái: Đã triển khai (2026-11-20); còn chờ người dùng chơi thử hai cửa sổ (mục 9).
 
 Tài liệu này thiết kế Giai đoạn 1 cho cả server (repo này) lẫn client Godot (`../DemonSlayer2DGame`). Luật chơi lấy từ [game-design.md](../../game-design.md); khi hai tài liệu khác nhau về luật chơi, game-design là chuẩn. Các phần không nhắc tới ở đây giữ nguyên như [spec server Giai đoạn 0](2026-11-18-giai-doan-0-nen-mong-server-design.md) và [spec client Giai đoạn 0](2026-11-19-giai-doan-0-client-design.md).
 
@@ -55,7 +55,7 @@ Kỹ năng riêng của class, MP tiêu hao, tinh anh và thủ lĩnh, kỹ năn
 - Bãi xa khu an toàn hơn thì cấp cao hơn (mật độ map nhỏ theo game-design mục 5.11).
 - Server kiểm tra khi nạp map; sai thì dừng và báo lỗi:
   - khu an toàn nằm trong map, `w` và `h` dương;
-  - điểm nghỉ nằm trong một khu an toàn, bán kính dương;
+  - điểm nghỉ có bán kính dương và cả hình tròn của nó nằm hẳn trong các khu an toàn (mọi ô mà hình tròn phủ tới đều thuộc khu an toàn), để quái không với tới chỗ người chơi nghỉ;
   - spawn `default` nằm trong một khu an toàn nếu map có khu an toàn;
   - mỗi bãi có `min_level ≤ max_level`, `count > 0`, có ít nhất `count` ô đi được trong bán kính và không ô nào trong bán kính thuộc khu an toàn;
   - `id` không trùng trong từng danh sách.
@@ -152,7 +152,7 @@ Chính xác, né tránh và tỷ lệ chí mạng chỉ hiển thị ở Giai đ
 
 ### 3.5. Cộng điểm tiềm năng
 
-- `AllocatePointsReq { strength, agility, vitality, intellect }`: mỗi số không âm, tổng lớn hơn 0 và không vượt `free_points`.
+- `AllocatePointsReq { strength, agility, vitality, intellect }`: mỗi số không âm, tổng lớn hơn 0 và không vượt `free_points`. Zone kiểm tra theo thứ tự: đang chết (`DEAD`); có số âm (`BAD_REQUEST`); vượt `free_points` (`NOT_ENOUGH_POINTS`); cả bốn số bằng 0 (`BAD_REQUEST`). Gateway chặn trước: tổng lớn hơn 1.000.000 trả `BAD_REQUEST`, để phép cộng trong zone không tràn số.
 - Cộng được mọi lúc, kể cả đang đánh. Không cộng được khi đang chết.
 - HP và MP hiện tại tăng đúng bằng phần HP và MP tối đa vừa tăng.
 - Không có tẩy điểm.
@@ -161,7 +161,7 @@ Chính xác, né tránh và tỷ lệ chí mạng chỉ hiển thị ở Giai đ
 
 - HP về 0 thì nhân vật chết:
   - server bỏ qua `MoveInput`, từ chối lệnh đánh và cộng điểm;
-  - mọi quái đang nhắm nhân vật này coi như mất mục tiêu (mục 4.2).
+  - mọi quái đang nhắm nhân vật này bỏ mục tiêu ngay lúc chết (`killPlayer`) và chọn lại theo mục 4.2.
 - `RespawnReq` đưa nhân vật về spawn `default` của map đang đứng, đầy HP/MP. Sau 60 giây không gửi thì server tự làm.
 - Chết do quái không mất EXP (mục 5.7).
 - Thoát game khi đang chết: lần vào sau nhân vật ở spawn `default`, đầy HP/MP.
@@ -191,9 +191,9 @@ Mỗi quái có điểm sinh (vị trí lúc sinh ra), danh sách người đã 
 | Trạng thái | Hành vi | Chuyển sang |
 | --- | --- | --- |
 | Rảnh | Mỗi 4–8 giây (ngẫu nhiên) chọn một ô đi được ngoài khu an toàn, cách điểm sinh tối đa 2 ô, đi tới tâm ô với nửa tốc độ | Đuổi: có người chơi hợp lệ trong `aggro_range`, hoặc bị đánh |
-| Đuổi | Đi thẳng tới mục tiêu, dừng khi cách 1,3 ô | Đánh: trong `attack_range`. Về: cách điểm sinh quá `leash_range` |
+| Đuổi | Đi thẳng tới mục tiêu, dừng khi cách min(1,3; tầm đánh − 2·eps) ô, với eps là sai số tới nơi (1e-3 ô), để sai số số thực không để quái đứng ngay ngoài tầm | Đánh: trong `attack_range`. Về: cách điểm sinh quá `leash_range` |
 | Đánh | Đánh mỗi `attack_sec`; mục tiêu ra ngoài `attack_range` thì đuổi tiếp | Về: cách điểm sinh quá `leash_range` |
-| Về | Đi thẳng về điểm sinh với tốc độ đầy đủ; không nhận đòn, không nhận mục tiêu | Rảnh: tới nơi, hồi đầy HP, xóa danh sách người đã đánh |
+| Về | Đi thẳng về điểm sinh với tốc độ đầy đủ; không nhận đòn, không nhận mục tiêu. Kẹt liền 2 giây thì dịch chuyển thẳng về điểm sinh, `EntityMove` của tick đó có `snap = true` | Rảnh: tới nơi, hồi đầy HP, xóa danh sách người đã đánh |
 
 - Người chơi hợp lệ cho quái: còn sống, không đứng trong khu an toàn, cùng zone.
 - Nhận mục tiêu khi rảnh: người hợp lệ gần nhất trong `aggro_range`. Bị đánh khi rảnh: người vừa đánh.
@@ -219,7 +219,7 @@ Proto giữ luật đặt tên an toàn cho GDScript. Thuộc tính tiềm năng
 
 - Mã lỗi mới thêm vào `ErrorCode` từ 16: `INVALID_TARGET`, `OUT_OF_RANGE`, `ON_COOLDOWN`, `IN_SAFE_ZONE`, `DEAD`, `NOT_DEAD`, `NOT_ENOUGH_POINTS`.
 - Zone xử lý ba lệnh này ở tick kế tiếp; reply được gửi trong tick đó, trước `WorldTick`.
-- Gateway giới hạn `AttackReq` 5 lần mỗi giây mỗi kết nối bằng `Limiter`; vượt thì trả `RATE_LIMITED`.
+- Gateway giới hạn `AttackReq` 5 lần mỗi giây, burst 5, mỗi kết nối; vượt thì trả `RATE_LIMITED` (không vào zone).
 
 **Kiểm tra `AttackReq`**, theo thứ tự:
 
@@ -241,10 +241,12 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 | --- | --- | --- |
 | `repeated Hit hits` | `attacker_id`, `target_id`, `int32 damage`, `int32 hp_after` | Mỗi đòn trúng |
 | `repeated Death deaths` | `id` | HP về 0 |
-| `repeated HpChange hp_changes` | `id`, `int32 hp`, `int32 max_hp` | HP đổi không do đòn: điểm nghỉ, hồi sinh, lên cấp, cộng VIT, quái về chỗ |
+| `repeated HpChange hp_changes` | `id`, `int32 hp`, `int32 max_hp` | HP đổi không do đòn: điểm nghỉ, hồi sinh, lên cấp, cộng VIT, quái về chỗ. Mang HP ở cuối tick |
 | `repeated LevelUp level_ups` | `id`, `int32 level` | Người chơi lên cấp |
 
-- `Move` thêm `bool snap`: client đặt thẳng vị trí, không nội suy. Bật khi hồi sinh.
+- Tin di chuyển trong `WorldTick` là `EntityMove` (không phải `Move`), thêm `bool snap`: client đặt thẳng vị trí, không nội suy. `snap` áp dụng cho mọi thực thể: bật khi người chơi hồi sinh và khi quái bị dịch chuyển về điểm sinh.
+- Thứ tự áp dụng ở client: các `Hit` trước, rồi `hp_changes`; `hp_changes` mang HP cuối tick nên thắng `Hit.hp_after` của cùng tick.
+- Client bỏ qua id trong `Hit` hay `Death` mà mình chưa có `EntityEnter` (ngoài tầm nhìn), trừ nhân vật của chính mình.
 - `SelfStats`: `level`, `int64 exp`, `int64 exp_next`, `free_points`, `strength`, `agility`, `vitality`, `intellect`, `hp`, `max_hp`, `mp`, `max_mp`, `phys_attack`, `magic_attack`, `phys_defense`, `magic_defense`, `accuracy`, `evasion`, `crit_rate_bp`.
   - Là trường `SelfStats stats = 9` của `EnterWorldResp`.
   - Là push riêng (seq 0) sau `WorldTick` của tick mà EXP, cấp, điểm, HP tối đa hoặc MP đổi không qua `Hit`: mỗi đòn trúng quái làm EXP đổi, lên cấp, hồi sinh, hồi ở điểm nghỉ.
@@ -254,7 +256,7 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 ### 5.3. Phiên bản và fixture
 
 - `PROTOCOL_VERSION` lên 2 ở cả server (`gateway.ProtocolVersion`) và client. Client cũ bị chặn bằng `VERSION_MISMATCH`.
-- `testdata/client` thêm fixture: `attack_req`, `attack_resp`, `allocate_points_req`, `respawn_resp`, `self_stats`, `entity_enter_monster`, `world_tick_combat` (có đủ bốn danh sách mới và một `Move` có `snap`).
+- `testdata/client` thêm fixture: `attack_req`, `attack_resp`, `allocate_points_req`, `respawn_resp`, `self_stats`, `entity_enter_monster`, `world_tick_combat` (có đủ bốn danh sách mới và một `EntityMove` có `snap`).
 
 ## 6. Server
 
@@ -269,6 +271,8 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 | `internal/store`, `internal/saver`, `internal/world` | Đọc và ghi cột mới; `SaveCharacter` mang thêm điểm tiềm năng, `free_points`, `hp`, `mp` |
 | `internal/gateway` | Chuyển ba lệnh mới vào zone kèm kênh reply; rate limit `AttackReq` |
 | `internal/config`, `internal/app` | Biến `DATA_DIR`; nạp `gamedata` sau map |
+
+Ràng buộc ở `internal/world`: kích thước ô lưới tầm nhìn (AOI) phải không nhỏ hơn `aggro_range` lớn nhất của các loại quái, vì quái chỉ tìm người trong các ô lưới quanh nó; vi phạm thì `world.New` báo lỗi khi khởi động.
 | `cmd/botclient` | Chế độ `-fight N`: đi tới quái gần nhất, đánh cho tới khi hạ N con, in EXP và cấp |
 
 ### 6.2. Tick
@@ -328,10 +332,13 @@ Xử lý lỗi `AttackReq`: `OUT_OF_RANGE` thì chạy lại gần; `ON_COOLDOWN
 ### 7.4. Khác
 
 - `PROTOCOL_VERSION` lên 2.
+- Tên payload mới phải được thêm vào `core/wire.gd` `PAYLOADS` (godobuf không có phản chiếu oneof). Enum mất tiền tố khi sinh mã, ví dụ `Proto.ErrorCode.INVALID_TARGET`.
 - Gen lại `proto/protocol.gd` và đồng bộ map bằng `tools/sync_server.sh` sau khi cập nhật submodule `server/`.
 - `screens/world.gd` chỉ nối: nhận push, chuyển cho `core/` và `ui/`. Logic mới không viết thẳng vào đó.
 
 ## 8. Kiểm thử
+
+Trạng thái: phần server đã có test và qua `go test -race ./...`; `TestKillMonsterOverWebSocket` (e2e) là bài botclient hạ quái. Các mục client do repo client theo dõi.
 
 Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `// ______________________TEST X_____________________` (Go) và `# ______________________TEST X_____________________` (GDScript).
 
@@ -358,8 +365,8 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
   - người chết không đi được, được tự hồi sinh sau 60 giây ở spawn `default` với `snap`;
   - đứng ở điểm nghỉ 5 giây thì hồi đầy, di chuyển thì đếm lại;
   - quái sinh lại sau 8 giây với id mới; xác bị xóa sau 1 giây.
-- `gateway`: fixture mới; rate limit `AttackReq`.
-- e2e: botclient hạ một quái qua WebSocket thật và nhận `SelfStats` với EXP tăng.
+- `gateway`: fixture mới (`TestClientFixtures`); rate limit `AttackReq` ở `handlers.go` (đã làm, chưa có test riêng cho giới hạn này).
+- e2e: botclient hạ một quái qua WebSocket thật và nhận `SelfStats` với EXP tăng (đã làm: `e2e/e2e_test.go`).
 
 **Client**
 
@@ -368,6 +375,8 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
 - Smoke với server thật: vào game, đánh quái gần nhất cho tới khi hạ một con, kiểm `SelfStats` có EXP tăng.
 
 ## 9. Tiêu chí hoàn thành
+
+Đã xong: test server (`go test -race ./...`) qua. Còn chờ người dùng kiểm: bài chơi thử hai cửa sổ bên dưới.
 
 - Mọi test server (`make test-db`) và client (`tests/run.sh`) qua; smoke in `SMOKE OK`.
 - Hai client mở bằng `tools/run2.sh`, đăng nhập `test1` và `test2`:
