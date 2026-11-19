@@ -1,6 +1,6 @@
 # Giai đoạn 0 — Client Godot
 
-Ngày: 2026-11-19. Trạng thái: đã duyệt thiết kế, chưa triển khai.
+Ngày: 2026-11-19. Trạng thái: đã triển khai (2026-11-19).
 
 Tài liệu này là thiết kế client cho Giai đoạn 0. Giao thức, map và luật di chuyển nằm ở [spec server Giai đoạn 0](2026-11-18-giai-doan-0-nen-mong-server-design.md); khi hai tài liệu khác nhau về giao thức, spec server là chuẩn.
 
@@ -54,7 +54,7 @@ DemonSlayer2DGame/
 │   ├── predictor.gd        # dự đoán và đối chiếu vị trí của mình
 │   ├── interpolator.gd     # nội suy vị trí người khác
 │   └── errors.gd           # ErrorCode / KickReason → câu tiếng Việt
-├── screens/                # .tscn chỉ có Control gốc gắn script
+├── screens/                # .tscn chỉ có node gốc gắn script (màn world: Node2D, còn lại: Control)
 │   ├── login.gd/.tscn
 │   ├── char_select.gd/.tscn
 │   └── world.gd/.tscn
@@ -101,7 +101,7 @@ DemonSlayer2DGame/
 
 ## 5. Màn hình
 
-Mọi màn dựng bằng code theo cách của `battle-squad-game`: file `.tscn` chỉ có Control gốc full-rect gắn script; `_ready()` dựng con bằng builder ở `ui/ui.gd`; hình khối vẽ bằng `_draw()`.
+Mọi màn dựng bằng code theo cách của `battle-squad-game`: file `.tscn` chỉ có node gốc gắn script (màn trong game có gốc là Node2D để chứa camera và không gian thế giới; các màn còn lại có gốc là Control full-rect); `_ready()` dựng con bằng builder ở `ui/ui.gd`; hình khối vẽ bằng `_draw()`.
 
 ### 5.1. Đăng nhập / đăng ký
 
@@ -137,18 +137,20 @@ Mọi màn dựng bằng code theo cách của `battle-squad-game`: file `.tscn`
 
 ### 6.2. `Movement` (port `move.go`)
 
-`clamp_dir`, `step(grid, pos, dir, dist)` với cùng hằng số (`HALF_SIZE = 0.3`, `MAX_SUBSTEP = 0.25`, `EPS = 1e-4`): chia bước con, đi trục X rồi trục Y, đụng ô bị chặn thì dừng sát mép. GDScript tính bằng `float` 64 bit, còn server dùng `float32`; sai lệch rất nhỏ này được đối chiếu ở 6.3 sửa.
+`clamp_dir`, `step(grid, pos, dir, dist)` với cùng hằng số (`HALF_SIZE = 0.3`, `MAX_SUBSTEP = 0.25`, `EPS = 1e-4`): chia bước con, đi trục X rồi trục Y, đụng ô bị chặn thì dừng sát mép. `Vector2` của Godot là `float32`, khớp với `float32` của server nên hai bên tính ra cùng kết quả; sai lệch còn lại (nếu có) được 6.3 sửa.
 
 ### 6.3. Dự đoán vị trí của mình (`Predictor`)
 
 - Bộ đếm thời gian chạy tick cục bộ với chu kỳ `1 / tick_rate` (từ `EnterWorldResp`). Mỗi tick cục bộ:
   1. Đọc hướng hiện tại. Nếu khác hướng gửi lần trước, gửi `MoveInput` với `input_seq` tăng dần. Gửi tối đa 20 gói/giây: hướng đổi quá nhanh thì giữ lại và gửi hướng mới nhất ở tick sau.
   2. `pos = Movement.step(grid, pos, dir, move_speed / tick_rate)`.
-  3. Lưu `(seq, dir, pos)` vào lịch sử. Lịch sử tối đa 2 giây tick; cũ hơn thì bỏ.
+  3. Lưu `(seq, dir, from)` vào lịch sử, với `from` là vị trí trước bước của tick này. Lịch sử tối đa 2 giây tick; cũ hơn thì bỏ.
 - Khi `WorldTick` có `EntityMove` của mình (vị trí server `P`, `ack = ack_input_seq`):
-  1. Trong lịch sử, chỉ xét các mốc có `seq ≤ ack`, chọn mốc gần `P` nhất.
+  1. Ứng viên chỉ gồm các mốc lịch sử có `seq == ack`, cộng thêm vị trí hiện tại nếu `seq` gửi gần nhất bằng `ack`. Chọn ứng viên gần `P` nhất.
   2. Bỏ lịch sử tới mốc đó. Gán vị trí tại mốc bằng `P`.
   3. Chạy lại `Movement.step` cho các mốc sau, theo `dir` đã lưu, ra vị trí hiện tại mới.
+- Không được khớp với `seq` cũ hơn `ack`: ví dụ client đã đi 10 bước còn server mới đi 9 bước; nếu khớp với mốc cũ thì client coi như server đứng sau và kéo nhân vật lùi sai. Chỉ mốc `seq == ack` mới là trạng thái server đã xử lý.
+- Predictor luôn đi theo hướng *đã gửi* gần nhất (`sent_dir`), không theo hướng đọc được lúc đó, để khớp với những gì server thực sự nhận.
 - Lệch giữa vị trí vẽ cũ và vị trí mới dưới 0,5 ô thì kéo dần về trong 100 ms. Lệch từ 0,5 ô trở lên thì nhảy thẳng tới vị trí mới.
 - Nhân vật của mình được vẽ nội suy giữa hai tick cục bộ, để mượt ở tốc độ khung hình cao hơn `tick_rate`.
 
