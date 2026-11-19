@@ -27,6 +27,15 @@ type Config struct {
 	TrustedProxies []netip.Prefix
 }
 
+// Run-time limits. A tick rate above MaxTickRate is pointless for a 2D RPG and one
+// above 1e9 makes the tick interval zero, which panics time.NewTicker. Movement is
+// simulated in sub-steps of at most 0.25 tiles, so the speed cap also bounds the
+// per-tick work for each moving player.
+const (
+	MaxTickRate       = 100
+	MaxMoveSpeedTiles = 100
+)
+
 // Load builds a Config from getenv (normally os.Getenv). DATABASE_URL is required.
 func Load(getenv func(string) string) (Config, error) {
 	c := Config{
@@ -66,10 +75,15 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		*dst = n
 	}
+	if c.TickRate > MaxTickRate {
+		return Config{}, fmt.Errorf("config: TICK_RATE must be at most %d, got %d", MaxTickRate, c.TickRate)
+	}
 	if v := getenv("MOVE_SPEED_TILES"); v != "" {
 		f, err := strconv.ParseFloat(v, 64)
-		if err != nil || f <= 0 {
-			return Config{}, fmt.Errorf("config: MOVE_SPEED_TILES must be a positive number, got %q", v)
+		// The negated comparison also rejects NaN; +Inf and values too big for the
+		// float32 the zones use fail the upper bound.
+		if err != nil || !(f > 0 && f <= MaxMoveSpeedTiles) {
+			return Config{}, fmt.Errorf("config: MOVE_SPEED_TILES must be a number in (0, %d], got %q", MaxMoveSpeedTiles, v)
 		}
 		c.MoveSpeedTiles = f
 	}

@@ -67,3 +67,29 @@ func TestErrors(t *testing.T) {
 		}
 	}
 }
+
+// Values that parse but would crash or break the server at run time must be refused.
+func TestOutOfRange(t *testing.T) {
+	cases := []struct{ key, val string }{
+		{"TICK_RATE", "1000000001"}, // time.Second/n == 0 makes time.NewTicker panic
+		{"TICK_RATE", "101"},
+		{"MOVE_SPEED_TILES", "NaN"},
+		{"MOVE_SPEED_TILES", "+Inf"},
+		{"MOVE_SPEED_TILES", "-Inf"},
+		{"MOVE_SPEED_TILES", "1e39"}, // overflows float32
+		{"MOVE_SPEED_TILES", "101"},
+		{"MOVE_SPEED_TILES", "0"},
+	}
+	for _, tc := range cases {
+		_, err := Load(env(map[string]string{"DATABASE_URL": "x", tc.key: tc.val}))
+		if err == nil || !strings.Contains(err.Error(), tc.key) {
+			t.Errorf("%s=%s: want error mentioning %s, got %v", tc.key, tc.val, tc.key, err)
+		}
+	}
+	for _, kv := range []map[string]string{{"TICK_RATE": "1"}, {"TICK_RATE": "100"}, {"MOVE_SPEED_TILES": "100"}, {"MOVE_SPEED_TILES": "0.5"}} {
+		kv["DATABASE_URL"] = "x"
+		if _, err := Load(env(kv)); err != nil {
+			t.Errorf("%v should be accepted: %v", kv, err)
+		}
+	}
+}

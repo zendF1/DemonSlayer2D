@@ -333,8 +333,8 @@ Mỗi zone là một goroutine với hộp thư lệnh (channel đệm 1.024) v�
 | `DATABASE_URL` | (bắt buộc) | Chuỗi kết nối Postgres |
 | `MAPS_DIR` | `./maps` | Thư mục file map |
 | `START_MAP` | `kumotori_1` | Map của nhân vật mới |
-| `TICK_RATE` | `10` | Số tick mỗi giây |
-| `MOVE_SPEED_TILES` | `4` | Số ô/giây ứng với hệ số tốc độ 1 |
+| `TICK_RATE` | `10` | Số tick mỗi giây, từ 1 đến 100 |
+| `MOVE_SPEED_TILES` | `4` | Số ô/giây ứng với hệ số tốc độ 1, lớn hơn 0 và tối đa 100 |
 | `AOI_CELL_SIZE` | `10` | Cạnh ô lưới tầm nhìn, tính theo ô |
 | `ZONE_CAPACITY` | `50` | Số người tối đa mỗi zone |
 | `SAVE_INTERVAL` | `60s` | Chu kỳ lưu vị trí |

@@ -26,8 +26,8 @@ Configuration is read from environment variables:
 | `LISTEN_ADDR` | `:8080` | HTTP/WebSocket address |
 | `MAPS_DIR` | `./maps` | Map files |
 | `START_MAP` | `kumotori_1` | Map for new characters |
-| `TICK_RATE` | `10` | Zone ticks per second |
-| `MOVE_SPEED_TILES` | `4` | Tiles per second at speed factor 1 |
+| `TICK_RATE` | `10` | Zone ticks per second, 1–100 |
+| `MOVE_SPEED_TILES` | `4` | Tiles per second at speed factor 1, above 0 and at most 100 |
 | `AOI_CELL_SIZE` | `10` | Visibility grid cell size in tiles |
 | `ZONE_CAPACITY` | `50` | Players per zone |
 | `SAVE_INTERVAL` | `60s` | Periodic position save |
