@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 )
@@ -49,7 +50,12 @@ type PlayerInfo struct {
 	Level    int
 	Exp      int64
 	Pos      Vec2
-	RespSeq  uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
+	// Combat state loaded from the store. The zone saves it back unchanged
+	// until combat takes it over. HP and MP are -1 for "full".
+	Points     combat.Points
+	FreePoints int
+	HP, MP     int
+	RespSeq    uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
 }
 
 var (
@@ -349,7 +355,8 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 }
 
 func (z *Zone) state(p *player) store.CharState {
-	return store.CharState{ID: p.info.CharID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.info.Level, Exp: p.info.Exp}
+	return store.CharState{ID: p.info.CharID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.info.Level, Exp: p.info.Exp,
+		Points: p.info.Points, FreePoints: p.info.FreePoints, HP: p.info.HP, MP: p.info.MP}
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick. It returns false if p's outbox is full.

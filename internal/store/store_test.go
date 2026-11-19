@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/store/storetest"
 )
@@ -105,5 +106,45 @@ func TestCharacters(t *testing.T) {
 	}
 	if err := st.SaveCharacterState(ctx, store.CharState{ID: c2.ID, MapID: "kumotori_1"}); err != nil {
 		t.Fatalf("saving a deleted character must be a no-op, got %v", err)
+	}
+}
+
+func TestNewCharacterHasFullHPAndNoPoints(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.HP != -1 || c.MP != -1 || c.Points != (combat.Points{}) || c.FreePoints != 0 {
+		t.Fatalf("new character %+v", c)
+	}
+}
+
+func TestSaveCharacterStateRoundTrip(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, _ := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+
+	want := store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 5, Exp: 40,
+		Points: combat.Points{Str: 1, Agi: 2, Vit: 3, Int: 4}, FreePoints: 5, HP: 77, MP: 0}
+	if err := st.SaveCharacterState(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || got.Points != want.Points || got.FreePoints != 5 || got.HP != 77 || got.MP != 0 {
+		t.Fatalf("after save: %+v, %v", got, err)
+	}
+
+	// -1 (full) goes back to NULL and reads as -1 again.
+	want.HP, want.MP = -1, -1
+	if err := st.SaveCharacterState(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || got.HP != -1 || got.MP != -1 {
+		t.Fatalf("after saving full: %+v, %v", got, err)
 	}
 }

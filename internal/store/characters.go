@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
+	"demonslayer2d/internal/combat"
 )
 
 type Character struct {
@@ -18,6 +20,11 @@ type Character struct {
 	Exp       int64
 	MapID     string
 	X, Y      float32
+	// Points are the spent potential points; FreePoints are the unspent ones.
+	Points     combat.Points
+	FreePoints int
+	// HP and MP are -1 when stored as NULL, which means full.
+	HP, MP int
 }
 
 type NewCharacter struct {
@@ -37,13 +44,20 @@ type CharState struct {
 	X, Y  float32
 	Level int
 	Exp   int64
+
+	Points     combat.Points
+	FreePoints int
+	// HP and MP are saved as given; -1 (full) is stored as NULL.
+	HP, MP int
 }
 
-const charColumns = `id, account_id, slot, name, class, level, exp, map_id, pos_x, pos_y`
+const charColumns = `id, account_id, slot, name, class, level, exp, map_id, pos_x, pos_y,
+	str, agi, vit, int, free_points, COALESCE(hp, -1), COALESCE(mp, -1)`
 
 func scanCharacter(row pgx.Row) (Character, error) {
 	var c Character
-	err := row.Scan(&c.ID, &c.AccountID, &c.Slot, &c.Name, &c.Class, &c.Level, &c.Exp, &c.MapID, &c.X, &c.Y)
+	err := row.Scan(&c.ID, &c.AccountID, &c.Slot, &c.Name, &c.Class, &c.Level, &c.Exp, &c.MapID, &c.X, &c.Y,
+		&c.Points.Str, &c.Points.Agi, &c.Points.Vit, &c.Points.Int, &c.FreePoints, &c.HP, &c.MP)
 	return c, err
 }
 
@@ -101,11 +115,15 @@ func (s *Store) DeleteCharacter(ctx context.Context, accountID, charID int64) er
 	return nil
 }
 
-// SaveCharacterState writes position, level and EXP. A missing character is not an error.
+// SaveCharacterState writes position, level, EXP, points, HP and MP.
+// A missing character is not an error.
 func (s *Store) SaveCharacterState(ctx context.Context, st CharState) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE characters SET map_id = $2, pos_x = $3, pos_y = $4, level = $5, exp = $6, updated_at = now() WHERE id = $1`,
-		st.ID, st.MapID, st.X, st.Y, st.Level, st.Exp)
+		`UPDATE characters SET map_id = $2, pos_x = $3, pos_y = $4, level = $5, exp = $6,
+		 str = $7, agi = $8, vit = $9, int = $10, free_points = $11,
+		 hp = NULLIF($12::int, -1), mp = NULLIF($13::int, -1), updated_at = now() WHERE id = $1`,
+		st.ID, st.MapID, st.X, st.Y, st.Level, st.Exp,
+		st.Points.Str, st.Points.Agi, st.Points.Vit, st.Points.Int, st.FreePoints, st.HP, st.MP)
 	if err != nil {
 		return fmt.Errorf("store: save character state: %w", err)
 	}

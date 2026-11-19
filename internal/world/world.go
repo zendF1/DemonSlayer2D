@@ -163,14 +163,18 @@ func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error) {
 	mapID, pos := w.placement(req.Char)
 	info := zone.PlayerInfo{
-		EntityID: w.nextEntity.Add(1),
-		CharID:   req.Char.ID,
-		Name:     req.Char.Name,
-		Class:    classes.ToPB(req.Char.Class),
-		Level:    req.Char.Level,
-		Exp:      req.Char.Exp,
-		Pos:      pos,
-		RespSeq:  req.RespSeq,
+		EntityID:   w.nextEntity.Add(1),
+		CharID:     req.Char.ID,
+		Name:       req.Char.Name,
+		Class:      classes.ToPB(req.Char.Class),
+		Level:      req.Char.Level,
+		Exp:        req.Char.Exp,
+		Pos:        pos,
+		Points:     req.Char.Points,
+		FreePoints: req.Char.FreePoints,
+		HP:         req.Char.HP,
+		MP:         req.Char.MP,
+		RespSeq:    req.RespSeq,
 	}
 	for attempt := 0; attempt < 10; attempt++ {
 		s := w.reserve(mapID)
