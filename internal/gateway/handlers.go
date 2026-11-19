@@ -9,6 +9,7 @@ import (
 
 	"demonslayer2d/internal/auth"
 	"demonslayer2d/internal/classes"
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/world"
@@ -60,8 +61,49 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.handleLeaveWorld(seq)
+	case *pb.Envelope_AttackReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		if !c.attacks.Allow() {
+			c.fail(seq, pb.ErrorCode_ERROR_CODE_RATE_LIMITED, "too many attacks")
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Attack(seq, p.AttackReq.TargetId))
+	case *pb.Envelope_AllocatePointsReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.AllocatePointsReq
+		if total := uint64(r.Strength) + uint64(r.Agility) + uint64(r.Vitality) + uint64(r.Intellect); total > maxPointsTotal {
+			c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "too many points")
+			return
+		}
+		pts := combat.Points{Str: int(r.Strength), Agi: int(r.Agility), Vit: int(r.Vitality), Int: int(r.Intellect)}
+		c.zoneBusyIfDropped(seq, c.member.Allocate(seq, pts))
+	case *pb.Envelope_RespawnReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Respawn(seq))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
+	}
+}
+
+// inWorld answers NOT_IN_WORLD and returns false when the connection has no character in the world.
+func (c *conn) inWorld(seq uint32) bool {
+	if c.state == stateInWorld {
+		return true
+	}
+	c.fail(seq, pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD, "not in world")
+	return false
+}
+
+// zoneBusyIfDropped answers INTERNAL when the zone did not accept the request (queued is false).
+func (c *conn) zoneBusyIfDropped(seq uint32, queued bool) {
+	if !queued {
+		c.fail(seq, pb.ErrorCode_ERROR_CODE_INTERNAL, "zone busy")
 	}
 }
 

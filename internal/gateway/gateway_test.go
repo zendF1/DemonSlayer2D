@@ -224,6 +224,25 @@ func clientFixtures() map[string]*pb.Envelope {
 				{Id: 77, X: 5.5, Y: 6.25, DirX: 1},
 				{Id: 78, X: 1.3, Y: 2},
 			}}}},
+		"attack_req":  {Seq: 8, Payload: &pb.Envelope_AttackReq{AttackReq: &pb.AttackReq{TargetId: 42}}},
+		"attack_resp": {Seq: 8, Payload: &pb.Envelope_AttackResp{AttackResp: &pb.AttackResp{}}},
+		"allocate_points_req": {Seq: 9, Payload: &pb.Envelope_AllocatePointsReq{AllocatePointsReq: &pb.AllocatePointsReq{
+			Strength: 1, Agility: 2, Vitality: 3, Intellect: 4}}},
+		"respawn_resp": {Seq: 10, Payload: &pb.Envelope_RespawnResp{RespawnResp: &pb.RespawnResp{X: 5.5, Y: 5.5}}},
+		"self_stats": {Payload: &pb.Envelope_SelfStats{SelfStats: &pb.SelfStats{
+			Level: 3, Exp: 250, ExpNext: 900, FreePoints: 5, Strength: 6, Agility: 7, Vitality: 8, Intellect: 9,
+			Hp: 120, MaxHp: 150, Mp: 30, MaxMp: 40, PhysAttack: 21, MagicAttack: 12, PhysDefense: 10,
+			MagicDefense: 8, Accuracy: 95, Evasion: 14, CritRateBp: 350}}},
+		"entity_enter_monster": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
+			Id: 900, Kind: pb.EntityKind_ENTITY_KIND_MONSTER, Name: "Quỷ lang thang", Level: 3,
+			X: 12.5, Y: 9.5, DirX: 1, Hp: 100, MaxHp: 160}}},
+		"world_tick_combat": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 43, AckInputSeq: 8,
+			Moves:     []*pb.EntityMove{{Id: 77, X: 6.5, Y: 7.25, DirX: 1, Snap: true}},
+			Hits:      []*pb.Hit{{AttackerId: 77, TargetId: 900, Damage: 18, HpAfter: 82}},
+			Deaths:    []*pb.Death{{Id: 901}},
+			HpChanges: []*pb.HpChange{{Id: 900, Hp: 82, MaxHp: 160}},
+			LevelUps:  []*pb.LevelUp{{Id: 77, Level: 4}}}}},
 		"error_resp": {Seq: 4, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{
 			Code: pb.ErrorCode_ERROR_CODE_AUTH_FAILED, Detail: "wrong username or password"}}},
 		"kicked": {Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{

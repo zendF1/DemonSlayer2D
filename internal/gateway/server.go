@@ -31,7 +31,9 @@ const (
 	requestTimeout = 10 * time.Second
 	packetsPerSec  = 30
 	movesPerSec    = 20
-	dropStreakKick = 5 // consecutive seconds with dropped packets before kicking
+	attacksPerSec  = 5
+	maxPointsTotal = 1_000_000 // guards the zone's int arithmetic against overflow
+	dropStreakKick = 5         // consecutive seconds with dropped packets before kicking
 )
 
 type CharacterStore interface {

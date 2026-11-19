@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gateway"
 	"demonslayer2d/internal/pb"
 )
@@ -206,6 +207,40 @@ func (c *Client) EnterWorld(ctx context.Context, charID int64) (*pb.EnterWorldRe
 func (c *Client) LeaveWorld(ctx context.Context) error {
 	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_LeaveWorldReq{LeaveWorldReq: &pb.LeaveWorldReq{}}})
 	return err
+}
+
+// Attack attacks target and waits for the zone's reply.
+func (c *Client) Attack(ctx context.Context, target uint64) error {
+	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_AttackReq{AttackReq: &pb.AttackReq{TargetId: target}}})
+	return err
+}
+
+// AllocatePoints spends free potential points and returns the resulting stats.
+func (c *Client) AllocatePoints(ctx context.Context, p combat.Points) (*pb.SelfStats, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_AllocatePointsReq{AllocatePointsReq: &pb.AllocatePointsReq{
+		Strength: uint32(p.Str), Agility: uint32(p.Agi), Vitality: uint32(p.Vit), Intellect: uint32(p.Int),
+	}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetAllocatePointsResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to AllocatePointsReq: %v", resp)
+	}
+	return r.Stats, nil
+}
+
+// Respawn asks to respawn and returns where the character stands.
+func (c *Client) Respawn(ctx context.Context) (*pb.RespawnResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_RespawnReq{RespawnReq: &pb.RespawnReq{}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetRespawnResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to RespawnReq: %v", resp)
+	}
+	return r, nil
 }
 
 // Move sends a direction (no response). It returns the input seq used.
