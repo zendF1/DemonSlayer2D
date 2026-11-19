@@ -26,7 +26,7 @@ type Service struct {
 	params     Params
 	sem        chan struct{} // bounds concurrent argon2 work to the CPU count
 	dummyHash  string        // verified for unknown users so timing does not reveal existence
-	loginFails *Limiter      // 5 failures per minute per ip|username
+	loginFails *Limiter      // 5 failed logins per minute per ip|username
 	registers  *Limiter      // registrations per hour per ip
 }
 
@@ -65,10 +65,9 @@ func (s *Service) Register(ctx context.Context, ip, username, password string) (
 	if err := ValidatePassword(password); err != nil {
 		return 0, err
 	}
-	if !s.registers.Allow(ip) {
+	if !s.registers.Take(ip) {
 		return 0, ErrRateLimited
 	}
-	s.registers.Hit(ip)
 	if err := s.acquire(ctx); err != nil {
 		return 0, err
 	}
@@ -87,10 +86,18 @@ func (s *Service) Login(ctx context.Context, ip, username, password string) (int
 	if err != nil {
 		return 0, ErrAuthFailed
 	}
+	// Reserve an attempt before doing any work so parallel logins cannot all pass
+	// the check before a failure is recorded. Only a failed authentication keeps it.
 	key := ip + "|" + u
-	if !s.loginFails.Allow(key) {
+	if !s.loginFails.Take(key) {
 		return 0, ErrRateLimited
 	}
+	keep := false
+	defer func() {
+		if !keep {
+			s.loginFails.Refund(key)
+		}
+	}()
 	acc, err := s.store.GetAccountByUsername(ctx, u)
 	notFound := errors.Is(err, store.ErrNotFound)
 	if err != nil && !notFound {
@@ -109,7 +116,7 @@ func (s *Service) Login(ctx context.Context, ip, username, password string) (int
 		return 0, fmt.Errorf("auth: verify: %w", err)
 	}
 	if notFound || !ok || acc.Status != "active" {
-		s.loginFails.Hit(key)
+		keep = true
 		return 0, ErrAuthFailed
 	}
 	if err := s.store.TouchLogin(ctx, acc.ID); err != nil {

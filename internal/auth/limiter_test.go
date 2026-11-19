@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -10,22 +12,53 @@ func TestLimiterWindow(t *testing.T) {
 	l := NewLimiter(2, time.Minute)
 	l.now = func() time.Time { return now }
 
-	if !l.Allow("k") {
-		t.Fatal("fresh key should be allowed")
+	if !l.Take("k") || !l.Take("k") {
+		t.Fatal("the first 2 takes should succeed")
 	}
-	l.Hit("k")
-	l.Hit("k")
-	if l.Allow("k") {
-		t.Fatal("should be blocked after 2 hits")
+	if l.Take("k") {
+		t.Fatal("should be blocked after 2 takes")
 	}
-	if !l.Allow("other") {
+	if !l.Take("other") {
 		t.Fatal("keys must be independent")
 	}
 	now = now.Add(61 * time.Second)
-	if !l.Allow("k") {
+	if !l.Take("k") {
 		t.Fatal("should be allowed after the window passes")
 	}
+	now = now.Add(61 * time.Second)
+	l.sweep()
 	if n := len(l.hits); n != 0 {
 		t.Fatalf("expired keys should be pruned, %d left", n)
+	}
+}
+
+func TestLimiterRefund(t *testing.T) {
+	l := NewLimiter(1, time.Minute)
+	if !l.Take("k") {
+		t.Fatal("first take should succeed")
+	}
+	l.Refund("k")
+	if !l.Take("k") {
+		t.Fatal("a refunded take must free its slot")
+	}
+	l.Refund("missing") // refunding an unknown key is a no-op
+}
+
+func TestLimiterTakeIsAtomic(t *testing.T) {
+	l := NewLimiter(5, time.Minute)
+	var ok atomic.Int32
+	var wg sync.WaitGroup
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if l.Take("k") {
+				ok.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := ok.Load(); got != 5 {
+		t.Fatalf("%d concurrent takes succeeded, want exactly 5", got)
 	}
 }

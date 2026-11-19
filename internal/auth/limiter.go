@@ -19,23 +19,40 @@ func NewLimiter(max int, window time.Duration) *Limiter {
 	return &Limiter{max: max, window: window, now: time.Now, hits: make(map[string][]time.Time)}
 }
 
-// Allow reports whether key has fewer than max hits in the window. It does not record a hit.
-func (l *Limiter) Allow(key string) bool {
+// Take records one attempt for key if it has fewer than max attempts in the window,
+// and reports whether it did. Checking and recording happen under one lock, so
+// concurrent callers can never get more than max successful takes.
+func (l *Limiter) Take(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return len(l.prune(key)) < l.max
-}
-
-// Hit records one attempt for key.
-func (l *Limiter) Hit(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.hits[key] = append(l.prune(key), l.now())
+	h := l.prune(key)
+	if len(h) >= l.max {
+		return false
+	}
+	l.hits[key] = append(h, l.now())
 	l.calls++
 	if l.calls%1024 == 0 {
-		for k := range l.hits {
-			l.prune(k)
-		}
+		l.sweep()
+	}
+	return true
+}
+
+// Refund gives back the most recent attempt taken for key.
+func (l *Limiter) Refund(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	h := l.hits[key]
+	if len(h) <= 1 {
+		delete(l.hits, key)
+		return
+	}
+	l.hits[key] = h[:len(h)-1]
+}
+
+// sweep drops expired attempts for every key. The caller holds mu.
+func (l *Limiter) sweep() {
+	for k := range l.hits {
+		l.prune(k)
 	}
 }
 

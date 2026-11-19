@@ -120,3 +120,41 @@ func TestRegisterRateLimit(t *testing.T) {
 		t.Fatalf("6th registration err = %v", err)
 	}
 }
+
+func TestConcurrentLoginAttemptsAreLimited(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := NewService(newFakeAccounts(), fastParams, 5)
+	if _, err := svc.Register(ctx, "ip", "tanjiro", "kamado123"); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	counts := map[error]int{}
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := svc.Login(ctx, "ip", "tanjiro", "wrongpass")
+			mu.Lock()
+			counts[err]++
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	if counts[ErrAuthFailed] != 5 || counts[ErrRateLimited] != 15 {
+		t.Fatalf("20 parallel wrong passwords gave %v, want 5 ErrAuthFailed and 15 ErrRateLimited", counts)
+	}
+}
+
+func TestSuccessfulLoginsDoNotUseTheLimit(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := NewService(newFakeAccounts(), fastParams, 5)
+	if _, err := svc.Register(ctx, "ip", "tanjiro", "kamado123"); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 10 {
+		if _, err := svc.Login(ctx, "ip", "tanjiro", "kamado123"); err != nil {
+			t.Fatalf("login %d: %v", i+1, err)
+		}
+	}
+}
