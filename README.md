@@ -30,6 +30,7 @@ override it for one run.
 | `DATABASE_URL` | (required; `make run` sets it) | Postgres connection string |
 | `LISTEN_ADDR` | `:8080` | HTTP/WebSocket address |
 | `MAPS_DIR` | `./maps` | Map files |
+| `DATA_DIR` | `./data` | Game data (`monsters.json`) |
 | `START_MAP` | `kumotori_1` | Map for new characters |
 | `TICK_RATE` | `10` | Zone ticks per second, 1–100 |
 | `MOVE_SPEED_TILES` | `4` | Tiles per second at speed factor 1, above 0 and at most 100 |

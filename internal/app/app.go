@@ -12,6 +12,7 @@ import (
 
 	"demonslayer2d/internal/auth"
 	"demonslayer2d/internal/config"
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/gateway"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/saver"
@@ -61,6 +62,13 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger, opts Options)
 	}
 	maps, err := mapdata.LoadDir(cfg.MapsDir)
 	if err != nil {
+		return fail(err)
+	}
+	monsters, err := gamedata.Load(cfg.DataDir)
+	if err != nil {
+		return fail(err)
+	}
+	if err := monsters.Validate(maps); err != nil {
 		return fail(err)
 	}
 	a.saver = saver.New(a.store, log)

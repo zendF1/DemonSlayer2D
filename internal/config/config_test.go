@@ -19,7 +19,7 @@ func TestDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Config{
-		ListenAddr: ":8080", DatabaseURL: "postgres://x", MapsDir: "./maps", StartMap: "kumotori_1",
+		ListenAddr: ":8080", DatabaseURL: "postgres://x", MapsDir: "./maps", DataDir: "./data", StartMap: "kumotori_1",
 		TickRate: 10, MoveSpeedTiles: 4, AOICellSize: 10, ZoneCapacity: 50,
 		SaveInterval: 60 * time.Second, LogLevel: slog.LevelInfo, RegisterPerHour: 5,
 	}
@@ -30,7 +30,7 @@ func TestDefaults(t *testing.T) {
 
 func TestOverrides(t *testing.T) {
 	c, err := Load(env(map[string]string{
-		"DATABASE_URL": "postgres://x", "LISTEN_ADDR": ":9000", "MAPS_DIR": "/m", "START_MAP": "town",
+		"DATABASE_URL": "postgres://x", "LISTEN_ADDR": ":9000", "MAPS_DIR": "/m", "DATA_DIR": "/d", "START_MAP": "town",
 		"TICK_RATE": "20", "MOVE_SPEED_TILES": "5.5", "AOI_CELL_SIZE": "8", "ZONE_CAPACITY": "30",
 		"SAVE_INTERVAL": "10s", "LOG_LEVEL": "debug", "REGISTER_PER_HOUR": "1000",
 		"TRUSTED_PROXIES": "10.0.0.0/8, 127.0.0.1,::1",
@@ -38,7 +38,7 @@ func TestOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.ListenAddr != ":9000" || c.MapsDir != "/m" || c.StartMap != "town" || c.TickRate != 20 ||
+	if c.ListenAddr != ":9000" || c.MapsDir != "/m" || c.DataDir != "/d" || c.StartMap != "town" || c.TickRate != 20 ||
 		c.MoveSpeedTiles != 5.5 || c.AOICellSize != 8 || c.ZoneCapacity != 30 ||
 		c.SaveInterval != 10*time.Second || c.LogLevel != slog.LevelDebug || c.RegisterPerHour != 1000 {
 		t.Fatalf("overrides not applied: %+v", c)

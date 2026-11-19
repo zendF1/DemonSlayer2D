@@ -14,6 +14,7 @@ type Config struct {
 	ListenAddr     string
 	DatabaseURL    string
 	MapsDir        string
+	DataDir        string
 	StartMap       string
 	TickRate       int
 	MoveSpeedTiles float64
@@ -41,6 +42,7 @@ func Load(getenv func(string) string) (Config, error) {
 	c := Config{
 		ListenAddr:      ":8080",
 		MapsDir:         "./maps",
+		DataDir:         "./data",
 		StartMap:        "kumotori_1",
 		TickRate:        10,
 		MoveSpeedTiles:  4,
@@ -55,7 +57,7 @@ func Load(getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("config: DATABASE_URL is required")
 	}
 	for key, dst := range map[string]*string{
-		"LISTEN_ADDR": &c.ListenAddr, "MAPS_DIR": &c.MapsDir, "START_MAP": &c.StartMap,
+		"LISTEN_ADDR": &c.ListenAddr, "MAPS_DIR": &c.MapsDir, "DATA_DIR": &c.DataDir, "START_MAP": &c.StartMap,
 	} {
 		if v := getenv(key); v != "" {
 			*dst = v

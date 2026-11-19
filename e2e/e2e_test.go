@@ -30,7 +30,7 @@ func startServer(t *testing.T) server {
 	t.Helper()
 	st := storetest.New(t)
 	cfg := config.Config{
-		MapsDir: "../maps", StartMap: "kumotori_1", TickRate: 10, MoveSpeedTiles: 4,
+		MapsDir: "../maps", DataDir: "../data", StartMap: "kumotori_1", TickRate: 10, MoveSpeedTiles: 4,
 		AOICellSize: 10, ZoneCapacity: 50, SaveInterval: time.Minute, LogLevel: slog.LevelInfo,
 		RegisterPerHour: 100,
 	}
