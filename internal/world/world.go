@@ -175,7 +175,7 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		case errors.Is(err, zone.ErrZoneFull), errors.Is(err, zone.ErrZoneClosed):
 			continue
 		default:
-			<-s.z.Leave(info.EntityID) // the join may have been applied after ctx expired
+			// zone.Join only fails this way before the join is queued, so nothing to undo.
 			return nil, err
 		}
 	}

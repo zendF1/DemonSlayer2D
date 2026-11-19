@@ -381,3 +381,35 @@ func TestRunJoinLeaveAndShutdown(t *testing.T) {
 		t.Fatalf("leave after stop err = %v", err)
 	}
 }
+
+// Once a join is queued the zone will apply it and send EnterWorldResp, so Join must
+// report the zone's answer rather than the caller's expired context.
+func TestJoinWaitsForReplyOnceQueued(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	out := &fakeOut{}
+	errc := make(chan error, 1)
+	go func() { errc <- z.Join(ctx, info(1, 5.5, 5.5), out) }()
+
+	time.Sleep(60 * time.Millisecond) // ctx has expired; the join is still in the inbox
+	z.advance(time.Now())
+	if err := <-errc; err != nil {
+		t.Fatalf("Join = %v, want nil because the zone applied the join", err)
+	}
+	if z.Count() != 1 || out.take()[0].GetEnterWorldResp() == nil {
+		t.Fatal("player should be in the zone with EnterWorldResp sent")
+	}
+}
+
+func TestJoinHonoursContextBeforeQueueing(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	for range cap(z.inbox) {
+		z.inbox <- moveCmd{} // fill the inbox so the join cannot be queued
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := z.Join(ctx, info(1, 5.5, 5.5), &fakeOut{}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Join = %v, want context.DeadlineExceeded", err)
+	}
+}

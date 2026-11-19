@@ -140,6 +140,7 @@ func (z *Zone) EmptySince() time.Time {
 }
 
 // Join adds a player. On success the zone has already queued EnterWorldResp on out.
+// ctx only bounds waiting for room in the inbox; once queued, Join waits for the zone's answer.
 func (z *Zone) Join(ctx context.Context, info PlayerInfo, out Outbox) error {
 	reply := make(chan error, 1)
 	select {
@@ -149,6 +150,9 @@ func (z *Zone) Join(ctx context.Context, info PlayerInfo, out Outbox) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+	// Once queued, the zone will apply the join (and send EnterWorldResp) within a
+	// tick, so wait for its answer instead of giving up on ctx: returning an error
+	// here would contradict the EnterWorldResp the client is about to receive.
 	select {
 	case err := <-reply:
 		return err
@@ -159,8 +163,6 @@ func (z *Zone) Join(ctx context.Context, info PlayerInfo, out Outbox) error {
 		default:
 			return ErrZoneClosed
 		}
-	case <-ctx.Done():
-		return ctx.Err()
 	}
 }
 
