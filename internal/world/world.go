@@ -25,6 +25,9 @@ type Session interface {
 	Done() <-chan struct{}
 }
 
+// ErrStopped is returned by Enter once the world's Start context is cancelled.
+var ErrStopped = errors.New("world: stopped")
+
 type Config struct {
 	StartMap     string
 	TickRate     int
@@ -104,6 +107,8 @@ func (w *World) Wait() { w.wg.Wait() }
 // StartPosition is where new characters appear.
 func (w *World) StartPosition() (string, mapdata.Point) { return w.cfg.StartMap, w.start }
 
+// openZoneLocked starts a zone. Callers hold w.mu and, after Start, have checked
+// w.ctx is not cancelled, so wg.Add never happens after Wait has started.
 func (w *World) openZoneLocked(mapID string) *slot {
 	slots := w.zones[mapID]
 	idx := len(slots)
@@ -167,6 +172,9 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 	}
 	for attempt := 0; attempt < 10; attempt++ {
 		s := w.reserve(mapID)
+		if s == nil {
+			return nil, ErrStopped
+		}
 		err := s.z.Join(ctx, info, req.Out)
 		s.reserved.Add(-1)
 		switch {
@@ -189,9 +197,13 @@ func (w *World) placement(c store.Character) (string, zone.Vec2) {
 	return w.cfg.StartMap, zone.Vec2{X: w.start.X, Y: w.start.Y}
 }
 
+// reserve returns a running zone with room, opening one if needed, or nil once the world is stopped.
 func (w *World) reserve(mapID string) *slot {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.ctx.Err() != nil {
+		return nil
+	}
 	for _, s := range w.zones[mapID] {
 		if s == nil {
 			continue

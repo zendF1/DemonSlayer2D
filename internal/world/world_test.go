@@ -3,6 +3,7 @@ package world
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -175,4 +176,27 @@ func TestClaimRelease(t *testing.T) {
 	if w.Online() != 0 {
 		t.Fatalf("online = %d", w.Online())
 	}
+}
+
+func TestEnterAfterStopOpensNoZones(t *testing.T) {
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, testMaps(t), nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.Start(ctx)
+	cancel()
+	w.Wait()
+
+	_, err = w.Enter(context.Background(), EnterRequest{Char: char(1, "m1", 3.5, 3.5), Out: newRecOut()})
+	if !errors.Is(err, ErrStopped) {
+		t.Fatalf("Enter after stop = %v, want ErrStopped", err)
+	}
+	if n := len(w.Stats()); n != 1 {
+		t.Fatalf("zones after stop = %d, want only the original zone 1", n)
+	}
+	w.Wait() // must not have gained new goroutines
 }
