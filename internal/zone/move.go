@@ -101,3 +101,66 @@ func moveY(g Grid, pos Vec2, dy float32) float32 {
 	}
 	return ny
 }
+
+// lineBlocked reports whether the segment from a to b crosses a blocked tile.
+// It walks every tile the segment passes through (Amanatides-Woo traversal).
+// Where the segment passes exactly through a tile corner, it counts as
+// blocked if either tile beside the corner is. The endpoints' own tiles do
+// not count.
+func lineBlocked(g Grid, a, b Vec2) bool {
+	sx, sy := floor(a.X), floor(a.Y)
+	ex, ey := floor(b.X), floor(b.Y)
+	x, y := sx, sy
+	blocked := func(tx, ty int) bool {
+		return !(tx == sx && ty == sy) && !(tx == ex && ty == ey) && g.Blocked(tx, ty)
+	}
+	dx, dy := float64(b.X-a.X), float64(b.Y-a.Y)
+	stepX, tMaxX, tDeltaX := axis(float64(a.X), dx, x)
+	stepY, tMaxY, tDeltaY := axis(float64(a.Y), dy, y)
+	// Each step moves one tile along x or y (two at a corner), so the walk
+	// ends after at most this many tiles even if float error skips the end tile.
+	for n := abs(ex-x) + abs(ey-y); n > 0 && (x != ex || y != ey); {
+		switch d := tMaxX - tMaxY; {
+		case math.Abs(d) < 1e-9: // through a corner
+			if blocked(x+stepX, y) || blocked(x, y+stepY) {
+				return true
+			}
+			x, y = x+stepX, y+stepY
+			tMaxX, tMaxY = tMaxX+tDeltaX, tMaxY+tDeltaY
+			n -= 2
+		case d < 0:
+			x += stepX
+			tMaxX += tDeltaX
+			n--
+		default:
+			y += stepY
+			tMaxY += tDeltaY
+			n--
+		}
+		if blocked(x, y) {
+			return true
+		}
+	}
+	return false
+}
+
+// axis sets up one axis of the tile traversal from position p moving by d,
+// starting in tile t: the step direction, the segment fraction at which the
+// first tile edge is crossed, and the fraction between edges.
+func axis(p, d float64, t int) (step int, tMax, tDelta float64) {
+	switch {
+	case d > 0:
+		return 1, (float64(t+1) - p) / d, 1 / d
+	case d < 0:
+		return -1, (p - float64(t)) / -d, 1 / -d
+	default:
+		return 0, math.Inf(1), math.Inf(1)
+	}
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}

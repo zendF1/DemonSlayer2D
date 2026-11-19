@@ -2,26 +2,18 @@ package zone
 
 import (
 	"maps"
-	"math"
 	"slices"
 
-	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/pb"
 )
 
 const (
-	// autoRespawnSec is how long a dead player lies before the server
-	// respawns it (spec 3.6).
-	autoRespawnSec = 60
 	// attackRangeSlack is added to the slash range because the client sees
 	// monsters two ticks late (spec 5.1).
 	attackRangeSlack = 0.5
 	// corpseSec is how long a dead monster lies before it is removed (spec 4.2).
 	corpseSec = 1.0
-	// restSec is how long a player must stand still on a rest point to be
-	// fully healed (spec 3.7).
-	restSec = 5
 )
 
 // tickEvents are the combat events of one tick. syncView sends each viewer the
@@ -52,7 +44,8 @@ func (z *Zone) damagePlayer(p *player, attacker uint64, dmg int) {
 }
 
 // killPlayer makes p a corpse that ignores movement until it respawns, by
-// request or automatically at deadUntil.
+// request or automatically at deadUntil. Its direction is zeroed here, and
+// stays zero while dead because move ignores the dead.
 func (z *Zone) killPlayer(p *player) {
 	p.dead = true
 	if p.dir != (Vec2{}) {
@@ -60,6 +53,13 @@ func (z *Zone) killPlayer(p *player) {
 		p.changed = true
 	}
 	p.deadUntil = z.tickNo + z.ticks(autoRespawnSec)
+	p.restTicks = 0
+	// Monsters lose a dead target (spec 3.6) and pick another at their next think.
+	for _, m := range z.monsters {
+		if m.target == p.id {
+			m.target = 0
+		}
+	}
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: p.id})
 }
 
@@ -111,13 +111,6 @@ func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
 			wt.LevelUps = append(wt.LevelUps, l)
 		}
 	}
-}
-
-// setStats gives p new derived stats and the max HP that goes with them.
-// Current HP is the caller's business.
-func setStats(p *player, s combat.Stats) {
-	p.stats = s
-	p.maxHP = s.MaxHP
 }
 
 // queueAttack makes c its player's pending attack for this tick. A newer
@@ -178,69 +171,6 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// lineBlocked reports whether the segment from a to b crosses a blocked tile.
-// It walks every tile the segment passes through (Amanatides-Woo traversal).
-// Where the segment passes exactly through a tile corner, it counts as
-// blocked if either tile beside the corner is. The endpoints' own tiles do
-// not count.
-func lineBlocked(g Grid, a, b Vec2) bool {
-	sx, sy := floor(a.X), floor(a.Y)
-	ex, ey := floor(b.X), floor(b.Y)
-	x, y := sx, sy
-	blocked := func(tx, ty int) bool {
-		return !(tx == sx && ty == sy) && !(tx == ex && ty == ey) && g.Blocked(tx, ty)
-	}
-	dx, dy := float64(b.X-a.X), float64(b.Y-a.Y)
-	stepX, tMaxX, tDeltaX := axis(float64(a.X), dx, x)
-	stepY, tMaxY, tDeltaY := axis(float64(a.Y), dy, y)
-	// Each step moves one tile along x or y (two at a corner), so the walk
-	// ends after at most this many tiles even if float error skips the end tile.
-	for n := abs(ex-x) + abs(ey-y); n > 0 && (x != ex || y != ey); {
-		switch d := tMaxX - tMaxY; {
-		case math.Abs(d) < 1e-9: // through a corner
-			if blocked(x+stepX, y) || blocked(x, y+stepY) {
-				return true
-			}
-			x, y = x+stepX, y+stepY
-			tMaxX, tMaxY = tMaxX+tDeltaX, tMaxY+tDeltaY
-			n -= 2
-		case d < 0:
-			x += stepX
-			tMaxX += tDeltaX
-			n--
-		default:
-			y += stepY
-			tMaxY += tDeltaY
-			n--
-		}
-		if blocked(x, y) {
-			return true
-		}
-	}
-	return false
-}
-
-// axis sets up one axis of the tile traversal from position p moving by d,
-// starting in tile t: the step direction, the segment fraction at which the
-// first tile edge is crossed, and the fraction between edges.
-func axis(p, d float64, t int) (step int, tMax, tDelta float64) {
-	switch {
-	case d > 0:
-		return 1, (float64(t+1) - p) / d, 1 / d
-	case d < 0:
-		return -1, (p - float64(t)) / -d, 1 / -d
-	default:
-		return 0, math.Inf(1), math.Inf(1)
-	}
-}
-
-func abs(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
 // slash lands p's default slash on m: p earns its EXP share of the hit, an
 // idle monster turns on its attacker, and one brought to 0 HP dies.
 func (z *Zone) slash(p *player, m *monster) {
@@ -258,17 +188,6 @@ func (z *Zone) slash(p *player, m *monster) {
 	}
 }
 
-// payExpShare gives p the EXP that counted more damage on m earns (spec 3.4):
-// the share of p's summed damage on m, less what m has already paid p, so
-// no fraction is lost over several hits.
-func (z *Zone) payExpShare(p *player, m *monster, counted int) {
-	m.dmgBy[p.id] += counted
-	share := combat.ExpShare(combat.MonsterExp(m.level), m.maxHP, m.dmgBy[p.id])
-	gain := share - m.expPaid[p.id]
-	m.expPaid[p.id] = share
-	z.gainExp(p, gain)
-}
-
 // killMonster makes m a corpse and schedules its camp's respawn. Its EXP has
 // already been paid hit by hit; drops, when they come, go to the killer
 // (game-design 5.8).
@@ -281,164 +200,7 @@ func (z *Zone) killMonster(m *monster) {
 	m.camp.pending = append(m.camp.pending, m.diedAt+z.ticks(m.camp.Kind.RespawnSec))
 }
 
-// gainExp adds gain to p's EXP and pushes p its new stats. Each level gained
-// brings PointsPerLevel free points and full HP and MP, and is saved at once
-// (spec 6.3). A player at MaxLevel, or a gain of 0, changes nothing.
-func (z *Zone) gainExp(p *player, gain int64) {
-	if gain <= 0 {
-		return
-	}
-	level, exp := combat.GainExp(p.level, p.exp, gain)
-	if level == p.level && exp == p.exp {
-		return // at the level cap
-	}
-	p.statsDirty = true
-	gained := level - p.level
-	p.level, p.exp = level, exp
-	if gained == 0 {
-		return
-	}
-	p.freePoints += combat.PointsPerLevel * gained
-	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points))
-	p.hp, p.mp = p.maxHP, p.stats.MaxMP
-	z.events.levelUps = append(z.events.levelUps, &pb.LevelUp{Id: p.id, Level: int32(p.level)})
-	z.hpChanged(&p.entity)
-	z.saver.Save(z.state(p), nil)
-}
-
-// allocate spends free potential points (spec 3.5). Current HP and MP rise by
-// as much as their max, and the new points are saved at once (spec 6.3).
-func (z *Zone) allocate(c allocateCmd) {
-	p, ok := z.players[c.id]
-	if !ok {
-		return // left or evicted; see queueAttack
-	}
-	a := c.points
-	switch total := a.Total(); {
-	case p.dead:
-		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_DEAD)
-		return
-	case a.Str < 0 || a.Agi < 0 || a.Vit < 0 || a.Int < 0 || total == 0:
-		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
-		return
-	case total > p.freePoints:
-		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS)
-		return
-	}
-	p.points.Str += a.Str
-	p.points.Agi += a.Agi
-	p.points.Vit += a.Vit
-	p.points.Int += a.Int
-	p.freePoints -= a.Total()
-	oldHP, oldMP := p.maxHP, p.stats.MaxMP
-	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points))
-	p.hp += p.maxHP - oldHP
-	p.mp += p.stats.MaxMP - oldMP
-	if p.maxHP != oldHP {
-		z.hpChanged(&p.entity)
-	}
-	z.saver.Save(z.state(p), nil)
-	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AllocatePointsResp{AllocatePointsResp: &pb.AllocatePointsResp{Stats: selfStats(p)}}})
-}
-
-// respawn answers a respawn request: only the dead may ask (spec 3.6).
-func (z *Zone) respawn(c respawnCmd) {
-	p, ok := z.players[c.id]
-	if !ok {
-		return // left or evicted; see queueAttack
-	}
-	if !p.dead {
-		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_DEAD)
-		return
-	}
-	z.respawnPlayer(p)
-	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_RespawnResp{RespawnResp: &pb.RespawnResp{X: p.pos.X, Y: p.pos.Y}}})
-}
-
-// respawnPlayer brings dead p back at the map's respawn point with full HP and
-// MP. Viewers jump it there instead of interpolating.
-func (z *Zone) respawnPlayer(p *player) {
-	p.dead, p.deadUntil, p.restTicks = false, 0, 0
-	p.pos, p.dir = z.area.Respawn, Vec2{}
-	p.hp, p.mp = p.maxHP, p.stats.MaxMP
-	p.changed, p.snap = true, true
-	z.updateCell(&p.entity)
-	z.hpChanged(&p.entity)
-	p.statsDirty = true
-}
-
-// countRest counts the ticks p has stood still, alive, within a rest point's
-// radius; any other tick starts the count again (spec 3.7).
-func (z *Zone) countRest(p *player) {
-	if p.dead || p.dir != (Vec2{}) || !z.onRestPoint(p.pos) {
-		p.restTicks = 0
-		return
-	}
-	p.restTicks++
-}
-
-func (z *Zone) onRestPoint(pos Vec2) bool {
-	for _, r := range z.area.Rests {
-		if distance(pos, r.C) <= r.R {
-			return true
-		}
-	}
-	return false
-}
-
-// runPlayerTimers respawns the players who have lain dead for autoRespawnSec,
-// and fully heals those who have rested for restSec (spec 6.2 step 5). A
-// player already full keeps resting but gets nothing sent.
-func (z *Zone) runPlayerTimers() {
-	rest := z.ticks(restSec)
-	for _, p := range z.players {
-		if p.dead && z.tickNo >= p.deadUntil {
-			z.respawnPlayer(p)
-			continue
-		}
-		if p.restTicks < rest {
-			continue
-		}
-		p.restTicks = 0
-		if p.hp != p.maxHP {
-			p.hp = p.maxHP
-			z.hpChanged(&p.entity)
-			p.statsDirty = true
-		}
-		if p.mp != p.stats.MaxMP {
-			p.mp = p.stats.MaxMP
-			p.statsDirty = true
-		}
-	}
-}
-
 // replyError answers seq with an ErrorResp carrying code.
 func (z *Zone) replyError(p *player, seq uint32, code pb.ErrorCode) {
 	p.out.Send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{Code: code, Detail: code.String()}}})
-}
-
-// selfStats is p's own view of its progression and stats (spec 5.2).
-func selfStats(p *player) *pb.SelfStats {
-	s := p.stats
-	return &pb.SelfStats{
-		Level:        int32(p.level),
-		Exp:          p.exp,
-		ExpNext:      combat.ExpToNext(p.level),
-		FreePoints:   int32(p.freePoints),
-		Strength:     int32(p.points.Str),
-		Agility:      int32(p.points.Agi),
-		Vitality:     int32(p.points.Vit),
-		Intellect:    int32(p.points.Int),
-		Hp:           int32(p.hp),
-		MaxHp:        int32(p.maxHP),
-		Mp:           int32(p.mp),
-		MaxMp:        int32(s.MaxMP),
-		PhysAttack:   int32(s.PhysAttack),
-		MagicAttack:  int32(s.MagicAttack),
-		PhysDefense:  int32(s.PhysDefense),
-		MagicDefense: int32(s.MagicDefense),
-		Accuracy:     int32(s.Accuracy),
-		Evasion:      int32(s.Evasion),
-		CritRateBp:   int32(s.CritRateBP),
-	}
 }

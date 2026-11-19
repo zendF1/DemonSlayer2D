@@ -112,7 +112,7 @@ func triggerJSON(t *testing.T, mutate func(m map[string]any)) []byte {
 			"##########",
 		}
 		m["safe_zones"] = []map[string]any{{"id": "camp", "x": 1, "y": 1, "w": 3, "h": 3}}
-		m["rest_points"] = []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.5}}
+		m["rest_points"] = []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.4}}
 		m["camps"] = []map[string]any{{
 			"id": "c1", "monster": "wanderer", "x": 7.0, "y": 5.0, "radius": 2.0,
 			"count": 3, "min_level": 1, "max_level": 2,
@@ -131,7 +131,7 @@ func TestParseTriggers(t *testing.T) {
 	if len(m.SafeZones) != 1 || m.SafeZones[0] != (Rect{ID: "camp", X: 1, Y: 1, W: 3, H: 3}) {
 		t.Fatalf("safe zones = %+v", m.SafeZones)
 	}
-	if len(m.RestPoints) != 1 || m.RestPoints[0] != (RestPoint{ID: "fire", X: 2.5, Y: 2.5, Radius: 1.5}) {
+	if len(m.RestPoints) != 1 || m.RestPoints[0] != (RestPoint{ID: "fire", X: 2.5, Y: 2.5, Radius: 1.4}) {
 		t.Fatalf("rest points = %+v", m.RestPoints)
 	}
 	if len(m.Camps) != 1 {
@@ -211,14 +211,11 @@ func TestParseTriggerErrors(t *testing.T) {
 			z := map[string]any{"id": "camp", "x": 1, "y": 1, "w": 3, "h": 3}
 			m["safe_zones"] = []map[string]any{z, z}
 		},
-		"rest point \"fire\" is outside every safe zone": func(m map[string]any) {
-			m["rest_points"] = []map[string]any{{"id": "fire", "x": 6.5, "y": 2.5, "radius": 1.5}}
-		},
 		"rest point \"fire\": radius must be positive": func(m map[string]any) {
 			m["rest_points"] = []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 0}}
 		},
 		"duplicate rest point \"fire\"": func(m map[string]any) {
-			r := map[string]any{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.5}
+			r := map[string]any{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.4}
 			m["rest_points"] = []map[string]any{r, r}
 		},
 		"default spawn point is outside the safe zones": func(m map[string]any) {
@@ -248,6 +245,37 @@ func TestParseTriggerErrors(t *testing.T) {
 		_, err := Parse(triggerJSON(t, mutate))
 		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "mapdata t1") {
 			t.Errorf("%s: got err %v", want, err)
+		}
+	}
+}
+
+// Every position within a rest point's radius must be in a safe zone, or a
+// player could rest where monsters can reach it.
+func TestRestPointMustFitInSafeZones(t *testing.T) {
+	porch := map[string]any{"id": "porch", "x": 4, "y": 1, "w": 1, "h": 3} // tiles 4 x 1..3
+	for _, c := range []struct {
+		name          string
+		x, y, radius  float64
+		porch, wantOK bool
+	}{
+		{"inside", 2.5, 2.5, 1.4, false, true},
+		{"centre outside", 6.5, 2.5, 1.4, false, false},
+		{"edge reaches tile 4", 2.5, 2.5, 1.5, false, false},
+		{"edge reaches row 4", 2.5, 2.7, 1.4, false, false},
+		{"reaches tile 4 without the porch", 3.0, 2.5, 1.4, false, false},
+		{"covered by two safe zones", 3.0, 2.5, 1.4, true, true},
+	} {
+		_, err := Parse(triggerJSON(t, func(m map[string]any) {
+			m["rest_points"] = []map[string]any{{"id": "fire", "x": c.x, "y": c.y, "radius": c.radius}}
+			if c.porch {
+				m["safe_zones"] = append(m["safe_zones"].([]map[string]any), porch)
+			}
+		}))
+		if c.wantOK && err != nil {
+			t.Errorf("%s: %v", c.name, err)
+		}
+		if !c.wantOK && (err == nil || !strings.Contains(err.Error(), `rest point "fire" reaches outside the safe zones`)) {
+			t.Errorf("%s: got err %v, want the rest point rejected", c.name, err)
 		}
 	}
 }

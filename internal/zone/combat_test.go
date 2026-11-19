@@ -2,6 +2,7 @@ package zone
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -689,6 +690,9 @@ func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 		if len(ss) != 1 || ss[0].Exp != want || envs[len(envs)-1].GetSelfStats() == nil || envs[len(envs)-1].Seq != 0 {
 			t.Fatalf("after slash %d SelfStats %v, want one push with %d EXP after the WorldTick", i+1, ss, want)
 		}
+		if saves := z.saver.(*fakeSaver).all(); len(saves) != 0 {
+			t.Fatalf("after slash %d saves %+v, want none: EXP without a level-up waits for the periodic save", i+1, saves)
+		}
 		if i < 3 {
 			continue
 		}
@@ -1139,6 +1143,7 @@ func TestAllocateErrors(t *testing.T) {
 		{"too many", combat.Points{Str: 3, Vit: 3}, false, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS},
 		{"dead", combat.Points{Str: 1}, true, pb.ErrorCode_ERROR_CODE_DEAD},
 		{"dead with zero total", combat.Points{}, true, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"sum overflows", combat.Points{Str: math.MaxInt, Agi: 2}, false, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			z, _ := newFightZone(t, 1, Vec2{50.5, 50.5})
@@ -1311,6 +1316,42 @@ func TestMonsterDropsDeadTarget(t *testing.T) {
 	}
 }
 
+// A respawned player is not chased by the monster that killed it (spec 3.6):
+// even on a map without safe zones, the monster forgets it at death.
+func TestRespawnedPlayerIsNotChased(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	area := Area{
+		Grid:    openGrid(60, 60),
+		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside aggro, inside leash
+		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
+		Levels:  testLevels,
+	}
+	z := New(testConfig(10), area, &fakeSaver{}, quietLog())
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	joinHP(t, z, 1, 31.5, 30.5, 20)
+	z.advance(time.Now())
+	p := z.players[1]
+	if !p.dead {
+		t.Fatal("the monster should have killed player 1")
+	}
+	if m.target == 1 {
+		t.Fatalf("target %d, want the dead player forgotten at death", m.target)
+	}
+	if !z.Respawn(1, 1) {
+		t.Fatal("inbox full")
+	}
+	now := time.Now()
+	for i := 0; i < 20; i++ {
+		z.advance(now)
+		if m.target == 1 {
+			t.Fatalf("tick %d: the monster chases the respawned player", i)
+		}
+	}
+}
+
 // ______________________TEST REST_____________________
 
 // newRestZone is a fight zone with a rest point of radius 2 at (5.5, 5.5),
@@ -1367,6 +1408,22 @@ func TestRestHealsAfterFiveSeconds(t *testing.T) {
 	z.advance(now)
 	if p.hp != p.maxHP {
 		t.Fatalf("hp %d at tick 80, want healed after 50 still ticks", p.hp)
+	}
+}
+
+// A player killed on the tick its rest count completes stays dead at 0 HP.
+func TestRestDoesNotHealPlayerKilledThatTick(t *testing.T) {
+	z, _ := newFightZone(t, 1, Vec2{30.5, 30.5})
+	z.area.Rests = []Circle{{C: Vec2{31.5, 30.5}, R: 2}} // outside the safe zone, as a bad map might have it
+	joinHP(t, z, 1, 31.5, 30.5, 20)
+	p := z.players[1]
+	p.restTicks = z.ticks(restSec) - 1 // step 3 completes the count; the monster kills at step 4
+	z.advance(time.Now())
+	if !p.dead || p.hp != 0 || p.restTicks != 0 {
+		t.Fatalf("dead %v hp %d restTicks %d, want dead at 0 HP with the count reset", p.dead, p.hp, p.restTicks)
+	}
+	if st := z.state(p); st.HP != 0 {
+		t.Fatalf("saved HP %d, want 0", st.HP)
 	}
 }
 

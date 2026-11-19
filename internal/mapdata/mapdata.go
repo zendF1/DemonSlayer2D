@@ -171,8 +171,8 @@ func (m *Map) parseTriggers(f *mapFile) error {
 		if !(r.Radius > 0) {
 			return fmt.Errorf("mapdata %s: rest point %q: radius must be positive", m.ID, r.ID)
 		}
-		if !m.InSafeZone(Point{r.X, r.Y}) {
-			return fmt.Errorf("mapdata %s: rest point %q is outside every safe zone", m.ID, r.ID)
+		if !m.restInSafeZones(r) {
+			return fmt.Errorf("mapdata %s: rest point %q reaches outside the safe zones", m.ID, r.ID)
 		}
 		m.RestPoints = append(m.RestPoints, r)
 	}
@@ -209,19 +209,43 @@ func (m *Map) parseTriggers(f *mapFile) error {
 	return nil
 }
 
-// InSafeZone reports whether the tile containing p is in a safe zone.
-func (m *Map) InSafeZone(p Point) bool {
-	x, y := float64(p.X), float64(p.Y)
-	if math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) {
+// restInSafeZones reports whether every tile within r's radius is in a safe
+// zone, so no one can rest where monsters reach. A tile that the circle only
+// touches at its edge counts, which errs on the strict side.
+func (m *Map) restInSafeZones(r RestPoint) bool {
+	x, y, rad := float64(r.X), float64(r.Y), float64(r.Radius)
+	if math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) || math.IsInf(rad, 0) {
 		return false
 	}
-	tx, ty := int(math.Floor(x)), int(math.Floor(y))
+	for tx := int(math.Floor(x - rad)); tx <= int(math.Floor(x+rad)); tx++ {
+		for ty := int(math.Floor(y - rad)); ty <= int(math.Floor(y+rad)); ty++ {
+			// The point of the tile nearest the centre.
+			nx := min(max(x, float64(tx)), float64(tx+1))
+			ny := min(max(y, float64(ty)), float64(ty+1))
+			if math.Hypot(nx-x, ny-y) <= rad && !m.safeTile(tx, ty) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (m *Map) safeTile(tx, ty int) bool {
 	for _, z := range m.SafeZones {
 		if z.ContainsTile(tx, ty) {
 			return true
 		}
 	}
 	return false
+}
+
+// InSafeZone reports whether the tile containing p is in a safe zone.
+func (m *Map) InSafeZone(p Point) bool {
+	x, y := float64(p.X), float64(p.Y)
+	if math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) {
+		return false
+	}
+	return m.safeTile(int(math.Floor(x)), int(math.Floor(y)))
 }
 
 // CampTiles returns the centres of the walkable tiles whose centre is within
