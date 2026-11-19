@@ -1,0 +1,4 @@
+# Code-only graph: design docs are large and need LLM extraction; pb is generated.
+docs/
+*.md
+internal/pb/
