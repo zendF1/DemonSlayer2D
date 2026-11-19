@@ -19,6 +19,9 @@ const (
 	attackRangeSlack = 0.5
 	// corpseSec is how long a dead monster lies before it is removed (spec 4.2).
 	corpseSec = 1.0
+	// restSec is how long a player must stand still on a rest point to be
+	// fully healed (spec 3.7).
+	restSec = 5
 )
 
 // tickEvents are the combat events of one tick. syncView sends each viewer the
@@ -284,6 +287,112 @@ func (z *Zone) gainExp(p *player, gain int64) {
 	z.events.levelUps = append(z.events.levelUps, &pb.LevelUp{Id: p.id, Level: int32(p.level)})
 	z.hpChanged(&p.entity)
 	z.saver.Save(z.state(p), nil)
+}
+
+// allocate spends free potential points (spec 3.5). Current HP and MP rise by
+// as much as their max, and the new points are saved at once (spec 6.3).
+func (z *Zone) allocate(c allocateCmd) {
+	p, ok := z.players[c.id]
+	if !ok {
+		return // left or evicted; see queueAttack
+	}
+	a := c.points
+	switch total := a.Total(); {
+	case p.dead:
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_DEAD)
+		return
+	case a.Str < 0 || a.Agi < 0 || a.Vit < 0 || a.Int < 0 || total == 0:
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
+		return
+	case total > p.freePoints:
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS)
+		return
+	}
+	p.points.Str += a.Str
+	p.points.Agi += a.Agi
+	p.points.Vit += a.Vit
+	p.points.Int += a.Int
+	p.freePoints -= a.Total()
+	oldHP, oldMP := p.maxHP, p.stats.MaxMP
+	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points))
+	p.hp += p.maxHP - oldHP
+	p.mp += p.stats.MaxMP - oldMP
+	if p.maxHP != oldHP {
+		z.hpChanged(&p.entity)
+	}
+	z.saver.Save(z.state(p), nil)
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AllocatePointsResp{AllocatePointsResp: &pb.AllocatePointsResp{Stats: selfStats(p)}}})
+}
+
+// respawn answers a respawn request: only the dead may ask (spec 3.6).
+func (z *Zone) respawn(c respawnCmd) {
+	p, ok := z.players[c.id]
+	if !ok {
+		return // left or evicted; see queueAttack
+	}
+	if !p.dead {
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_DEAD)
+		return
+	}
+	z.respawnPlayer(p)
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_RespawnResp{RespawnResp: &pb.RespawnResp{X: p.pos.X, Y: p.pos.Y}}})
+}
+
+// respawnPlayer brings dead p back at the map's respawn point with full HP and
+// MP. Viewers jump it there instead of interpolating.
+func (z *Zone) respawnPlayer(p *player) {
+	p.dead, p.deadUntil, p.restTicks = false, 0, 0
+	p.pos, p.dir = z.area.Respawn, Vec2{}
+	p.hp, p.mp = p.maxHP, p.stats.MaxMP
+	p.changed, p.snap = true, true
+	z.updateCell(&p.entity)
+	z.hpChanged(&p.entity)
+	p.statsDirty = true
+}
+
+// countRest counts the ticks p has stood still, alive, within a rest point's
+// radius; any other tick starts the count again (spec 3.7).
+func (z *Zone) countRest(p *player) {
+	if p.dead || p.dir != (Vec2{}) || !z.onRestPoint(p.pos) {
+		p.restTicks = 0
+		return
+	}
+	p.restTicks++
+}
+
+func (z *Zone) onRestPoint(pos Vec2) bool {
+	for _, r := range z.area.Rests {
+		if distance(pos, r.C) <= r.R {
+			return true
+		}
+	}
+	return false
+}
+
+// runPlayerTimers respawns the players who have lain dead for autoRespawnSec,
+// and fully heals those who have rested for restSec (spec 6.2 step 5). A
+// player already full keeps resting but gets nothing sent.
+func (z *Zone) runPlayerTimers() {
+	rest := z.ticks(restSec)
+	for _, p := range z.players {
+		if p.dead && z.tickNo >= p.deadUntil {
+			z.respawnPlayer(p)
+			continue
+		}
+		if p.restTicks < rest {
+			continue
+		}
+		p.restTicks = 0
+		if p.hp != p.maxHP {
+			p.hp = p.maxHP
+			z.hpChanged(&p.entity)
+			p.statsDirty = true
+		}
+		if p.mp != p.stats.MaxMP {
+			p.mp = p.stats.MaxMP
+			p.statsDirty = true
+		}
+	}
 }
 
 // replyError answers seq with an ErrorResp carrying code.

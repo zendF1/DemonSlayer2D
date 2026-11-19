@@ -926,3 +926,371 @@ func TestStateSavesProgress(t *testing.T) {
 		t.Fatalf("saves %+v, want %+v", saves, want)
 	}
 }
+
+// ______________________TEST ALLOCATE_____________________
+
+// allocateNow queues an allocation by id with seq and runs one tick.
+func allocateNow(t *testing.T, z *Zone, id uint64, seq uint32, p combat.Points) {
+	t.Helper()
+	if !z.Allocate(id, seq, p) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+func allocateRespFor(envs []*pb.Envelope, seq uint32) *pb.AllocatePointsResp {
+	for _, e := range envs {
+		if r := e.GetAllocatePointsResp(); r != nil && e.Seq == seq {
+			return r
+		}
+	}
+	return nil
+}
+
+func TestAllocate(t *testing.T) {
+	z, _ := newFightZone(t, 1, Vec2{50.5, 50.5})
+	in := info(1, 20.5, 20.5)
+	in.Class = pb.CharClass_CHAR_CLASS_VIEM
+	in.Level, in.FreePoints, in.HP, in.MP = 2, 10, 300, 50
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	v := joinNow(t, z, 2, 22.5, 20.5)
+	z.advance(time.Now())
+	a.take()
+	v.take()
+	p := z.players[1]
+	if p.maxHP != 560 || p.stats.MaxMP != 120 {
+		t.Fatalf("level-2 Viêm max HP %d MP %d, want 560 and 120", p.maxHP, p.stats.MaxMP)
+	}
+	sv := z.saver.(*fakeSaver)
+
+	allocateNow(t, z, 1, 9, combat.Points{Vit: 4, Int: 2})
+	if p.maxHP != 640 || p.hp != 380 {
+		t.Fatalf("hp %d/%d, want 380/640: +4 VIT adds 80 to both", p.hp, p.maxHP)
+	}
+	if p.stats.MaxMP != 130 || p.mp != 60 {
+		t.Fatalf("mp %d/%d, want 60/130: +2 INT adds 10 to both", p.mp, p.stats.MaxMP)
+	}
+	if p.freePoints != 4 || p.points != (combat.Points{Vit: 4, Int: 2}) {
+		t.Fatalf("free %d points %+v, want 4 free and VIT 4 INT 2", p.freePoints, p.points)
+	}
+	saves := sv.all()
+	if len(saves) != 1 || saves[0].Points != p.points || saves[0].FreePoints != 4 || saves[0].HP != 380 || saves[0].MP != 60 {
+		t.Fatalf("saves %+v, want one immediate save of the new points", saves)
+	}
+	envs := a.take()
+	r := allocateRespFor(envs, 9)
+	if r == nil || r.Stats.String() != selfStats(p).String() {
+		t.Fatalf("AllocatePointsResp %v, want the new stats %v", r, selfStats(p))
+	}
+	if r.Stats.Vitality != 4 || r.Stats.FreePoints != 4 || r.Stats.MaxHp != 640 {
+		t.Fatalf("reply stats %v, want VIT 4, 4 free, max HP 640", r.Stats)
+	}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != 380 || cs[0].MaxHp != 640 {
+			t.Fatalf("%s HpChanges %v, want 380/640 for 1", name, cs)
+		}
+	}
+
+	// STR leaves max HP alone, so no HpChange.
+	allocateNow(t, z, 1, 10, combat.Points{Str: 4})
+	envs = a.take()
+	if allocateRespFor(envs, 10) == nil || p.freePoints != 0 || p.stats.PhysAttack != 25+8 {
+		t.Fatalf("STR allocation: free %d attack %d, errors %v", p.freePoints, p.stats.PhysAttack, errorFor(envs, 10))
+	}
+	if cs := hpChangesIn(envs); len(cs) != 0 {
+		t.Fatalf("HpChanges %v, want none when max HP is unchanged", cs)
+	}
+}
+
+func TestAllocateErrors(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		pts  combat.Points
+		dead bool
+		code pb.ErrorCode
+	}{
+		{"zero total", combat.Points{}, false, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"negative", combat.Points{Str: 3, Agi: -1}, false, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"too many", combat.Points{Str: 3, Vit: 3}, false, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS},
+		{"dead", combat.Points{Str: 1}, true, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"dead with zero total", combat.Points{}, true, pb.ErrorCode_ERROR_CODE_DEAD},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _ := newFightZone(t, 1, Vec2{50.5, 50.5})
+			in := info(1, 20.5, 20.5)
+			in.FreePoints = 5
+			a := &fakeOut{}
+			if err := z.join(in, a); err != nil {
+				t.Fatal(err)
+			}
+			p := z.players[1]
+			if c.dead {
+				z.damagePlayer(p, 0, 10000)
+			}
+			before := p.stats
+			allocateNow(t, z, 1, 3, c.pts)
+			envs := a.take()
+			if er := errorFor(envs, 3); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if allocateRespFor(envs, 3) != nil || p.freePoints != 5 || p.points != (combat.Points{}) || p.stats != before {
+				t.Fatalf("a rejected allocation changed the player: free %d points %+v", p.freePoints, p.points)
+			}
+			if saves := z.saver.(*fakeSaver).all(); len(saves) != 0 {
+				t.Fatalf("saves %+v, want none", saves)
+			}
+		})
+	}
+}
+
+// ______________________TEST DEATH_____________________
+
+func respawnRespFor(envs []*pb.Envelope, seq uint32) (*pb.RespawnResp, int) {
+	for i, e := range envs {
+		if r := e.GetRespawnResp(); r != nil && e.Seq == seq {
+			return r, i
+		}
+	}
+	return nil, -1
+}
+
+func indexOfTick(envs []*pb.Envelope) int {
+	for i, e := range envs {
+		if e.GetWorldTick() != nil {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestRespawnRequest(t *testing.T) {
+	z, _ := newFightZone(t, 1, Vec2{50.5, 50.5})
+	a := joinNow(t, z, 1, 15.5, 5.5) // cell (1,0); the respawn point is in (0,0)
+	v := joinNow(t, z, 2, 12.5, 5.5) // sees both cells
+	p := z.players[1]
+	p.mp = 7
+	z.advance(time.Now())
+	a.take()
+	v.take()
+
+	if !z.Respawn(1, 4) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+	if er := errorFor(a.take(), 4); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_NOT_DEAD {
+		t.Fatalf("respawn while alive: error %v, want NOT_DEAD", er)
+	}
+
+	z.damagePlayer(p, 0, 10000)
+	z.advance(time.Now())
+	a.take()
+	v.take()
+	if !z.Respawn(1, 5) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+	if p.dead || p.pos != z.area.Respawn || p.cell != z.cellOf(z.area.Respawn) || p.hp != p.maxHP || p.mp != p.stats.MaxMP {
+		t.Fatalf("after respawn dead %v at %v cell %v hp %d/%d mp %d/%d, want alive and full at %v",
+			p.dead, p.pos, p.cell, p.hp, p.maxHP, p.mp, p.stats.MaxMP, z.area.Respawn)
+	}
+	envs := a.take()
+	r, ri := respawnRespFor(envs, 5)
+	if r == nil || r.X != z.area.Respawn.X || r.Y != z.area.Respawn.Y {
+		t.Fatalf("RespawnResp %v, want the respawn point %v", r, z.area.Respawn)
+	}
+	if ti := indexOfTick(envs); ti < ri {
+		t.Fatalf("RespawnResp at %d after the WorldTick at %d", ri, ti)
+	}
+	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Hp != int32(p.maxHP) || ss[0].Mp != int32(p.stats.MaxMP) {
+		t.Fatalf("SelfStats %v, want one push with full HP and MP", ss)
+	}
+	ev := v.take()
+	wt := lastTick(ev)
+	mv := moveFor(wt, 1)
+	if mv == nil || !mv.Snap || mv.X != z.area.Respawn.X || mv.Y != z.area.Respawn.Y {
+		t.Fatalf("viewer move %v, want a snap to the respawn point", mv)
+	}
+	if cs := hpChangesIn(ev); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(p.maxHP) {
+		t.Fatalf("viewer HpChanges %v, want full HP for 1", cs)
+	}
+
+	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{0, 1}})
+	z.advance(time.Now())
+	if p.pos == z.area.Respawn {
+		t.Fatal("a respawned player must be able to move")
+	}
+	if mv := moveFor(lastTick(v.take()), 1); mv == nil || mv.Snap {
+		t.Fatalf("viewer move %v, want an ordinary move after the snap", mv)
+	}
+}
+
+func TestAutoRespawnAfter60s(t *testing.T) {
+	z, _ := newFightZone(t, 1, Vec2{50.5, 50.5})
+	a := joinNow(t, z, 1, 15.5, 5.5)
+	v := joinNow(t, z, 2, 12.5, 5.5)
+	p := z.players[1]
+	z.advance(time.Now())
+	z.damagePlayer(p, 0, 10000)
+	diedAt := z.tickNo
+	now := time.Now()
+	for z.tickNo < diedAt+599 {
+		z.advance(now)
+	}
+	if !p.dead {
+		t.Fatalf("respawned at tick %d, before 60 s had passed", z.tickNo)
+	}
+	a.take()
+	v.take()
+	z.advance(now)
+	if p.dead || p.pos != z.area.Respawn || p.hp != p.maxHP {
+		t.Fatalf("tick %d: dead %v at %v hp %d, want respawned 60 s after death", z.tickNo, p.dead, p.pos, p.hp)
+	}
+	envs := a.take()
+	for _, e := range envs {
+		if e.GetRespawnResp() != nil {
+			t.Fatal("an automatic respawn must not send RespawnResp")
+		}
+	}
+	if len(selfStatsIn(envs)) != 1 {
+		t.Fatal("want a SelfStats push after the automatic respawn")
+	}
+	if mv := moveFor(lastTick(v.take()), 1); mv == nil || !mv.Snap {
+		t.Fatalf("viewer move %v, want a snap", mv)
+	}
+}
+
+// A monster whose target is killed by its own hits picks another player, or
+// goes home when there is none (spec 4.2).
+func TestMonsterDropsDeadTarget(t *testing.T) {
+	for _, other := range []bool{true, false} {
+		z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+		joinHP(t, z, 1, 31.5, 30.5, 20)
+		if other {
+			joinNow(t, z, 2, 30.5, 33.5)
+			m.attackers[2] = struct{}{}
+		}
+		now := time.Now()
+		for i := 0; i < 30 && !z.players[1].dead; i++ {
+			z.advance(now)
+		}
+		if !z.players[1].dead {
+			t.Fatal("the monster should have killed player 1")
+		}
+		z.advance(now)
+		if other && (m.target != 2 || m.state == returning) {
+			t.Fatalf("target %d state %v, want the monster on player 2", m.target, m.state)
+		}
+		if !other && (m.target != 0 || (m.state != returning && m.state != idle)) {
+			t.Fatalf("target %d state %v, want the monster going home", m.target, m.state)
+		}
+	}
+}
+
+// ______________________TEST REST_____________________
+
+// newRestZone is a fight zone with a rest point of radius 2 at (5.5, 5.5),
+// far from the monster, and player 1 standing on it with hp.
+func newRestZone(t *testing.T, hp int) (*Zone, *player, *fakeOut, *fakeOut) {
+	t.Helper()
+	z, _ := newFightZone(t, 1, Vec2{50.5, 50.5})
+	z.area.Rests = []Circle{{C: Vec2{5.5, 5.5}, R: 2}}
+	a := joinHP(t, z, 1, 5.5, 5.5, hp)
+	v := joinNow(t, z, 2, 8.5, 8.5)
+	return z, z.players[1], a, v
+}
+
+func TestRestHealsAfterFiveSeconds(t *testing.T) {
+	z, p, a, v := newRestZone(t, 100)
+	p.mp = 10
+	now := time.Now()
+	for i := 1; i < 50; i++ {
+		z.advance(now)
+	}
+	if p.hp != 100 || p.mp != 10 {
+		t.Fatalf("hp %d mp %d after 49 ticks, want no heal yet", p.hp, p.mp)
+	}
+	a.take()
+	v.take()
+	z.advance(now)
+	if p.hp != p.maxHP || p.mp != p.stats.MaxMP {
+		t.Fatalf("hp %d/%d mp %d/%d after 50 ticks, want full", p.hp, p.maxHP, p.mp, p.stats.MaxMP)
+	}
+	envs := a.take()
+	if len(selfStatsIn(envs)) != 1 {
+		t.Fatal("want a SelfStats push after the rest heal")
+	}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(p.maxHP) {
+			t.Fatalf("%s HpChanges %v, want full HP for 1", name, cs)
+		}
+	}
+
+	// Moving at tick 30 restarts the count, so the heal comes 50 still ticks later.
+	z, p, _, _ = newRestZone(t, 100)
+	for i := 1; i < 30; i++ {
+		z.advance(now)
+	}
+	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{1, 0}})
+	z.advance(now) // tick 30, moving
+	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{}})
+	for z.tickNo < 79 {
+		z.advance(now)
+	}
+	if p.hp != 100 {
+		t.Fatalf("hp %d at tick 79, want no heal before 50 still ticks", p.hp)
+	}
+	z.advance(now)
+	if p.hp != p.maxHP {
+		t.Fatalf("hp %d at tick 80, want healed after 50 still ticks", p.hp)
+	}
+}
+
+func TestRestOnlyInsideRadiusAndAlive(t *testing.T) {
+	z, p, _, _ := newRestZone(t, 100)
+	p.pos = Vec2{7.6, 5.5} // 2.1 tiles from the centre
+	now := time.Now()
+	for i := 0; i < 60; i++ {
+		z.advance(now)
+	}
+	if p.hp != 100 {
+		t.Fatalf("hp %d, want no heal outside the radius", p.hp)
+	}
+
+	z, p, _, _ = newRestZone(t, 100)
+	z.damagePlayer(p, 0, 10000)
+	for i := 0; i < 60; i++ {
+		z.advance(now)
+	}
+	if p.hp != 0 || !p.dead {
+		t.Fatalf("hp %d dead %v, want a dead player left dead", p.hp, p.dead)
+	}
+}
+
+func TestRestDoesNothingWhenFull(t *testing.T) {
+	z, p, a, v := newRestZone(t, -1)
+	now := time.Now()
+	for i := 0; i < 120; i++ {
+		z.advance(now)
+	}
+	envs := a.take()
+	if cs := append(hpChangesIn(envs), hpChangesIn(v.take())...); len(cs) != 0 {
+		t.Fatalf("HpChanges %v, want none for a full player", cs)
+	}
+	if ss := selfStatsIn(envs); len(ss) != 0 {
+		t.Fatalf("SelfStats %v, want none for a full player", ss)
+	}
+
+	// Full HP but not full MP: MP is restored, with SelfStats but no HpChange.
+	p.mp = 1
+	for i := 0; i < 50; i++ {
+		z.advance(now)
+	}
+	envs = a.take()
+	if p.mp != p.stats.MaxMP || len(selfStatsIn(envs)) != 1 || len(hpChangesIn(envs)) != 0 {
+		t.Fatalf("mp %d/%d SelfStats %d HpChanges %v, want MP restored with only a SelfStats push",
+			p.mp, p.stats.MaxMP, len(selfStatsIn(envs)), hpChangesIn(envs))
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
@@ -449,28 +450,41 @@ func TestMonsterAndPlayerIDsShareCounter(t *testing.T) {
 	}
 }
 
-func TestMembershipAttackReachesZone(t *testing.T) {
-	w := newTestWorld(t, 10)
-	out := newRecOut()
-	m, err := w.Enter(context.Background(), EnterRequest{Char: char(1, "m1", 3.5, 4.5), Out: out})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !m.Attack(5, 999999) {
-		t.Fatal("Attack: inbox full")
-	}
-	timeout := time.After(2 * time.Second)
-	for {
-		select {
-		case e := <-out.ch:
-			if er := e.GetError(); er != nil {
-				if e.Seq != 5 || er.Code != pb.ErrorCode_ERROR_CODE_INVALID_TARGET {
-					t.Fatalf("got seq %d %v, want seq 5 INVALID_TARGET", e.Seq, er)
-				}
-				return
+// Each in-world request reaches the zone, which answers its seq on the outbox.
+func TestMembershipRequestsReachZone(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		send func(m *Membership) bool
+		code pb.ErrorCode
+	}{
+		{"attack", func(m *Membership) bool { return m.Attack(5, 999999) }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"allocate", func(m *Membership) bool { return m.Allocate(5, combat.Points{}) }, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"respawn", func(m *Membership) bool { return m.Respawn(5) }, pb.ErrorCode_ERROR_CODE_NOT_DEAD},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newTestWorld(t, 10)
+			out := newRecOut()
+			m, err := w.Enter(context.Background(), EnterRequest{Char: char(1, "m1", 3.5, 4.5), Out: out})
+			if err != nil {
+				t.Fatal(err)
 			}
-		case <-timeout:
-			t.Fatal("no reply to the attack")
-		}
+			if !c.send(m) {
+				t.Fatal("inbox full")
+			}
+			timeout := time.After(2 * time.Second)
+			for {
+				select {
+				case e := <-out.ch:
+					if er := e.GetError(); er != nil {
+						if e.Seq != 5 || er.Code != c.code {
+							t.Fatalf("got seq %d %v, want seq 5 %v", e.Seq, er, c.code)
+						}
+						return
+					}
+				case <-timeout:
+					t.Fatal("no reply to the request")
+				}
+			}
+		})
 	}
 }

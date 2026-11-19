@@ -89,6 +89,7 @@ type player struct {
 	mp         int
 
 	deadUntil     uint32     // tick at which a dead player respawns by itself
+	restTicks     uint32     // consecutive ticks standing still, alive, on a rest point
 	lastAttack    uint32     // tick of the last accepted attack; 0 means never
 	pendingAttack *attackCmd // this tick's attack, resolved after drain
 	statsDirty    bool       // send SelfStats after this tick's WorldTick
@@ -115,6 +116,17 @@ type attackCmd struct {
 	id     uint64
 	seq    uint32
 	target uint64
+}
+
+type allocateCmd struct {
+	id     uint64
+	seq    uint32
+	points combat.Points
+}
+
+type respawnCmd struct {
+	id  uint64
+	seq uint32
 }
 
 type Zone struct {
@@ -249,6 +261,30 @@ func (z *Zone) Attack(id uint64, seq uint32, target uint64) bool {
 	}
 }
 
+// Allocate queues spending free potential points. The zone answers seq with
+// AllocatePointsResp or ErrorResp on the player's outbox. It never blocks and
+// reports false if the inbox is full.
+func (z *Zone) Allocate(id uint64, seq uint32, p combat.Points) bool {
+	select {
+	case z.inbox <- allocateCmd{id: id, seq: seq, points: p}:
+		return true
+	default:
+		return false
+	}
+}
+
+// Respawn queues a dead player's respawn request. The zone answers seq with
+// RespawnResp or ErrorResp on the player's outbox. It never blocks and
+// reports false if the inbox is full.
+func (z *Zone) Respawn(id uint64, seq uint32) bool {
+	select {
+	case z.inbox <- respawnCmd{id: id, seq: seq}:
+		return true
+	default:
+		return false
+	}
+}
+
 // Run ticks until ctx is cancelled, then saves and kicks every remaining player.
 func (z *Zone) Run(ctx context.Context) {
 	defer close(z.done)
@@ -292,6 +328,7 @@ func (z *Zone) advance(now time.Time) {
 	z.movePlayers()
 	z.thinkMonsters()
 	z.runSpawnTimers()
+	z.runPlayerTimers()
 
 	var slow []*player
 	for _, p := range z.players {
@@ -320,17 +357,19 @@ func (z *Zone) advance(now time.Time) {
 	}
 }
 
+// movePlayers moves the living players and counts how long each has stood
+// still on a rest point.
 func (z *Zone) movePlayers() {
 	step := z.cfg.MoveSpeed / float32(z.cfg.TickRate)
 	for _, p := range z.players {
-		if p.dead || p.dir == (Vec2{}) {
-			continue
+		if !p.dead && p.dir != (Vec2{}) {
+			if np := Step(z.area.Grid, p.pos, p.dir, step); np != p.pos {
+				p.pos = np
+				p.changed = true
+				z.updateCell(&p.entity)
+			}
 		}
-		if np := Step(z.area.Grid, p.pos, p.dir, step); np != p.pos {
-			p.pos = np
-			p.changed = true
-			z.updateCell(&p.entity)
-		}
+		z.countRest(p)
 	}
 }
 
@@ -351,6 +390,10 @@ func (z *Zone) handle(c any) {
 		z.move(c)
 	case attackCmd:
 		z.queueAttack(c)
+	case allocateCmd:
+		z.allocate(c)
+	case respawnCmd:
+		z.respawn(c)
 	}
 }
 

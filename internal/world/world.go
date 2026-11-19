@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"demonslayer2d/internal/classes"
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
@@ -199,6 +200,16 @@ func (m *Membership) Move(seq uint32, x, y float32) { m.z.Move(m.EntityID, seq, 
 func (m *Membership) Attack(seq uint32, target uint64) bool {
 	return m.z.Attack(m.EntityID, seq, target)
 }
+
+// Allocate queues spending free potential points; the zone answers seq on the
+// outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Allocate(seq uint32, p combat.Points) bool {
+	return m.z.Allocate(m.EntityID, seq, p)
+}
+
+// Respawn queues a respawn request; the zone answers seq on the outbox. It
+// reports false if the zone's inbox is full.
+func (m *Membership) Respawn(seq uint32) bool { return m.z.Respawn(m.EntityID, seq) }
 
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
