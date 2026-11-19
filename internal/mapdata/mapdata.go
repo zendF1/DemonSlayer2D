@@ -1,4 +1,4 @@
-// Package mapdata loads map files: size, tile collision grid and spawn points.
+// Package mapdata loads map files: collision grid, spawn points, safe zones, rest points and monster camps.
 package mapdata
 
 import (
@@ -22,7 +22,46 @@ type Map struct {
 	Height int
 	Spawns map[string]Point
 
+	SafeZones  []Rect
+	RestPoints []RestPoint
+	Camps      []Camp
+
 	blocked []bool
+}
+
+// Rect is a rectangle of tiles: tile (i, j) belongs to it when X <= i < X+W and Y <= j < Y+H.
+type Rect struct {
+	ID string `json:"id"`
+	X  int    `json:"x"`
+	Y  int    `json:"y"`
+	W  int    `json:"w"`
+	H  int    `json:"h"`
+}
+
+// ContainsTile reports whether tile (tx, ty) lies in the rectangle.
+func (r Rect) ContainsTile(tx, ty int) bool {
+	return tx >= r.X && tx < r.X+r.W && ty >= r.Y && ty < r.Y+r.H
+}
+
+// RestPoint heals players within Radius tiles of (X, Y).
+type RestPoint struct {
+	ID     string  `json:"id"`
+	X      float32 `json:"x"`
+	Y      float32 `json:"y"`
+	Radius float32 `json:"radius"`
+}
+
+// Camp is a monster spawn area: Count monsters of kind Monster, with levels
+// MinLevel..MaxLevel, on walkable tiles within Radius tiles of (X, Y).
+type Camp struct {
+	ID       string  `json:"id"`
+	Monster  string  `json:"monster"`
+	X        float32 `json:"x"`
+	Y        float32 `json:"y"`
+	Radius   float32 `json:"radius"`
+	Count    int     `json:"count"`
+	MinLevel int     `json:"min_level"`
+	MaxLevel int     `json:"max_level"`
 }
 
 var validTypes = map[string]bool{"town": true, "training": true, "battle": true, "instance": true}
@@ -41,6 +80,9 @@ type mapFile struct {
 	Height      int         `json:"height"`
 	Collision   []string    `json:"collision"`
 	SpawnPoints []spawnFile `json:"spawn_points"`
+	SafeZones   []Rect      `json:"safe_zones"`
+	RestPoints  []RestPoint `json:"rest_points"`
+	Camps       []Camp      `json:"camps"`
 }
 
 // Parse decodes and validates one map file.
@@ -98,7 +140,109 @@ func Parse(data []byte) (*Map, error) {
 	if _, ok := m.Spawns["default"]; !ok {
 		return nil, fmt.Errorf("mapdata %s: missing default spawn point", f.ID)
 	}
+	if err := m.parseTriggers(&f); err != nil {
+		return nil, err
+	}
 	return m, nil
+}
+
+// parseTriggers fills and validates safe zones, rest points and camps.
+func (m *Map) parseTriggers(f *mapFile) error {
+	seen := map[string]bool{}
+	for _, z := range f.SafeZones {
+		if seen[z.ID] {
+			return fmt.Errorf("mapdata %s: duplicate safe zone %q", m.ID, z.ID)
+		}
+		seen[z.ID] = true
+		if z.W <= 0 || z.H <= 0 {
+			return fmt.Errorf("mapdata %s: safe zone %q: w and h must be positive", m.ID, z.ID)
+		}
+		if z.X < 0 || z.Y < 0 || z.X+z.W > m.Width || z.Y+z.H > m.Height {
+			return fmt.Errorf("mapdata %s: safe zone %q is outside the map", m.ID, z.ID)
+		}
+		m.SafeZones = append(m.SafeZones, z)
+	}
+	seen = map[string]bool{}
+	for _, r := range f.RestPoints {
+		if seen[r.ID] {
+			return fmt.Errorf("mapdata %s: duplicate rest point %q", m.ID, r.ID)
+		}
+		seen[r.ID] = true
+		if !(r.Radius > 0) {
+			return fmt.Errorf("mapdata %s: rest point %q: radius must be positive", m.ID, r.ID)
+		}
+		if !m.InSafeZone(Point{r.X, r.Y}) {
+			return fmt.Errorf("mapdata %s: rest point %q is outside every safe zone", m.ID, r.ID)
+		}
+		m.RestPoints = append(m.RestPoints, r)
+	}
+	if len(m.SafeZones) > 0 && !m.InSafeZone(m.Spawns["default"]) {
+		return fmt.Errorf("mapdata %s: default spawn point is outside the safe zones", m.ID)
+	}
+	seen = map[string]bool{}
+	for _, c := range f.Camps {
+		if seen[c.ID] {
+			return fmt.Errorf("mapdata %s: duplicate camp %q", m.ID, c.ID)
+		}
+		seen[c.ID] = true
+		camp := c
+		if c.MinLevel > c.MaxLevel {
+			return fmt.Errorf("mapdata %s: camp %q: min_level %d > max_level %d", m.ID, c.ID, c.MinLevel, c.MaxLevel)
+		}
+		if c.Count <= 0 {
+			return fmt.Errorf("mapdata %s: camp %q: count must be positive", m.ID, c.ID)
+		}
+		if !(c.Radius > 0) {
+			return fmt.Errorf("mapdata %s: camp %q: radius must be positive", m.ID, c.ID)
+		}
+		tiles := m.CampTiles(camp)
+		if len(tiles) < c.Count {
+			return fmt.Errorf("mapdata %s: camp %q has %d camp tiles, want at least %d", m.ID, c.ID, len(tiles), c.Count)
+		}
+		for _, p := range tiles {
+			if m.InSafeZone(p) {
+				return fmt.Errorf("mapdata %s: camp %q: tile (%d,%d) is in a safe zone", m.ID, c.ID, int(p.X), int(p.Y))
+			}
+		}
+		m.Camps = append(m.Camps, camp)
+	}
+	return nil
+}
+
+// InSafeZone reports whether the tile containing p is in a safe zone.
+func (m *Map) InSafeZone(p Point) bool {
+	x, y := float64(p.X), float64(p.Y)
+	if math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) {
+		return false
+	}
+	tx, ty := int(math.Floor(x)), int(math.Floor(y))
+	for _, z := range m.SafeZones {
+		if z.ContainsTile(tx, ty) {
+			return true
+		}
+	}
+	return false
+}
+
+// CampTiles returns the centres of the walkable tiles whose centre is within
+// c.Radius of the camp centre, sorted by (y, x).
+func (m *Map) CampTiles(c Camp) []Point {
+	r := float64(c.Radius)
+	x0, x1 := int(math.Floor(float64(c.X)-r)), int(math.Ceil(float64(c.X)+r))
+	y0, y1 := int(math.Floor(float64(c.Y)-r)), int(math.Ceil(float64(c.Y)+r))
+	var out []Point
+	for ty := y0; ty <= y1; ty++ {
+		for tx := x0; tx <= x1; tx++ {
+			if m.Blocked(tx, ty) {
+				continue
+			}
+			dx, dy := float64(tx)+0.5-float64(c.X), float64(ty)+0.5-float64(c.Y)
+			if dx*dx+dy*dy <= r*r {
+				out = append(out, Point{float32(tx) + 0.5, float32(ty) + 0.5})
+			}
+		}
+	}
+	return out
 }
 
 // Blocked reports whether tile (tx, ty) blocks movement. Tiles outside the map are blocked.
