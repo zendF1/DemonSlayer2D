@@ -2396,6 +2396,7 @@ func TestStateSavesProgress(t *testing.T) {
 
 var testSkills = map[string]gamedata.Skill{
 	"nham_1": {ID: "nham_1", Class: "nham", Slot: 1, LearnLevel: 10},
+	"viem_1": {ID: "viem_1", Class: "viem", Slot: 1, LearnLevel: 10},
 	"nham_3": {ID: "nham_3", Class: "nham", Slot: 0, LearnLevel: 30, Passive: map[string][]int{
 		gamedata.PassiveMaxHPPct:   {2, 4, 6, 8, 10, 12, 14, 16, 18, 20},
 		gamedata.PassivePhysDefPct: {2, 4, 6, 8, 10, 12, 14, 16, 18, 20},

@@ -86,6 +86,12 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.zoneBusyIfDropped(seq, c.member.Respawn(seq))
+	case *pb.Envelope_LearnSkillReq:
+		// No own limiter: only the packet limit applies (phase 2 spec 4.7).
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Learn(seq, p.LearnSkillReq.SkillId))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}

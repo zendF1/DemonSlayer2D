@@ -243,6 +243,20 @@ func (c *Client) Respawn(ctx context.Context) (*pb.RespawnResp, error) {
 	return r, nil
 }
 
+// Learn learns skillID, or raises it a level, and returns the new stats and
+// learned skills.
+func (c *Client) Learn(ctx context.Context, skillID string) (*pb.LearnSkillResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_LearnSkillReq{LearnSkillReq: &pb.LearnSkillReq{SkillId: skillID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetLearnSkillResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to LearnSkillReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Move sends a direction (no response). It returns the input seq used.
 func (c *Client) Move(ctx context.Context, dx, dy float32) (uint32, error) {
 	seq := c.inputSeq.Add(1)

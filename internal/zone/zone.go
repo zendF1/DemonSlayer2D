@@ -135,6 +135,12 @@ type respawnCmd struct {
 	seq uint32
 }
 
+type learnCmd struct {
+	id      uint64
+	seq     uint32
+	skillID string
+}
+
 type Zone struct {
 	cfg   Config
 	area  Area
@@ -291,6 +297,18 @@ func (z *Zone) Respawn(id uint64, seq uint32) bool {
 	}
 }
 
+// Learn queues learning skillID, or raising it a level. The zone answers seq
+// with LearnSkillResp or ErrorResp on the player's outbox. It never blocks
+// and reports false if the inbox is full.
+func (z *Zone) Learn(id uint64, seq uint32, skillID string) bool {
+	select {
+	case z.inbox <- learnCmd{id: id, seq: seq, skillID: skillID}:
+		return true
+	default:
+		return false
+	}
+}
+
 // Run ticks until ctx is cancelled, then saves and kicks every remaining player.
 func (z *Zone) Run(ctx context.Context) {
 	defer close(z.done)
@@ -400,6 +418,8 @@ func (z *Zone) handle(c any) {
 		z.allocate(c)
 	case respawnCmd:
 		z.respawn(c)
+	case learnCmd:
+		z.learn(c)
 	}
 }
 

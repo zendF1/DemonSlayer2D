@@ -6,6 +6,7 @@ import (
 
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
 )
 
@@ -114,6 +115,48 @@ func (z *Zone) allocate(c allocateCmd) {
 	}
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AllocatePointsResp{AllocatePointsResp: &pb.AllocatePointsResp{Stats: z.selfStats(p)}}})
+}
+
+// learn spends a skill point to learn a skill of p's class or raise it a
+// level (phase 2 spec 3.1). Checks run in the spec's order and the first
+// failure is answered. A passive changes the stats; current HP and MP rise by
+// as much as their max. The new skill level is saved at once.
+func (z *Zone) learn(c learnCmd) {
+	p, ok := z.players[c.id]
+	if !ok {
+		return // left or evicted; see queueAttack
+	}
+	s, known := z.area.Skills[c.skillID]
+	n := p.skills[c.skillID]
+	var code pb.ErrorCode
+	switch {
+	case p.dead:
+		code = pb.ErrorCode_ERROR_CODE_DEAD
+	case !known || classes.ToPB(s.Class) != p.class:
+		code = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	case n >= gamedata.SkillLevels:
+		code = pb.ErrorCode_ERROR_CODE_SKILL_MAXED
+	case p.level < s.LearnLevel+n:
+		code = pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
+	case p.skillPoints < 1:
+		code = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS
+	}
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		z.replyError(p, c.seq, code)
+		return
+	}
+	p.skillPoints--
+	p.skills[c.skillID] = n + 1
+	oldHP, oldMP := p.maxHP, p.stats.MaxMP
+	z.recompute(p)
+	p.hp += p.maxHP - oldHP
+	p.mp += p.stats.MaxMP - oldMP
+	if p.maxHP != oldHP {
+		z.hpChanged(&p.entity)
+	}
+	z.saver.Save(z.state(p), nil)
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_LearnSkillResp{LearnSkillResp: &pb.LearnSkillResp{
+		Stats: z.selfStats(p), Skills: skillLevels(p)}}})
 }
 
 // selfStats is p's own view of its progression and stats (spec 5.2).

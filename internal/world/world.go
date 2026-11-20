@@ -218,6 +218,12 @@ func (m *Membership) Allocate(seq uint32, p combat.Points) bool {
 // reports false if the zone's inbox is full.
 func (m *Membership) Respawn(seq uint32) bool { return m.z.Respawn(m.EntityID, seq) }
 
+// Learn queues learning skillID or raising it a level; the zone answers seq
+// on the outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Learn(seq uint32, skillID string) bool {
+	return m.z.Learn(m.EntityID, seq, skillID)
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

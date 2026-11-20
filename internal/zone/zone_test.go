@@ -912,3 +912,148 @@ func TestRegionNearestTileAndMargin(t *testing.T) {
 		}
 	}
 }
+
+// ______________________TEST LEARN_____________________
+
+// learnZone joins a Nham player 1 of the given level and skill points, with
+// skills learned, into a zone that has testSkills.
+func learnZone(t *testing.T, level, points int, skills map[string]int) (*Zone, *player, *fakeOut, *fakeSaver) {
+	t.Helper()
+	sv := &fakeSaver{}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Skills: testSkills}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.SkillPoints, in.Skills = pb.CharClass_CHAR_CLASS_NHAM, level, points, skills
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	out.take()
+	return z, z.players[1], out, sv
+}
+
+// learnNow queues learning skillID by id with seq and runs one tick.
+func learnNow(t *testing.T, z *Zone, id uint64, seq uint32, skillID string) {
+	t.Helper()
+	if !z.Learn(id, seq, skillID) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+func learnRespFor(envs []*pb.Envelope, seq uint32) *pb.LearnSkillResp {
+	for _, e := range envs {
+		if r := e.GetLearnSkillResp(); r != nil && e.Seq == seq {
+			return r
+		}
+	}
+	return nil
+}
+
+// Each check of phase 2 spec 3.1 in order: a case breaks every later check
+// too, so the first failing check is the one answered.
+func TestLearnErrors(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		level  int
+		points int
+		skills map[string]int
+		dead   bool
+		learn  []string // all but the last must succeed
+		code   pb.ErrorCode
+	}{
+		{"dead with a bad id", combat.MaxLevel, 5, nil, true, []string{"nope"}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"unknown id", 1, 0, nil, false, []string{"nope"}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"other class", 1, 0, nil, false, []string{"viem_1"}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"maxed", 10, 0, map[string]int{"nham_1": gamedata.SkillLevels}, false, []string{"nham_1"}, pb.ErrorCode_ERROR_CODE_SKILL_MAXED},
+		{"level too low to learn", 9, 0, nil, false, []string{"nham_1"}, pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW},
+		{"level too low to raise", 10, 2, nil, false, []string{"nham_1", "nham_1"}, pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW},
+		{"no points", 10, 0, nil, false, []string{"nham_1"}, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, out, sv := learnZone(t, c.level, c.points, c.skills)
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+				z.advance(time.Now())
+				out.take()
+			}
+			for i, id := range c.learn[:len(c.learn)-1] {
+				learnNow(t, z, 1, uint32(i+1), id)
+				if learnRespFor(out.take(), uint32(i+1)) == nil {
+					t.Fatalf("setup learn %d of %s failed", i+1, id)
+				}
+			}
+			points, skills, stats, saves := p.skillPoints, maps.Clone(p.skills), p.stats, len(sv.all())
+			learnNow(t, z, 1, 9, c.learn[len(c.learn)-1])
+			envs := out.take()
+			if er := errorFor(envs, 9); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if learnRespFor(envs, 9) != nil || p.skillPoints != points || !maps.Equal(p.skills, skills) || p.stats != stats {
+				t.Fatalf("a rejected learn changed the player: points %d skills %v", p.skillPoints, p.skills)
+			}
+			if n := len(sv.all()); n != saves {
+				t.Fatalf("%d saves, want %d", n, saves)
+			}
+		})
+	}
+}
+
+// Learning spends a point, raises the skill a level, saves at once and
+// replies with the new stats and skills.
+func TestLearn(t *testing.T) {
+	z, p, out, sv := learnZone(t, 11, 3, map[string]int{"nham_3": 1})
+	learnNow(t, z, 1, 4, "nham_1")
+	learnNow(t, z, 1, 5, "nham_1")
+	if p.skillPoints != 1 || !maps.Equal(p.skills, map[string]int{"nham_1": 2, "nham_3": 1}) {
+		t.Fatalf("points %d skills %v, want 1 and nham_1 at 2", p.skillPoints, p.skills)
+	}
+	envs := out.take()
+	r := learnRespFor(envs, 5)
+	if r == nil || r.Stats.String() != z.selfStats(p).String() || r.Stats.SkillPoints != 1 {
+		t.Fatalf("LearnSkillResp %v, want the new stats %v", r, z.selfStats(p))
+	}
+	want := []*pb.SkillLevel{{SkillId: "nham_1", Level: 2}, {SkillId: "nham_3", Level: 1}}
+	if len(r.Skills) != len(want) || r.Skills[0].String() != want[0].String() || r.Skills[1].String() != want[1].String() {
+		t.Fatalf("skills %v, want %v", r.Skills, want)
+	}
+	if r1 := learnRespFor(envs, 4); r1 == nil || len(r1.Skills) != 2 || r1.Skills[0].Level != 1 {
+		t.Fatalf("first LearnSkillResp %v, want nham_1 at 1", r1)
+	}
+	saves := sv.all()
+	if len(saves) != 2 || saves[1].SkillPoints != 1 || !maps.Equal(saves[1].Skills, p.skills) {
+		t.Fatalf("saves %+v, want one save per learn with the new skills", saves)
+	}
+	if cs := hpChangesIn(envs); len(cs) != 0 {
+		t.Fatalf("HpChanges %v, want none for an active skill", cs)
+	}
+}
+
+// Learning the Nham passive raises max HP and current HP by the same amount,
+// and viewers see the new bar.
+func TestLearnPassiveRaisesHP(t *testing.T) {
+	z, p, out, _ := learnZone(t, 31, 2, map[string]int{"nham_3": 1})
+	p.hp, p.mp = 100, 7
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	before := combat.Compute(false, 31, combat.Points{}, combat.Passive{MaxHPPct: 2, PhysDefPct: 2})
+	after := combat.Compute(false, 31, combat.Points{}, combat.Passive{MaxHPPct: 4, PhysDefPct: 4})
+	if p.maxHP != before.MaxHP || after.MaxHP <= before.MaxHP {
+		t.Fatalf("setup: max HP %d, want %d below %d", p.maxHP, before.MaxHP, after.MaxHP)
+	}
+	learnNow(t, z, 1, 3, "nham_3")
+	wantHP := 100 + after.MaxHP - before.MaxHP
+	if p.maxHP != after.MaxHP || p.hp != wantHP || p.mp != 7 || p.stats != after {
+		t.Fatalf("hp %d/%d mp %d, want %d/%d and mp 7", p.hp, p.maxHP, p.mp, wantHP, after.MaxHP)
+	}
+	envs := out.take()
+	if r := learnRespFor(envs, 3); r == nil || r.Stats.MaxHp != int32(after.MaxHP) || r.Stats.Hp != int32(wantHP) {
+		t.Fatalf("LearnSkillResp %v", r)
+	}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(wantHP) || cs[0].MaxHp != int32(after.MaxHP) {
+			t.Fatalf("%s HpChanges %v, want %d/%d for 1", name, cs, wantHP, after.MaxHP)
+		}
+	}
+}

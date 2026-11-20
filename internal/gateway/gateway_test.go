@@ -195,6 +195,21 @@ func TestConnUsesForwardedIPFromTrustedProxy(t *testing.T) {
 	}
 }
 
+// ______________________TEST HANDLERS_____________________
+
+// LearnSkillReq needs a character in the world.
+func TestLearnSkillNotInWorld(t *testing.T) {
+	s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	c := s.newConn(nil, "127.0.0.1")
+	defer c.idle.Stop()
+	defer c.authTimer.Stop()
+	c.dispatch(context.Background(), &pb.Envelope{Seq: 4, Payload: &pb.Envelope_LearnSkillReq{LearnSkillReq: &pb.LearnSkillReq{SkillId: "nham_1"}}})
+	env := <-c.out.ch
+	if env.Seq != 4 || env.GetError().GetCode() != pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD {
+		t.Fatalf("reply %v, want NOT_IN_WORLD for seq 4", env)
+	}
+}
+
 // ______________________TEST CLIENT FIXTURES_____________________
 
 var updateFixtures = flag.Bool("update", false, "rewrite testdata/client")
