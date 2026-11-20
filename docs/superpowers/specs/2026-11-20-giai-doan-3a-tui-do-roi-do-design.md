@@ -1,6 +1,6 @@
 # Giai đoạn 3a — Hành trang, rơi đồ, mặc đồ và Xu
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server và client (client 24e9c99, sửa sau review 644a46a); smoke OK.
 
 Spec này thiết kế phần đầu của Giai đoạn 3 (Trang bị) cho server (repo này) và client Godot (`../DemonSlayer2DGame`). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 3.1, 5.9, 5.12 và 7.1; khi hai tài liệu lệch nhau về luật chơi thì game-design là chuẩn, trừ các điểm ghi ở mục 1.4. Những gì không nhắc tới ở đây giữ nguyên như [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) và [spec ba mốc của đòn đánh](2026-11-20-moc-don-danh-design.md).
 
