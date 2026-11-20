@@ -204,6 +204,42 @@ func (c *Client) EnterWorld(ctx context.Context, charID int64) (*pb.EnterWorldRe
 	return r, nil
 }
 
+// UsePortal walks through the portal id of the current map and returns the
+// EnterWorldResp of the zone it leads to.
+func (c *Client) UsePortal(ctx context.Context, id string) (*pb.EnterWorldResp, error) {
+	return enterResp(c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_UsePortalReq{UsePortalReq: &pb.UsePortalReq{PortalId: id}}}))
+}
+
+// ChangeZone switches to zone no of the current map and returns its EnterWorldResp.
+func (c *Client) ChangeZone(ctx context.Context, no int) (*pb.EnterWorldResp, error) {
+	return enterResp(c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_ChangeZoneReq{ChangeZoneReq: &pb.ChangeZoneReq{Zone: int32(no)}}}))
+}
+
+// ZoneList returns the running zones of the current map.
+func (c *Client) ZoneList(ctx context.Context) ([]*pb.ZoneInfo, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_ZoneListReq{ZoneListReq: &pb.ZoneListReq{}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetZoneListResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to ZoneListReq: %v", resp)
+	}
+	return r.Zones, nil
+}
+
+// enterResp is the EnterWorldResp answering a transfer request.
+func enterResp(resp *pb.Envelope, err error) (*pb.EnterWorldResp, error) {
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetEnterWorldResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to a transfer request: %v", resp)
+	}
+	return r, nil
+}
+
 func (c *Client) LeaveWorld(ctx context.Context) error {
 	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_LeaveWorldReq{LeaveWorldReq: &pb.LeaveWorldReq{}}})
 	return err

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -175,6 +176,22 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.zoneBusyIfDropped(seq, c.member.RefineChoose(seq, p.RefineChooseReq.Accept))
+	case *pb.Envelope_UsePortalReq:
+		// The transfer requests have only the packet limit (phase 4a spec 3.2).
+		if !c.inWorld(seq) {
+			return
+		}
+		c.handleTransfer(ctx, seq, world.TransferReq{Kind: world.TransferPortal, PortalID: p.UsePortalReq.PortalId})
+	case *pb.Envelope_ChangeZoneReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.handleTransfer(ctx, seq, world.TransferReq{Kind: world.TransferZone, Zone: int(p.ChangeZoneReq.Zone)})
+	case *pb.Envelope_ZoneListReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.handleZoneList(seq)
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}
@@ -342,4 +359,48 @@ func (c *conn) handleLeaveWorld(seq uint32) {
 	c.member = nil
 	c.state = stateAuthed
 	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_LeaveWorldResp{LeaveWorldResp: &pb.LeaveWorldResp{}}})
+}
+
+// handleTransfer moves the character to another zone (phase 4a spec 3.2).
+// It runs on the read goroutine, so no other request of this connection
+// reaches the old zone while the character is between zones. On success the
+// new zone has already queued EnterWorldResp for seq.
+func (c *conn) handleTransfer(ctx context.Context, seq uint32, req world.TransferReq) {
+	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	req.RespSeq = seq
+	m, saved, err := c.srv.deps.World.Transfer(rctx, c.member, req)
+	if saved != nil {
+		// The character left its zone but the world stopped before it joined
+		// the next one: it is saved at the destination, so wait for that save
+		// (Done must only close after it) and close the connection.
+		c.member = nil
+		c.state = stateAuthed
+		c.waitSaved(saved, "save on transfer")
+		c.Kick(pb.KickReason_KICK_REASON_SERVER_SHUTDOWN)
+		return
+	}
+	var refused *world.TransferError
+	switch {
+	case errors.As(err, &refused):
+		c.fail(seq, refused.Code, refused.Code.String())
+	case err != nil:
+		// zone.ErrNotInZone: the zone evicted the character and is kicking
+		// this connection; the old membership still answers Leave with its save.
+		c.failErr(seq, err)
+	default:
+		c.member = m
+		c.log.Info("transfer", "account_id", c.accountID, "map", m.MapID, "zone", m.ZoneNo)
+	}
+}
+
+// handleZoneList answers with the running zones of the character's map (phase 4a spec 3.5).
+func (c *conn) handleZoneList(seq uint32) {
+	w := c.srv.deps.World
+	capacity := int32(w.Capacity())
+	resp := &pb.ZoneListResp{}
+	for _, z := range w.Zones(c.member.MapID) {
+		resp.Zones = append(resp.Zones, &pb.ZoneInfo{Zone: int32(z.No), Players: int32(z.Players), Capacity: capacity})
+	}
+	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_ZoneListResp{ZoneListResp: resp}})
 }

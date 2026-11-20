@@ -242,6 +242,29 @@ func TestItemRequestsNotInWorld(t *testing.T) {
 	}
 }
 
+// The transfer and zone list requests need a character in the world (phase
+// 4a spec 3.3-3.5).
+func TestTransferRequestsNotInWorld(t *testing.T) {
+	for name, env := range map[string]*pb.Envelope{
+		"use portal":  {Payload: &pb.Envelope_UsePortalReq{UsePortalReq: &pb.UsePortalReq{PortalId: "gate_east"}}},
+		"change zone": {Payload: &pb.Envelope_ChangeZoneReq{ChangeZoneReq: &pb.ChangeZoneReq{Zone: 2}}},
+		"zone list":   {Payload: &pb.Envelope_ZoneListReq{ZoneListReq: &pb.ZoneListReq{}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+			c := s.newConn(nil, "127.0.0.1")
+			defer c.idle.Stop()
+			defer c.authTimer.Stop()
+			env.Seq = 4
+			c.dispatch(context.Background(), env)
+			r := <-c.out.ch
+			if r.Seq != 4 || r.GetError().GetCode() != pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD {
+				t.Fatalf("reply %v, want NOT_IN_WORLD for seq 4", r)
+			}
+		})
+	}
+}
+
 // ______________________TEST CLIENT FIXTURES_____________________
 
 var updateFixtures = flag.Bool("update", false, "rewrite testdata/client")
