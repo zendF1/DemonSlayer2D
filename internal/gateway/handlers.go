@@ -103,6 +103,12 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.zoneBusyIfDropped(seq, c.member.Learn(seq, p.LearnSkillReq.SkillId))
+	case *pb.Envelope_PickupReq:
+		// The item requests have only the packet limit (phase 3a spec 4.8).
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Pickup(seq, p.PickupReq.ItemId))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}

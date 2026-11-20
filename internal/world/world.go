@@ -237,6 +237,12 @@ func (m *Membership) Cast(seq uint32, skillID string, target uint64, dirX, dirY 
 	return m.z.Cast(m.EntityID, seq, skillID, target, zone.Vec2{X: dirX, Y: dirY})
 }
 
+// Pickup queues picking up the ground item itemID; the zone answers seq on
+// the outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Pickup(seq uint32, itemID uint64) bool {
+	return m.z.Pickup(m.EntityID, seq, itemID)
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

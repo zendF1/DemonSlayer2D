@@ -1197,3 +1197,169 @@ func TestLevelUpKeepsGear(t *testing.T) {
 		t.Fatalf("level %d stats %+v, want %+v", p.level, p.stats, want)
 	}
 }
+
+// ______________________TEST PICKUP_____________________
+
+// putGround lays it on the ground at pos for character owner, as loot does,
+// for 60 seconds.
+func putGround(z *Zone, owner int64, pos Vec2, it items.Item) *groundItem {
+	g := &groundItem{
+		entity: entity{id: z.cfg.NewID(), kind: pb.EntityKind_ENTITY_KIND_ITEM, name: itemName(z.area.Items, it.Code), pos: pos},
+		owner:  owner, item: it, expires: z.tickNo + z.ticks(60),
+	}
+	g.cell = z.cellOf(g.pos)
+	z.ground[g.id] = g
+	z.addToCell(&g.entity)
+	return g
+}
+
+// fillBag puts a white Lữ Hành helmet in every empty bag slot of inv.
+func fillBag(inv *items.Inventory) {
+	for i, it := range inv.Bag {
+		if it == nil {
+			inv.Bag[i] = &items.Item{Code: "eq10_helmet", Count: 1}
+		}
+	}
+}
+
+// pickupNow queues picking up itemID by id with seq and runs one tick.
+func pickupNow(t *testing.T, z *Zone, id uint64, seq uint32, itemID uint64) {
+	t.Helper()
+	if !z.Pickup(id, seq, itemID) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+func pickupRespFor(envs []*pb.Envelope, seq uint32) *pb.PickupResp {
+	for _, e := range envs {
+		if r := e.GetPickupResp(); r != nil && e.Seq == seq {
+			return r
+		}
+	}
+	return nil
+}
+
+// onGround reports whether g is still in the zone's ground items and its
+// AOI cell.
+func onGround(z *Zone, g *groundItem) bool {
+	return z.ground[g.id] == g && z.cells[g.cell][g.id] == &g.entity
+}
+
+// Each check of spec 4.6 in order. Every case also breaks the checks after
+// its own, so only the first failing check can answer it.
+func TestPickupErrors(t *testing.T) {
+	sword := items.Item{Code: "eq10_weapon_viem", Count: 1}
+	for _, c := range []struct {
+		name  string
+		dead  bool
+		owner int64   // the item's owner; 100 is player 1
+		dx    float32 // tiles east of the player
+		gone  bool    // ask for an id that is not on the ground
+		full  bool    // fill the bag first
+		item  items.Item
+		code  pb.ErrorCode
+	}{
+		{"dead next to their item", true, 100, 0.5, false, false, sword, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"dead, missing, far and full", true, 200, 5, true, true, sword, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"missing id", false, 100, 0.5, true, true, sword, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		{"another owner's item", false, 200, 5, false, true, sword, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		{"another owner's item in reach", false, 200, 0.5, false, false, sword, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		{"2.1 tiles away", false, 100, 2.1, false, true, sword, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"full bag", false, 100, 1.9, false, true, sword, pb.ErrorCode_ERROR_CODE_BAG_FULL},
+		// 12 stones in slot 3 leave room for 987, not for the whole stack.
+		{"no room for the whole stack", false, 100, 1, false, true, items.Item{Code: "stone_enhance", Count: 988},
+			pb.ErrorCode_ERROR_CODE_BAG_FULL},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, _, sv := gearZone(t, gearInventory())
+			out := p.out.(*fakeOut)
+			if c.full {
+				fillBag(p.inv)
+			}
+			g := putGround(z, c.owner, Vec2{p.pos.X + c.dx, p.pos.Y}, c.item)
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			out.take()
+			id := g.id
+			if c.gone {
+				id = g.id + 1000
+			}
+			before, saves := p.inv.Clone(), len(sv.all())
+			pickupNow(t, z, 1, 9, id)
+			envs := out.take()
+			if er := errorFor(envs, 9); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if pickupRespFor(envs, 9) != nil || !reflect.DeepEqual(p.inv, before) {
+				t.Fatal("a rejected pickup changed the bag")
+			}
+			if !onGround(z, g) || slices.Contains(leaves(envs), g.id) {
+				t.Fatal("a rejected pickup took the item off the ground")
+			}
+			if n := len(sv.all()); n != saves {
+				t.Fatalf("%d saves, want %d", n, saves)
+			}
+		})
+	}
+}
+
+// A piece 1.9 tiles away goes into the first empty slot; the item leaves the
+// ground and the owner's view, the bag is saved at once and the reply lists
+// the changed slot.
+func TestPickup(t *testing.T) {
+	z, p, _, sv := gearZone(t, gearInventory())
+	out := p.out.(*fakeOut)
+	it := items.Item{Code: "eq10_armor", Count: 1, Quality: 1, Lines: []items.Line{{Stat: "hp", Value: 40}}}
+	g := putGround(z, 100, Vec2{p.pos.X, p.pos.Y + 1.9}, it)
+	z.advance(time.Now())
+	if en := itemEnters(out.take()); en[g.id] == nil {
+		t.Fatal("setup: the owner does not see the item")
+	}
+	saves := len(sv.all())
+	pickupNow(t, z, 1, 9, g.id)
+	envs := out.take()
+	r := pickupRespFor(envs, 9)
+	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 1, Item: itemInfo(&it)}}}
+	if r == nil || !proto.Equal(r.Update, want) {
+		t.Fatalf("PickupResp %v, want %v", r, want)
+	}
+	if !reflect.DeepEqual(*p.inv.Bag[1], it) {
+		t.Fatalf("bag slot 1 %+v, want %+v", p.inv.Bag[1], it)
+	}
+	if z.ground[g.id] != nil || z.cells[g.cell][g.id] != nil || !slices.Contains(leaves(envs), g.id) {
+		t.Fatal("the picked item is still on the ground or in the owner's view")
+	}
+	all := sv.all()
+	if len(all) != saves+1 || !slices.ContainsFunc(all[len(all)-1].Items, func(r store.ItemRow) bool {
+		return !r.Equipped && r.Slot == 1 && r.Code == "eq10_armor" && r.Quality == 1
+	}) {
+		t.Fatalf("saves %d, want one more holding the armor in slot 1", len(all))
+	}
+	// The bag shares nothing with what lay on the ground.
+	g.item.Lines[0].Value = 1
+	if p.inv.Bag[1].Lines[0].Value != 40 {
+		t.Fatal("the bag shares lines with the ground item")
+	}
+	// The same id again is gone.
+	pickupNow(t, z, 1, 10, g.id)
+	if er := errorFor(out.take(), 10); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND {
+		t.Fatalf("second pickup %v, want ITEM_NOT_FOUND", er)
+	}
+}
+
+// A stone stack tops up the stack already in the bag; the reply lists only
+// that slot.
+func TestPickupMergesStack(t *testing.T) {
+	z, p, _, _ := gearZone(t, gearInventory())
+	out := p.out.(*fakeOut)
+	g := putGround(z, 100, p.pos, items.Item{Code: "stone_enhance", Count: 5})
+	pickupNow(t, z, 1, 9, g.id)
+	r := pickupRespFor(out.take(), 9)
+	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 17}}}}
+	if r == nil || !proto.Equal(r.Update, want) || p.inv.Bag[3].Count != 17 || p.inv.Bag[1] != nil {
+		t.Fatalf("PickupResp %v, want %v", r, want)
+	}
+}

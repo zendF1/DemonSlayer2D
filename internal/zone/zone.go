@@ -444,6 +444,8 @@ func (z *Zone) handle(c any) {
 		z.learn(c)
 	case castCmd:
 		z.queueCast(c)
+	case pickupCmd:
+		z.pickup(c)
 	}
 }
 

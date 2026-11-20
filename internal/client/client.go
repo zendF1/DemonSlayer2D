@@ -265,6 +265,19 @@ func (c *Client) Learn(ctx context.Context, skillID string) (*pb.LearnSkillResp,
 	return r, nil
 }
 
+// Pickup picks up the ground item itemID and returns the changed bag slots.
+func (c *Client) Pickup(ctx context.Context, itemID uint64) (*pb.PickupResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_PickupReq{PickupReq: &pb.PickupReq{ItemId: itemID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetPickupResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to PickupReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Move sends a direction (no response). It returns the input seq used.
 func (c *Client) Move(ctx context.Context, dx, dy float32) (uint32, error) {
 	seq := c.inputSeq.Add(1)

@@ -210,6 +210,26 @@ func TestLearnSkillNotInWorld(t *testing.T) {
 	}
 }
 
+// The item requests need a character in the world (phase 3a spec 4.6, 4.7).
+func TestItemRequestsNotInWorld(t *testing.T) {
+	for name, env := range map[string]*pb.Envelope{
+		"pickup": {Payload: &pb.Envelope_PickupReq{PickupReq: &pb.PickupReq{ItemId: 5}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+			c := s.newConn(nil, "127.0.0.1")
+			defer c.idle.Stop()
+			defer c.authTimer.Stop()
+			env.Seq = 4
+			c.dispatch(context.Background(), env)
+			r := <-c.out.ch
+			if r.Seq != 4 || r.GetError().GetCode() != pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD {
+				t.Fatalf("reply %v, want NOT_IN_WORLD for seq 4", r)
+			}
+		})
+	}
+}
+
 // ______________________TEST CLIENT FIXTURES_____________________
 
 var updateFixtures = flag.Bool("update", false, "rewrite testdata/client")
