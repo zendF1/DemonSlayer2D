@@ -1782,3 +1782,202 @@ func TestUnsocket(t *testing.T) {
 		checkUnchanged(t, c.name, before, inv, rich, xu)
 	}
 }
+
+// ______________________TEST REFINE_____________________
+
+func refineStone(n int) *Item { return &Item{Code: gamedata.StoneRefine, Count: n} }
+
+// camRing is a 4-line Cam tier-30 piece with an element, hidden lines,
+// gems, enhance and pity, at bag slot 0 of a bag with 999 refine stones at
+// slot 1.
+func camRing() (*Inventory, *Item) {
+	inv := NewInventory(60)
+	it := &Item{Code: "eq30_ring_left", Count: 1, Quality: 3, Element: "minh", Enhance: 6, Pity: [MaxEnhance]int{9: 2},
+		Lines:  []Line{{"hp", 200}, {"phys_attack", 10}, {"magic_defense", 2}, {"magic_attack", 14}},
+		Hidden: []Line{{"hp", 275}, {"phys_defense", 3}}, Gems: []string{"gem_hp_3", ""}}
+	inv.Bag[0] = it
+	inv.Bag[1] = refineStone(999)
+	return inv, it
+}
+
+func TestRefineRollLocks(t *testing.T) {
+	d := realData(t)
+	inv, it := camRing()
+	orig := it.Clone()
+	std := d.Tiers[30].LineStandard
+	free := []string{"magic_attack", "phys_defense", "phys_attack"} // not hp or magic_defense (locked)
+	seen := map[int]map[string]int{1: {}, 3: {}}
+	lo, hi := map[string]int{}, map[string]int{}
+	rng := seeded(77)
+	const runs = 10000
+	for range runs {
+		inv.Bag[1] = refineStone(999)
+		xu := rich
+		lines, _, err := inv.RefineRoll(rng, d, bag0, []int{2, 0}, &xu)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(lines) != 4 || lines[0] != orig.Lines[0] || lines[2] != orig.Lines[2] {
+			t.Fatalf("locked lines moved or changed: %v", lines)
+		}
+		stats := map[string]bool{}
+		for i, l := range lines {
+			if stats[l.Stat] {
+				t.Fatalf("repeated stat: %v", lines)
+			}
+			stats[l.Stat] = true
+			if i == 1 || i == 3 {
+				s := std[l.Stat]
+				if l.Value < ceilDiv(s*d.LineRollMinPct, 100) || l.Value > s {
+					t.Fatalf("%s value %d outside [%d, %d]", l.Stat, l.Value, ceilDiv(s*d.LineRollMinPct, 100), s)
+				}
+				seen[i][l.Stat]++
+				if v, ok := lo[l.Stat]; !ok || l.Value < v {
+					lo[l.Stat] = l.Value
+				}
+				hi[l.Stat] = max(hi[l.Stat], l.Value)
+			}
+		}
+	}
+	// Each unlocked line draws uniformly from the stats not in the set, so
+	// each free stat (the old stats of lines 1 and 3 included) lands on each
+	// of them a third of the time.
+	for _, i := range []int{1, 3} {
+		for _, s := range free {
+			if f := float64(seen[i][s]) / runs; math.Abs(f-1.0/3) > 0.03 {
+				t.Errorf("line %d: %s %.3f of the time, want 1/3", i, s, f)
+			}
+		}
+		if len(seen[i]) != len(free) {
+			t.Errorf("line %d drew %v", i, seen[i])
+		}
+	}
+	for _, s := range free {
+		if want := ceilDiv(std[s]*d.LineRollMinPct, 100); lo[s] != want || hi[s] != std[s] {
+			t.Errorf("%s values %d-%d, want %d-%d", s, lo[s], hi[s], want, std[s])
+		}
+	}
+	// The roll never touches the item.
+	inv.Bag[1] = nil
+	if !sameInventory(inv, &Inventory{Bag: append([]*Item{&orig}, make([]*Item, 59)...)}) {
+		t.Fatalf("roll changed the item: %+v", it)
+	}
+	// Same seed, same result.
+	inv.Bag[1] = refineStone(2)
+	xa, xb := rich, rich
+	a, _, _ := inv.Clone().RefineRoll(seeded(5), d, bag0, nil, &xa)
+	b, _, _ := inv.Clone().RefineRoll(seeded(5), d, bag0, nil, &xb)
+	if !slices.Equal(a, b) {
+		t.Fatalf("seeded rolls differ: %v %v", a, b)
+	}
+}
+
+func TestRefineCost(t *testing.T) {
+	d := realData(t)
+	inv, _ := camRing()
+	// Two locks on tier 30: 1 + 2 stones and (20 + 2 x 20) x 30 Xu, the
+	// stones from the lowest slots.
+	inv.Bag[1], inv.Bag[2], inv.Bag[5] = refineStone(2), refineStone(1), refineStone(4)
+	xu := int64(1800)
+	lines, changed, err := inv.RefineRoll(seeded(1), d, bag0, []int{0, 1}, &xu)
+	if err != nil || len(lines) != 4 || xu != 0 || !slices.Equal(changed, []int{1, 2}) || inv.Bag[1] != nil || inv.Bag[2] != nil || inv.Bag[5].Count != 4 {
+		t.Fatalf("2 locks: %v %v xu %d changed %v", lines, err, xu, changed)
+	}
+	// No lock: 1 stone and 20 x 30 Xu.
+	xu = 600
+	if _, changed, err := inv.RefineRoll(seeded(1), d, bag0, nil, &xu); err != nil || xu != 0 || !slices.Equal(changed, []int{5}) || inv.Bag[5].Count != 3 {
+		t.Fatalf("no lock: %v xu %d changed %v", err, xu, changed)
+	}
+	// One Xu or one stone short.
+	inv.Bag[5] = refineStone(3)
+	for _, c := range []struct {
+		name   string
+		stones int
+		xu     int64
+		want   error
+	}{{"one stone short", 2, rich, ErrNoMaterials}, {"one Xu short", 3, 1799, ErrNoXu}, {"stones before Xu", 2, 0, ErrNoMaterials}} {
+		inv.Bag[5] = refineStone(c.stones)
+		xu := c.xu
+		before := inv.Clone()
+		if _, _, err := inv.RefineRoll(seeded(1), d, bag0, []int{0, 3}, &xu); !errors.Is(err, c.want) {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.want)
+		}
+		checkUnchanged(t, c.name, before, inv, c.xu, xu)
+	}
+}
+
+func TestRefineErrors(t *testing.T) {
+	d := realData(t)
+	inv, _ := camRing()
+	inv.Bag[2] = &Item{Code: "eq30_armor", Count: 1, Quality: 1, Lines: []Line{{"hp", 200}, {"phys_attack", 10}}}
+	inv.Bag[3] = stone(4)
+	inv.Worn[5] = &Item{Code: "eq30_armor", Count: 1, Quality: 2, Element: "viem", Lines: []Line{{"hp", 200}, {"phys_attack", 10}, {"magic_attack", 9}}}
+	for _, c := range []struct {
+		name   string
+		r      Ref
+		locked []int
+		want   error
+	}{
+		{"slot out of range", Ref{Slot: 60}, nil, ErrBadSlot},
+		{"worn slot out of range", Ref{Equipped: true, Slot: -1}, nil, ErrBadSlot},
+		{"empty slot", Ref{Slot: 4}, nil, ErrNotFound},
+		{"not equipment", Ref{Slot: 3}, nil, ErrNotEquipment},
+		{"Xanh piece", Ref{Slot: 2}, nil, ErrNotRefinable},
+		{"Xanh piece with bad locks", Ref{Slot: 2}, []int{9}, ErrNotRefinable},
+		{"every line locked", bag0, []int{0, 1, 2, 3}, ErrBadRequest},
+		{"every worn line locked", Ref{Equipped: true, Slot: 5}, []int{2, 0, 1}, ErrBadRequest},
+		{"lock out of range", bag0, []int{4}, ErrBadRequest},
+		{"negative lock", bag0, []int{-1}, ErrBadRequest},
+		{"duplicate lock", bag0, []int{1, 1}, ErrBadRequest},
+	} {
+		xu := rich
+		before := inv.Clone()
+		if _, _, err := inv.RefineRoll(seeded(1), d, c.r, c.locked, &xu); !errors.Is(err, c.want) {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.want)
+		}
+		checkUnchanged(t, c.name, before, inv, rich, xu)
+	}
+	// A worn Vàng piece refines; stones come from the bag.
+	xu := rich
+	if lines, changed, err := inv.RefineRoll(seeded(1), d, Ref{Equipped: true, Slot: 5}, []int{1}, &xu); err != nil || len(lines) != 3 ||
+		lines[1] != (Line{"phys_attack", 10}) || !slices.Equal(changed, []int{1}) {
+		t.Fatalf("worn: %v %v %v", lines, changed, err)
+	}
+}
+
+func TestRefineApply(t *testing.T) {
+	d := realData(t)
+	inv, it := camRing()
+	xu := rich
+	lines, _, err := inv.RefineRoll(seeded(9), d, bag0, []int{1}, &xu)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := it.Clone()
+	want.Lines = slices.Clone(lines)
+	if err := inv.RefineApply(bag0, lines); err != nil {
+		t.Fatal(err)
+	}
+	// Only the lines change: element, quality, hidden lines, gems, enhance
+	// and pity stay.
+	lines[0].Value = -1
+	if !sameInventory(&Inventory{Bag: []*Item{it}}, &Inventory{Bag: []*Item{&want}}) {
+		t.Fatalf("apply: %+v, want %+v", it, want)
+	}
+	for _, c := range []struct {
+		name  string
+		r     Ref
+		lines []Line
+		want  error
+	}{
+		{"slot out of range", Ref{Slot: -1}, want.Lines, ErrBadSlot},
+		{"empty slot", Ref{Slot: 7}, want.Lines, ErrNotFound},
+		{"wrong line count", bag0, want.Lines[:3], ErrBadRequest},
+	} {
+		before := inv.Clone()
+		if err := inv.RefineApply(c.r, c.lines); !errors.Is(err, c.want) {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.want)
+		}
+		checkUnchanged(t, c.name, before, inv, 0, 0)
+	}
+}

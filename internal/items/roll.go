@@ -71,9 +71,7 @@ func NewEquipment(rng *rand.Rand, d *gamedata.Items, code string, quality int) I
 		i := rng.IntN(len(pool))
 		stat := pool[i]
 		pool = append(pool[:i], pool[i+1:]...)
-		s := std[stat]
-		lo := (s*d.LineRollMinPct + 99) / 100 // ceil
-		it.Lines = append(it.Lines, Line{Stat: stat, Value: lo + rng.IntN(s-lo+1)})
+		it.Lines = append(it.Lines, Line{Stat: stat, Value: rollLineValue(rng, d, std[stat])})
 	}
 
 	if q.HiddenPct > 0 {
@@ -84,6 +82,13 @@ func NewEquipment(rng *rand.Rand, d *gamedata.Items, code string, quality int) I
 		}
 	}
 	return it
+}
+
+// rollLineValue is a sub-line value for line standard s: uniform in
+// [ceil(s x line_roll_min_pct / 100), s] (spec 4.4).
+func rollLineValue(rng *rand.Rand, d *gamedata.Items, s int) int {
+	lo := (s*d.LineRollMinPct + 99) / 100 // ceil
+	return lo + rng.IntN(s-lo+1)
 }
 
 func chance(rng *rand.Rand, bp int) bool { return rng.IntN(bpScale) < bp }
