@@ -345,7 +345,7 @@ func TestHitStartsChaseFromShoot(t *testing.T) {
 		t.Fatalf("state %v, want shoot", m.state)
 	}
 	teleport(z, 1, Vec2{home.X + 1.9, home.Y}) // in slash range with the slack
-	attackNow(t, z, 1, 5, m.id)
+	attackLand(t, z, 1, 5, m.id)
 	envs := a.take()
 	if attackRespAt(envs, 5) < 0 {
 		t.Fatalf("slash rejected: %v", errorFor(envs, 5))
@@ -804,7 +804,7 @@ func TestChaseGivesUpOutsideRegionMargin(t *testing.T) {
 	k.ChaseRange = 100 // only the margin can end this chase
 	z, m := boxRegion(t, k)
 	a := joinNow(t, z, 1, 31.5, 30.5)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	if !chasing(m) || m.target != 1 {
 		t.Fatalf("state %v target %d, want a chase", m.state, m.target)
 	}
@@ -867,7 +867,7 @@ func TestChaseRangeGiveUpIsNotRestarted(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	z, m := newFightZone(t, 1, home) // whole-map rect: only the chase range ends this chase
 	joinNow(t, z, 1, 31.5, 30.5)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}})
 	now := time.Now()
 	for i := 0; i < 100 && chasing(m); i++ {
@@ -949,7 +949,7 @@ func TestChaseGivesUpBeyondChaseRange(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	z, m := newFightZone(t, 1, home)
 	a := joinNow(t, z, 1, 31.5, 30.5)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	hp := m.hp
 	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}})
 	chaseStep, step := testKind.ChaseSpeed*4/10, testKind.Speed*4/10
@@ -992,7 +992,7 @@ func TestChaseStartsWhereItWasHit(t *testing.T) {
 	m.pos = Vec2{30.5 + float32(testKind.ChaseRange) + 5, 30.5}
 	z.updateCell(&m.entity)
 	a := joinNow(t, z, 1, m.pos.X+1, m.pos.Y)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	now := time.Now()
 	melee := 0
 	for i := 0; i < 30; i++ {
@@ -1015,7 +1015,7 @@ func TestChaseOutrunsRetreatingPlayer(t *testing.T) {
 	k.ChaseRange, k.RegionMargin = 100, 100
 	z, m := boxRegion(t, k)
 	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range, out of its attack range
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}}) // straight away from it
 	a.take()
 	now := time.Now()
@@ -1088,7 +1088,7 @@ func TestSafeZonePokeGetsHit(t *testing.T) {
 func TestSafeZoneWaitExpires(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
 	a := joinNow(t, z, 1, 12.5, 5.5)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	hp := m.hp
 	teleport(z, 1, Vec2{7.5, 5.5}) // inside the safe rect (0,0,10,10), out of its reach
 	wait := int(z.ticks(testKind.SafeWaitSec))
@@ -1126,7 +1126,7 @@ func TestSafeZoneWaitExpires(t *testing.T) {
 func TestSafeZoneWaitResets(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
 	joinNow(t, z, 1, 12.5, 5.5)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	wait := int(z.ticks(testKind.SafeWaitSec))
 	now := time.Now()
 	teleport(z, 1, Vec2{7.5, 5.5})
@@ -1207,6 +1207,18 @@ func tickBots(z *Zone, bots ...*bot) {
 	}
 }
 
+// slashAndLand has b slash m heading along dir, then runs ticks with b still
+// heading along dir until the slash lands. others are counted too.
+func (b *bot) slashAndLand(dir Vec2, m uint64, others ...*bot) {
+	all := append([]*bot{b}, others...)
+	b.act(dir, m)
+	tickBots(b.z, all...)
+	for len(b.z.impacts) > 0 {
+		b.act(dir, 0)
+		tickBots(b.z, all...)
+	}
+}
+
 func unit(a, b Vec2) Vec2 {
 	d := distance(a, b)
 	if d == 0 {
@@ -1232,8 +1244,7 @@ func TestMarginKiteGetsHit(t *testing.T) {
 			z.updateCell(&m.entity)
 			joinNow(t, z, 1, c.player, 30.5)
 			b := newBot(z, 1)
-			b.act(Vec2{1, 0}, m.id) // slash and run east
-			tickBots(z, b)
+			b.slashAndLand(Vec2{1, 0}, m.id) // slash and run east
 			if b.slashes != 1 {
 				t.Fatalf("setup: the slash did not land")
 			}
@@ -1373,8 +1384,7 @@ func TestBaitDoesNotProtectSecondPlayer(t *testing.T) {
 	a.act(Vec2{}, 0)
 	joinNow(t, z, 2, m.pos.X+1.2, m.pos.Y+1.2)
 	b := newBot(z, 2)
-	b.act(Vec2{}, m.id)
-	tickBots(z, a, b)
+	b.slashAndLand(Vec2{}, m.id, a)
 	if b.slashes != 1 || m.target != 2 || !chasing(m) {
 		t.Fatalf("B slashes %d, target %d state %v, want the monster on B", b.slashes, m.target, m.state)
 	}
@@ -1399,7 +1409,7 @@ func TestGrudgeExpires(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
 			joinNow(t, z, 1, 12.5, 5.5)
-			attackNow(t, z, 1, 1, m.id)
+			attackLand(t, z, 1, 1, m.id)
 			hitAt := z.tickNo
 			teleport(z, 1, Vec2{5.5, 5.5}) // deep in the safe zone
 			now := time.Now()
@@ -1465,10 +1475,10 @@ func TestChaseKeepsTargetWhenOthersHit(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	joinNow(t, z, 1, 31.5, 30.5)
 	joinNow(t, z, 2, 29.5, 30.5)
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	first := z.tickNo
 	z.advance(time.Now())
-	attackNow(t, z, 2, 1, m.id)
+	attackLand(t, z, 2, 1, m.id)
 	if m.target != 1 || !chasing(m) {
 		t.Fatalf("target %d state %v, want still on the first attacker", m.target, m.state)
 	}
@@ -1500,8 +1510,8 @@ func TestChaseFallsBackToRecentAttacker(t *testing.T) {
 			z, m := boxRegion(t, k)
 			joinNow(t, z, 1, 31.5, 30.5)
 			joinNow(t, z, 2, 29.5, 30.5)
-			attackNow(t, z, 1, 1, m.id) // A first: the target
-			attackNow(t, z, 2, 1, m.id)
+			attackNow(t, z, 1, 1, m.id)  // A first: the target
+			attackLand(t, z, 2, 1, m.id) // both land, B last
 			for i := 0; i < c.wait; i++ {
 				z.advance(time.Now())
 			}
@@ -1533,8 +1543,8 @@ func TestDeadAttackerIsNotFallenBackOn(t *testing.T) {
 	z.area.Respawn = Vec2{28.5, 30.5} // inside the region, outside any safe zone
 	joinNow(t, z, 1, 31.5, 30.5)
 	joinNow(t, z, 2, 29.5, 30.5)
-	attackNow(t, z, 1, 1, m.id) // A first: the target
-	attackNow(t, z, 2, 1, m.id)
+	attackNow(t, z, 1, 1, m.id)  // A first: the target
+	attackLand(t, z, 2, 1, m.id) // both land
 	z.damagePlayer(z.players[2], 0, 10000, false)
 	if !z.Respawn(2, 2) {
 		t.Fatal("inbox full")
@@ -1608,7 +1618,18 @@ func TestBackMonsterIsAttackable(t *testing.T) {
 	if attackRespAt(envs, 1) < 0 {
 		t.Fatalf("slash on a monster going back rejected: %v", errorFor(envs, 1))
 	}
-	if !chasing(m) || m.target != 1 || m.chaseFrom != (Vec2{33.5, 30.5}) {
+	if chasing(m) {
+		t.Fatalf("state %v, want the monster still going back until the slash lands", m.state)
+	}
+	var hitAt Vec2 // where it stands when the slash lands, before it moves that tick
+	for len(z.impacts) > 0 {
+		hitAt = m.pos
+		z.advance(time.Now())
+	}
+	if hitAt == (Vec2{33.5, 30.5}) {
+		t.Fatal("setup: the monster did not move during the windup")
+	}
+	if !chasing(m) || m.target != 1 || m.chaseFrom != hitAt {
 		t.Fatalf("state %v target %d chaseFrom %v, want a chase from where it was hit", m.state, m.target, m.chaseFrom)
 	}
 }
@@ -1683,6 +1704,23 @@ func attackNow(t *testing.T, z *Zone, id uint64, seq uint32, target uint64) {
 		t.Fatal("inbox full")
 	}
 	z.advance(time.Now())
+}
+
+// settle runs ticks until every impact in flight has landed and returns how
+// many it ran.
+func settle(z *Zone) int {
+	n := 0
+	for ; len(z.impacts) > 0; n++ {
+		z.advance(time.Now())
+	}
+	return n
+}
+
+// attackLand is attackNow followed by settle: the slash is sent and lands.
+func attackLand(t *testing.T, z *Zone, id uint64, seq uint32, target uint64) {
+	t.Helper()
+	attackNow(t, z, id, seq, target)
+	settle(z)
 }
 
 func errorFor(envs []*pb.Envelope, seq uint32) *pb.ErrorResp {
@@ -1810,12 +1848,20 @@ func TestAttackHitsAndAggro(t *testing.T) {
 	if ri < 0 || wi < 0 || ri > wi {
 		t.Fatalf("AttackResp at %d, WorldTick at %d: the reply must come first", ri, wi)
 	}
+	if hs := hitsIn(envs); len(hs) != 0 || m.hp != 56 || chasing(m) {
+		t.Fatalf("hits %v hp %d state %v in the press tick, want nothing landed yet", hs, m.hp, m.state)
+	}
+	v.take()
+	if n := settle(z); n != 2 {
+		t.Fatalf("the slash landed %d ticks after the press, want 2 (150 ms)", n)
+	}
+	envs = a.take()
 	// Level-1 slash (phys attack 20) on a level-1 monster (defense 8): 20*(1-8/28) = 14.
 	if m.hp != 56-14 {
 		t.Fatalf("monster hp %d, want 42", m.hp)
 	}
-	// The slash turns the monster on its attacker, who stands within its
-	// reach, so it hits back on the same tick: 30*(1-10/30) = 20.
+	// The slash, when it lands, turns the monster on its attacker, who stands
+	// within its reach, so it hits back on the same tick: 30*(1-10/30) = 20.
 	want := []*pb.Hit{
 		{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42},
 		{AttackerId: m.id, TargetId: 1, Damage: 20, HpAfter: 480},
@@ -1832,8 +1878,9 @@ func TestAttackHitsAndAggro(t *testing.T) {
 		t.Fatalf("attackers %v chaseFrom %v, want the hit's tick recorded and the chase starting where it stood", m.attackers, m.chaseFrom)
 	}
 
-	// The cooldown is 8 ticks: an attack 8 ticks after the last is accepted.
-	for i := 0; i < 7; i++ {
+	// The cooldown is 8 ticks from the press: an attack 8 ticks after the
+	// last is accepted.
+	for i := 0; i < 5; i++ {
 		z.advance(time.Now())
 	}
 	a.take()
@@ -1856,7 +1903,7 @@ func TestNewerAttackReplacesPending(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)
 	z.Attack(1, 5, m.id)
-	attackNow(t, z, 1, 6, m.id)
+	attackLand(t, z, 1, 6, m.id)
 	envs := a.take()
 	if er := errorFor(envs, 5); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
 		t.Fatalf("the replaced attack got %v, want ON_COOLDOWN", er)
@@ -1907,7 +1954,7 @@ func TestLineBlocked(t *testing.T) {
 	}
 }
 
-// Each slash pays its EXP share at once: the share of 14, 28, 42 and 56 of
+// Each slash pays its EXP share as it lands: the share of 14, 28, 42 and 56 of
 // the monster's 56 HP (spec 3.4), with a SelfStats push after each.
 func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
@@ -1918,12 +1965,12 @@ func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 	var diedAt uint32
 	for i := 0; i < 4; i++ {
 		if i > 0 {
-			for j := 0; j < 7; j++ {
+			for j := 0; j < 5; j++ { // 8 ticks from the last press, 2 of them its windup
 				z.advance(now)
 			}
 		}
 		a.take()
-		attackNow(t, z, 1, uint32(10+i), m.id)
+		attackLand(t, z, 1, uint32(10+i), m.id)
 		envs := a.take()
 		if attackRespAt(envs, uint32(10+i)) < 0 {
 			t.Fatalf("slash %d rejected: %v", i+1, errorFor(envs, uint32(10+i)))
@@ -2003,7 +2050,7 @@ func TestLevelUp(t *testing.T) {
 	v := joinNow(t, z, 2, 30.5, 36.5)
 	sv := z.saver.(*fakeSaver)
 	m.nextAttack = 1 << 30 // it survives the slash; keep it from hitting back
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	p := z.players[1]
 	if m.dead || m.hp != 42 {
 		t.Fatalf("monster dead=%v hp %d, want it alive at 42", m.dead, m.hp)
@@ -2065,7 +2112,7 @@ func TestLevelUpThenHitSameTick(t *testing.T) {
 		t.Fatal(err)
 	}
 	v := joinNow(t, z, 2, 30.5, 36.5)
-	attackNow(t, z, 1, 1, victim.id)
+	attackLand(t, z, 1, 1, victim.id)
 	p := z.players[1]
 	if p.level != 2 || p.hp == p.maxHP {
 		t.Fatalf("level %d hp %d/%d, want a level-up and then a hit in the same tick", p.level, p.hp, p.maxHP)
@@ -2110,7 +2157,7 @@ func TestExpSharedByDamage(t *testing.T) {
 	now := time.Now()
 	// Tick 1: 1 hits for 14 (42 left), then 2 for 21 (21 left).
 	z.Attack(1, 1, m.id)
-	attackNow(t, z, 2, 1, m.id)
+	attackLand(t, z, 2, 1, m.id)
 	if want1, want2 := combat.ExpShare(total, hp, 14), combat.ExpShare(total, hp, 21); m.hp != 21 || p1.exp != want1 || p2.exp != want2 {
 		t.Fatalf("hp %d exp %d/%d, want 21 and %d/%d", m.hp, p1.exp, p2.exp, want1, want2)
 	}
@@ -2119,7 +2166,7 @@ func TestExpSharedByDamage(t *testing.T) {
 		for range 7 {
 			z.advance(now)
 		}
-		attackNow(t, z, 1, seq, m.id)
+		attackLand(t, z, 1, seq, m.id)
 	}
 	if !m.dead {
 		t.Fatalf("monster hp %d, want it dead", m.hp)
@@ -2144,7 +2191,7 @@ func TestOverkillEarnsNoExp(t *testing.T) {
 		t.Fatal("setup: 9 and 14 damage must earn different shares")
 	}
 	a.take()
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	hs := hitsIn(a.take())
 	if len(hs) != 1 || hs[0].Damage != 14 || hs[0].HpAfter != 0 || !m.dead {
 		t.Fatalf("hits %v dead %v, want a 14-damage kill", hs, m.dead)
@@ -2163,7 +2210,7 @@ func TestGiveUpKeepsExpTracking(t *testing.T) {
 	z, m := newFightZone(t, 1, home)
 	joinNow(t, z, 1, 12.5, 5.5)
 	p := z.players[1]
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	first := combat.ExpShare(testLevels[1].Exp, testLevels[1].HP, 14)
 	if p.exp != first || m.dmgBy[1] != 14 || m.expPaid[1] != first || !chasing(m) {
 		t.Fatalf("exp %d dmgBy %v expPaid %v state %v, want %d, 14, %d and a chase", p.exp, m.dmgBy, m.expPaid, m.state, first, first)
@@ -2181,7 +2228,7 @@ func TestGiveUpKeepsExpTracking(t *testing.T) {
 		for i := 0; i < 8; i++ {
 			z.advance(now)
 		}
-		attackNow(t, z, 1, seq, m.id)
+		attackLand(t, z, 1, seq, m.id)
 	}
 	if !m.dead || p.exp != testLevels[1].Exp {
 		t.Fatalf("dead %v exp %d, want the kill to bring the total to the monster's %d EXP", m.dead, p.exp, testLevels[1].Exp)
@@ -2223,7 +2270,7 @@ func TestNoExpAtMaxLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.take()
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	p := z.players[1]
 	if _, counted := m.dmgBy[1]; !counted || m.hp == m.maxHP {
 		t.Fatalf("dmgBy %v hp %d/%d, want the slash landed and counted", m.dmgBy, m.hp, m.maxHP)
@@ -2257,7 +2304,7 @@ func TestExpOnlyWithinLevelWindow(t *testing.T) {
 		}
 		a.take()
 		m.nextAttack = 1 << 30 // keep a stronger monster from hitting back
-		attackNow(t, z, 1, 1, m.id)
+		attackLand(t, z, 1, 1, m.id)
 		p := z.players[1]
 		if len(hitsIn(a.take())) != 1 || m.hp == m.maxHP {
 			t.Fatalf("level %d: the slash must land (monster hp %d/%d)", c.level, m.hp, m.maxHP)
@@ -2280,7 +2327,7 @@ func TestExpByMonsterLevel(t *testing.T) {
 	if err := z.join(in, &fakeOut{}); err != nil {
 		t.Fatal(err)
 	}
-	attackNow(t, z, 1, 1, m.id)
+	attackLand(t, z, 1, 1, m.id)
 	if p := z.players[1]; !m.dead || p.level != 1 || p.exp != testLevels[2].Exp || testLevels[2].Exp == testLevels[1].Exp {
 		t.Fatalf("dead %v level %d exp %d, want level 1 with the level-2 monster's %d EXP", m.dead, p.level, p.exp, testLevels[2].Exp)
 	}
@@ -2930,6 +2977,13 @@ func castNow(t *testing.T, z *Zone, id uint64, seq uint32, skillID string, targe
 	z.advance(time.Now())
 }
 
+// castLand is castNow followed by settle: the cast is sent and lands.
+func castLand(t *testing.T, z *Zone, id uint64, seq uint32, skillID string, target uint64, dir Vec2) {
+	t.Helper()
+	castNow(t, z, id, seq, skillID, target, dir)
+	settle(z)
+}
+
 func castRespAt(envs []*pb.Envelope, seq uint32) int {
 	for i, e := range envs {
 		if e.GetCastResp() != nil && e.Seq == seq {
@@ -2945,6 +2999,21 @@ func castsIn(envs []*pb.Envelope) []*pb.Cast {
 		cs = append(cs, wt.Casts...)
 	}
 	return cs
+}
+
+// untimed is c without its timing fields, for tests about what a cast aims
+// at; TEST IMPACTS checks the timing.
+func untimed(c *pb.Cast) *pb.Cast {
+	return &pb.Cast{CasterId: c.CasterId, SkillId: c.SkillId, TargetId: c.TargetId, DirX: c.DirX, DirY: c.DirY, Level: c.Level, Ranged: c.Ranged}
+}
+
+// impactIDs are the targets of c's impacts, in hit order (phase 2 spec 4.4).
+func impactIDs(c *pb.Cast) []uint64 {
+	var ids []uint64
+	for _, im := range c.Impacts {
+		ids = append(ids, im.TargetId)
+	}
+	return ids
 }
 
 // hitsBy are the hits by attacker in envs.
@@ -3047,9 +3116,10 @@ func TestCastValidation(t *testing.T) {
 	}
 }
 
-// A single-target skill hits for its own damage, names itself on the Hit,
-// spends MP, pays EXP and turns the monster on the caster; the reply comes
-// ahead of the WorldTick, which carries the Cast, and SelfStats follows.
+// A single-target skill spends MP and starts its cooldown at the press, with
+// the reply ahead of the WorldTick, which carries the Cast, and a SelfStats
+// push after it. When it lands it hits for its own damage, names itself on
+// the Hit, pays EXP and turns the monster on the caster.
 func TestCastSingleHitsAndAggro(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	z, m, p, a := castZone(t, home, Vec2{35.99, 30.5}) // 5.49 tiles: in range with the slack
@@ -3061,15 +3131,9 @@ func TestCastSingleHitsAndAggro(t *testing.T) {
 	if ri < 0 || wi < 0 || ri > wi {
 		t.Fatalf("CastResp at %d, WorldTick at %d (error %v): the reply must come first", ri, wi, errorFor(envs, 9))
 	}
-	dmg := skillDamage(p, s, 12)
-	if dmg <= 1 || m.hp != testLevels[12].HP-dmg {
-		t.Fatalf("monster hp %d, want %d - %d", m.hp, testLevels[12].HP, dmg)
-	}
-	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp), SkillId: "thuy_1"}
-	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].String() != want.String() {
-		t.Fatalf("hits %v, want %v", hs, want)
-	}
-	wantCast := &pb.Cast{CasterId: 1, SkillId: "thuy_1", TargetId: m.id, DirX: -1, Level: 1}
+	// 0.25 s of windup and 5.49/20 s of flight: 6 ticks.
+	wantCast := &pb.Cast{CasterId: 1, SkillId: "thuy_1", TargetId: m.id, DirX: -1, Level: 1, WindupMs: 250,
+		Impacts: []*pb.CastImpact{{TargetId: m.id, ImpactMs: 600}}}
 	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != wantCast.String() {
 		t.Fatalf("casts %v, want %v: dir points at the target", cs, wantCast)
 	}
@@ -3079,6 +3143,22 @@ func TestCastSingleHitsAndAggro(t *testing.T) {
 	si := slices.IndexFunc(envs, func(e *pb.Envelope) bool { return e.GetSelfStats() != nil })
 	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Mp != int32(p.mp) || si < wi {
 		t.Fatalf("self stats %v, want one after the tick with mp %d", ss, p.mp)
+	}
+	if hs := hitsIn(envs); len(hs) != 0 || m.hp != m.maxHP || p.exp != exp || chasing(m) {
+		t.Fatalf("hits %v hp %d exp %d state %v in the press tick, want nothing landed", hs, m.hp, p.exp, m.state)
+	}
+
+	if n := settle(z); n != 6 {
+		t.Fatalf("landed %d ticks after the press, want 6", n)
+	}
+	envs = a.take()
+	dmg := skillDamage(p, s, 12)
+	if dmg <= 1 || m.hp != testLevels[12].HP-dmg {
+		t.Fatalf("monster hp %d, want %d - %d", m.hp, testLevels[12].HP, dmg)
+	}
+	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp), SkillId: "thuy_1"}
+	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].String() != want.String() {
+		t.Fatalf("hits %v, want %v", hs, want)
 	}
 	if p.exp <= exp {
 		t.Fatalf("exp %d, want more than %d: a skill hit pays its EXP share", p.exp, exp)
@@ -3117,7 +3197,7 @@ func TestCastRangeByLevel(t *testing.T) {
 			z.area.Skills = c.skills
 			p.skills["thuy_1"] = c.level
 			hp := m.hp
-			castNow(t, z, 1, 7, "thuy_1", m.id, Vec2{})
+			castLand(t, z, 1, 7, "thuy_1", m.id, Vec2{})
 			envs := a.take()
 			if c.ok {
 				if castRespAt(envs, 7) < 0 || m.hp >= hp {
@@ -3132,12 +3212,14 @@ func TestCastRangeByLevel(t *testing.T) {
 	}
 }
 
-// A slash and a skill both land in one tick: their cooldowns are separate.
-// The slash resolves first.
+// A slash and a skill are both accepted in one tick: their cooldowns are
+// separate. The slash resolves first, and lands first.
 func TestSlashAndCastSameTick(t *testing.T) {
 	z, m, p, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
 	z.Attack(1, 1, m.id)
 	castNow(t, z, 1, 2, "thuy_1", m.id, Vec2{})
+	t0 := z.tickNo
+	settle(z)
 	envs := a.take()
 	if attackRespAt(envs, 1) < 0 || castRespAt(envs, 2) < 0 {
 		t.Fatalf("attack %v cast %v, want both accepted", errorFor(envs, 1), errorFor(envs, 2))
@@ -3146,7 +3228,7 @@ func TestSlashAndCastSameTick(t *testing.T) {
 	if len(hs) != 2 || hs[0].SkillId != "" || hs[1].SkillId != "thuy_1" {
 		t.Fatalf("hits %v, want the slash then the skill", hs)
 	}
-	if p.lastAttack != z.tickNo || p.skillReady["thuy_1"] <= z.tickNo {
+	if p.lastAttack != t0 || p.skillReady["thuy_1"] <= t0 {
 		t.Fatalf("lastAttack %d ready %v, want both cooldowns started", p.lastAttack, p.skillReady)
 	}
 }
@@ -3179,7 +3261,7 @@ func TestCastCooldown(t *testing.T) {
 func TestNewerCastReplacesPending(t *testing.T) {
 	z, m, _, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
 	z.Cast(1, 5, "thuy_1", m.id, Vec2{})
-	castNow(t, z, 1, 6, "thuy_1", m.id, Vec2{})
+	castLand(t, z, 1, 6, "thuy_1", m.id, Vec2{})
 	envs := a.take()
 	if er := errorFor(envs, 5); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
 		t.Fatalf("the replaced cast got %v, want ON_COOLDOWN", er)
@@ -3205,7 +3287,7 @@ func TestCastCircleSelf(t *testing.T) {
 	}
 	s := repoSkills["thuy_4"]
 	mp := p.mp
-	castNow(t, z, 1, 1, "thuy_4", 0, Vec2{0, 1})
+	castLand(t, z, 1, 1, "thuy_4", 0, Vec2{0, 1})
 	envs := a.take()
 	if castRespAt(envs, 1) < 0 {
 		t.Fatalf("cast refused: %v", errorFor(envs, 1))
@@ -3217,7 +3299,7 @@ func TestCastCircleSelf(t *testing.T) {
 	if far.hp != far.maxHP {
 		t.Fatal("the monster 2.6 tiles away was hit")
 	}
-	want := &pb.Cast{CasterId: 1, SkillId: "thuy_4", Level: 1}
+	want := &pb.Cast{CasterId: 1, SkillId: "thuy_4", Level: 1, WindupMs: 300, Impacts: []*pb.CastImpact{{TargetId: m.id, ImpactMs: 300}}}
 	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
 		t.Fatalf("casts %v, want %v", cs, want)
 	}
@@ -3274,7 +3356,7 @@ func TestCastUsesSkillDamageKind(t *testing.T) {
 		t.Fatalf("phys and magic give the same damage %d", want)
 	}
 	a.take()
-	castNow(t, z, 1, 1, "thuy_1", m.id, Vec2{})
+	castLand(t, z, 1, 1, "thuy_1", m.id, Vec2{})
 	if hs := hitsBy(a.take(), 1); len(hs) != 1 || int(hs[0].Damage) != want {
 		t.Fatalf("hits %v, want one hit of %d (phys attack would give %d)", hs, want, wrong)
 	}
@@ -3293,7 +3375,7 @@ func TestCastSkipsDeadMonsterInArea(t *testing.T) {
 		}
 	}
 	z.killMonster(m)
-	castNow(t, z, 1, 1, "thuy_4", m.id, Vec2{})
+	castLand(t, z, 1, 1, "thuy_4", m.id, Vec2{})
 	envs := a.take()
 	if castRespAt(envs, 1) < 0 {
 		t.Fatalf("cast refused: %v", errorFor(envs, 1))
@@ -3484,7 +3566,7 @@ func TestCastAreaShapes(t *testing.T) {
 				wallAt(z, c.wall[0], c.wall[1])
 			}
 			m, mp := ms[0], p.mp
-			castNow(t, z, 1, 1, c.skill, 0, c.dir)
+			castLand(t, z, 1, 1, c.skill, 0, c.dir)
 			envs := a.take()
 			if castRespAt(envs, 1) < 0 || p.mp != mp-repoSkills[c.skill].MP[c.lv-1] {
 				t.Fatalf("cast refused (%v) or mp %d of %d not spent", errorFor(envs, 1), p.mp, mp)
@@ -3517,7 +3599,7 @@ func TestCastConeLineAim(t *testing.T) {
 				z, p, a, ms := areaZone(t, skill, 1, Vec2{2, 0})
 				target := c.target(ms[0])
 				mp, ready := p.mp, maps.Clone(p.skillReady)
-				castNow(t, z, 1, 3, skill, target, c.dir)
+				castLand(t, z, 1, 3, skill, target, c.dir)
 				envs := a.take()
 				if er := errorFor(envs, 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_BAD_REQUEST {
 					t.Fatalf("error %v, want BAD_REQUEST", er)
@@ -3532,13 +3614,13 @@ func TestCastConeLineAim(t *testing.T) {
 		// Cast carries it with no target.
 		t.Run(skill+" along a short dir", func(t *testing.T) {
 			z, _, a, ms := areaZone(t, skill, 1, Vec2{0, 3}, Vec2{3, 0})
-			castNow(t, z, 1, 4, skill, 999999, Vec2{0, 0.5})
+			castLand(t, z, 1, 4, skill, 999999, Vec2{0, 0.5})
 			envs := a.take()
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0])) {
 				t.Fatalf("hits %v, want only %d to the south", hs, ms[0].id)
 			}
 			want := &pb.Cast{CasterId: 1, SkillId: skill, DirY: 1, Level: 1}
-			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
 		})
@@ -3547,13 +3629,13 @@ func TestCastConeLineAim(t *testing.T) {
 		// dir; it is the Cast's target but is not hit from 10 tiles.
 		t.Run(skill+" at a far target", func(t *testing.T) {
 			z, _, a, ms := areaZone(t, skill, 1, Vec2{0, -10}, Vec2{0, -3}, Vec2{3, 0})
-			castNow(t, z, 1, 5, skill, ms[0].id, Vec2{1, 0})
+			castLand(t, z, 1, 5, skill, ms[0].id, Vec2{1, 0})
 			envs := a.take()
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[1])) {
 				t.Fatalf("hits %v, want only %d, towards the target", hs, ms[1].id)
 			}
 			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, DirY: -1, Level: 1}
-			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
 		})
@@ -3562,13 +3644,13 @@ func TestCastConeLineAim(t *testing.T) {
 		// no dir either the cast still lands on it, and on nothing else.
 		t.Run(skill+" at a target on the caster", func(t *testing.T) {
 			z, _, a, ms := areaZone(t, skill, 1, Vec2{}, Vec2{1, 0}, Vec2{0, 1})
-			castNow(t, z, 1, 7, skill, ms[0].id, Vec2{})
+			castLand(t, z, 1, 7, skill, ms[0].id, Vec2{})
 			envs := a.take()
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0])) {
 				t.Fatalf("hits %v, want only %d", targetIDs(hs), ms[0].id)
 			}
 			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, Level: 1}
-			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
 		})
@@ -3577,9 +3659,15 @@ func TestCastConeLineAim(t *testing.T) {
 		// max_targets (2 at level 1) keeps only the nearest of the rest.
 		t.Run(skill+" named target first", func(t *testing.T) {
 			z, _, a, ms := areaZone(t, skill, 1, Vec2{3.5, 0}, Vec2{2, 0}, Vec2{1, 0})
-			castNow(t, z, 1, 6, skill, ms[0].id, Vec2{})
-			if hs := hitsBy(a.take(), 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[2])) {
-				t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[2]))
+			castLand(t, z, 1, 6, skill, ms[0].id, Vec2{})
+			envs := a.take()
+			// The wave reaches the nearer one first, so the hits come in
+			// distance order; the Cast lists them in hit order.
+			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[2], ms[0])) {
+				t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[2], ms[0]))
+			}
+			if cs := castsIn(envs); len(cs) != 1 || !slices.Equal(impactIDs(cs[0]), idsOf(ms[0], ms[2])) {
+				t.Fatalf("casts %v, want impacts on %v", cs, idsOf(ms[0], ms[2]))
 			}
 		})
 	}
@@ -3609,7 +3697,7 @@ func TestCastCircleTargetAim(t *testing.T) {
 			z, p, a, ms := areaZone(t, "viem_4", c.lv, c.off)
 			target := c.setup(z, ms[0])
 			mp := p.mp
-			castNow(t, z, 1, 2, "viem_4", target, Vec2{1, 0})
+			castLand(t, z, 1, 2, "viem_4", target, Vec2{1, 0})
 			envs := a.take()
 			if c.code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 				if castRespAt(envs, 2) < 0 || len(hitsBy(envs, 1)) != 1 {
@@ -3632,13 +3720,13 @@ func TestCastCircleTargetAim(t *testing.T) {
 // it, nor one next to the caster. Its Cast names the target and points at it.
 func TestCastCircleTargetArea(t *testing.T) {
 	z, _, a, ms := areaZone(t, "viem_4", 4, Vec2{3, 0}, Vec2{3, 1.4}, Vec2{3, -1.6}, Vec2{0.5, 0})
-	castNow(t, z, 1, 1, "viem_4", ms[0].id, Vec2{0, 1})
+	castLand(t, z, 1, 1, "viem_4", ms[0].id, Vec2{0, 1})
 	envs := a.take()
 	if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[1])) {
 		t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[1]))
 	}
 	want := &pb.Cast{CasterId: 1, SkillId: "viem_4", TargetId: ms[0].id, DirX: 1, Level: 4}
-	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+	if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 		t.Fatalf("casts %v, want %v", cs, want)
 	}
 }
@@ -3655,7 +3743,7 @@ func TestCastCircleTargetSight(t *testing.T) {
 				t.Fatal("the wall must block target to monster only")
 			}
 		}
-		castNow(t, z, 1, 1, "phong_4", ms[0].id, Vec2{})
+		castLand(t, z, 1, 1, "phong_4", ms[0].id, Vec2{})
 		want := idsOf(ms[0], ms[1])
 		if wall {
 			want = idsOf(ms[0])
@@ -3693,7 +3781,7 @@ func TestCastCircleSelfOrder(t *testing.T) {
 			if c.named {
 				target = ms[0].id
 			}
-			castNow(t, z, 1, 1, "thuy_4", target, Vec2{1, 0})
+			castLand(t, z, 1, 1, "thuy_4", target, Vec2{1, 0})
 			envs := a.take()
 			var want []uint64
 			for _, i := range c.want {
@@ -3706,7 +3794,7 @@ func TestCastCircleSelfOrder(t *testing.T) {
 			if c.castTo {
 				cast.TargetId = ms[0].id
 			}
-			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != cast.String() {
+			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != cast.String() {
 				t.Fatalf("casts %v, want %v", cs, cast)
 			}
 		})
@@ -3719,7 +3807,7 @@ func TestCastCircleSelfOrder(t *testing.T) {
 func TestCastAreaTieByID(t *testing.T) {
 	for range 20 {
 		z, _, a, ms := areaZone(t, "thuy_4", 1, Vec2{1, 0}, Vec2{0, 1}, Vec2{-1, 0})
-		castNow(t, z, 1, 1, "thuy_4", 0, Vec2{})
+		castLand(t, z, 1, 1, "thuy_4", 0, Vec2{})
 		if hs := hitsBy(a.take(), 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[1])) {
 			t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[1]))
 		}
@@ -3751,7 +3839,7 @@ func dashZone(t *testing.T, caster, target Vec2) (*Zone, *monster, *player, *fak
 func near32(a, b float32) bool { return abs32(a-b) < 1e-4 }
 
 // Bất Tri Hỏa from 3.5 tiles lands the caster on the line to the monster,
-// exactly 1 tile short of it, before the hit; the caster and a viewer both
+// exactly 1 tile short of it, at the press; the caster and a viewer both
 // get the jump as a snapping EntityMove, and the Cast points at the monster.
 func TestDashLandsShortOfTarget(t *testing.T) {
 	start := Vec2{30.5, 30.5}
@@ -3785,12 +3873,16 @@ func TestDashLandsShortOfTarget(t *testing.T) {
 	if castRespAt(envs, 5) < 0 || p.mp != mp-repoSkills["viem_1"].MP[0] {
 		t.Fatalf("the dash was not accepted: mp %d from %d", p.mp, mp)
 	}
-	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].TargetId != m.id || hs[0].SkillId != "viem_1" {
-		t.Fatalf("hits %v, want one viem_1 hit on the monster", hs)
-	}
 	cs, w := castsIn(envs), dirTo(start, m.pos)
 	if len(cs) != 1 || cs[0].TargetId != m.id || !near32(cs[0].DirX, w.X) || !near32(cs[0].DirY, w.Y) {
 		t.Fatalf("casts %v, want one at the monster along %v", cs, w)
+	}
+	if hs := hitsIn(envs); len(hs) != 0 {
+		t.Fatalf("hits %v in the press tick, want none", hs)
+	}
+	settle(z)
+	if hs := hitsBy(a.take(), 1); len(hs) != 1 || hs[0].TargetId != m.id || hs[0].SkillId != "viem_1" {
+		t.Fatalf("hits %v, want one viem_1 hit on the monster", hs)
 	}
 	z.advance(time.Now())
 	if mv := moveFor(lastTick(a.take()), 1); mv != nil {
@@ -3825,7 +3917,8 @@ func TestDashWithinOneTileStays(t *testing.T) {
 	if mv := moveFor(lastTick(envs), 1); mv != nil {
 		t.Fatalf("move %v, want none", mv)
 	}
-	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].TargetId != m.id {
+	settle(z)
+	if hs := hitsBy(a.take(), 1); len(hs) != 1 || hs[0].TargetId != m.id {
 		t.Fatalf("hits %v, want one on the monster", hs)
 	}
 }
@@ -3882,5 +3975,220 @@ func TestDashCrossesAOICell(t *testing.T) {
 	}
 	if !slices.Contains(enters(a.take()), 2) {
 		t.Fatal("the caster did not see the viewer enter")
+	}
+}
+
+// ______________________TEST IMPACTS_____________________
+
+// landTicks runs ticks until every impact in flight has landed and returns
+// the tick each hit by attacker landed on, by target, and the targets in the
+// order they were hit.
+func landTicks(z *Zone, attacker uint64) (map[uint64]uint32, []uint64) {
+	at := map[uint64]uint32{}
+	var order []uint64
+	for len(z.impacts) > 0 {
+		z.advance(time.Now())
+		for _, h := range z.events.hits {
+			if h.AttackerId == attacker {
+				at[h.TargetId] = z.tickNo
+				order = append(order, h.TargetId)
+			}
+		}
+	}
+	return at, order
+}
+
+// The queue lands impacts by due tick, then by the order they were made, and
+// only those due by now.
+func TestImpactQueueOrder(t *testing.T) {
+	z, _ := newFightZone(t, 1, Vec2{30.5, 30.5})
+	for _, due := range []uint32{5, 3, 5, 3, 4} {
+		z.schedule(impact{due: due, target: 999999}) // no such monster: landing does nothing
+	}
+	type key struct{ due, seq uint32 }
+	var got []key
+	for _, im := range z.impacts {
+		got = append(got, key{im.due, im.seq})
+	}
+	if want := []key{{3, 2}, {3, 4}, {4, 5}, {5, 1}, {5, 3}}; !slices.Equal(got, want) {
+		t.Fatalf("queue %v, want %v", got, want)
+	}
+	z.tickNo = 3
+	z.runImpacts()
+	if len(z.impacts) != 3 || z.impacts[0].due != 4 {
+		t.Fatalf("after tick 3: %d left, first due %d; want the two due at 3 gone", len(z.impacts), z.impacts[0].due)
+	}
+}
+
+// The slash changes nothing in the press tick but announces itself with a
+// Cast: no skill, 150 ms of windup, one impact. It lands ticks(0.15) later,
+// and only then does the monster take damage and turn on the attacker.
+func TestSlashLandsAtImpactTick(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.region.Kind.DetectRange = 0.5
+	a := joinNow(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	t0, p := z.tickNo, z.players[1]
+	envs := a.take()
+	if attackRespAt(envs, 1) < 0 {
+		t.Fatalf("slash rejected: %v", errorFor(envs, 1))
+	}
+	if hs := hitsIn(envs); len(hs) != 0 || m.hp != m.maxHP || p.exp != 0 || len(m.attackers) != 0 || chasing(m) {
+		t.Fatalf("press tick: hits %v hp %d exp %d attackers %v state %v, want nothing changed", hs, m.hp, p.exp, m.attackers, m.state)
+	}
+	want := &pb.Cast{CasterId: 1, TargetId: m.id, DirX: -1, WindupMs: 150, Impacts: []*pb.CastImpact{{TargetId: m.id, ImpactMs: 200}}}
+	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+		t.Fatalf("casts %v, want %v", cs, want)
+	}
+	at, _ := landTicks(z, 1)
+	if at[m.id] != t0+z.ticks(0.15) || m.hp != 56-14 {
+		t.Fatalf("landed at tick %d with hp %d, want tick %d and hp 42", at[m.id], m.hp, t0+z.ticks(0.15))
+	}
+	if !chasing(m) || m.target != 1 || m.attackers[1] != at[m.id] || p.exp == 0 {
+		t.Fatalf("state %v target %d attackers %v exp %d, want aggro and EXP at the impact", m.state, m.target, m.attackers, p.exp)
+	}
+}
+
+// Each victim's impact is windup + flight after the press (spec 2.2): a
+// single target by its distance, a cone or line wave by each victim's own
+// distance, a target circle all at once by the primary's distance, and a
+// self circle all at once after its windup.
+func TestSkillImpactTicks(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		skill  string
+		offs   []Vec2
+		target bool     // name ms[0]
+		ticks  []uint32 // after the press, per monster
+	}{
+		{"single at 5 tiles", "thuy_1", []Vec2{{5, 0}}, true, []uint32{5}},           // 0.25 + 5/20
+		{"cone at 2 and 4", "thuy_2", []Vec2{{2, 0}, {4, 0}}, false, []uint32{4, 5}}, // 0.25 + 2/20, 0.25 + 4/20
+		{"line at 2 and 4", "phong_1", []Vec2{{4, 0}, {2, 0}}, false, []uint32{5, 4}},
+		{"target circle", "viem_4", []Vec2{{3, 0}, {4.4, 0}}, true, []uint32{5, 5}}, // 0.3 + 3/20 for both
+		{"self circle", "thuy_4", []Vec2{{1, 0}, {-2.4, 0}}, false, []uint32{3, 3}}, // 0.3
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _, a, ms := areaZone(t, c.skill, 1, c.offs...)
+			var target uint64
+			if c.target {
+				target = ms[0].id
+			}
+			castNow(t, z, 1, 1, c.skill, target, Vec2{1, 0})
+			t0 := z.tickNo
+			envs := a.take()
+			if hs := hitsIn(envs); len(hs) != 0 {
+				t.Fatalf("hits %v in the press tick, want none", hs)
+			}
+			for _, m := range ms {
+				if m.hp != m.maxHP {
+					t.Fatalf("monster %d hp %d in the press tick, want full", m.id, m.hp)
+				}
+			}
+			cs := castsIn(envs)
+			if len(cs) != 1 || cs[0].WindupMs != int32(repoSkills[c.skill].WindupMS) || len(cs[0].Impacts) != len(ms) {
+				t.Fatalf("casts %v, want one with %d ms of windup and %d impacts", cs, repoSkills[c.skill].WindupMS, len(ms))
+			}
+			at, _ := landTicks(z, 1)
+			for i, m := range ms {
+				if at[m.id] != t0+c.ticks[i] {
+					t.Errorf("monster %d (%v) hit at +%d, want +%d", i, c.offs[i], at[m.id]-t0, c.ticks[i])
+				}
+			}
+			for _, im := range cs[0].Impacts {
+				if want := int32((at[im.TargetId] - t0) * 100); im.ImpactMs != want {
+					t.Errorf("impact %v, want %d ms", im, want)
+				}
+			}
+		})
+	}
+}
+
+// A dash moves the caster at the press and flies its own travel, not the
+// distance to the target: from 3.5 tiles it travels 2.5, so 0.1 + 2.5/25 =
+// 0.2 s (2 ticks), not 0.24 s (3).
+func TestDashImpactTick(t *testing.T) {
+	start := Vec2{30.5, 30.5}
+	z, m, p, a := dashZone(t, start, Vec2{34, 30.5})
+	castNow(t, z, 1, 1, "viem_1", m.id, Vec2{})
+	t0 := z.tickNo
+	envs := a.take()
+	if d := distance(start, p.pos); !near32(d, 2.5) || m.hp != m.maxHP {
+		t.Fatalf("dashed %v hp %d, want the caster moved 2.5 at the press and no damage", d, m.hp)
+	}
+	if mv := moveFor(lastTick(envs), 1); mv == nil || !mv.Snap {
+		t.Fatalf("move %v, want a snap at the press", mv)
+	}
+	if cs := castsIn(envs); len(cs) != 1 || len(cs[0].Impacts) != 1 || cs[0].Impacts[0].ImpactMs != 200 || cs[0].WindupMs != 100 {
+		t.Fatalf("casts %v, want 100 ms windup and one impact at 200 ms", cs)
+	}
+	if at, _ := landTicks(z, 1); at[m.id] != t0+2 {
+		t.Fatalf("hit at +%d, want +2", at[m.id]-t0)
+	}
+}
+
+// Impacts due on one tick land in the order they were made; the one that
+// brings the monster to 0 is the killing blow, and the rest, that tick or
+// later, are dropped: no Hit, no EXP.
+func TestImpactOnKilledMonsterIsDropped(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.region.Kind.DetectRange = 0.5
+	m.hp = 10 // one slash kills it
+	v := joinNow(t, z, 9, 30.5, 36.5)
+	joinNow(t, z, 1, 31.5, 30.5)
+	joinNow(t, z, 2, 29.5, 30.5)
+	joinNow(t, z, 3, 30.5, 31.5)
+	z.Attack(1, 1, m.id)
+	attackNow(t, z, 2, 1, m.id) // 1 and 2 land on the same tick, 1 first
+	attackNow(t, z, 3, 1, m.id) // 3 lands one tick later
+	v.take()
+	settle(z)
+	envs := v.take()
+	hs := hitsIn(envs)
+	if len(hs) != 1 || hs[0].AttackerId != 1 || hs[0].HpAfter != 0 || !m.dead || !slices.Equal(deathsIn(envs), []uint64{m.id}) {
+		t.Fatalf("hits %v dead %v deaths %v, want player 1's slash the only hit and the kill", hs, m.dead, deathsIn(envs))
+	}
+	if p1, p2, p3 := z.players[1], z.players[2], z.players[3]; p1.exp != combat.ExpShare(testLevels[1].Exp, m.maxHP, 10) || p2.exp != 0 || p3.exp != 0 {
+		t.Fatalf("exp %d/%d/%d, want only the killer paid", p1.exp, p2.exp, p3.exp)
+	}
+}
+
+// An attacker who leaves before its impact still lands it, but earns no
+// EXP, and the monster neither records nor chases it.
+func TestImpactAfterAttackerLeaves(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.region.Kind.DetectRange = 0.5
+	v := joinNow(t, z, 2, 30.5, 36.5)
+	joinNow(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	v.take()
+	settle(z)
+	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42}
+	if hs := hitsIn(v.take()); len(hs) != 1 || hs[0].String() != want.String() || m.hp != 42 {
+		t.Fatalf("hits %v hp %d, want %v", hs, m.hp, want)
+	}
+	if len(m.attackers) != 0 || len(m.dmgBy) != 0 || chasing(m) || m.target != 0 {
+		t.Fatalf("attackers %v dmgBy %v state %v target %d, want the departed attacker ignored", m.attackers, m.dmgBy, m.state, m.target)
+	}
+}
+
+// An attacker who dies before its impact still lands it and, being in the
+// zone, earns its EXP; the monster does not record it, so it is not chased
+// once respawned.
+func TestImpactAfterAttackerDies(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.region.Kind.DetectRange = 0.5
+	joinNow(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	p := z.players[1]
+	z.damagePlayer(p, 0, 10000, false)
+	settle(z)
+	if m.hp != 42 || p.exp != combat.ExpShare(testLevels[1].Exp, m.maxHP, 14) {
+		t.Fatalf("hp %d exp %d, want the slash landed and paid", m.hp, p.exp)
+	}
+	if len(m.attackers) != 0 || chasing(m) {
+		t.Fatalf("attackers %v state %v, want the dead attacker not recorded or chased", m.attackers, m.state)
 	}
 }

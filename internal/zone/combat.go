@@ -156,7 +156,7 @@ func (z *Zone) resolveAttacks() {
 	}
 }
 
-// resolveAttack checks p's slash c and lands it if it passes.
+// resolveAttack checks p's slash c and starts it if it passes.
 func (z *Zone) resolveAttack(p *player, c *attackCmd) {
 	m, code := z.checkAttack(p, c.target)
 	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
@@ -190,28 +190,23 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// slash lands p's default slash on m.
+// slash starts p's default slash on m (attack phases spec 2): its damage is
+// fixed now and lands SlashWindup later, with no flight. Viewers get a Cast
+// with an empty skill id.
 func (z *Zone) slash(p *player, m *monster) {
-	z.strike(p, m, combat.SlashBase(p.stats), p.level, "")
+	windup := int(combat.SlashWindup.Milliseconds())
+	due := z.tickNo + z.impactTicks(windup, 0)
+	z.schedule(impact{due: due, attacker: p.id, target: m.id, damage: z.damageTo(m, combat.SlashBase(p.stats), p.level)})
+	d := dirTo(p.pos, m.pos)
+	z.events.casts = append(z.events.casts, &pb.Cast{CasterId: p.id, TargetId: m.id, DirX: d.X, DirY: d.Y,
+		WindupMs: int32(windup), Impacts: []*pb.CastImpact{{TargetId: m.id, ImpactMs: z.impactMS(due)}}})
 }
 
-// strike lands one hit by p on m of base damage before m's defense, from an
-// attacker of the given level; skillID names the skill, empty for the slash.
-// p earns its EXP share of the hit, a monster not already chasing turns on
-// its attacker (spec 4.4), and one brought to 0 HP dies.
-func (z *Zone) strike(p *player, m *monster, base, level int, skillID string) {
-	dmg := combat.Damage(base, z.area.Levels[m.level].Defense, level)
-	counted := min(dmg, m.hp) // overkill earns no EXP
-	m.hp -= counted
-	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: p.id, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp), SkillId: skillID})
-	m.attackers[p.id] = z.tickNo
-	z.payExpShare(p, m, counted)
-	if m.state != chase && m.state != attack {
-		z.startChase(m, p.id)
-	}
-	if m.hp == 0 {
-		z.killMonster(m)
-	}
+// damageTo is the damage a hit of base damage before m's defense does to m,
+// from an attacker of the given level. Attacks fix it at the press;
+// applyToMonster lands it.
+func (z *Zone) damageTo(m *monster, base, level int) int {
+	return combat.Damage(base, z.area.Levels[m.level].Defense, level)
 }
 
 // killMonster makes m a corpse and schedules its region's respawn. Its EXP has

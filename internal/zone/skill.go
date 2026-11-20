@@ -47,9 +47,10 @@ func (z *Zone) queueCast(c castCmd) {
 }
 
 // resolveCast checks p's cast c in the order of phase 2 spec 4.2 and, if it
-// passes, spends its MP, starts its cooldown, answers it, announces it and
-// lands it on its victims (spec 4.6), after moving a dash's caster (spec
-// 4.5). An error spends nothing.
+// passes, spends its MP, starts its cooldown, answers it, moves a dash's
+// caster (spec 4.5), fixes each victim's damage and impact tick (attack
+// phases spec 2) and announces it with a Cast that lists the impacts (spec
+// 4.6). Nothing lands in this tick. An error spends nothing.
 func (z *Zone) resolveCast(p *player, c *castCmd) {
 	s, n, code := z.checkCast(p, c.skillID)
 	var primary *monster
@@ -70,7 +71,7 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	p.statsDirty = true
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_CastResp{CastResp: &pb.CastResp{}}})
 	hit := z.victims(p, s, n, primary, dir)
-	ev := &pb.Cast{CasterId: p.id, SkillId: s.ID, DirX: dir.X, DirY: dir.Y, Level: int32(n)}
+	ev := &pb.Cast{CasterId: p.id, SkillId: s.ID, DirX: dir.X, DirY: dir.Y, Level: int32(n), WindupMs: int32(s.WindupMS)}
 	switch {
 	case s.Shape == gamedata.ShapeCircleSelf:
 		// The named target only orders the hits; name it only if it was hit.
@@ -80,6 +81,14 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	case primary != nil:
 		ev.TargetId = primary.id
 	}
+	// The cast is one action: every victim's damage comes from the caster's
+	// stats and level now, even if an earlier hit levels the caster up.
+	base, level := combat.SkillBase(p.stats, s.Damage == gamedata.DamageMagic, s.CoefPct[n-1]), p.level
+	for _, m := range hit {
+		due := z.tickNo + z.impactTicks(s.WindupMS, flightSec(flightDist(p.pos, land, s, primary, m), s.ProjectileSpeed))
+		z.schedule(impact{due: due, attacker: p.id, target: m.id, damage: z.damageTo(m, base, level), skillID: s.ID})
+		ev.Impacts = append(ev.Impacts, &pb.CastImpact{TargetId: m.id, ImpactMs: z.impactMS(due)})
+	}
 	z.events.casts = append(z.events.casts, ev)
 	if land != p.pos {
 		// The dash: everyone in view, the caster too, jumps to the landing
@@ -87,12 +96,22 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 		p.pos, p.changed, p.snap = land, true, true
 		z.updateCell(&p.entity)
 	}
-	// The cast is one action: a level gained on its first hit does not
-	// change the damage of the rest.
-	base, level := combat.SkillBase(p.stats, s.Damage == gamedata.DamageMagic, s.CoefPct[n-1]), p.level
-	for _, m := range hit {
-		z.strike(p, m, base, level, s.ID)
+}
+
+// flightDist is how far a cast of s from from flies to victim m (attack
+// phases spec 2.2): from the caster to the primary target for single and
+// circle_target, to m itself for cone and line, and from from to the
+// landing point land for a dash. circle_self has no projectile.
+func flightDist(from, land Vec2, s gamedata.Skill, primary, m *monster) float32 {
+	switch {
+	case s.Dash:
+		return distance(from, land)
+	case s.Shape == gamedata.ShapeCone || s.Shape == gamedata.ShapeLine:
+		return distance(from, m.pos)
+	case s.Shape == gamedata.ShapeSingle || s.Shape == gamedata.ShapeCircleTarget:
+		return distance(from, primary.pos)
 	}
+	return 0
 }
 
 // checkCast runs the checks of phase 2 spec 4.2 that do not depend on the

@@ -168,6 +168,10 @@ type Zone struct {
 	departed map[uint64]chan error // evicted players whose Leave has not arrived yet
 	lastSave time.Time
 	events   tickEvents // combat events of the current tick
+	// impacts are the attacks in flight, ordered by due tick and then seq;
+	// impactSeq is the seq of the last one scheduled.
+	impacts   []impact
+	impactSeq uint32
 }
 
 // New creates a zone on area and fills its monster regions.
@@ -345,12 +349,14 @@ func (z *Zone) safeAdvance(now time.Time) {
 	z.advance(now)
 }
 
-// advance runs one tick in the order of spec 6.2: apply commands, resolve
-// attacks, move players, run monsters, run timers, then send each player its view.
+// advance runs one tick in the order of spec 6.2 and attack phases spec 3.2:
+// apply commands, land the impacts now due, resolve attacks, move players,
+// run monsters, run timers, then send each player its view.
 func (z *Zone) advance(now time.Time) {
 	z.tickNo++
 	z.events = tickEvents{}
 	z.drain()
+	z.runImpacts()
 	z.resolveAttacks()
 	z.movePlayers()
 	z.thinkMonsters()
