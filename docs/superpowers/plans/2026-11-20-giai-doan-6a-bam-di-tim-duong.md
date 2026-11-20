@@ -73,8 +73,8 @@ docs/game-design.md, CLAUDE.md, phase 0 spec               docs (Task 7)
 **Files:** `core/pathfinder.gd` (new), `tests/unit/test_core.gd`.
 
 **Interface (static):**
-- `func find(grid, from: Vector2, to: Vector2) -> PackedVector2Array` — §4.1; empty when no path or when already a straight `clear` line inside the same tile.
-- `func clear(grid, a: Vector2, b: Vector2, half := 0.35) -> bool` — samples every 0.1 tile, both ends included; each sample's square must touch no blocked tile.
+- `func find(grid, from: Vector2, to: Vector2, avoid := []) -> PackedVector2Array` — §4.1; at least the goal point whenever reachable (also within one tile), empty only when unreachable; tiles inside any `avoid` `Rect2i` count as walls.
+- `func clear(grid, a: Vector2, b: Vector2, half := 0.35, avoid := []) -> bool` — samples every 0.1 tile, both ends included; each sample's square must touch no blocked or avoided tile.
 - `func nearest_walkable(grid, pos: Vector2, max_r: int) -> Variant` — tile centre or `null`.
 - `func length(from: Vector2, path: PackedVector2Array) -> float`.
 - `const MAX_EXPANDED := 4096`, `const SWEEP_HALF := 0.35`.
@@ -85,8 +85,8 @@ docs/game-design.md, CLAUDE.md, phase 0 spec               docs (Task 7)
 - Gotcha: a tile-sized square at half 0.35 around a tile centre stays inside that tile; do not "optimise" `clear` into a centre-line test, which lets the 0.6 box clip corners.
 
 **TODO / tests** (`# ____TEST PATHFINDING____`):
-- [ ] Small hand-built grids (a test grid object with `blocked`, `width`, `height`): open floor → single point; wall between → path around it; U-shape exit; no corner cut through two diagonal walls; unreachable → empty; wall goal → nearest walkable within 3, none → empty; every consecutive pair of `[from] + path` passes `clear`; length ≤ 1.01 × the octile shortest path on an open grid with one obstacle; same input → identical output.
-- [ ] Real synced maps: from each map's `default` to every NPC, portal centre and spawn point, `find` returns a non-empty path (or a straight clear line) and expands ≤ `MAX_EXPANDED` tiles (expose a counter for tests).
+- [ ] Small hand-built grids (a test grid object with `blocked`, `width`, `height`): open floor → single point (also from and to in one tile); an `avoid` rect on the straight line is walked around; wall between → path around it; U-shape exit; no corner cut through two diagonal walls; unreachable → empty; wall goal → nearest walkable within 3, none → empty; every consecutive pair of `[from] + path` passes `clear`; length ≤ 1.01 × the octile shortest path on an open grid with one obstacle; same input → identical output.
+- [ ] Real synced maps: from each map's `default` to every NPC and spawn point (avoiding all portals) and to every portal centre (avoiding the others), `find` returns a non-empty path that touches no avoided tile and expands ≤ `MAX_EXPANDED` tiles (expose a counter for tests).
 - [ ] Commit: `Add an A* pathfinder over the collision tiles`.
 
 ### Task 2: Client — walker
@@ -94,9 +94,9 @@ docs/game-design.md, CLAUDE.md, phase 0 spec               docs (Task 7)
 **Files:** `core/walker.gd` (new), `tests/unit/test_core.gd`.
 
 **Interface:**
-- `func start(grid, from: Vector2, goal: Vector2, radius: float) -> bool`.
+- `func start(grid, from: Vector2, goal: Vector2, radius: float, avoid := []) -> bool` — `avoid` is reused for every re-plan.
 - `func step(pos: Vector2, step_dist: float, now: float) -> Vector2` — direction for one predictor tick (§1.3, §4.1).
-- `func chase(grid, pos: Vector2, target: Vector2, now: float) -> Vector2`.
+- `func chase(grid, pos: Vector2, target: Vector2, now: float, avoid := []) -> Vector2` — callers pass every portal rect of the map.
 - `var status: String` (`"idle"`, `"walking"`, `"arrived"`, `"failed"`); `func remaining() -> PackedVector2Array`; `func cancel() -> void`.
 - Constants: `KEEP_DEG := 3.0`, `STUCK_SEC := 1.0`, `STUCK_GAIN := 0.05`, `MAX_REPLANS := 3`, `CHASE_MOVE := 1.0`, `CHASE_REPLAN_SEC := 0.5`, `ARRIVE_EPS := 0.01`.
 
@@ -123,7 +123,7 @@ docs/game-design.md, CLAUDE.md, phase 0 spec               docs (Task 7)
 - `travel.gd`: `func begin(goal: Dictionary, map_id: String, pos: Vector2, graph, grid) -> String` (`""`, `"no_route"`, `"no_path"`); `func resume(map_id, pos, graph, grid) -> String`; `func step(pos, step_dist, now) -> Vector2`; `func arrived() -> bool`; `func leg() -> Dictionary` (`{pos, radius, portal_id}` for drawing); `func cancel()`; `var goal: Dictionary`.
 - `router.gd`: `var travel = null` — cleared in the same place as the party model when going back to character select.
 
-**Behaviour:** §4.1–4.2. A portal leg targets the rect centre (`rect.position + rect.size / 2.0`) with radius 0; a goal on the current map targets `goal.pos` with `goal.radius`. `begin` on an unknown goal map or a `null` route → `"no_route"`.
+**Behaviour:** §4.1–4.2. A portal leg targets the rect centre (`rect.position + rect.size / 2.0`) with radius 0 and avoids every other portal; a goal on the current map targets `goal.pos` with `goal.radius` and avoids every portal (so a walk along the map edge never transfers by accident). `begin` on an unknown goal map or a `null` route → `"no_route"`.
 
 **TODO / tests** (`# ____TEST TRAVEL____`):
 - [ ] `route("kumotori_1", "fujikasane_1")` → `to_ubuyashiki`, `to_sagiri_1`, `to_sagiri_2`, `to_fujikasane_1`; same map → `[]`; unknown map → `null`; `reachable` lists all five maps in BFS order; `level_range("sagiri_1") == Vector2i(6, 10)`, `ubuyashiki` → `(0, 0)`.

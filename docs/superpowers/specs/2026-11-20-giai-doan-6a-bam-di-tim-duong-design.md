@@ -31,6 +31,7 @@ Người dùng đã ủy quyền chọn phương án khuyên dùng cho mọi quy
 | Tìm đường ở đâu | Client. Server vẫn chỉ nhận `MoveInput` (hướng) như cũ; không có lệnh "đi tới điểm" | Server đã kiểm tra mọi bước đi; dự đoán của client vẫn khớp từng bước; không tốn CPU server cho A*; không thêm lệnh mới để kiểm tra |
 | Lưới tìm đường | Ô của lớp va chạm, 8 hướng; đi chéo chỉ khi hai ô kề cạnh cũng đi được (không cắt góc tường); chi phí 1 cho ô ngang/dọc, √2 cho ô chéo; ước lượng octile | Hộp va chạm 0,6 × 0,6 đi chéo qua góc tường sẽ bị chặn; với luật này mọi đoạn giữa hai tâm ô liền nhau đều đi được |
 | Làm mượt | Kéo dây: từ mỗi điểm, nối thẳng tới điểm xa nhất trên đường mà hộp **0,35** (lớn hơn hộp va chạm 0,3) quét dọc đoạn thẳng không chạm ô tường | Đường thẳng, ít lần đổi hướng nên ít `MoveInput`; khoảng hở 0,05 ô tránh cọ vào góc tường |
+| Tránh cổng | Khi tìm đường, ô thuộc hình chữ nhật của mọi cổng coi như tường, trừ cổng là đích của chặng | Cổng nằm sát tường biên; đường đi dọc mép map không được vô tình bước vào cổng và chuyển map |
 | Giới hạn tìm | Tối đa 4.096 ô được mở rộng mỗi lần (map 64 × 48 có 3.072 ô); hết giới hạn hoặc không có đường thì báo "Không tìm được đường" | Không bao giờ treo khung hình |
 | Đi theo đường | Mỗi tick dự đoán, hướng là từ vị trí dự đoán tới điểm kế tiếp; chỉ gửi hướng mới khi lệch hướng đã gửi quá **3°** hoặc chuyển điểm; cách điểm kế tiếp không quá một bước tick thì chuyển điểm; bước cuối gửi hướng có độ dài nhỏ hơn 1 để dừng đúng đích | Ít `MoveInput` (tối đa một gói mỗi tick, dưới giới hạn 20/giây); dừng đúng chỗ, không đi quá đích |
 | Kẹt | Không gần điểm kế tiếp thêm 0,05 ô trong 1 giây thì tìm lại đường từ vị trí hiện tại; tìm lại 3 lần liên tiếp vẫn kẹt thì dừng và báo "Không tìm được đường" | Quái và người chơi không chặn đường, nên kẹt chỉ do sai số trượt theo tường; tìm lại là đủ |
@@ -68,21 +69,21 @@ Không đổi code, không đổi giao thức (`ProtocolVersion` vẫn là 13), 
 
 **`core/pathfinder.gd`** (mới, hàm tĩnh, `grid` là đối tượng có `blocked(x, y)`, `width`, `height`):
 
-- `find(grid, from: Vector2, to: Vector2) -> PackedVector2Array`: đường đã làm mượt, không gồm `from`, kết thúc đúng tại `to` khi ô của `to` đi được. Rỗng khi không có đường hoặc khi `from` và `to` cùng ô và `clear(from, to)` (đi thẳng).
+- `find(grid, from: Vector2, to: Vector2, avoid := []) -> PackedVector2Array`: đường đã làm mượt, không gồm `from`, kết thúc đúng tại `to` khi ô của `to` đi được; luôn có ít nhất một điểm (đích) khi tới được, kể cả khi `from` và `to` cùng ô. Rỗng chỉ khi không có đường. `avoid` là các `Rect2i` (cổng không phải đích) mà ô bên trong coi như tường, cả trong A* lẫn trong `clear`.
   - Ô bắt đầu là ô của `from`. Ô đích là ô của `to`; nếu ô đó là tường thì dùng `nearest_walkable(to, 3)` và đường kết thúc ở tâm ô đó.
   - A* trên ô theo mục 1.3, hàng đợi ưu tiên là đống nhị phân; bằng `f` thì lấy `h` nhỏ hơn, rồi chỉ số ô (y × width + x) nhỏ hơn, nên kết quả xác định.
   - Đường thô là chuỗi tâm ô; kéo dây theo mục 1.3, với điểm đầu là `from` thật và điểm cuối là `to` thật (hoặc tâm ô đích thay thế).
-- `clear(grid, a: Vector2, b: Vector2, half := 0.35) -> bool`: lấy mẫu dọc đoạn ab mỗi 0,1 ô (gồm hai đầu); với mỗi mẫu, hình vuông [x − half, x + half] × [y − half, y + half] không chạm ô tường nào (ô ngoài map là tường).
+- `clear(grid, a: Vector2, b: Vector2, half := 0.35, avoid := []) -> bool`: lấy mẫu dọc đoạn ab mỗi 0,1 ô (gồm hai đầu); với mỗi mẫu, hình vuông [x − half, x + half] × [y − half, y + half] không chạm ô tường nào (ô ngoài map là tường).
 - `nearest_walkable(grid, pos: Vector2, max_r: int) -> Variant`: tâm ô đi được gần `pos` nhất trong bán kính `max_r` ô (khoảng cách từ `pos` tới tâm ô), bằng nhau thì chỉ số ô nhỏ hơn; `null` nếu không có.
 - `length(from, path) -> float`: tổng độ dài để hiển thị và kiểm thử.
 
 **`core/walker.gd`** (mới): đi theo một đường, gọi mỗi tick dự đoán.
 
-- `start(grid, from: Vector2, goal: Vector2, radius: float) -> bool`: tìm đường (`pathfinder.find`); false và trạng thái `"failed"` khi không có đường. `radius` là bán kính dừng (0 = tới đúng điểm).
+- `start(grid, from: Vector2, goal: Vector2, radius: float, avoid := []) -> bool`: tìm đường (`pathfinder.find`, cùng `avoid` cho mọi lần tìm lại); false và trạng thái `"failed"` khi không có đường. `radius` là bán kính dừng (0 = tới đúng điểm).
 - `step(pos: Vector2, step_dist: float, now: float) -> Vector2`: hướng cho tick này theo mục 1.3. Trả `Vector2.ZERO` và trạng thái `"arrived"` khi `pos` cách đích không quá `radius` (hoặc không quá 0,01 ô khi `radius` là 0). Khi còn một bước và `radius` là 0: trả `(đích − pos) / step_dist` (độ dài < 1).
 - Giữ hướng: nếu hướng mới lệch hướng trả ở tick trước không quá 3° và chưa chuyển điểm thì trả lại đúng hướng cũ (cùng giá trị, nên `predictor` không gửi gói mới).
 - Kẹt: theo mục 1.3, tính trên khoảng cách tới điểm kế tiếp và thời gian `now`; tìm lại thì đường mới bắt đầu từ `pos`; lần thứ ba thì trạng thái `"failed"`.
-- `chase(grid, pos: Vector2, target: Vector2, now: float) -> Vector2`: dùng cho các vòng đánh, chiêu, nhặt và NPC. `clear(pos, target)` thì trả hướng thẳng tới `target` (như hiện nay). Nếu không, đi theo đường A* tới `target`, tìm lại khi `target` cách đích đường cũ quá 1 ô và đã qua 0,5 giây từ lần tìm trước; không có đường thì trả hướng thẳng.
+- `chase(grid, pos: Vector2, target: Vector2, now: float, avoid := []) -> Vector2`: dùng cho các vòng đánh, chiêu, nhặt và NPC (`avoid` là mọi cổng của map). `clear(pos, target)` thì trả hướng thẳng tới `target` (như hiện nay). Nếu không, đi theo đường A* tới `target`, tìm lại khi `target` cách đích đường cũ quá 1 ô và đã qua 0,5 giây từ lần tìm trước; không có đường thì trả hướng thẳng.
 - `status` (`"idle"`, `"walking"`, `"arrived"`, `"failed"`), `remaining() -> PackedVector2Array` (để vẽ), `cancel()`.
 
 **`core/world_graph.gd`** (mới): đồ thị cổng giữa các map.
@@ -95,7 +96,7 @@ Không đổi code, không đổi giao thức (`ProtocolVersion` vẫn là 13), 
 
 - Đích (`goal`) là `Dictionary`: `map` (id map), `pos` (`Vector2`), `radius`, `kind` (`"point"`, `"npc"`; 6b thêm `"region"`), `ref` (id NPC khi `kind` là `"npc"`), `label` (tên hiển thị). Đích có thể chuyển qua lại với `Router.travel` (chỉ chứa kiểu dữ liệu đơn giản).
 - `begin(goal, map_id, pos, graph, grid) -> String`: `""` khi bắt đầu được; `"no_route"` khi `route` là `null`; `"no_path"` khi không có đường trong map hiện tại.
-- Chặng hiện tại: nếu `map_id` là map đích thì chặng tới `goal.pos` với `goal.radius`; nếu không thì chặng tới tâm hình chữ nhật của cổng đầu tiên trong `route(map_id, goal.map)`, bán kính 0.
+- Chặng hiện tại: nếu `map_id` là map đích thì chặng tới `goal.pos` với `goal.radius`, tránh mọi cổng; nếu không thì chặng tới tâm hình chữ nhật của cổng đầu tiên trong `route(map_id, goal.map)`, bán kính 0, tránh mọi cổng khác.
 - `step(pos, step_dist, now) -> Vector2` gọi `walker.step`; `arrived() -> bool` chỉ đúng khi đang ở map đích và chặng cuối đã tới.
 - `resume(map_id, pos, graph, grid) -> String`: gọi sau khi nạp lại màn World ở map mới; tính lại chặng như `begin`.
 - `cancel()`.
@@ -139,8 +140,8 @@ Không đổi code, không đổi giao thức (`ProtocolVersion` vẫn là 13), 
 
 **Client** (`tests/run.sh`, mục mới `# ____TEST PATHFINDING____`, `# ____TEST TRAVEL____`):
 
-- `pathfinder` trên lưới nhỏ dựng trong test: đường thẳng trên nền trống là một điểm (đích); vòng qua một bức tường; ra khỏi chữ U; không cắt góc (hai ô chéo nhau bị tường hai bên kề thì phải đi vòng); không có đường trả rỗng; đích là ô tường dùng ô đi được gần nhất, không có ô nào trong 3 ô thì rỗng; mọi đoạn của kết quả qua `clear`; độ dài không quá 1,01 lần đường octile ngắn nhất trên lưới trống có một vật cản; cùng đầu vào cho cùng kết quả.
-- `pathfinder` trên **map thật** đã đồng bộ: từ `default` của mỗi map tới mọi NPC, mọi cổng và mọi điểm xuất hiện đều có đường; mỗi lần tìm mở rộng không quá 4.096 ô.
+- `pathfinder` trên lưới nhỏ dựng trong test: đường thẳng trên nền trống là một điểm (đích), kể cả khi cùng ô; ô trong `avoid` bị đi vòng; vòng qua một bức tường; ra khỏi chữ U; không cắt góc (hai ô chéo nhau bị tường hai bên kề thì phải đi vòng); không có đường trả rỗng; đích là ô tường dùng ô đi được gần nhất, không có ô nào trong 3 ô thì rỗng; mọi đoạn của kết quả qua `clear`; độ dài không quá 1,01 lần đường octile ngắn nhất trên lưới trống có một vật cản; cùng đầu vào cho cùng kết quả.
+- `pathfinder` trên **map thật** đã đồng bộ: từ `default` của mỗi map tới mọi NPC, mọi cổng (tránh các cổng khác) và mọi điểm xuất hiện (tránh mọi cổng) đều có đường, và không đoạn nào chạm ô cổng bị tránh; mỗi lần tìm mở rộng không quá 4.096 ô.
 - `walker` mô phỏng bằng `movement.gd` với bước tick 0,4 ô trên map thật: từ `default` của mỗi map tới tâm mỗi cổng và tới từng NPC (bán kính 2,5) đều `"arrived"` trong số tick không quá 1,5 lần độ dài đường chia bước tick cộng 20; số lần đổi hướng không quá số điểm của đường cộng 2; dừng đúng đích với sai số 0,01 khi bán kính 0.
 - `walker`: lệch dưới 3° trả lại đúng hướng cũ; kẹt (lưới bị đổi thành tường ngay trước nhân vật sau khi bắt đầu) thì tìm lại, lần thứ ba thì `"failed"`; `chase` đi thẳng khi không có tường chắn và đi theo đường khi có; mục tiêu dời 2 ô thì tìm lại sau 0,5 giây.
 - `world_graph` trên map thật: `route("kumotori_1", "fujikasane_1")` là bốn cổng `to_ubuyashiki`, `to_sagiri_1`, `to_sagiri_2`, `to_fujikasane_1`; cùng map là `[]`; map không có trả `null`; `reachable("kumotori_1")` đủ năm map; `level_range("sagiri_1")` là (6, 10), của `ubuyashiki` là (0, 0).
