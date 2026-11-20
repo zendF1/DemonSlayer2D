@@ -10,6 +10,8 @@
       "damage": "phys",
       "shape": "single",
       "dash": true,
+      "windup_ms": 100,
+      "projectile_speed": 25,
       "range": [
         5,
         5,
@@ -69,6 +71,8 @@
       "damage": "phys",
       "shape": "cone",
       "cone_deg": 120,
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -174,6 +178,8 @@
       "damage": "phys",
       "shape": "circle_target",
       "radius": 1.5,
+      "windup_ms": 300,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -244,6 +250,8 @@
       "slot": 4,
       "damage": "phys",
       "shape": "single",
+      "windup_ms": 400,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -302,6 +310,8 @@
       "slot": 1,
       "damage": "magic",
       "shape": "single",
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -361,6 +371,8 @@
       "damage": "magic",
       "shape": "cone",
       "cone_deg": 120,
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -454,6 +466,8 @@
       "damage": "magic",
       "shape": "circle_self",
       "radius": 2.5,
+      "windup_ms": 300,
+      "projectile_speed": 0,
       "coef_pct": [
         160,
         175,
@@ -512,6 +526,8 @@
       "slot": 4,
       "damage": "magic",
       "shape": "single",
+      "windup_ms": 400,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -571,6 +587,8 @@
       "damage": "phys",
       "shape": "single",
       "dash": true,
+      "windup_ms": 100,
+      "projectile_speed": 25,
       "range": [
         5,
         5,
@@ -630,6 +648,8 @@
       "damage": "phys",
       "shape": "circle_self",
       "radius": 2,
+      "windup_ms": 300,
+      "projectile_speed": 0,
       "coef_pct": [
         110,
         120,
@@ -711,6 +731,8 @@
       "damage": "phys",
       "shape": "line",
       "width": 1.5,
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -781,6 +803,8 @@
       "slot": 4,
       "damage": "phys",
       "shape": "single",
+      "windup_ms": 400,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -839,6 +863,8 @@
       "slot": 1,
       "damage": "phys",
       "shape": "single",
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -898,6 +924,8 @@
       "damage": "phys",
       "shape": "circle_target",
       "radius": 1.5,
+      "windup_ms": 300,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -1003,6 +1031,8 @@
       "damage": "phys",
       "shape": "circle_self",
       "radius": 3,
+      "windup_ms": 300,
+      "projectile_speed": 0,
       "coef_pct": [
         160,
         175,
@@ -1061,6 +1091,8 @@
       "slot": 4,
       "damage": "phys",
       "shape": "single",
+      "windup_ms": 400,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -1120,6 +1152,8 @@
       "damage": "magic",
       "shape": "line",
       "width": 1.5,
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -1190,6 +1224,8 @@
       "slot": 2,
       "damage": "magic",
       "shape": "single",
+      "windup_ms": 250,
+      "projectile_speed": 20,
       "range": [
         5,
         5,
@@ -1283,6 +1319,8 @@
       "damage": "magic",
       "shape": "circle_target",
       "radius": 2,
+      "windup_ms": 300,
+      "projectile_speed": 20,
       "range": [
         4,
         4,
@@ -1354,6 +1392,8 @@
       "damage": "magic",
       "shape": "circle_target",
       "radius": 3,
+      "windup_ms": 300,
+      "projectile_speed": 20,
       "range": [
         4,
         4,

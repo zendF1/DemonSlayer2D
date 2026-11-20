@@ -91,6 +91,11 @@ type Skill struct {
 	MP         []int `json:"mp"`
 	CooldownMS []int `json:"cooldown_ms"`
 	MaxTargets []int `json:"max_targets"`
+	// WindupMS is the time from the press to the start of the flight
+	// (> 0). ProjectileSpeed is the flight speed in tiles per second (>= 0;
+	// the dash speed for a dash, 0 for circle_self). Actives only.
+	WindupMS        int     `json:"windup_ms"`
+	ProjectileSpeed float64 `json:"projectile_speed"`
 	// Passive maps a passive key to its per-level values.
 	Passive map[string][]int `json:"passive"`
 }
@@ -221,8 +226,9 @@ func validatePassive(s Skill, present map[string]json.RawMessage, bad func(strin
 	}
 	if s.Damage != "" || s.Shape != "" || s.Radius != 0 || s.ConeDeg != 0 || s.Width != 0 || s.Dash ||
 		s.Range != nil || s.CoefPct != nil || s.MP != nil || s.CooldownMS != nil || s.MaxTargets != nil ||
+		s.WindupMS != 0 || s.ProjectileSpeed != 0 ||
 		hasAny(present, "damage", "shape", "radius", "cone_deg", "width", "range",
-			"dash", "coef_pct", "mp", "cooldown_ms", "max_targets") {
+			"dash", "coef_pct", "mp", "cooldown_ms", "max_targets", "windup_ms", "projectile_speed") {
 		return bad("passive must not have active fields")
 	}
 	for k, v := range s.Passive {
@@ -289,12 +295,40 @@ func validateActive(s Skill, present map[string]json.RawMessage, bad func(string
 			return err
 		}
 	}
+	if err := validateTiming(s, present, bad); err != nil {
+		return err
+	}
 	if s.Shape == ShapeSingle {
 		if _, ok := present["max_targets"]; ok {
 			return bad("max_targets is not allowed for shape single")
 		}
 	} else if err := positiveArray("max_targets", s.MaxTargets, bad); err != nil {
 		return err
+	}
+	return nil
+}
+
+// validateTiming checks windup_ms and projectile_speed: both are required, the
+// windup is positive and the speed is not negative; a dash needs a positive
+// speed and circle_self must have none.
+func validateTiming(s Skill, present map[string]json.RawMessage, bad func(string, ...any) error) error {
+	for _, k := range []string{"windup_ms", "projectile_speed"} {
+		if _, ok := present[k]; !ok {
+			return bad("%s is required", k)
+		}
+	}
+	if s.WindupMS <= 0 {
+		return bad("windup_ms must be positive")
+	}
+	// The negated comparison also rejects NaN.
+	if !(s.ProjectileSpeed >= 0) {
+		return bad("projectile_speed must not be negative")
+	}
+	if s.Dash && !(s.ProjectileSpeed > 0) {
+		return bad("projectile_speed must be positive for a dash")
+	}
+	if s.Shape == ShapeCircleSelf && s.ProjectileSpeed != 0 {
+		return bad("projectile_speed must be 0 for shape %s", s.Shape)
 	}
 	return nil
 }

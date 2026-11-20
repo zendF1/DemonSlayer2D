@@ -15,6 +15,9 @@ passive (always the third skill) has slot 0. Per skill level n (1-10):
   (dash included), 4,4,4,5,5,5,6,6,6,6 for cone, line and circle_target. It
   is the targeting range of single/circle_target, the cone's reach and the
   line's length. circle_self has no range, only its radius.
+- windup_ms and projectile_speed (tiles/s) come from timing() by shape, slot and
+  dash (phases spec 2.3); passives have neither. For a dash the speed is the
+  dash speed; circle_self has 0.
 monster_stats.py imports coef_pct() for the Bat Tri Hoa (viem_1) coefficient.
 """
 
@@ -94,6 +97,19 @@ def coef_pct(skill_id, n):
     raise KeyError(skill_id)
 
 
+def timing(shape, slot, dash):
+    """(windup_ms, projectile_speed) of an active skill (phases spec 2.3)."""
+    if dash:
+        return 100, 25
+    if shape == "circle_self":
+        return 300, 0
+    if shape == "circle_target":
+        return 300, 20
+    if shape == "single" and slot == 4:
+        return 400, 20
+    return 250, 20  # single slots 1-3, cone, line
+
+
 def build():
     out, slot = [], {}
     for skill in SKILLS:
@@ -110,6 +126,8 @@ def build():
             entry["damage"] = skill["damage"]
             entry["shape"] = skill["shape"]
             entry.update(skill["area"])
+            entry["windup_ms"], entry["projectile_speed"] = timing(
+                skill["shape"], entry["slot"], bool(skill["area"].get("dash")))
             if skill["shape"] == "single":
                 entry["range"] = list(SINGLE_RANGE)
             elif skill["shape"] != "circle_self":

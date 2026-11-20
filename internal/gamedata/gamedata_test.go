@@ -11,13 +11,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/mapdata"
 )
 
 const validJSON = `{
-  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8}],
+  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15}],
   "levels": [{"level":1,"hp":56,"attack":30,"defense":8,"exp":6},{"level":2,"hp":104,"attack":39,"defense":16,"exp":11}]
 }`
 
@@ -43,7 +44,7 @@ func TestParseKindFields(t *testing.T) {
 	}
 	want := Kind{ID: "a", Name: "A", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8, DetectRange: 5, ChaseRange: 10,
 		ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, ChaseSpeed: 1.2, SafeWaitSec: 5,
-		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8}
+		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8, MeleeWindupMS: 200, ShotSpeed: 15}
 	if k := d.Kinds["a"]; k != want {
 		t.Fatalf("kind %+v, want %+v", k, want)
 	}
@@ -52,7 +53,7 @@ func TestParseKindFields(t *testing.T) {
 func kindWith(field, value string) string {
 	fields := map[string]string{"attack_range": "1.5", "attack_sec": "1.5", "speed": "0.8", "detect_range": "5",
 		"chase_range": "10", "shoot_sec": "2", "shoot_windup_sec": "0.5", "region_margin": "3", "chase_speed": "1.2", "safe_wait_sec": "5",
-		"margin_grace_sec": "2", "grudge_sec": "10", "respawn_sec": "8"}
+		"margin_grace_sec": "2", "grudge_sec": "10", "respawn_sec": "8", "melee_windup_ms": "200", "shot_speed": "15"}
 	fields[field] = value
 	var parts []string
 	for k, v := range fields {
@@ -64,7 +65,7 @@ func kindWith(field, value string) string {
 
 func TestParseKindFieldValues(t *testing.T) {
 	for _, f := range []string{"attack_range", "attack_sec", "speed", "detect_range", "chase_range", "shoot_sec",
-		"shoot_windup_sec", "chase_speed", "safe_wait_sec", "margin_grace_sec", "grudge_sec", "respawn_sec"} {
+		"shoot_windup_sec", "chase_speed", "safe_wait_sec", "margin_grace_sec", "grudge_sec", "respawn_sec", "melee_windup_ms", "shot_speed"} {
 		for _, v := range []string{"0", "-1"} {
 			_, err := Parse([]byte(kindWith(f, v)))
 			if err == nil || !strings.Contains(err.Error(), f) {
@@ -84,7 +85,7 @@ func TestParseKindFieldValues(t *testing.T) {
 
 // A kind without one of the anti-kite fields is rejected: all must be set.
 func TestParseRequiresAntiKiteFields(t *testing.T) {
-	for _, f := range []string{"chase_speed", "safe_wait_sec", "margin_grace_sec", "grudge_sec"} {
+	for _, f := range []string{"chase_speed", "safe_wait_sec", "margin_grace_sec", "grudge_sec", "melee_windup_ms", "shot_speed"} {
 		doc := strings.Replace(kindWith(f, "1"), `"`+f+`":1`, `"x_unused":0`, 1)
 		doc = strings.Replace(doc, `,"x_unused":0`, "", 1)
 		doc = strings.Replace(doc, `"x_unused":0,`, "", 1)
@@ -109,7 +110,7 @@ func TestParseRejectsOldRangeFields(t *testing.T) {
 func TestParseErrors(t *testing.T) {
 	kind := func(id, speed string) string {
 		return `{"id":"` + id + `","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":` + speed +
-			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8}`
+			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15}`
 	}
 	lvl := `{"level":1,"hp":56,"attack":30,"defense":8,"exp":6}`
 	doc := func(kinds, levels string) string { return `{"kinds":[` + kinds + `],"levels":[` + levels + `]}` }
@@ -294,19 +295,20 @@ func validSkills() []obj {
 		active := func(n, slot, learn int, shape string, extra obj) obj {
 			s := obj{"id": fmt.Sprintf("%s_%d", class, n), "class": class, "name": class, "form": "I",
 				"learn_level": learn, "slot": slot, "damage": "phys", "shape": shape,
-				"coef_pct": ten(100), "mp": ten(10), "cooldown_ms": ten(1000)}
+				"coef_pct": ten(100), "mp": ten(10), "cooldown_ms": ten(1000),
+				"windup_ms": 250, "projectile_speed": 20}
 			for k, v := range extra {
 				s[k] = v
 			}
 			return s
 		}
 		out = append(out,
-			active(1, 1, 10, "single", obj{"range": singleRange, "dash": true}),
+			active(1, 1, 10, "single", obj{"range": singleRange, "dash": true, "windup_ms": 100, "projectile_speed": 25}),
 			active(2, 2, 20, "cone", obj{"cone_deg": 120, "range": areaRange, "max_targets": ten(2)}),
 			obj{"id": class + "_3", "class": class, "name": "p", "form": "III", "learn_level": 30, "slot": 0,
 				"passive": obj{"phys_def_pct": ten(2)}},
 			active(4, 3, 40, "circle_target", obj{"range": areaRange, "radius": 1.5, "max_targets": ten(2)}),
-			active(5, 4, 50, "circle_self", obj{"radius": 2, "max_targets": ten(2)}),
+			active(5, 4, 50, "circle_self", obj{"radius": 2, "max_targets": ten(2), "windup_ms": 300, "projectile_speed": 0}),
 		)
 	}
 	return out
@@ -381,6 +383,17 @@ func TestParseSkillsRejects(t *testing.T) {
 		{"negative range", set(1, "range", []float64{4, 4, 4, 5, 5, -5, 6, 6, 6, 6}), "range must be positive"},
 		{"decreasing range", set(1, "range", []float64{4, 4, 4, 5, 5, 5, 6, 6, 6, 5.5}), "range must not decrease"},
 		{"decreasing range early", set(3, "range", []float64{5, 4, 4, 5, 5, 5, 6, 6, 6, 6}), "range must not decrease"},
+		{"missing windup_ms", del(0, "windup_ms"), "windup_ms is required"},
+		{"zero windup_ms", set(0, "windup_ms", 0), "windup_ms must be positive"},
+		{"negative windup_ms", set(1, "windup_ms", -5), "windup_ms must be positive"},
+		{"missing projectile_speed", del(1, "projectile_speed"), "projectile_speed is required"},
+		{"negative projectile_speed", set(1, "projectile_speed", -1), "projectile_speed must not be negative"},
+		{"dash with speed 0", set(0, "projectile_speed", 0), "positive for a dash"},
+		{"circle_self with speed 0.5", set(4, "projectile_speed", 0.5), "projectile_speed must be 0 for shape circle_self"},
+		{"circle_self missing speed", del(4, "projectile_speed"), "projectile_speed is required"},
+		{"passive with windup_ms", set(2, "windup_ms", 250), "passive must not have active fields"},
+		{"passive with zero windup_ms", set(2, "windup_ms", 0), "passive must not have active fields"},
+		{"passive with projectile_speed", set(2, "projectile_speed", 0), "passive must not have active fields"},
 		{"array of 9", set(0, "mp", ten(10)[:9]), "mp has 9 entries"},
 		{"zero in mp", set(0, "mp", append([]int{0}, ten(10)[1:]...)), "mp must be positive"},
 		{"dash on cone", set(1, "dash", true), "dash needs shape single"},
@@ -462,6 +475,35 @@ func TestRepoData(t *testing.T) {
 		if !slices.Equal(s.Range, want) {
 			t.Fatalf("%s (%s): range %v, want %v", id, s.Shape, s.Range, want)
 		}
+	}
+	// Every active's timing follows the phases spec 2.3 table.
+	for id, s := range d.Skills {
+		if !s.Active() {
+			continue
+		}
+		wantWindup, wantSpeed := 250, 20.0
+		switch {
+		case s.Dash:
+			wantWindup, wantSpeed = 100, 25
+		case s.Shape == ShapeCircleSelf:
+			wantWindup, wantSpeed = 300, 0
+		case s.Shape == ShapeCircleTarget:
+			wantWindup, wantSpeed = 300, 20
+		case s.Shape == ShapeSingle && s.Slot == 4:
+			wantWindup, wantSpeed = 400, 20
+		}
+		if s.WindupMS != wantWindup || s.ProjectileSpeed != wantSpeed {
+			t.Fatalf("%s (%s, slot %d): windup %d speed %v, want %d %v",
+				id, s.Shape, s.Slot, s.WindupMS, s.ProjectileSpeed, wantWindup, wantSpeed)
+		}
+	}
+	for id, k := range d.Kinds {
+		if k.MeleeWindupMS != 200 || k.ShotSpeed != 15 {
+			t.Fatalf("kind %s: melee windup %d, shot speed %v", id, k.MeleeWindupMS, k.ShotSpeed)
+		}
+	}
+	if combat.SlashWindup != 150*time.Millisecond {
+		t.Fatalf("SlashWindup %v", combat.SlashWindup)
 	}
 	if len(d.Exp) != 89 || d.Exp[0] != 80 {
 		t.Fatalf("exp: %d values, first %v", len(d.Exp), d.Exp[:1])

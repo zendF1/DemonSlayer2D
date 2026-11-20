@@ -32,15 +32,21 @@ import skill_stats
 LEVELS = range(1, 91)
 SKILL_FROM = 10  # first level whose HP includes Bat Tri Hoa casts
 
+# Attack timing (phases spec 2.3): the melee windup in ms, the shot speed in tiles/s.
+MELEE_WINDUP_MS = 200
+SHOT_SPEED = 15
+
 KINDS = [
     {"id": "wanderer", "name": "Quỷ lang thang", "attack_range": 2.0, "attack_sec": 1.5,
      "speed": 0.8, "detect_range": 5, "chase_range": 10, "shoot_sec": 2, "shoot_windup_sec": 0.5,
      "region_margin": 3, "chase_speed": 1.2, "safe_wait_sec": 5,
-     "margin_grace_sec": 2, "grudge_sec": 10, "respawn_sec": 8},
+     "margin_grace_sec": 2, "grudge_sec": 10, "respawn_sec": 8,
+     "melee_windup_ms": MELEE_WINDUP_MS, "shot_speed": SHOT_SPEED},
     {"id": "snow_ghoul", "name": "Quỷ đói trong tuyết", "attack_range": 2.0, "attack_sec": 1.5,
      "speed": 0.8, "detect_range": 5, "chase_range": 10, "shoot_sec": 2, "shoot_windup_sec": 0.5,
      "region_margin": 3, "chase_speed": 1.2, "safe_wait_sec": 5,
-     "margin_grace_sec": 2, "grudge_sec": 10, "respawn_sec": 8},
+     "margin_grace_sec": 2, "grudge_sec": 10, "respawn_sec": 8,
+     "melee_windup_ms": MELEE_WINDUP_MS, "shot_speed": SHOT_SPEED},
 ]
 
 

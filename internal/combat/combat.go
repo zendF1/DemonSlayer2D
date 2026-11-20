@@ -11,6 +11,7 @@ import (
 const (
 	SlashRange     = 1.5                    // tiles, centre to centre
 	SlashCooldown  = 800 * time.Millisecond // no MP cost
+	SlashWindup    = 150 * time.Millisecond // from the press to the slash landing
 	MaxLevel       = 90
 	PointsPerLevel = 10
 )

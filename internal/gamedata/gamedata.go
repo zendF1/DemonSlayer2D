@@ -47,6 +47,10 @@ type Kind struct {
 	// chases them on sight instead of shooting.
 	GrudgeSec  float64 `json:"grudge_sec"`
 	RespawnSec float64 `json:"respawn_sec"`
+	// MeleeWindupMS is the time from a melee swing starting to its impact;
+	// ShotSpeed is how fast a ranged shot flies, in tiles per second.
+	MeleeWindupMS int     `json:"melee_windup_ms"`
+	ShotSpeed     float64 `json:"shot_speed"`
 }
 
 // Level holds the monster stats of one level. Defense serves as both
@@ -98,7 +102,7 @@ func Parse(b []byte) (*Data, error) {
 			"detect_range": k.DetectRange, "chase_range": k.ChaseRange, "shoot_sec": k.ShootSec,
 			"shoot_windup_sec": k.ShootWindupSec, "chase_speed": k.ChaseSpeed, "safe_wait_sec": k.SafeWaitSec,
 			"margin_grace_sec": k.MarginGraceSec, "grudge_sec": k.GrudgeSec,
-			"respawn_sec": k.RespawnSec,
+			"respawn_sec": k.RespawnSec, "melee_windup_ms": float64(k.MeleeWindupMS), "shot_speed": k.ShotSpeed,
 		} {
 			// The negated comparison also rejects NaN.
 			if !(v > 0) {
