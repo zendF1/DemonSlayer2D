@@ -136,6 +136,25 @@ func TestValidateMissingKindOrLevel(t *testing.T) {
 	}
 }
 
+func TestValidateRegions(t *testing.T) {
+	d, err := Parse([]byte(validJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	withRegion := func(monster string, min, max int) map[string]*mapdata.Map {
+		return map[string]*mapdata.Map{"m": {Regions: []mapdata.Region{{ID: "r", Monster: monster, MinLevel: min, MaxLevel: max}}}}
+	}
+	if err := d.Validate(withRegion("a", 1, 2)); err != nil {
+		t.Fatalf("valid: %v", err)
+	}
+	if err := d.Validate(withRegion("ghost", 1, 2)); err == nil || !strings.Contains(err.Error(), "ghost") || !strings.Contains(err.Error(), `region "r"`) {
+		t.Fatalf("unknown monster: %v", err)
+	}
+	if err := d.Validate(withRegion("a", 1, 3)); err == nil || !strings.Contains(err.Error(), "level 3") {
+		t.Fatalf("missing level: %v", err)
+	}
+}
+
 func TestRepoDataMatchesScript(t *testing.T) {
 	py, err := exec.LookPath("python3")
 	if err != nil {

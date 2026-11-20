@@ -1,4 +1,4 @@
-// Package mapdata loads map files: collision grid, spawn points, safe zones, rest points and monster camps.
+// Package mapdata loads map files: collision grid, spawn points, safe zones, rest points and monster camps and regions.
 package mapdata
 
 import (
@@ -25,6 +25,7 @@ type Map struct {
 	SafeZones  []Rect
 	RestPoints []RestPoint
 	Camps      []Camp
+	Regions    []Region
 
 	blocked []bool
 }
@@ -64,6 +65,18 @@ type Camp struct {
 	MaxLevel int     `json:"max_level"`
 }
 
+// Region is an area of one monster kind: Count monsters with levels
+// MinLevel..MaxLevel spread over the region tiles of Rects, respawning at Nest.
+type Region struct {
+	ID       string `json:"id"`
+	Monster  string `json:"monster"`
+	MinLevel int    `json:"min_level"`
+	MaxLevel int    `json:"max_level"`
+	Count    int    `json:"count"`
+	Rects    []Rect `json:"rects"`
+	Nest     Point  `json:"nest"`
+}
+
 var validTypes = map[string]bool{"town": true, "training": true, "battle": true, "instance": true}
 
 type spawnFile struct {
@@ -83,6 +96,7 @@ type mapFile struct {
 	SafeZones   []Rect      `json:"safe_zones"`
 	RestPoints  []RestPoint `json:"rest_points"`
 	Camps       []Camp      `json:"camps"`
+	Regions     []Region    `json:"regions"`
 }
 
 // Parse decodes and validates one map file.
@@ -206,7 +220,87 @@ func (m *Map) parseTriggers(f *mapFile) error {
 		}
 		m.Camps = append(m.Camps, camp)
 	}
+	return m.parseRegions(f.Regions)
+}
+
+// parseRegions validates monster regions (the safe zones are already known).
+func (m *Map) parseRegions(regions []Region) error {
+	seen := map[string]bool{}
+	owner := map[[2]int]string{}
+	for _, r := range regions {
+		if seen[r.ID] {
+			return fmt.Errorf("mapdata %s: duplicate region %q", m.ID, r.ID)
+		}
+		seen[r.ID] = true
+		for i, rc := range r.Rects {
+			if rc.W <= 0 || rc.H <= 0 {
+				return fmt.Errorf("mapdata %s: region %q: rect %d: w and h must be positive", m.ID, r.ID, i)
+			}
+			if rc.X < 0 || rc.Y < 0 || rc.X+rc.W > m.Width || rc.Y+rc.H > m.Height {
+				return fmt.Errorf("mapdata %s: region %q: rect %d is outside the map", m.ID, r.ID, i)
+			}
+		}
+		if r.MinLevel < 1 {
+			return fmt.Errorf("mapdata %s: region %q: min_level must be at least 1", m.ID, r.ID)
+		}
+		if r.MinLevel > r.MaxLevel {
+			return fmt.Errorf("mapdata %s: region %q: min_level %d > max_level %d", m.ID, r.ID, r.MinLevel, r.MaxLevel)
+		}
+		if r.Count < 1 {
+			return fmt.Errorf("mapdata %s: region %q: count must be positive", m.ID, r.ID)
+		}
+		tiles := m.RegionTiles(r)
+		if len(tiles) < r.Count {
+			return fmt.Errorf("mapdata %s: region %q has %d region tiles, want at least %d", m.ID, r.ID, len(tiles), r.Count)
+		}
+		nestOK := false
+		for _, p := range tiles {
+			k := [2]int{int(p.X), int(p.Y)}
+			if other, taken := owner[k]; taken {
+				return fmt.Errorf("mapdata %s: regions %q and %q share tile (%d,%d)", m.ID, other, r.ID, k[0], k[1])
+			}
+			owner[k] = r.ID
+			if k == [2]int{int(math.Floor(float64(r.Nest.X))), int(math.Floor(float64(r.Nest.Y)))} {
+				nestOK = true
+			}
+		}
+		if !nestOK {
+			return fmt.Errorf("mapdata %s: region %q: nest (%.2f, %.2f) is not on a region tile", m.ID, r.ID, r.Nest.X, r.Nest.Y)
+		}
+		m.Regions = append(m.Regions, r)
+	}
 	return nil
+}
+
+// RegionTiles returns the centres of r's tiles, sorted by (y, x): walkable
+// tiles inside at least one rect, outside the safe zones grown by one tile on
+// every side. Overlapping rects count a tile once.
+func (m *Map) RegionTiles(r Region) []Point {
+	var out []Point
+	for ty := 0; ty < m.Height; ty++ {
+		for tx := 0; tx < m.Width; tx++ {
+			if m.Blocked(tx, ty) || m.nearSafeZone(tx, ty) {
+				continue
+			}
+			for _, rc := range r.Rects {
+				if rc.ContainsTile(tx, ty) {
+					out = append(out, Point{float32(tx) + 0.5, float32(ty) + 0.5})
+					break
+				}
+			}
+		}
+	}
+	return out
+}
+
+// nearSafeZone reports whether tile (tx, ty) is in a safe zone or beside one.
+func (m *Map) nearSafeZone(tx, ty int) bool {
+	for _, z := range m.SafeZones {
+		if tx >= z.X-1 && tx < z.X+z.W+1 && ty >= z.Y-1 && ty < z.Y+z.H+1 {
+			return true
+		}
+	}
+	return false
 }
 
 // restInSafeZones reports whether every tile within r's radius is in a safe
