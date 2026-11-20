@@ -327,6 +327,7 @@ message Hit {
   // True for a monster's ranged shot; the client draws a projectile, not a slash.
   bool ranged = 5;
   // The skill that dealt the hit; empty for the default slash or a monster hit.
+  // Sent at the impact tick, not when the attack started.
   string skill_id = 6;
 }
 
@@ -371,12 +372,23 @@ message SkillLevel {
   int32 level = 2;
 }
 
-// A skill was cast; sent to everyone who sees the caster and to the caster.
+// An attack started: a skill, the default slash, or a monster's melee or shot. Sent to
+// everyone who sees the attacker and to the attacker. Damage is not here: it arrives
+// with the Hit at the impact tick.
 message Cast {
-  uint64 caster_id = 1;
-  string skill_id = 2;
+  uint64 caster_id = 1; // a player or a monster
+  string skill_id = 2;  // empty: a basic attack (slash, monster melee, monster shot)
   uint64 target_id = 3;
   float dir_x = 4;
   float dir_y = 5;
   int32 level = 6; // the skill level used, so clients draw the right reach
+  int32 windup_ms = 7;
+  repeated CastImpact impacts = 8; // empty when nothing is hit
+  bool ranged = 9;                 // a monster's ranged shot
+}
+
+// One target the attack will land on. The Hit for it is sent at the impact tick.
+message CastImpact {
+  uint64 target_id = 1;
+  int32 impact_ms = 2; // from the Cast tick to the impact: (impact tick - t0) * 1000 / tick rate
 }

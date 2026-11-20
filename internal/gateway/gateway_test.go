@@ -272,11 +272,19 @@ func clientFixtures() map[string]*pb.Envelope {
 		"world_tick_cast": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
 			Tick: 45, AckInputSeq: 9,
 			Moves: []*pb.EntityMove{{Id: 77, X: 8.5, Y: 7.25, DirX: 1, Snap: true}},
-			Casts: []*pb.Cast{{CasterId: 77, SkillId: "viem_1", TargetId: 900, DirX: 1, Level: 3}},
+			Casts: []*pb.Cast{{CasterId: 77, SkillId: "viem_1", TargetId: 900, DirX: 1, Level: 3, WindupMs: 250,
+				Impacts: []*pb.CastImpact{{TargetId: 900, ImpactMs: 500}, {TargetId: 902, ImpactMs: 650}}}},
 			Hits: []*pb.Hit{
 				{AttackerId: 77, TargetId: 900, Damage: 40, HpAfter: 60, SkillId: "viem_1"},
 				{AttackerId: 77, TargetId: 902, Damage: 35, HpAfter: 65, SkillId: "viem_1"},
 			}}}},
+		"world_tick_monster_attack": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 46,
+			Casts: []*pb.Cast{{CasterId: 900, TargetId: 77, DirX: -1, WindupMs: 400, Ranged: true,
+				Impacts: []*pb.CastImpact{{TargetId: 77, ImpactMs: 700}}}}}}},
+		"world_tick_impact": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 47,
+			Hits: []*pb.Hit{{AttackerId: 900, TargetId: 77, Damage: 9, HpAfter: 102, Ranged: true}}}}},
 		"error_resp": {Seq: 4, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{
 			Code: pb.ErrorCode_ERROR_CODE_AUTH_FAILED, Detail: "wrong username or password"}}},
 		"kicked": {Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{
@@ -288,8 +296,8 @@ func clientFixtures() map[string]*pb.Envelope {
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 4 {
-		t.Fatalf("ProtocolVersion = %d, want 4", ProtocolVersion)
+	if ProtocolVersion != 5 {
+		t.Fatalf("ProtocolVersion = %d, want 5", ProtocolVersion)
 	}
 }
 
@@ -336,12 +344,51 @@ func TestCastFixtureRoundTrip(t *testing.T) {
 	if len(casts) != 1 || casts[0].GetCasterId() != 77 || casts[0].GetSkillId() != "viem_1" || casts[0].GetTargetId() != 900 || casts[0].GetLevel() != 3 {
 		t.Fatalf("casts %v, want one level-3 viem_1 cast by 77 at 900", casts)
 	}
+	c := casts[0]
+	if c.GetWindupMs() != 250 || c.GetRanged() || len(c.GetImpacts()) != 2 ||
+		c.GetImpacts()[0].GetTargetId() != 900 || c.GetImpacts()[0].GetImpactMs() != 500 ||
+		c.GetImpacts()[1].GetTargetId() != 902 || c.GetImpacts()[1].GetImpactMs() != 650 {
+		t.Fatalf("cast %v, want windup 250 and impacts 900@500, 902@650", c)
+	}
 	hits := wt.GetHits()
 	if len(hits) != 2 || hits[0].GetSkillId() != "viem_1" || hits[1].GetSkillId() != "viem_1" {
 		t.Fatalf("hits %v, want two with skill_id viem_1", hits)
 	}
 	if mv := wt.GetMoves(); len(mv) != 1 || !mv[0].GetSnap() {
 		t.Fatalf("moves %v, want one snap", mv)
+	}
+}
+
+// The monster attack fixture is a ranged Cast with no skill id and one impact; the impact
+// fixture carries only a Hit.
+func TestAttackTimingFixturesRoundTrip(t *testing.T) {
+	read := func(name string) *pb.WorldTick {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "client", name+".hex"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := hex.DecodeString(strings.TrimSpace(string(raw)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var env pb.Envelope
+		if err := proto.Unmarshal(b, &env); err != nil {
+			t.Fatal(err)
+		}
+		return env.GetWorldTick()
+	}
+	wt := read("world_tick_monster_attack")
+	if len(wt.GetCasts()) != 1 || len(wt.GetHits()) != 0 {
+		t.Fatalf("monster attack: casts %v hits %v, want one cast and no hit", wt.GetCasts(), wt.GetHits())
+	}
+	c := wt.GetCasts()[0]
+	if c.GetCasterId() != 900 || c.GetSkillId() != "" || !c.GetRanged() || c.GetWindupMs() != 400 ||
+		len(c.GetImpacts()) != 1 || c.GetImpacts()[0].GetTargetId() != 77 || c.GetImpacts()[0].GetImpactMs() != 700 {
+		t.Fatalf("monster attack cast %v", c)
+	}
+	wt = read("world_tick_impact")
+	if len(wt.GetCasts()) != 0 || len(wt.GetHits()) != 1 || wt.GetHits()[0].GetDamage() != 9 {
+		t.Fatalf("impact: casts %v hits %v, want only one hit", wt.GetCasts(), wt.GetHits())
 	}
 }
 

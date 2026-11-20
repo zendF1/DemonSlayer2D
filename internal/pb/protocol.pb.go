@@ -2811,6 +2811,7 @@ type Hit struct {
 	// True for a monster's ranged shot; the client draws a projectile, not a slash.
 	Ranged bool `protobuf:"varint,5,opt,name=ranged,proto3" json:"ranged,omitempty"`
 	// The skill that dealt the hit; empty for the default slash or a monster hit.
+	// Sent at the impact tick, not when the attack started.
 	SkillId       string `protobuf:"bytes,6,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3299,15 +3300,20 @@ func (x *SkillLevel) GetLevel() int32 {
 	return 0
 }
 
-// A skill was cast; sent to everyone who sees the caster and to the caster.
+// An attack started: a skill, the default slash, or a monster's melee or shot. Sent to
+// everyone who sees the attacker and to the attacker. Damage is not here: it arrives
+// with the Hit at the impact tick.
 type Cast struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	CasterId      uint64                 `protobuf:"varint,1,opt,name=caster_id,json=casterId,proto3" json:"caster_id,omitempty"`
-	SkillId       string                 `protobuf:"bytes,2,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	CasterId      uint64                 `protobuf:"varint,1,opt,name=caster_id,json=casterId,proto3" json:"caster_id,omitempty"` // a player or a monster
+	SkillId       string                 `protobuf:"bytes,2,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`     // empty: a basic attack (slash, monster melee, monster shot)
 	TargetId      uint64                 `protobuf:"varint,3,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	DirX          float32                `protobuf:"fixed32,4,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
 	DirY          float32                `protobuf:"fixed32,5,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
 	Level         int32                  `protobuf:"varint,6,opt,name=level,proto3" json:"level,omitempty"` // the skill level used, so clients draw the right reach
+	WindupMs      int32                  `protobuf:"varint,7,opt,name=windup_ms,json=windupMs,proto3" json:"windup_ms,omitempty"`
+	Impacts       []*CastImpact          `protobuf:"bytes,8,rep,name=impacts,proto3" json:"impacts,omitempty"` // empty when nothing is hit
+	Ranged        bool                   `protobuf:"varint,9,opt,name=ranged,proto3" json:"ranged,omitempty"`  // a monster's ranged shot
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3380,6 +3386,80 @@ func (x *Cast) GetDirY() float32 {
 func (x *Cast) GetLevel() int32 {
 	if x != nil {
 		return x.Level
+	}
+	return 0
+}
+
+func (x *Cast) GetWindupMs() int32 {
+	if x != nil {
+		return x.WindupMs
+	}
+	return 0
+}
+
+func (x *Cast) GetImpacts() []*CastImpact {
+	if x != nil {
+		return x.Impacts
+	}
+	return nil
+}
+
+func (x *Cast) GetRanged() bool {
+	if x != nil {
+		return x.Ranged
+	}
+	return false
+}
+
+// One target the attack will land on. The Hit for it is sent at the impact tick.
+type CastImpact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetId      uint64                 `protobuf:"varint,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	ImpactMs      int32                  `protobuf:"varint,2,opt,name=impact_ms,json=impactMs,proto3" json:"impact_ms,omitempty"` // from the Cast tick to the impact: (impact tick - t0) * 1000 / tick rate
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CastImpact) Reset() {
+	*x = CastImpact{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CastImpact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CastImpact) ProtoMessage() {}
+
+func (x *CastImpact) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CastImpact.ProtoReflect.Descriptor instead.
+func (*CastImpact) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *CastImpact) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *CastImpact) GetImpactMs() int32 {
+	if x != nil {
+		return x.ImpactMs
 	}
 	return 0
 }
@@ -3610,14 +3690,21 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"SkillLevel\x12\x19\n" +
 	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x14\n" +
-	"\x05level\x18\x02 \x01(\x05R\x05level\"\x9b\x01\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level\"\xfd\x01\n" +
 	"\x04Cast\x12\x1b\n" +
 	"\tcaster_id\x18\x01 \x01(\x04R\bcasterId\x12\x19\n" +
 	"\bskill_id\x18\x02 \x01(\tR\askillId\x12\x1b\n" +
 	"\ttarget_id\x18\x03 \x01(\x04R\btargetId\x12\x13\n" +
 	"\x05dir_x\x18\x04 \x01(\x02R\x04dirX\x12\x13\n" +
 	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY\x12\x14\n" +
-	"\x05level\x18\x06 \x01(\x05R\x05level*\xa3\x06\n" +
+	"\x05level\x18\x06 \x01(\x05R\x05level\x12\x1b\n" +
+	"\twindup_ms\x18\a \x01(\x05R\bwindupMs\x12+\n" +
+	"\aimpacts\x18\b \x03(\v2\x11.ds.v1.CastImpactR\aimpacts\x12\x16\n" +
+	"\x06ranged\x18\t \x01(\bR\x06ranged\"F\n" +
+	"\n" +
+	"CastImpact\x12\x1b\n" +
+	"\ttarget_id\x18\x01 \x01(\x04R\btargetId\x12\x1b\n" +
+	"\timpact_ms\x18\x02 \x01(\x05R\bimpactMs*\xa3\x06\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -3683,7 +3770,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -3731,6 +3818,7 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*CastResp)(nil),           // 43: ds.v1.CastResp
 	(*SkillLevel)(nil),         // 44: ds.v1.SkillLevel
 	(*Cast)(nil),               // 45: ds.v1.Cast
+	(*CastImpact)(nil),         // 46: ds.v1.CastImpact
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -3785,11 +3873,12 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	35, // 49: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
 	35, // 50: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
 	44, // 51: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	52, // [52:52] is the sub-list for method output_type
-	52, // [52:52] is the sub-list for method input_type
-	52, // [52:52] is the sub-list for extension type_name
-	52, // [52:52] is the sub-list for extension extendee
-	0,  // [0:52] is the sub-list for field type_name
+	46, // 52: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	53, // [53:53] is the sub-list for method output_type
+	53, // [53:53] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -3838,7 +3927,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   42,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
