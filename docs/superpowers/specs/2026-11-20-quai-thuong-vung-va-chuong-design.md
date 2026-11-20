@@ -1,6 +1,6 @@
 # Quái thường — vùng, lang thang và chưởng
 
-Ngày: 2026-11-20. Trạng thái: Đã triển khai phần server (2026-11-20); phần client chưa xong. Các điểm làm rõ thêm lúc triển khai đã ghi thẳng vào mục 4.2–4.5.
+Ngày: 2026-11-20. Trạng thái: Đã triển khai (2026-11-20); còn chờ người dùng chơi thử hai cửa sổ. Các điểm làm rõ thêm lúc triển khai đã ghi thẳng vào mục 4.2–4.5.
 
 Tài liệu này sửa phần quái của [spec Giai đoạn 1](2026-11-19-giai-doan-1-chien-dau-pve-design.md) cho cả server (repo này) lẫn client Godot (`../DemonSlayer2DGame`). Nó thay mục 2.1 (bãi quái), 2.2 (trường của loại quái) và 4.2 (AI quái) của spec đó. Mọi phần khác của Giai đoạn 1 giữ nguyên.
 

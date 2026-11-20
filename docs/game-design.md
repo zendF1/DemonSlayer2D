@@ -104,7 +104,7 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 | Đánh một mình | ×1 | ~3 giờ | ~456 giờ | ~3.072 giờ |
 | Tổ đội 5 người cùng đánh | ×1,2 | ~2,5 giờ | ~380 giờ | ~2.560 giờ |
 
-Tổ đội ×1,2 giả định cả năm người hạ quái nhanh như nhau. Trên thực tế, năm người chung một bãi 12 quái hồi sinh 8 giây có thể không đủ quái cho cả nhóm.
+Tổ đội ×1,2 giả định cả năm người hạ quái nhanh như nhau. Trên thực tế, năm người chung một vùng 7–8 quái hồi sinh 8 giây có thể không đủ quái cho cả nhóm.
 - Tổng EXP lên cấp 90 khoảng 1,5 tỷ, gần giới hạn số nguyên 32-bit có dấu (khoảng 2,1 tỷ). Server và database lưu EXP bằng số nguyên 64-bit.
 
 - Cột "Tổng EXP từ cấp 1" là tổng EXP đến khi lên được cấp kế tiếp. Ví dụ ở dòng cấp 89, đó là tổng EXP từ cấp 1 lên cấp 90.
@@ -767,14 +767,14 @@ Quái thường có mỗi loại thủ bằng **8 × cấp quái**. HP thường
 
 Chiêu vùng của tinh anh đánh tối đa **3 người**, thủ lĩnh tối đa **5 người**, cảnh báo vùng trước **0,8 giây**. Quỷ Đầm Lầy chỉ trao EXP và đồ một lần khi thanh HP chung về 0. Kỹ năng quái là chuyển thể gameplay, không khẳng định có nguyên trạng trong truyện.
 
-### 5.11. Mật độ bãi và quái Yoshiwara
+### 5.11. Mật độ vùng quái và quái Yoshiwara
 
 | Thành phần | Cấu hình |
 | --- | --- |
-| Map luyện cấp nhỏ | 4 bãi, mỗi bãi 12 quái thường |
-| Map luyện cấp lớn | 6 bãi, mỗi bãi 15 quái thường |
-| Bãi quái | Bán kính 5 ô, chỉ sinh ở vị trí đi được |
-| Tinh anh | 1 con/bãi, điểm xuất hiện riêng |
+| Map luyện cấp nhỏ | 4 vùng quái, tổng 30 quái thường (`kumotori_1`: 8, 7, 7, 8 con) |
+| Map luyện cấp lớn | 6 vùng quái, khoảng 15 quái thường mỗi vùng |
+| Vùng quái | Danh sách hình chữ nhật theo ô; quái rải đều trên các ô đi được của vùng (ngoài khu an toàn và dải 1 ô quanh nó), hồi sinh tại ổ quỷ của vùng |
+| Tinh anh | 1 con/vùng, điểm xuất hiện riêng |
 | Thủ lĩnh | 1 con/khu vực thủ lĩnh, không chặn cổng qua map |
 
 | Quái thường Yoshiwara — Hầm Ngầm | Cấp | Đặc điểm |

@@ -181,7 +181,7 @@ Chính xác, né tránh và tỷ lệ chí mạng chỉ hiển thị ở Giai đ
 
 Theo game-design mục 2.5. Client chọn và đổi mục tiêu; server chỉ kiểm tra lệnh đánh.
 
-- Mục tiêu hợp lệ: quái còn sống, không đang về chỗ. Người chơi khác chưa đánh được vì chưa có PK.
+- Mục tiêu hợp lệ: quái còn sống, không đang về chỗ. Người chơi khác chưa đánh được vì chưa có PK. (Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 4.5: quái đang về vẫn là mục tiêu hợp lệ.)
 - Chọn: bấm chuột hoặc chạm vào quái.
 - Đổi: `Tab` hoặc nút "Đổi mục tiêu" chuyển sang quái hợp lệ gần kế tiếp trong 6 ô, xoay vòng theo khoảng cách.
 - Bấm đánh khi chưa có mục tiêu: chọn quái hợp lệ gần nhất trong 6 ô; không có thì hiện "Không có mục tiêu".
@@ -232,7 +232,7 @@ Proto giữ luật đặt tên an toàn cho GDScript. Thuộc tính tiềm năng
 
 1. Người đánh còn sống (`DEAD`).
 2. Người đánh không ở khu an toàn (`IN_SAFE_ZONE`).
-3. Mục tiêu tồn tại trong zone, là quái, còn sống và không đang về chỗ (`INVALID_TARGET`).
+3. Mục tiêu tồn tại trong zone, là quái, còn sống và không đang về chỗ (`INVALID_TARGET`). Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 4.5: bỏ điều kiện "không đang về chỗ"; `INVALID_TARGET` chỉ còn cho mục tiêu không tồn tại hoặc đã chết.
 4. Khoảng cách ≤ 1,5 + `ATTACK_RANGE_SLACK` (0,5 ô) và đoạn thẳng nối hai vị trí không đi qua ô bị chặn (`OUT_OF_RANGE`).
 5. Đã qua 0,8 giây kể từ đòn trước được chấp nhận (`ON_COOLDOWN`).
 
@@ -248,7 +248,7 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 | --- | --- | --- |
 | `repeated Hit hits` | `attacker_id`, `target_id`, `int32 damage`, `int32 hp_after` | Mỗi đòn trúng |
 | `repeated Death deaths` | `id` | HP về 0 |
-| `repeated HpChange hp_changes` | `id`, `int32 hp`, `int32 max_hp` | HP đổi không do đòn: điểm nghỉ, hồi sinh, lên cấp, cộng VIT, quái về chỗ. Mang HP ở cuối tick |
+| `repeated HpChange hp_changes` | `id`, `int32 hp`, `int32 max_hp` | HP đổi không do đòn: điểm nghỉ, hồi sinh, lên cấp, cộng VIT, quái về chỗ (đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 4.5: quái về vùng không hồi máu nên không gửi `HpChange`). Mang HP ở cuối tick |
 | `repeated LevelUp level_ups` | `id`, `int32 level` | Người chơi lên cấp |
 
 - Tin di chuyển trong `WorldTick` là `EntityMove` (không phải `Move`), thêm `bool snap`: client đặt thẳng vị trí, không nội suy. `snap` áp dụng cho mọi thực thể: bật khi người chơi hồi sinh và khi quái bị dịch chuyển về điểm sinh.
