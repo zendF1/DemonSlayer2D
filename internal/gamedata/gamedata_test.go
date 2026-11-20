@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"slices"
@@ -18,7 +19,7 @@ import (
 )
 
 const validJSON = `{
-  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15}],
+  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15,"rank":"normal"}],
   "levels": [{"level":1,"hp":56,"attack":30,"defense":8,"exp":6},{"level":2,"hp":104,"attack":39,"defense":16,"exp":11}]
 }`
 
@@ -44,7 +45,7 @@ func TestParseKindFields(t *testing.T) {
 	}
 	want := Kind{ID: "a", Name: "A", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8, DetectRange: 5, ChaseRange: 10,
 		ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, ChaseSpeed: 1.2, SafeWaitSec: 5,
-		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8, MeleeWindupMS: 200, ShotSpeed: 15}
+		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8, MeleeWindupMS: 200, ShotSpeed: 15, Rank: RankNormal}
 	if k := d.Kinds["a"]; k != want {
 		t.Fatalf("kind %+v, want %+v", k, want)
 	}
@@ -53,7 +54,7 @@ func TestParseKindFields(t *testing.T) {
 func kindWith(field, value string) string {
 	fields := map[string]string{"attack_range": "1.5", "attack_sec": "1.5", "speed": "0.8", "detect_range": "5",
 		"chase_range": "10", "shoot_sec": "2", "shoot_windup_sec": "0.5", "region_margin": "3", "chase_speed": "1.2", "safe_wait_sec": "5",
-		"margin_grace_sec": "2", "grudge_sec": "10", "respawn_sec": "8", "melee_windup_ms": "200", "shot_speed": "15"}
+		"margin_grace_sec": "2", "grudge_sec": "10", "respawn_sec": "8", "melee_windup_ms": "200", "shot_speed": "15", "rank": `"normal"`}
 	fields[field] = value
 	var parts []string
 	for k, v := range fields {
@@ -98,6 +99,29 @@ func TestParseRequiresAntiKiteFields(t *testing.T) {
 	}
 }
 
+// A kind's rank must be normal, elite or boss (phase 3a spec 2.2).
+func TestParseKindRank(t *testing.T) {
+	for _, r := range []string{RankNormal, RankElite, RankBoss} {
+		d, err := Parse([]byte(kindWith("rank", `"`+r+`"`)))
+		if err != nil || d.Kinds["a"].Rank != r {
+			t.Fatalf("rank %s: %v", r, err)
+		}
+	}
+	for _, v := range []string{`"champion"`, `""`} {
+		if _, err := Parse([]byte(kindWith("rank", v))); err == nil || !strings.Contains(err.Error(), "rank") {
+			t.Errorf("rank %s: err %v, want one naming rank", v, err)
+		}
+	}
+	doc := strings.Replace(kindWith("speed", "0.8"), `,"rank":"normal"`, "", 1)
+	doc = strings.Replace(doc, `"rank":"normal",`, "", 1)
+	if strings.Contains(doc, "rank") {
+		t.Fatalf("setup: rank still in %s", doc)
+	}
+	if _, err := Parse([]byte(doc)); err == nil || !strings.Contains(err.Error(), "rank") {
+		t.Errorf("without rank: err %v, want one naming rank", err)
+	}
+}
+
 func TestParseRejectsOldRangeFields(t *testing.T) {
 	for _, f := range []string{"aggro_range", "leash_range"} {
 		doc := strings.Replace(kindWith("speed", "0.8"), `"speed"`, `"`+f+`":4,"speed"`, 1)
@@ -110,7 +134,7 @@ func TestParseRejectsOldRangeFields(t *testing.T) {
 func TestParseErrors(t *testing.T) {
 	kind := func(id, speed string) string {
 		return `{"id":"` + id + `","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":` + speed +
-			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15}`
+			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15,"rank":"normal"}`
 	}
 	lvl := `{"level":1,"hp":56,"attack":30,"defense":8,"exp":6}`
 	doc := func(kinds, levels string) string { return `{"kinds":[` + kinds + `],"levels":[` + levels + `]}` }
@@ -599,5 +623,300 @@ func TestParseExp(t *testing.T) {
 		if _, err := ParseExp(tt.b); err == nil || !strings.Contains(err.Error(), tt.want) {
 			t.Errorf("%s: want error containing %q, got %v", tt.name, tt.want, err)
 		}
+	}
+}
+
+// ______________________TEST ITEMS DATA_____________________
+
+func sixteen(v int) []int {
+	a := make([]int, EnhanceLevels)
+	for i := range a {
+		a[i] = v + i
+	}
+	return a
+}
+
+// validItems is a minimal valid items.json: one tier (10) with its nine
+// shared pieces and five weapons, two stackables and the three drop tables.
+// equipment[0..4] are the weapons of viem, thuy, minh, nham, phong;
+// equipment[5..13] the shared pieces in slot order (boots .. ring_right).
+func validItems() obj {
+	var slots []any
+	for i, id := range SlotIDs {
+		slots = append(slots, obj{"id": id, "name": "s" + id, "index": i})
+	}
+	quality := func(name string, min, max, hidden int) obj {
+		return obj{"name": name, "rank": "r", "lines": []int{min, max}, "hidden_pct": hidden}
+	}
+	piece := func(code, slot, class string, level int) obj {
+		zero := make([]int, EnhanceLevels)
+		return obj{"code": code, "tier": 10, "slot": slot, "class": class, "name": "n " + code, "level": level,
+			"hp": sixteen(10), "phys_attack": zero, "magic_attack": zero, "phys_defense": sixteen(1), "magic_defense": sixteen(1)}
+	}
+	var equipment []any
+	for _, c := range classList {
+		w := piece("eq10_weapon_"+c, SlotWeapon, c, 10)
+		if c == "thuy" || c == "phong" {
+			w["magic_attack"] = sixteen(25)
+		} else {
+			w["phys_attack"] = sixteen(25)
+		}
+		equipment = append(equipment, w)
+	}
+	for i, id := range SlotIDs[1:] {
+		equipment = append(equipment, piece("eq10_"+id, id, "", 10+i+1))
+	}
+	drop := func(xuMin, xuMax, chance, count int, q []int, stacks ...obj) obj {
+		st := []any{}
+		for _, s := range stacks {
+			st = append(st, s)
+		}
+		return obj{"xu_per_level": []int{xuMin, xuMax},
+			"equipment": obj{"chance_bp": chance, "count": count, "quality_bp": q}, "stacks": st}
+	}
+	stack := func(code string, chance, count int) obj {
+		return obj{"code": code, "chance_bp": chance, "count": count}
+	}
+	return obj{
+		"bag_size": 60, "stack_max": 999, "ground_sec": 60,
+		"slots": slots,
+		"qualities": []any{quality("Trắng", 0, 0, 0), quality("Xanh", 1, 2, 0), quality("Vàng", 3, 4, 100),
+			quality("Cam", 4, 4, 125), quality("Đỏ", 4, 4, 150)},
+		"line_stats":        []any{StatHP, StatPhysAttack, StatMagicAttack, StatPhysDefense, StatMagicDefense},
+		"line_roll_min_pct": 50,
+		"tiers": []any{obj{"tier": 10, "name": "Lữ Hành", "line_standard": obj{
+			StatHP: 86, StatPhysAttack: 4, StatMagicAttack: 4, StatPhysDefense: 1, StatMagicDefense: 1}}},
+		"equipment":  equipment,
+		"stackables": []any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"}},
+		"drops": obj{
+			RankNormal: drop(3, 5, 500, 1, []int{8000, 1700, 300, 0, 0}, stack("stone_enhance", 2000, 1)),
+			RankElite:  drop(18, 30, 10000, 1, []int{0, 7500, 2500, 0, 0}, stack("stone_enhance", 10000, 3), stack("stone_refine", 1000, 1)),
+			RankBoss:   drop(75, 125, 10000, 2, []int{0, 2000, 7500, 500, 0}, stack("stone_enhance", 10000, 10), stack("stone_refine", 10000, 1)),
+		},
+	}
+}
+
+func itemsJSON(t *testing.T, d obj) []byte {
+	t.Helper()
+	b, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestParseItemsValid(t *testing.T) {
+	it, err := ParseItems(itemsJSON(t, validItems()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.BagSize != 60 || it.StackMax != 999 || it.GroundSec != 60 || it.LineRollMinPct != 50 {
+		t.Fatalf("scalars: %+v", it)
+	}
+	if len(it.Slots) != 10 || it.Slots[9] != (Slot{ID: SlotRingRight, Name: "sring_right", Index: 9}) {
+		t.Fatalf("slots: %+v", it.Slots)
+	}
+	if q := it.Qualities[1]; q.Name != "Xanh" || q.Lines != [2]int{1, 2} || q.HiddenPct != 0 {
+		t.Fatalf("quality 1: %+v", q)
+	}
+	if s := it.Tiers[10]; s.Name != "Lữ Hành" || s.LineStandard[StatHP] != 86 {
+		t.Fatalf("tier 10: %+v", s)
+	}
+	if e := it.Equipment["eq10_armor"]; e.SlotIndex != 5 || e.Level != 15 || e.HP[3] != 13 {
+		t.Fatalf("armor: %+v", e)
+	}
+	if it.Weapon(10, "nham") != "eq10_weapon_nham" || it.Weapon(20, "nham") != "" || it.Weapon(10, "lua") != "" {
+		t.Fatal("Weapon lookup")
+	}
+	if it.Piece(10, 5) != "eq10_armor" || it.Piece(10, 0) != "" || it.Piece(20, 5) != "" {
+		t.Fatal("Piece lookup")
+	}
+	if !it.IsEquipment("eq10_ring_left") || it.IsEquipment("stone_enhance") {
+		t.Fatal("IsEquipment")
+	}
+	if !slices.Equal(it.StackOrder, []string{"stone_enhance", "stone_refine"}) || it.Stackables["stone_refine"].Name != "Đá tẩy luyện" {
+		t.Fatalf("stackables: %v %+v", it.StackOrder, it.Stackables)
+	}
+	b := it.Drops[RankBoss]
+	if b.XuPerLevel != [2]int{75, 125} || b.Equipment.Count != 2 || len(b.Stacks) != 2 || b.Stacks[0].Count != 10 {
+		t.Fatalf("boss drop: %+v", b)
+	}
+}
+
+func TestParseItemsRejects(t *testing.T) {
+	list := func(d obj, k string) []any { return d[k].([]any) }
+	at := func(d obj, k string, i int) obj { return list(d, k)[i].(obj) }
+	set := func(k string, v any) func(obj) {
+		return func(d obj) { d[k] = v }
+	}
+	// setIn sets field f of entry i of list k.
+	setIn := func(k string, i int, f string, v any) func(obj) {
+		return func(d obj) { at(d, k, i)[f] = v }
+	}
+	delIn := func(k string, i int) func(obj) {
+		return func(d obj) { d[k] = slices.Delete(slices.Clone(list(d, k)), i, i+1) }
+	}
+	std := func(f func(obj)) func(obj) {
+		return func(d obj) { f(at(d, "tiers", 0)["line_standard"].(obj)) }
+	}
+	drop := func(rank string, f func(obj)) func(obj) {
+		return func(d obj) { f(d["drops"].(obj)[rank].(obj)) }
+	}
+	dropEq := func(rank, f string, v any) func(obj) {
+		return drop(rank, func(x obj) { x["equipment"].(obj)[f] = v })
+	}
+	dropStack := func(rank string, i int, f string, v any) func(obj) {
+		return drop(rank, func(x obj) { x["stacks"].([]any)[i].(obj)[f] = v })
+	}
+	// equipment indices: 0 viem, 1 thuy, ... 4 phong weapons; 5 boots .. 13 ring_right; 9 armor.
+	const viem, thuy, boots, armor, ringRight = 0, 1, 5, 9, 13
+	ones := make([]int, EnhanceLevels)
+	for i := range ones {
+		ones[i] = 1
+	}
+	tests := []struct {
+		name   string
+		mutate func(obj)
+		want   string
+	}{
+		{"unknown field", set("bogus", 1), `unknown field "bogus"`},
+		{"unknown nested field", setIn("equipment", 0, "enhance", 1), `unknown field "enhance"`},
+		{"bag_size 0", set("bag_size", 0), "bag_size 0 must be in 1-200"},
+		{"bag_size 201", set("bag_size", 201), "bag_size 201 must be in 1-200"},
+		{"stack_max 0", set("stack_max", 0), "stack_max 0 must be at least 1"},
+		{"ground_sec 0", set("ground_sec", 0), "ground_sec must be positive"},
+		{"line_roll_min_pct 0", set("line_roll_min_pct", 0), "line_roll_min_pct 0 must be in 1-100"},
+		{"line_roll_min_pct 101", set("line_roll_min_pct", 101), "line_roll_min_pct 101 must be in 1-100"},
+
+		{"9 slots", delIn("slots", 9), "slots has 9 entries, want 10"},
+		{"slots out of order", func(d obj) {
+			s := list(d, "slots")
+			s[0].(obj)["id"], s[1].(obj)["id"] = SlotBoots, SlotWeapon
+		}, `slots[0] is "boots", want "weapon"`},
+		{"slot index", setIn("slots", 3, "index", 4), `slot "pants": index 4, want 3`},
+		{"slot without name", setIn("slots", 3, "name", ""), `slot "pants": name is empty`},
+
+		{"4 qualities", delIn("qualities", 4), "qualities has 4 entries, want 5"},
+		{"Vàng with hidden_pct 0", setIn("qualities", 2, "hidden_pct", 0), `quality 2 "Vàng": hidden_pct 0 must be positive`},
+		{"Cam with negative hidden_pct", setIn("qualities", 3, "hidden_pct", -5), `quality 3 "Cam": hidden_pct -5 must be positive`},
+		{"Xanh with hidden_pct 10", setIn("qualities", 1, "hidden_pct", 10), `quality 1 "Xanh": hidden_pct 10 must be 0`},
+		{"lines max above 5", setIn("qualities", 4, "lines", []int{4, 6}), `quality 4 "Đỏ": lines [4 6] must satisfy 0 <= min <= max <= 5`},
+		{"lines min above max", setIn("qualities", 1, "lines", []int{2, 1}), `quality 1 "Xanh": lines [2 1] must satisfy`},
+		{"lines min negative", setIn("qualities", 1, "lines", []int{-1, 1}), `quality 1 "Xanh": lines [-1 1] must satisfy`},
+		{"lines of 3", setIn("qualities", 1, "lines", []int{1, 2, 2}), `quality 1 "Xanh": lines has 3 entries, want 2`},
+		{"quality without name", setIn("qualities", 1, "name", ""), "quality 1: name is empty"},
+
+		{"duplicate line stat", set("line_stats", []any{StatHP, StatHP, StatMagicAttack, StatPhysDefense, StatMagicDefense}), `line stat "hp" is listed twice`},
+		{"unknown line stat", set("line_stats", []any{StatHP, "mp", StatMagicAttack, StatPhysDefense, StatMagicDefense}), `line stat "mp" is unknown`},
+
+		{"tier missing a line standard", std(func(s obj) { delete(s, StatMagicDefense) }), `tier 10: line_standard has no "magic_defense"`},
+		{"standard 0", std(func(s obj) { s[StatPhysAttack] = 0 }), `tier 10: line_standard "phys_attack" 0 must be at least 1`},
+		{"standard of unknown stat", std(func(s obj) { s["mp"] = 3 }), `tier 10: line_standard "mp" is not a line stat`},
+		{"duplicate tier", func(d obj) { d["tiers"] = append(list(d, "tiers"), list(d, "tiers")[0]) }, "tier 10 is listed twice"},
+		{"tier 0", setIn("tiers", 0, "tier", 0), "tier 0 must be positive"},
+		{"tier without name", setIn("tiers", 0, "name", ""), "tier 10: name is empty"},
+
+		{"duplicate code", setIn("equipment", boots, "code", "eq10_weapon_viem"), `duplicate item code "eq10_weapon_viem"`},
+		{"empty code", setIn("equipment", boots, "code", ""), "equipment with empty code"},
+		{"unknown tier", func(d obj) { e := at(d, "equipment", boots); e["tier"], e["level"] = 20, 21 }, `equipment "eq10_boots": tier 20 is not in tiers`},
+		{"unknown slot", setIn("equipment", boots, "slot", "cape"), `equipment "eq10_boots": slot "cape" is unknown`},
+		{"weapon without class", setIn("equipment", viem, "class", ""), `equipment "eq10_weapon_viem": class "" is not valid`},
+		{"weapon with bad class", setIn("equipment", viem, "class", "lua"), `equipment "eq10_weapon_viem": class "lua" is not valid`},
+		{"armour with class", setIn("equipment", armor, "class", "viem"), `equipment "eq10_armor": class must be empty`},
+		{"piece without name", setIn("equipment", armor, "name", ""), `equipment "eq10_armor": name is empty`},
+		{"wrong level", setIn("equipment", armor, "level", 14), `equipment "eq10_armor": level 14, want 15`},
+		{"array of 15", setIn("equipment", armor, "hp", sixteen(10)[:15]), `equipment "eq10_armor": hp has 15 entries, want 16`},
+		{"array of 17", setIn("equipment", armor, "phys_defense", append(sixteen(1), 99)), `equipment "eq10_armor": phys_defense has 17 entries, want 16`},
+		{"missing array", func(d obj) { delete(at(d, "equipment", armor), "magic_defense") }, `equipment "eq10_armor": magic_defense has 0 entries`},
+		{"decreasing array", setIn("equipment", armor, "hp", append(sixteen(10)[:15], 0)), `equipment "eq10_armor": hp must not decrease at +15`},
+		{"negative value", setIn("equipment", armor, "phys_defense", append([]int{-1}, sixteen(1)[1:]...)), `equipment "eq10_armor": phys_defense must not be negative`},
+		{"physical-class weapon with magic attack", setIn("equipment", viem, "magic_attack", ones), `equipment "eq10_weapon_viem": magic_attack must be 0 for physical class "viem"`},
+		{"magic-class weapon with physical attack", setIn("equipment", thuy, "phys_attack", ones), `equipment "eq10_weapon_thuy": phys_attack must be 0 for magic class "thuy"`},
+		{"tier missing a piece", delIn("equipment", ringRight), `tier 10 has no "ring_right" piece`},
+		{"tier missing a weapon", delIn("equipment", thuy), `tier 10 has no "weapon" piece for class "thuy"`},
+		{"two pieces in a slot", func(d obj) {
+			e := maps.Clone(at(d, "equipment", ringRight))
+			e["code"] = "eq10_ring_right_b"
+			d["equipment"] = append(list(d, "equipment"), e)
+		}, `equipment "eq10_ring_right_b": tier 10 already has a "ring_right" piece`},
+
+		{"duplicate stackable", setIn("stackables", 1, "code", "stone_enhance"), `duplicate item code "stone_enhance"`},
+		{"stackable code equal to an equipment code", setIn("stackables", 1, "code", "eq10_armor"), `duplicate item code "eq10_armor"`},
+		{"stackable without name", setIn("stackables", 1, "name", ""), `stackable "stone_refine": name is empty`},
+		{"stackable with empty code", setIn("stackables", 1, "code", ""), "stackable with empty code"},
+
+		{"missing boss drop", func(d obj) { delete(d["drops"].(obj), RankBoss) }, `drops has no "boss"`},
+		{"extra drop rank", func(d obj) { d["drops"].(obj)["champion"] = d["drops"].(obj)[RankBoss] }, `drops "champion" is not a rank`},
+		{"xu min above max", drop(RankElite, func(x obj) { x["xu_per_level"] = []int{31, 30} }), `drops "elite": xu_per_level [31 30] must satisfy 0 <= min <= max`},
+		{"xu negative", drop(RankElite, func(x obj) { x["xu_per_level"] = []int{-1, 30} }), `drops "elite": xu_per_level [-1 30] must satisfy`},
+		{"xu of 1", drop(RankElite, func(x obj) { x["xu_per_level"] = []int{3} }), `drops "elite": xu_per_level has 1 entries, want 2`},
+		{"equipment chance_bp 10001", dropEq(RankNormal, "chance_bp", 10001), `drops "normal": equipment chance_bp 10001 must be in 0-10000`},
+		{"equipment chance_bp -1", dropEq(RankNormal, "chance_bp", -1), `drops "normal": equipment chance_bp -1 must be in 0-10000`},
+		{"equipment count 0", dropEq(RankBoss, "count", 0), `drops "boss": equipment count 0 must be at least 1`},
+		{"quality_bp sum 9999", dropEq(RankNormal, "quality_bp", []int{7999, 1700, 300, 0, 0}), `drops "normal": quality_bp sums to 9999, want 10000`},
+		{"quality_bp negative", dropEq(RankNormal, "quality_bp", []int{8001, 1700, 300, 0, -1}), `drops "normal": quality_bp must not be negative`},
+		{"quality_bp of 4", dropEq(RankNormal, "quality_bp", []int{8000, 1700, 300, 0}), `drops "normal": quality_bp has 4 entries, want 5`},
+		{"stack drop of an unknown code", dropStack(RankElite, 1, "code", "stone_gem"), `drops "elite": stack "stone_gem" is not a stackable`},
+		{"stack drop of an equipment code", dropStack(RankElite, 1, "code", "eq10_armor"), `drops "elite": stack "eq10_armor" is not a stackable`},
+		{"stack chance_bp 10001", dropStack(RankElite, 0, "chance_bp", 10001), `drops "elite": stack "stone_enhance" chance_bp 10001 must be in 0-10000`},
+		{"stack chance_bp -1", dropStack(RankElite, 0, "chance_bp", -1), `drops "elite": stack "stone_enhance" chance_bp -1 must be in 0-10000`},
+		{"stack count 0", dropStack(RankBoss, 1, "count", 0), `drops "boss": stack "stone_refine" count 0 must be at least 1`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := validItems()
+			tt.mutate(d)
+			_, err := ParseItems(itemsJSON(t, d))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+	if _, err := ParseItems(append(itemsJSON(t, validItems()), []byte(` {}`)...)); err == nil ||
+		!strings.Contains(err.Error(), "after the JSON value") {
+		t.Fatalf("trailing data: %v", err)
+	}
+}
+
+// The committed items.json loads (spec 2.1).
+func TestRepoItems(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := d.Items
+	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 2 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
+		t.Fatalf("items: %d equipment, %d stackables, %d drops", len(it.Equipment), len(it.Stackables), len(it.Drops))
+	}
+	perTier := map[int]int{}
+	for _, e := range it.Equipment {
+		perTier[e.Tier]++
+	}
+	for _, tier := range []int{10, 20, 30, 40, 50} {
+		if perTier[tier] != 14 {
+			t.Errorf("tier %d: %d pieces, want 14", tier, perTier[tier])
+		}
+	}
+	for _, code := range []string{"eq10_weapon_viem", "eq50_ring_right"} {
+		if !it.IsEquipment(code) {
+			t.Errorf("%s missing", code)
+		}
+	}
+	if e := it.Equipment[it.Weapon(50, "thuy")]; e.Name != "Thủy Nguyệt Xích Cương Kiếm" || e.Class != "thuy" || e.SlotIndex != 0 {
+		t.Fatalf("Weapon(50, thuy): %+v", e)
+	}
+	if e := it.Equipment["eq10_weapon_viem"]; e.PhysAttack[0] != 25 || e.MagicAttack[15] != 0 || e.Level != 10 {
+		t.Fatalf("eq10_weapon_viem: %+v", e)
+	}
+	if e := it.Equipment[it.Piece(50, 9)]; e.Code != "eq50_ring_right" || e.Level != 59 {
+		t.Fatalf("Piece(50, 9): %+v", e)
+	}
+	for _, r := range []string{RankNormal, RankElite, RankBoss} {
+		if _, ok := it.Drops[r]; !ok {
+			t.Errorf("no %s drop", r)
+		}
+	}
+	if s := it.Tiers[50].LineStandard; s[StatHP] != 469 || s[StatPhysAttack] != 32 || s[StatMagicDefense] != 5 {
+		t.Fatalf("tier 50 standard: %v", s)
 	}
 }
