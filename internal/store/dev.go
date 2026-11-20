@@ -59,6 +59,33 @@ func (s *Store) DevSetLevel(ctx context.Context, username string, level int) (De
 	return res, nil
 }
 
+// DevSetPlace moves the first character (lowest slot) of username to (x, y)
+// on map mapID, for development only (phase 4a spec 6), and returns its name
+// and level. Nothing else changes. The store does not know the maps: the
+// caller checks that the map exists and the position is walkable. The
+// character must be offline: a running server's next save of it overwrites
+// the change.
+func (s *Store) DevSetPlace(ctx context.Context, username, mapID string, x, y float32) (DevResult, error) {
+	if mapID == "" {
+		return DevResult{}, errors.New("store: dev set place: empty map id")
+	}
+	var res DevResult
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		charID, name, err := lockFirstCharacter(ctx, tx, username)
+		if err != nil {
+			return err
+		}
+		res.Name = name
+		return tx.QueryRow(ctx,
+			`UPDATE characters SET map_id = $2, pos_x = $3, pos_y = $4, updated_at = now() WHERE id = $1 RETURNING level`,
+			charID, mapID, x, y).Scan(&res.Level)
+	})
+	if err != nil {
+		return DevResult{}, fmt.Errorf("store: dev set place: %w", err)
+	}
+	return res, nil
+}
+
 // lockFirstCharacter finds the first character (lowest slot) of username and
 // locks its row for the rest of tx.
 func lockFirstCharacter(ctx context.Context, tx pgx.Tx, username string) (id int64, name string, err error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -1280,5 +1281,176 @@ func TestForgeOverWebSocket(t *testing.T) {
 		again.Stats.GetMaxHp() != wantHP || again.Stats.GetXu() != 1800 {
 		t.Fatalf("re-entered wearing %v with max HP %d and %d Xu, want 2 holes, the gem in hole 1, lines %v, max HP %d and 1,800 Xu",
 			worn, again.Stats.GetMaxHp(), again.Stats.GetXu(), taken, wantHP)
+	}
+}
+
+// ______________________TEST PORTALS_____________________
+
+// offlinePlayer registers username and creates its character without
+// entering the world, so the test can move it with DevSetPlace first.
+func offlinePlayer(t *testing.T, s server, username, charName string, class pb.CharClass) (*client.Client, int64) {
+	t.Helper()
+	ctx := ctxT(t)
+	c := dial(t, s)
+	if err := c.Register(ctx, username, "password123"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Login(ctx, username, "password123"); err != nil {
+		t.Fatal(err)
+	}
+	ch, err := c.CreateChar(ctx, 1, charName, class)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, ch.Id
+}
+
+// zoneCounts is a zone list as zone number → players, checking the capacity.
+func zoneCounts(t *testing.T, c *client.Client) map[int32]int32 {
+	t.Helper()
+	zones, err := c.ZoneList(ctxT(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make(map[int32]int32)
+	for i, z := range zones {
+		if z.Capacity != 50 || (i > 0 && z.Zone <= zones[i-1].Zone) {
+			t.Fatalf("zone list %v: want capacity 50 in increasing zone order", zones)
+		}
+		out[z.Zone] = z.Players
+	}
+	return out
+}
+
+// Phase 4a spec 7: A stands next to the east portal of Kumotori and B in
+// Ubuyashiki next to where that portal leads. A crosses into Ubuyashiki
+// (B sees A arrive and move there), is refused a zone change in the
+// one-zone town and a far portal, walks into the west portal back to
+// Kumotori (B sees A leave), changes to zone 2 (and is refused changing back
+// during the cooldown), leaves and enters again at the saved map and
+// position.
+func TestPortalsOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	town, kumotori := loaded["ubuyashiki"], loaded["kumotori_1"]
+	arrival, back := town.Spawns["from_kumotori_1"], kumotori.Spawns["from_ubuyashiki"]
+
+	a, aChar := offlinePlayer(t, s, "akira01", "Akira", pb.CharClass_CHAR_CLASS_VIEM)
+	b, bChar := offlinePlayer(t, s, "botan01", "Botan", pb.CharClass_CHAR_CLASS_THUY)
+	// A is inside gate_east, 0.5 tiles from the to_ubuyashiki portal; B is in
+	// the AOI cell where A arrives.
+	if _, err := s.store.DevSetPlace(ctx, "akira01", "kumotori_1", 61.5, 24.0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "botan01", "ubuyashiki", 8.5, 16.5); err != nil {
+		t.Fatal(err)
+	}
+	bew, err := b.EnterWorld(ctx, bChar)
+	if err != nil || bew.MapId != "ubuyashiki" || bew.Zone != 1 {
+		t.Fatalf("B entered %v, %v; want ubuyashiki zone 1", bew, err)
+	}
+	aew, err := a.EnterWorld(ctx, aChar)
+	if err != nil || aew.MapId != "kumotori_1" || aew.X != 61.5 || aew.Y != 24 {
+		t.Fatalf("A entered %v, %v; want kumotori_1 at (61.5, 24)", aew, err)
+	}
+	self := aew.SelfEntityId
+
+	// Kumotori → Ubuyashiki: same entity, HP and MP, at the arrival point, and B sees A come in.
+	in, err := a.UsePortal(ctx, "to_ubuyashiki")
+	if err != nil {
+		t.Fatalf("portal to ubuyashiki: %v", err)
+	}
+	if in.MapId != "ubuyashiki" || in.Zone != 1 || in.X != arrival.X || in.Y != arrival.Y || in.SelfEntityId != self ||
+		in.Stats.GetHp() != aew.Stats.GetHp() || in.Stats.GetMp() != aew.Stats.GetMp() || len(in.Cooldowns) != 0 {
+		t.Fatalf("arrived %v, want ubuyashiki zone 1 at (%v, %v) as entity %d with HP and MP kept and no cooldowns",
+			in, arrival.X, arrival.Y, self)
+	}
+	waitFor(t, b, 2*time.Second, enterOf(self))
+
+	// The town has one zone holding both players.
+	if got := zoneCounts(t, a); !maps.Equal(got, map[int32]int32{1: 2}) {
+		t.Fatalf("town zones %v, want zone 1 with 2 players", got)
+	}
+	if _, err := a.ChangeZone(ctx, 2); client.Code(err) != pb.ErrorCode_ERROR_CODE_ZONE_NOT_FOUND {
+		t.Fatalf("change to zone 2 of the town: %v, want ZONE_NOT_FOUND", err)
+	}
+	if _, err := a.UsePortal(ctx, "to_sagiri_1"); client.Code(err) != pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE {
+		t.Fatalf("the far east portal: %v, want OUT_OF_RANGE", err)
+	}
+	if _, err := a.UsePortal(ctx, "to_ubuyashiki"); client.Code(err) != pb.ErrorCode_ERROR_CODE_BAD_REQUEST {
+		t.Fatalf("a portal of another map: %v, want BAD_REQUEST", err)
+	}
+
+	// A walks west into to_kumotori_1; its moves now reach the town zone, so B sees them.
+	if _, err := a.Move(ctx, -1, 0); err != nil {
+		t.Fatal(err)
+	}
+	westOf := func(x float32) func(*pb.Envelope) bool {
+		return func(e *pb.Envelope) bool {
+			for _, m := range e.GetWorldTick().GetMoves() {
+				if m.Id == self && m.X <= x {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	waitFor(t, b, 3*time.Second, westOf(arrival.X-0.5))
+	waitFor(t, a, 3*time.Second, westOf(2.8)) // within 1 tile of the portal (x 1-2)
+	if _, err := a.Move(ctx, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	out, err := a.UsePortal(ctx, "to_kumotori_1")
+	if err != nil {
+		t.Fatalf("portal back to kumotori_1: %v", err)
+	}
+	if out.MapId != "kumotori_1" || out.Zone != 1 || out.X != back.X || out.Y != back.Y || out.SelfEntityId != self {
+		t.Fatalf("arrived %v, want kumotori_1 zone 1 (same number as the town's) at (%v, %v)", out, back.X, back.Y)
+	}
+	waitFor(t, b, 2*time.Second, func(e *pb.Envelope) bool { return e.GetEntityLeave().GetId() == self })
+
+	// Kumotori keeps two zones open; A changes to zone 2 in place.
+	if got := zoneCounts(t, a); !maps.Equal(got, map[int32]int32{1: 1, 2: 0}) {
+		t.Fatalf("kumotori zones %v, want zone 1 with A and an empty zone 2", got)
+	}
+	for _, c := range []struct {
+		zone int
+		want pb.ErrorCode
+	}{{0, pb.ErrorCode_ERROR_CODE_BAD_REQUEST}, {1, pb.ErrorCode_ERROR_CODE_BAD_REQUEST}, {3, pb.ErrorCode_ERROR_CODE_ZONE_NOT_FOUND}} {
+		if _, err := a.ChangeZone(ctx, c.zone); client.Code(err) != c.want {
+			t.Fatalf("change to zone %d: %v, want %v", c.zone, err, c.want)
+		}
+	}
+	moved, err := a.ChangeZone(ctx, 2)
+	if err != nil {
+		t.Fatalf("change to zone 2: %v", err)
+	}
+	if moved.MapId != "kumotori_1" || moved.Zone != 2 || moved.X != back.X || moved.Y != back.Y || moved.SelfEntityId != self ||
+		len(moved.Cooldowns) != 1 || moved.Cooldowns[0].Key != "zone_change" ||
+		moved.Cooldowns[0].RemainingMs <= 9000 || moved.Cooldowns[0].RemainingMs > 10000 {
+		t.Fatalf("changed to %v, want kumotori_1 zone 2 at (%v, %v) with a 10 s zone_change cooldown", moved, back.X, back.Y)
+	}
+	if got := zoneCounts(t, a); !maps.Equal(got, map[int32]int32{1: 0, 2: 1}) {
+		t.Fatalf("kumotori zones %v after the change, want A in zone 2", got)
+	}
+	if _, err := a.ChangeZone(ctx, 1); client.Code(err) != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("change straight back: %v, want ON_COOLDOWN", err)
+	}
+
+	// Leaving and entering again lands at the saved map and position, in
+	// the zone the usual rule picks (the first with room).
+	if err := a.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, err := a.EnterWorld(ctx, aChar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.MapId != "kumotori_1" || again.Zone != 1 || again.X != back.X || again.Y != back.Y || len(again.Cooldowns) != 0 {
+		t.Fatalf("re-entered %v, want kumotori_1 zone 1 at (%v, %v) with no cooldowns", again, back.X, back.Y)
 	}
 }

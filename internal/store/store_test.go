@@ -715,3 +715,56 @@ func TestDevGiveItemErrors(t *testing.T) {
 		t.Fatalf("after refused calls: %+v, %v", got, err)
 	}
 }
+
+// ______________________TEST DEV PLACE_____________________
+
+func TestDevSetPlace(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	second, _ := st.CreateCharacter(ctx, newChar(acc, 2, "Zenitsu"))
+	first, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: first.ID, MapID: "kumotori_1", X: 5.5, Y: 5.5, Level: 7,
+		Exp: 12, HP: 40, MP: 3, Xu: 9}); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := st.DevSetPlace(ctx, "owner", "ubuyashiki", 8.5, 16.25)
+	if err != nil || res != (store.DevResult{Name: "Tanjiro", Level: 7}) {
+		t.Fatalf("place: %+v, %v", res, err)
+	}
+	// Only the map and position change.
+	got, err := st.GetCharacter(ctx, acc, first.ID)
+	if err != nil || got.MapID != "ubuyashiki" || got.X != 8.5 || got.Y != 16.25 || got.Level != 7 || got.Exp != 12 ||
+		got.HP != 40 || got.MP != 3 || got.Xu != 9 {
+		t.Fatalf("stored %+v, %v", got, err)
+	}
+	if other, _ := st.GetCharacter(ctx, acc, second.ID); other.MapID != "kumotori_1" || other.X != 5.5 || other.Y != 5.5 {
+		t.Fatalf("the slot 2 character moved: %+v", other)
+	}
+}
+
+func TestDevSetPlaceErrors(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	if _, err := st.DevSetPlace(ctx, "nobody", "ubuyashiki", 8.5, 16.5); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing account: %v, want ErrNotFound", err)
+	}
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	if _, err := st.DevSetPlace(ctx, "owner", "ubuyashiki", 8.5, 16.5); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("account without a character: %v, want ErrNotFound", err)
+	}
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DevSetPlace(ctx, "owner", "", 8.5, 16.5); err == nil {
+		t.Fatal("empty map id: no error")
+	}
+	if got, err := st.GetCharacter(ctx, acc, c.ID); err != nil || got.MapID != "kumotori_1" || got.X != 5.5 {
+		t.Fatalf("after refused calls: %+v, %v", got, err)
+	}
+}
