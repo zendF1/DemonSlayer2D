@@ -20,7 +20,8 @@ Giai đoạn này cũng đổi luật EXP: quái cấp càng cao cho càng nhi�
 | Sách kỹ năng | Tạm bỏ. Học chỉ cần đủ cấp nhân vật và 1 điểm kỹ năng | Sách đến từ nhiệm vụ (Giai đoạn 6) và là vật phẩm (Giai đoạn 3); thêm điều kiện khi có sách |
 | Trượt và chí mạng | Vẫn luôn trúng, không chí mạng. Lặng, Nhiệt Giới Lôi và phần chính xác của Tình Lam Phong Thụ chỉ tăng chỉ số hiển thị | Công thức trượt/chí mạng chưa chốt trong game-design; bật lên phải cân bằng lại quái và PvP |
 | Chiêu lao tới (Bất Tri Hỏa, Phích Lịch Nhất Thiểm) | Server dời nhân vật thật tới cạnh mục tiêu; đường lao bị chắn thì không dùng được | Đúng chữ "lao/lướt" và yêu cầu kiểm tra vị trí, vật cản ở game-design mục 2.6 |
-| Thanh kỹ năng | Bốn ô cố định theo cấp học, phím 1–4 | Mỗi class đúng bốn chiêu chủ động, không cần lưu cách xếp |
+| Thanh kỹ năng | Năm ô cố định ở giữa cạnh dưới: chém mặc định và bốn chiêu chủ động. Chọn một ô rồi bấm/giữ nút Đánh để dùng chiêu đó | Người dùng yêu cầu; không cần lưu cách xếp |
+| Tầm đánh | Chiêu đơn mục tiêu (kể cả lao tới) 5 ô cho mọi class. Chiêu nhiều mục tiêu đánh xa, tầm theo cấp kỹ năng chung cho mọi class: cấp 1–3 là 4 ô, 4–6 là 5 ô, 7–10 là 6 ô. Ba chiêu vòng quanh mình giữ bán kính | Người dùng yêu cầu: các class có tầm xa bằng nhau để không thả diều được nhau |
 | Học và nâng chiêu | Tab Kỹ năng trong cửa sổ nhân vật (nút "Thông tin", tab Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang) | Người dùng yêu cầu; tab Trang bị và Hành trang để trống tới Giai đoạn 3 |
 | Nguồn định nghĩa chiêu | `docs/balance/skill_stats.py` sinh `data/skills.json`; server và client cùng đọc | Một nguồn số liệu, như `monsters.json` |
 | Mục tiêu của chiêu | Chỉ quái | PK thuộc Giai đoạn 5 |
@@ -32,6 +33,7 @@ Giai đoạn này cũng đổi luật EXP: quái cấp càng cao cho càng nhi�
 ### 1.3. Khác với game-design
 
 - Học lần đầu **không cần sách** cho tới khi có vật phẩm sách.
+- **Tầm đánh** của chiêu đổi theo mục 2.1 (chiêu đơn 5 ô; chiêu nhiều mục tiêu 4/5/6 ô theo cấp kỹ năng) thay cho tầm riêng từng chiêu, và cộng điểm **có** tăng tầm của chiêu nhiều mục tiêu. Game-design mục 2.6 được cập nhật theo.
 - **EXP gốc của quái** đổi từ `10 × cấp` thành `HP × r(L)` (mục 2.4). Game-design mục 2.2, 5.8, 5.12 được cập nhật theo.
 
 ### 1.4. Không làm ở Giai đoạn 2
@@ -50,7 +52,8 @@ Sinh bằng `python3 docs/balance/skill_stats.py --write-json`; không sửa tay
     {
       "id": "viem_1", "class": "viem", "name": "Bất Tri Hỏa", "form": "I",
       "learn_level": 10, "slot": 1, "damage": "phys",
-      "shape": "single", "cast_range": 4, "dash": true,
+      "shape": "single", "dash": true,
+      "range":       [5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
       "coef_pct":    [150, 165, 180, 195, 210, 225, 240, 255, 270, 285],
       "mp":          [10, 12, 14, 16, 18, 20, 22, 24, 26, 28],
       "cooldown_ms": [1500, 1350, 1215, 1094, 984, 886, 797, 717, 646, 581]
@@ -73,10 +76,10 @@ Sinh bằng `python3 docs/balance/skill_stats.py --write-json`; không sửa tay
 | --- | --- |
 | `damage` | `phys` (dùng công vật lý) hoặc `magic` (công phép) |
 | `shape` | `single`, `cone`, `circle_self`, `circle_target`, `line` |
-| `cast_range` | Tầm chọn mục tiêu, ô. Có ở `single` và `circle_target` |
+| `range[10]` | Tầm theo cấp kỹ năng, ô. Có ở mọi shape trừ `circle_self`. Là tầm chọn mục tiêu của `single`/`circle_target`, độ vươn của `cone`, độ dài của `line`. `single`: 5 ở mọi cấp; các shape khác: 4,4,4,5,5,5,6,6,6,6 |
 | `radius` | Bán kính vùng, ô. Có ở `circle_self` và `circle_target` |
-| `cone_deg`, `reach` | Góc mở và độ vươn của quạt. Có ở `cone` |
-| `length`, `width` | Dài và rộng của dải. Có ở `line` |
+| `cone_deg` | Góc mở của quạt. Có ở `cone` |
+| `width` | Bề rộng của dải. Có ở `line` |
 | `dash` | `true` với chiêu lao tới; chỉ hợp lệ với `single` |
 | `coef_pct[10]` | Hệ số theo cấp kỹ năng 1–10, phần trăm nguyên |
 | `mp[10]` | MP theo cấp kỹ năng |
@@ -89,40 +92,40 @@ Sinh bằng `python3 docs/balance/skill_stats.py --write-json`; không sửa tay
 
 | id | Tên | Ô | Kiểu | Thông số vùng | Hệ số | MP | Hồi cấp 1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| viem_1 | Bất Tri Hỏa | 1 | single, dash | cast_range 4 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
-| viem_2 | Thăng Viêm Thiên | 2 | cone | 120°, reach 2 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| viem_1 | Bất Tri Hỏa | 1 | single, dash | | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| viem_2 | Thăng Viêm Thiên | 2 | cone | 120° | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
 | viem_3 | Thịnh Viêm Lãng Triều | 0 | bị động | phys_def_pct, magic_def_pct = 2n | | | |
-| viem_4 | Viêm Hổ | 3 | circle_target | cast_range 5, radius 1,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
-| viem_5 | Luyện Ngục | 4 | single | cast_range 5 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
-| thuy_1 | Thủy Diện Trảm | 1 | single | cast_range 3 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
-| thuy_2 | Đả Triều | 2 | cone | 120°, reach 4 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| viem_4 | Viêm Hổ | 3 | circle_target | radius 1,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| viem_5 | Luyện Ngục | 4 | single | | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| thuy_1 | Thủy Diện Trảm | 1 | single | | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| thuy_2 | Đả Triều | 2 | cone | 120° | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
 | thuy_3 | Lặng | 0 | bị động | evasion_pct = 3n | | | |
 | thuy_4 | Liệt Oa | 3 | circle_self | radius 2,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
-| thuy_5 | Sinh Sinh Lưu Chuyển | 4 | single | cast_range 5 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
-| minh_1 | Phích Lịch Nhất Thiểm | 1 | single, dash | cast_range 5 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| thuy_5 | Sinh Sinh Lưu Chuyển | 4 | single | | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| minh_1 | Phích Lịch Nhất Thiểm | 1 | single, dash | | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
 | minh_2 | Tụ Văn Thành Lôi | 2 | circle_self | radius 2 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
 | minh_3 | Nhiệt Giới Lôi | 0 | bị động | crit_bp = 100n | | | |
-| minh_4 | Viễn Lôi | 3 | line | length 6, width 1,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
-| minh_5 | Hỏa Lôi Thần | 4 | single | cast_range 6 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
-| nham_1 | Xà Văn Nham · Song Cực | 1 | single | cast_range 3 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
-| nham_2 | Thiên Diện Toái | 2 | circle_target | cast_range 4, radius 1,5 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| minh_4 | Viễn Lôi | 3 | line | width 1,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| minh_5 | Hỏa Lôi Thần | 4 | single | | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| nham_1 | Xà Văn Nham · Song Cực | 1 | single | | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| nham_2 | Thiên Diện Toái | 2 | circle_target | radius 1,5 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
 | nham_3 | Nham Phu Khu | 0 | bị động | max_hp_pct, phys_def_pct = 2n | | | |
 | nham_4 | Lưu Văn Nham · Tốc Chinh | 3 | circle_self | radius 3 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
-| nham_5 | Ngõa Hình Luân Bộ | 4 | single | cast_range 4 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
-| phong_1 | Trần Toàn Phong · Tước | 1 | line | length 5, width 1,5 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
-| phong_2 | Trảo · Khoa Hộ Phong | 2 | single | cast_range 5 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| nham_5 | Ngõa Hình Luân Bộ | 4 | single | | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| phong_1 | Trần Toàn Phong · Tước | 1 | line | width 1,5 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| phong_2 | Trảo · Khoa Hộ Phong | 2 | single | | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
 | phong_3 | Tình Lam Phong Thụ | 0 | bị động | accuracy_pct = 2n, magic_attack_pct = n | | | |
-| phong_4 | Mộc Khô Lạp Phong | 3 | circle_target | cast_range 5, radius 2 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
-| phong_5 | Vi Đà Thiên Đài Phong | 4 | circle_target | cast_range 6, radius 3 | 200 + 20(n−1) | 45 + 6(n−1) | 7,5 s |
+| phong_4 | Mộc Khô Lạp Phong | 3 | circle_target | radius 2 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| phong_5 | Vi Đà Thiên Đài Phong | 4 | circle_target | radius 3 | 200 + 20(n−1) | 45 + 6(n−1) | 7,5 s |
 
-Viêm, Minh, Nham dùng `damage: phys`; Thủy, Phong dùng `magic`.
+Viêm, Minh, Nham dùng `damage: phys`; Thủy, Phong dùng `magic`. Tầm (`range`) của mọi chiêu theo dòng `range[10]` ở bảng trường; `circle_self` không có tầm, chỉ có bán kính.
 
 **Server kiểm tra khi nạp** (sai thì dừng và báo lỗi, như `monsters.json`):
 
 - JSON không có trường lạ (`DisallowUnknownFields`); `id` không trùng; `class` hợp lệ.
 - Mỗi class có đúng năm chiêu: bốn chủ động ở ô 1, 2, 3, 4 với `learn_level` lần lượt 10, 20, 40, 50, và một bị động ô 0 với `learn_level` 30.
-- Chủ động có `damage` và `shape` hợp lệ, có đủ và chỉ có thông số vùng của shape đó, mọi số đo dương, `cone_deg` trong (0, 360]; `dash` chỉ đi với `single`; `max_targets` có khi và chỉ khi shape khác `single`.
-- Mọi mảng có đúng 10 phần tử; `coef_pct`, `mp`, `cooldown_ms`, `max_targets` dương; mảng bị động không âm.
+- Chủ động có `damage` và `shape` hợp lệ, có đủ và chỉ có thông số vùng của shape đó (`range` với mọi shape trừ `circle_self`; `radius` với `circle_self`/`circle_target`; `cone_deg` với `cone`; `width` với `line`), mọi số đo dương, `cone_deg` trong (0, 360]; `range` không giảm theo cấp; `dash` chỉ đi với `single`; `max_targets` có khi và chỉ khi shape khác `single`.
+- Mọi mảng có đúng 10 phần tử; `coef_pct`, `mp`, `cooldown_ms`, `max_targets`, `range` dương; mảng bị động không âm.
 - Bị động có ít nhất một khóa `passive` và không có trường của chủ động.
 
 ### 2.2. Lưu trữ
@@ -208,9 +211,9 @@ Hợp lệ: trừ MP, ghi tick dùng chiêu, gửi `CastResp`, rồi áp kết q
 
 ### 4.3. Mục tiêu và hướng
 
-`cast_range` cộng `attackRangeSlack` (0,5 ô) như chém mặc định, vì client thấy quái trễ hai tick. Kích thước vùng (`radius`, `reach`, `length`, `width`) dùng đúng số, không cộng.
+Gọi R = `range[n−1]` của cấp đã học. Tầm chọn mục tiêu R cộng `attackRangeSlack` (0,5 ô) như chém mặc định, vì client thấy quái trễ hai tick. Kích thước vùng (`radius`, `width`, và R khi là độ vươn của quạt hay độ dài của dải) dùng đúng số, không cộng.
 
-- **`single`, `circle_target`:** cần `target_id` là quái còn sống (`INVALID_TARGET`), trong `cast_range + 0,5` và không bị tường chắn từ nhân vật (`OUT_OF_RANGE`).
+- **`single`, `circle_target`:** cần `target_id` là quái còn sống (`INVALID_TARGET`), trong `R + 0,5` và không bị tường chắn từ nhân vật (`OUT_OF_RANGE`).
 - **`cone`, `line`:** nếu `target_id` là quái còn sống thì hướng chiêu là từ nhân vật tới quái đó, không xét tầm. Nếu không, hướng là `(dir_x, dir_y)` chuẩn hóa. Không có quái hợp lệ và `dir` bằng 0 (hoặc không hữu hạn): `BAD_REQUEST`.
 - **`circle_self`:** không cần mục tiêu; `target_id`, `dir` bị bỏ qua (chỉ dùng `target_id` để ưu tiên, mục 4.4).
 
@@ -223,8 +226,8 @@ Mỗi shape có **gốc** (điểm xét tường chắn) và **tâm** (điểm x
 | `single` | | chỉ mục tiêu chính |
 | `circle_self` | nhân vật | khoảng cách tới nhân vật ≤ `radius` |
 | `circle_target` | mục tiêu chính | khoảng cách tới mục tiêu chính ≤ `radius` |
-| `cone` | nhân vật | khoảng cách ≤ `reach` và góc giữa hướng chiêu và hướng tới quái ≤ `cone_deg / 2` |
-| `line` | nhân vật | hình chiếu lên hướng chiêu trong [0, `length`] và khoảng cách vuông góc ≤ `width / 2` |
+| `cone` | nhân vật | khoảng cách ≤ R và góc giữa hướng chiêu và hướng tới quái ≤ `cone_deg / 2` |
+| `line` | nhân vật | hình chiếu lên hướng chiêu trong [0, R] và khoảng cách vuông góc ≤ `width / 2` |
 
 - Chỉ xét quái còn sống, và từ gốc tới quái không bị tường chắn (`lineBlocked`). Quái trùng vị trí gốc luôn được xét là trong vùng.
 - Quét quái bằng lưới ô AOI quanh tâm, đủ phủ vùng lớn nhất (dải 6 ô); không duyệt toàn zone.
@@ -281,13 +284,13 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
 ### 6.1. Lõi (`core/`, không dùng Node)
 
 - **`core/skill_book.gd`**: nạp `skills.json`; giữ cấp chiêu đã học (từ `EnterWorldResp`, `LearnSkillResp`) và điểm kỹ năng (từ `SelfStats`). Trả về chiêu theo class và ô; MP, hồi chiêu, hệ số, số mục tiêu, hiệu ứng bị động ở cấp n; `learn_block(skill, char_level)` trả lý do không học được (`""`, `"maxed"`, `"level"`, `"points"`). Giữ thời điểm hết hồi chiêu của từng chiêu, đặt khi nhận `CastResp`.
-- **`core/cast_loop.gd`**: một lần bấm ô = một lần dùng chiêu.
-  - Mỗi chiêu có một **tầm**: `cast_range` với `single`/`circle_target`, `radius` với `circle_self`, `reach` với `cone`, `length` với `line`. Không chiêu nào tự lướt tới từng con quái; chỉ chiêu `dash` dời nhân vật, và chỉ tới một mục tiêu (mục 4.5).
+- **`core/cast_loop.gd`**: chạy khi giữ nút Đánh (hoặc Space) với một chiêu chủ động đang được chọn; chém mặc định vẫn do `attack_loop` lo. Mỗi lần chiêu sẵn sàng thì dùng một lần; chiêu đang hồi hoặc thiếu MP mà vẫn giữ Đánh thì chém mặc định thay (qua `attack_loop`) cho tới khi chiêu sẵn sàng.
+  - Mỗi chiêu có một **tầm**: `range[n−1]` với `single`/`circle_target`/`cone`/`line`, `radius` với `circle_self`. Không chiêu nào tự lướt tới từng con quái; chỉ chiêu `dash` dời nhân vật, và chỉ tới một mục tiêu (mục 4.5).
   - Chiêu `single`/`circle_target`/`dash` cần mục tiêu đang khóa; không có thì báo "Chưa chọn mục tiêu" và không gửi.
   - Có mục tiêu đang khóa mà nó ở xa hơn tầm của chiêu thì tự chạy lại gần (như `attack_loop`), vào tầm thì gửi; áp dụng cho mọi shape.
   - `cone`/`line`/`circle_self` không khóa mục tiêu thì gửi ngay tại chỗ, theo hướng nhân vật đang nhìn.
-  - Trước khi gửi, tự kiểm tra hồi chiêu và MP; thiếu thì báo "Chưa hồi chiêu" hoặc "Không đủ MP" và không gửi.
-  - Đang chạy lại gần mà người chơi tự di chuyển, đổi mục tiêu hoặc bấm ô khác thì hủy.
+  - Trước khi gửi, tự kiểm tra hồi chiêu và MP; thiếu thì không gửi chiêu (chém thay như trên); lần bấm đầu tiên báo "Chưa hồi chiêu" hoặc "Không đủ MP".
+  - Đang chạy lại gần mà người chơi tự di chuyển, đổi mục tiêu, chọn ô khác hoặc thả nút Đánh thì hủy.
   - `OUT_OF_RANGE` thì chạy thẳng tới mục tiêu và thử lại, như `attack_loop`.
 - **`core/entity_table.gd`**: `casts` phát tín hiệu vẽ hiệu ứng; `Hit` có `skill_id` chỉ hiện số sát thương.
 - **`core/predictor.gd`**: `EntityMove` của chính mình có `snap` thì đặt vị trí dự đoán bằng vị trí server và giữ lại các input chưa được xác nhận để phát lại từ điểm mới.
@@ -295,7 +298,10 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
 
 ### 6.2. Giao diện (`ui/`)
 
-- **`ui/skill_bar.gd`**: bốn ô quanh nút chém, phím 1–4 trên PC, bấm trên di động. Ô hiện tên ngắn và cấp; chưa học thì xám; đang hồi thì có vòng quét và số giây; thiếu MP thì tối màu.
+- **Bố cục HUD** (yêu cầu của người dùng):
+  - **Giữa cạnh dưới: `ui/skill_bar.gd`**, năm ô cố định xếp thành một hàng: ô 1 là chém mặc định, ô 2–5 là bốn chiêu chủ động theo cấp học (ô kỹ năng 1–4 của dữ liệu). Bị động chỉ hiện trong tab Kỹ năng. Bấm một ô (hoặc phím 1–5 trên PC) để **chọn** chiêu; ô đang chọn có viền sáng và giữ nguyên tới khi chọn ô khác; vào game mặc định chọn ô 1. Ô chưa học thì xám và không chọn được; đang hồi thì có vòng quét và số giây; thiếu MP thì tối màu.
+  - **Góc phải dưới:** nút **Đánh** ở giữa; phía trên nút Đánh là hai nút **bình HP** và **bình MP**. Bình thuốc thuộc Giai đoạn 4 nên hai nút hiện xám, bấm thì báo "Có ở bản sau". Bấm/giữ Đánh (hoặc Space) dùng chiêu đang chọn theo `cast_loop`; ô 1 thì chém như Giai đoạn 1.
+  - Nút "Đổi mục tiêu" và "Thông tin" giữ cạnh nút Đánh như hiện tại.
 - **Cửa sổ nhân vật `ui/char_window.gd`** (yêu cầu của người dùng): nút "Chỉ số" trên HUD đổi thành **"Thông tin"**; bấm vào mở một cửa sổ có năm tab theo thứ tự **Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang**. Phím `stats` hiện có mở cửa sổ ở tab Thông tin, phím K mở ở tab Kỹ năng; bấm lại phím của tab đang mở hoặc nút đóng thì đóng cửa sổ. Cửa sổ nhớ tab mở gần nhất trong phiên.
   - **Thông tin** (`ui/info_tab.gd`): tên, class, cấp, EXP, các chỉ số dẫn xuất và ghi chú chính xác/né tránh/chí mạng chưa có tác dụng (phần này chuyển từ bảng chỉ số cũ).
   - **Tiềm năng** (`ui/potential_tab.gd`): bốn thuộc tính với − và +, điểm còn lại, Xác nhận và Hủy, giữ nguyên hành vi của bảng chỉ số Giai đoạn 1.
@@ -336,5 +342,5 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
 
 - `docs/game-design.md`: mục 2.2 (công thức và bảng EXP lên cấp mới), 5.8 (EXP theo r(L), cửa sổ ±10 cấp), 5.12 (cột EXP là HP × r(L)).
 - `CLAUDE.md`: thêm bất biến `skills.json` sinh bằng `skill_stats.py`, `exp.json` bằng `exp_table.py`; không sửa tay.
-- README hai repo: `devchar`, phím 1–4, K và nút Thông tin.
+- README hai repo: `devchar`, phím 1–5 chọn chiêu, Space/Đánh, K và nút Thông tin.
 - Spec Giai đoạn 1: ghi chú "đã thay bằng spec Giai đoạn 2" ở chỗ nói EXP gốc `10 × cấp` và `ExpToNext`.

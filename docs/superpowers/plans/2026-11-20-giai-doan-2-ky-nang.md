@@ -116,7 +116,7 @@ Client (`DemonSlayer2DGame`):
 ```
 server/ (submodule), data/skills.json, proto/protocol.gd, tests/fixtures/  sync (Task 13)
 tools/sync_server.sh                                            copy + check skills.json (Task 13)
-autoload/net.gd, autoload/config.gd                             version 4 (Task 13); keys 1-4, K (Task 16)
+autoload/net.gd, autoload/config.gd                             version 4 (Task 13); keys 1-5, K (Task 16)
 core/wire.gd, core/errors.gd                                    payloads, error texts (Task 13)
 core/skill_book.gd (new)                                        skill data + learned state (Task 14)
 core/cast_loop.gd (new), core/predictor.gd, core/entity_table.gd  casting, dash snap, cast events (Task 15)
@@ -295,6 +295,20 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 - [ ] Gateway: six `CastReq` in one second → the sixth is RATE_LIMITED (model on `TestAttackRateLimit` if it is an e2e test, or a gateway unit test).
 - [ ] Commit: `Cast single-target and self-centred skills`.
 
+### Task 8b: Server — unified skill ranges (user change, spec §1.2 "Tầm đánh", §2.1, §4.3–4.4)
+
+**Files:** `docs/balance/skill_stats.py`, `data/skills.json`, `internal/gamedata/skills.go`, `internal/gamedata/gamedata_test.go`, `internal/zone/skill.go`, `internal/zone/combat_test.go`.
+
+**Behaviour:**
+- Data: every active except `circle_self` gets `range[10]`: `single` (incl. dash) is 5 at every level; `cone`, `line`, `circle_target` are 4,4,4,5,5,5,6,6,6,6. Remove the scalar `cast_range`, `reach` and `length`. Keep `radius` (circle shapes), `cone_deg` (cone) and `width` (line). Regenerate `skills.json`; monster HP is unaffected (it uses only Bất Tri Hỏa's coefficient) — verify `monsters.json` and `exp.json` stay byte-identical.
+- `gamedata.Skill`: replace `CastRange`, `Reach`, `Length` with `Range []int`/`[]float64` (pick one, document it). Validation per §2.1: `range` required on every shape except `circle_self` and forbidden there; positive; non-decreasing over levels; 10 entries.
+- Zone: R = `Range[n−1]` of the learned level. Single/circle_target target checks use `R + attackRangeSlack`. Cone reach and line length (Task 9) use R without slack.
+
+**TODO / tests:**
+- [ ] Update the gamedata fixtures and reject cases (missing `range` on single/cone/line/circle_target; `range` on circle_self; a decreasing `range`; scalar `cast_range` now an unknown field).
+- [ ] Zone: a level-1 `single` reaches at 5.49 and fails at 5.51 (5 + 0.5 slack); range comes from the learned level.
+- [ ] Commit: `Use one range table for every class's skills`.
+
 ### Task 9: Server — cone, line and target-circle areas
 
 **Files:** `internal/zone/skill.go`, `internal/zone/combat_test.go`.
@@ -306,13 +320,13 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 
 **Behaviour (§4.3–4.4):**
 - `cone`/`line`: aim at a living `target_id` regardless of range; otherwise at the normalised `dir`; neither → BAD_REQUEST.
-- `circle_target`: needs a target in `cast_range + 0.5` with line of sight; the area centre is the target.
+- `circle_target`: needs a target in `R + 0.5` with line of sight (R = `range[n−1]`); the area centre is the target. Cone reach and line length are R (no slack).
 - Area membership by the §4.4 table; line of sight from the shape's origin; living monsters only; a monster at the origin counts as inside.
 - Order: `target_id` first if inside, then by distance to the centre, ties by lower id; truncate to `max_targets[n−1]`.
 
 **TODO / tests** (`// ____TEST AREAS____`):
-- [ ] Cone 120°, reach 2: hits at 1.5 tiles straight ahead and at 59° off axis; misses at 61°, behind, and at 2.1 tiles.
-- [ ] Line length 6, width 1.5: hits at (5.9, 0.7); misses at (6.1, 0), (3, 0.8), and behind the caster.
+- [ ] Cone 120° at skill level 1 (reach 4): hits at 3.9 tiles straight ahead and at 59° off axis; misses at 61°, behind, and at 4.1 tiles. At skill level 10 (reach 6) it hits at 5.9.
+- [ ] Line at skill level 10 (length 6), width 1.5: hits at (5.9, 0.7); misses at (6.1, 0), (3, 0.8), and behind the caster. At level 1 it misses at (4.1, 0).
 - [ ] Circle around a target, radius 1.5: hits a second monster 1.4 from the target, misses one at 1.6.
 - [ ] `max_targets`: six monsters in a level-1 Liệt Oa get exactly 2 hits; the locked target is first even when it is the farthest; the rest are the nearest to the centre.
 - [ ] A monster inside the area but behind a wall from the origin is not hit.
@@ -400,18 +414,19 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 **Files:** `core/cast_loop.gd` (new), `core/predictor.gd`, `core/entity_table.gd`, `tests/unit/test_core.gd`.
 
 **Interface:**
-- `cast_loop.gd`: `func press(skill: Dictionary, level: int, target_id: int) -> String` (starts a cast; returns `""` or a notice key: `"no_target"`, `"cooldown"`, `"mp"`); `func step(now, self_pos, target_pos, manual: bool, mp: int, facing: Vector2) -> Dictionary` returning `{"dir": Vector2, "send": Dictionary or null}` where `send` holds `skill_id, target_id, dir`; `func on_reply(code)`; `func cancel()`.
+- `cast_loop.gd`: `func press(skill: Dictionary, level: int, target_id: int) -> String` (called when the attack button goes down with a skill selected; returns `""` or a notice key: `"no_target"`, `"cooldown"`, `"mp"`; `"cooldown"`/`"mp"` mean "slash instead"); `func step(now, self_pos, target_pos, manual: bool, mp: int, facing: Vector2) -> Dictionary` returning `{"dir": Vector2, "send": Dictionary or null}` where `send` holds `skill_id, target_id, dir`; `func on_reply(code)`; `func cancel()`.
 - `predictor.gd`: `func teleport(server_pos: Vector2, ack: int)` — position becomes `server_pos`, history keeps only entries with seq > ack, rebased so later reconciles match.
 - `entity_table.gd`: `apply_tick` returns a `cast` effect per `Cast` (`{"type": "cast", "caster", "skill_id", "target", "dir"}`); a `Hit` with `skill_id` returns the damage-number effect without the slash.
 
-**Behaviour (§6.1):** every skill has a reach (`cast_range` for single/circle_target, `radius` for circle_self, `reach` for cone, `length` for line). With a locked target beyond the reach, walk (like `attack_loop`'s approach) until within reach − 0.3, then send once — for every shape. Targeted shapes need a locked target. Untargeted shapes without a locked target send at once with `facing`; a manual move, a new target or another press cancels; OUT_OF_RANGE switches to walking straight at the target and retrying, as `attack_loop` does; local cooldown and MP checks block sending.
+**Behaviour (§6.1):** the loop runs while the attack button (or Space) is held with an active skill selected in the bar; slot 1 (default slash) stays with `attack_loop`. Each time the selected skill is ready it is cast once; while it is cooling down or MP is short and the button is still held, the default slash runs instead (through `attack_loop`). Every skill has a reach (`range[n−1]` for single/circle_target/cone/line, `radius` for circle_self). With a locked target beyond the reach, walk (like `attack_loop`'s approach) until within reach − 0.3, then send once — for every shape. Targeted shapes need a locked target. Untargeted shapes without a locked target send at once with `facing`; a manual move, a new target or another press cancels; OUT_OF_RANGE switches to walking straight at the target and retrying, as `attack_loop` does; local cooldown and MP checks block sending.
 
 **TODO / tests** (`# ____TEST CAST LOOP____`, `# ____TEST DASH SNAP____`, `# ____TEST CAST EVENTS____`):
 - [ ] Single skill, target 6 tiles away, range 4: `step` walks towards the target and sends only when within range.
 - [ ] Cone with no target sends at once with `facing`.
 - [ ] Circle-self with a locked target 5 tiles away (radius 2.5) walks first and sends once the target is within the radius − 0.3.
 - [ ] Targeted skill without a target → `"no_target"`, nothing sent; on cooldown → `"cooldown"`; low MP → `"mp"`.
-- [ ] A manual move cancels a pending approach.
+- [ ] A manual move, releasing the button or selecting another slot cancels a pending approach.
+- [ ] Held button with the selected skill on cooldown reports "slash instead"; once ready it casts again.
 - [ ] `teleport` jumps 3 tiles; a later reconcile at the next ack causes no further correction.
 - [ ] `world_tick_cast` fixture through `apply_tick`: one cast effect, two damage numbers, no slash effect.
 - [ ] Commit: `Add the cast loop, dash snapping and cast events`.
@@ -421,18 +436,19 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 **Files:** `ui/char_window.gd`, `ui/info_tab.gd`, `ui/potential_tab.gd`, `ui/skill_tab.gd`, `ui/skill_bar.gd`, `ui/skill_effect.gd` (all new), `ui/stats_panel.gd` (removed), `ui/hud.gd`, `autoload/config.gd`, `screens/world.gd`, `screens/world_entities.gd`.
 
 **Behaviour (§6.2):**
-- `config.gd`: actions `skill_1..skill_4` (`KEY_1..KEY_4`) and `skills` (`KEY_K`); `stats` (C) stays and opens the window on Thông tin.
+- `config.gd`: actions `slot_1..slot_5` (`KEY_1..KEY_5`, select a bar slot) and `skills` (`KEY_K`); `attack` (Space) uses the selected slot; `stats` (C) stays and opens the window on Thông tin.
 - `char_window.gd`: five tabs in order Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang; `open(tab)`, `close()`; the same key again closes; remembers the last tab for the session; dots on Tiềm năng/Kỹ năng when points are free. Trang bị and Hành trang show "Có ở bản sau".
 - `info_tab.gd` and `potential_tab.gd` split `stats_panel.gd` without behaviour change (the allocation flow `confirmed → AllocatePointsReq → allocated/failed`, disabled while dead or waiting).
 - `skill_tab.gd`: rows per §6.2; "Học"/"Nâng" emits `learn(skill_id)`; the caller sends `LearnSkillReq` and calls `learned(resp)` or `failed(code)`; a locked button shows the reason (`learn_block`).
-- `hud.gd`: "Chỉ số" becomes "Thông tin"; its dot shows when free potential or skill points exist; the skill bar sits next to "Đánh".
-- `skill_bar.gd`: four slots per §6.2 with cooldown sweep and seconds, grey when unlearned, dark when MP is short; emits `pressed(slot)`.
+- `hud.gd`: "Chỉ số" becomes "Thông tin"; its dot shows when free potential or skill points exist.
+- `skill_bar.gd`: five slots in one row at the bottom centre per §6.2 (slot 1 default slash, slots 2–5 the four actives); selecting highlights the slot until another is chosen (default slot 1); unlearned slots are grey and not selectable; cooldown sweep and seconds; dark when MP is short; emits `selected(slot)`.
+- `hud.gd` bottom-right: the Đánh button in the centre, the HP and MP potion buttons above it, greyed, each showing "Có ở bản sau" when pressed; "Đổi mục tiêu" and "Thông tin" stay beside Đánh.
 - `skill_effect.gd`: `_draw` shapes sized from the skill data, class colours from §6.2, freed after about 0.35 s; dash draws a streak from the old to the new position.
-- `world.gd`: wire keys and bar to `cast_loop`, send `CastReq`/`LearnSkillReq`, handle `CastResp` (start cooldown) and errors (notice text), own `EntityMove` with `snap` while alive → `_predictor.teleport`, `EnterWorldResp.skills` and `SelfStats.skill_points` into the skill book.
+- `world.gd`: wire slot keys and the bar to the selected slot, the Đánh button/Space to `attack_loop` (slot 1) or `cast_loop` (slots 2–5), send `CastReq`/`LearnSkillReq`, handle `CastResp` (start cooldown) and errors (notice text), own `EntityMove` with `snap` while alive → `_predictor.teleport`, `EnterWorldResp.skills` and `SelfStats.skill_points` into the skill book.
 
 **TODO / tests:**
 - [ ] Unit tests stay green; no Node code moves into `core/`.
-- [ ] Manual check on a level-90 dev character against a :8199 server: every tab opens, learning works, each of the four slots casts and draws its effect, dash moves the character without rubber-banding.
+- [ ] Manual check on a level-90 dev character against a :8199 server: every tab opens, learning works, selecting each slot and holding Đánh casts it and draws its effect (slash fills cooldown gaps), potion buttons show the notice, dash moves the character without rubber-banding.
 - [ ] Commit: `Add the tabbed character window, skill bar and skill effects`.
 
 ### Task 17: Client — smoke and README
@@ -443,7 +459,7 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 
 **TODO:**
 - [ ] Run against a :8199 server built from server HEAD; paste the OK line in the task report.
-- [ ] README: keys 1–4, K, C and the Thông tin window; how to raise a dev character.
+- [ ] README: keys 1–5 (select), Space/Đánh, K, C and the Thông tin window; how to raise a dev character.
 - [ ] Commit: `Extend the smoke test with learning and casting a skill`.
 
 ---
