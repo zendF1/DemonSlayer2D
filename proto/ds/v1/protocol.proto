@@ -63,6 +63,8 @@ message Envelope {
     DiscardResp discard_resp = 68;
     SortBagReq sort_bag_req = 69;
     SortBagResp sort_bag_resp = 70;
+    EnhanceReq enhance_req = 71;
+    EnhanceResp enhance_resp = 72;
   }
 }
 
@@ -108,6 +110,14 @@ enum ErrorCode {
   ERROR_CODE_ITEM_NOT_FOUND = 28;
   // The weapon belongs to another class.
   ERROR_CODE_WRONG_CLASS = 29;
+  // The wallet holds less Xu than the action costs.
+  ERROR_CODE_NOT_ENOUGH_XU = 30;
+  // Missing enhancement stones, or a protection charm that was asked for.
+  ERROR_CODE_NOT_ENOUGH_MATERIALS = 31;
+  // The item is already at the highest enhancement level.
+  ERROR_CODE_ENHANCE_MAXED = 32;
+  // The action needs the character to stand in a safe zone.
+  ERROR_CODE_NOT_IN_SAFE_ZONE = 33;
 }
 
 enum KickReason {
@@ -242,6 +252,9 @@ message EntityEnter {
   bool dead = 12;
   // Set for an ITEM entity; name is the item's name, level and HP are 0.
   ItemInfo item = 13;
+  // A player's worn weapon enhancement (0 without a wearable weapon); clients
+  // draw the glow from it.
+  int32 weapon_enhance = 14;
 }
 
 message EntityLeave {
@@ -260,7 +273,7 @@ message EntityMove {
 
 // Sent every tick, even when moves is empty. Events only cover entities in
 // the receiver's view. Clients apply them in this order: moves, casts, hits,
-// deaths, hp_changes, level_ups. Each HpChange is an entity's HP and max HP at
+// deaths, hp_changes, level_ups, looks. Each HpChange is an entity's HP and max HP at
 // the end of the tick, so it overrides any hp_after of the same tick.
 message WorldTick {
   uint32 tick = 1;
@@ -272,6 +285,13 @@ message WorldTick {
   repeated HpChange hp_changes = 6;
   repeated LevelUp level_ups = 7;
   repeated Cast casts = 8;
+  repeated LookChange looks = 9;
+}
+
+// A player's look changed; sent to everyone who sees the player and to the player.
+message LookChange {
+  uint64 id = 1;
+  int32 weapon_enhance = 2;
 }
 
 message Ping {
@@ -342,6 +362,11 @@ message SelfStats {
   int32 skill_points = 20;
   // Xu in the wallet.
   int64 xu = 21;
+  // HP regenerated per second from worn enhancement milestones, in basis
+  // points of max HP (100 = 1%).
+  int32 hp_regen_bp = 22;
+  // MP regenerated per second from worn enhancement milestones.
+  int32 mp_regen = 23;
 }
 
 message Hit {
@@ -497,4 +522,31 @@ message SortBagReq {}
 // Every bag slot, empty ones without an item.
 message SortBagResp {
   InventoryUpdate update = 1;
+}
+
+// An item in the bag (equipped = false) or worn.
+message ItemRef {
+  bool equipped = 1;
+  int32 slot = 2;
+}
+
+// Enhances an equipment piece in a safe zone. The server tries up to times
+// attempts (0 means 1) and stops at the first success, the first level drop
+// or when the materials or Xu run out. protect spends one protection charm per
+// attempt whose target level can drop.
+message EnhanceReq {
+  ItemRef item = 1;
+  bool protect = 2;
+  int32 times = 3;
+}
+
+// success is the outcome of the last attempt and level the item's level after
+// it. update holds the item's slot and the bag slots materials were taken from;
+// stats carries the new Xu.
+message EnhanceResp {
+  int32 attempts = 1;
+  bool success = 2;
+  int32 level = 3;
+  InventoryUpdate update = 4;
+  SelfStats stats = 5;
 }

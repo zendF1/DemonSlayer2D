@@ -350,13 +350,33 @@ func clientFixtures() map[string]*pb.Envelope {
 			},
 			Stats: &pb.SelfStats{Level: 15, Exp: 10, ExpNext: 3000, Hp: 1100, MaxHp: 1200, Mp: 150, MaxMp: 150,
 				PhysAttack: 230, PhysDefense: 95, MagicDefense: 90, Xu: 1234567}}}},
+		"enhance_req": {Seq: 14, Payload: &pb.Envelope_EnhanceReq{EnhanceReq: &pb.EnhanceReq{
+			Item: &pb.ItemRef{Equipped: true, Slot: 5}, Protect: true, Times: 100}}},
+		"enhance_resp": {Seq: 14, Payload: &pb.Envelope_EnhanceResp{EnhanceResp: &pb.EnhanceResp{
+			Attempts: 3, Success: true, Level: 8,
+			// Worn armour now +8; stones from bag slot 3 and the last charm from slot 7.
+			Update: &pb.InventoryUpdate{
+				Bag: []*pb.ItemSlot{
+					{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 3}},
+					{Slot: 7},
+				},
+				Equipped: []*pb.ItemSlot{{Slot: 5, Item: &pb.ItemInfo{Code: "eq10_armor", Count: 1, Quality: 1, Enhance: 8,
+					Lines: []*pb.ItemLine{{Stat: "hp", Value: 60}}}}},
+			},
+			Stats: &pb.SelfStats{Level: 15, Exp: 10, ExpNext: 3000, Hp: 1150, MaxHp: 1250, Mp: 150, MaxMp: 150,
+				PhysAttack: 230, PhysDefense: 95, MagicDefense: 90, Xu: 1232167, HpRegenBp: 5, MpRegen: 1}}}},
+		"world_tick_look": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 48, Looks: []*pb.LookChange{{Id: 78, WeaponEnhance: 10}}}}},
+		"entity_enter_glow": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
+			Id: 78, Kind: pb.EntityKind_ENTITY_KIND_PLAYER, Name: "Mai", CharClass: pb.CharClass_CHAR_CLASS_MINH,
+			Level: 20, X: 7.5, Y: 8.5, DirY: -1, Hp: 1500, MaxHp: 1500, WeaponEnhance: 12}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 6 {
-		t.Fatalf("ProtocolVersion = %d, want 6", ProtocolVersion)
+	if ProtocolVersion != 7 {
+		t.Fatalf("ProtocolVersion = %d, want 7", ProtocolVersion)
 	}
 }
 
@@ -410,6 +430,31 @@ func TestItemFixturesRoundTrip(t *testing.T) {
 	if eq := up.GetUpdate().GetEquipped(); len(eq) != 1 || eq[0].GetSlot() != 5 || eq[0].GetItem().GetCode() != "eq10_armor" ||
 		up.GetStats().GetMaxHp() != 1200 {
 		t.Fatalf("equip resp %v", up)
+	}
+}
+
+// The enhancement fixtures decode back to their request, reply, look change and
+// glowing player.
+func TestEnhanceFixturesRoundTrip(t *testing.T) {
+	look := readFixture(t, "world_tick_look").GetWorldTick()
+	if l := look.GetLooks(); look.GetTick() != 48 || len(l) != 1 || l[0].GetId() != 78 || l[0].GetWeaponEnhance() != 10 {
+		t.Fatalf("world tick %v, want one look of 78 at +10", look)
+	}
+	if e := readFixture(t, "entity_enter_glow").GetEntityEnter(); e.GetKind() != pb.EntityKind_ENTITY_KIND_PLAYER ||
+		e.GetWeaponEnhance() != 12 {
+		t.Fatalf("entity %v, want a player with weapon_enhance 12", e)
+	}
+	req := readFixture(t, "enhance_req").GetEnhanceReq()
+	if !req.GetItem().GetEquipped() || req.GetItem().GetSlot() != 5 || !req.GetProtect() || req.GetTimes() != 100 {
+		t.Fatalf("enhance req %v", req)
+	}
+	resp := readFixture(t, "enhance_resp").GetEnhanceResp()
+	up := resp.GetUpdate()
+	if resp.GetAttempts() != 3 || !resp.GetSuccess() || resp.GetLevel() != 8 ||
+		len(up.GetBag()) != 2 || up.GetBag()[1].GetItem() != nil ||
+		len(up.GetEquipped()) != 1 || up.GetEquipped()[0].GetItem().GetEnhance() != 8 ||
+		resp.GetStats().GetXu() != 1232167 || resp.GetStats().GetHpRegenBp() != 5 || resp.GetStats().GetMpRegen() != 1 {
+		t.Fatalf("enhance resp %v", resp)
 	}
 }
 

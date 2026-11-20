@@ -65,6 +65,14 @@ const (
 	ErrorCode_ERROR_CODE_ITEM_NOT_FOUND ErrorCode = 28
 	// The weapon belongs to another class.
 	ErrorCode_ERROR_CODE_WRONG_CLASS ErrorCode = 29
+	// The wallet holds less Xu than the action costs.
+	ErrorCode_ERROR_CODE_NOT_ENOUGH_XU ErrorCode = 30
+	// Missing enhancement stones, or a protection charm that was asked for.
+	ErrorCode_ERROR_CODE_NOT_ENOUGH_MATERIALS ErrorCode = 31
+	// The item is already at the highest enhancement level.
+	ErrorCode_ERROR_CODE_ENHANCE_MAXED ErrorCode = 32
+	// The action needs the character to stand in a safe zone.
+	ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE ErrorCode = 33
 )
 
 // Enum value maps for ErrorCode.
@@ -100,38 +108,46 @@ var (
 		27: "ERROR_CODE_BAG_FULL",
 		28: "ERROR_CODE_ITEM_NOT_FOUND",
 		29: "ERROR_CODE_WRONG_CLASS",
+		30: "ERROR_CODE_NOT_ENOUGH_XU",
+		31: "ERROR_CODE_NOT_ENOUGH_MATERIALS",
+		32: "ERROR_CODE_ENHANCE_MAXED",
+		33: "ERROR_CODE_NOT_IN_SAFE_ZONE",
 	}
 	ErrorCode_value = map[string]int32{
-		"ERROR_CODE_UNSPECIFIED":       0,
-		"ERROR_CODE_BAD_REQUEST":       1,
-		"ERROR_CODE_VERSION_MISMATCH":  2,
-		"ERROR_CODE_RATE_LIMITED":      3,
-		"ERROR_CODE_AUTH_FAILED":       4,
-		"ERROR_CODE_USERNAME_TAKEN":    5,
-		"ERROR_CODE_USERNAME_INVALID":  6,
-		"ERROR_CODE_PASSWORD_INVALID":  7,
-		"ERROR_CODE_NAME_TAKEN":        8,
-		"ERROR_CODE_NAME_INVALID":      9,
-		"ERROR_CODE_SLOT_OCCUPIED":     10,
-		"ERROR_CODE_CHAR_NOT_FOUND":    11,
-		"ERROR_CODE_NOT_IN_WORLD":      12,
-		"ERROR_CODE_ALREADY_IN_WORLD":  13,
-		"ERROR_CODE_ZONE_FULL":         14,
-		"ERROR_CODE_INTERNAL":          15,
-		"ERROR_CODE_INVALID_TARGET":    16,
-		"ERROR_CODE_OUT_OF_RANGE":      17,
-		"ERROR_CODE_ON_COOLDOWN":       18,
-		"ERROR_CODE_IN_SAFE_ZONE":      19,
-		"ERROR_CODE_DEAD":              20,
-		"ERROR_CODE_NOT_DEAD":          21,
-		"ERROR_CODE_NOT_ENOUGH_POINTS": 22,
-		"ERROR_CODE_SKILL_NOT_LEARNED": 23,
-		"ERROR_CODE_NOT_ENOUGH_MP":     24,
-		"ERROR_CODE_SKILL_MAXED":       25,
-		"ERROR_CODE_LEVEL_TOO_LOW":     26,
-		"ERROR_CODE_BAG_FULL":          27,
-		"ERROR_CODE_ITEM_NOT_FOUND":    28,
-		"ERROR_CODE_WRONG_CLASS":       29,
+		"ERROR_CODE_UNSPECIFIED":          0,
+		"ERROR_CODE_BAD_REQUEST":          1,
+		"ERROR_CODE_VERSION_MISMATCH":     2,
+		"ERROR_CODE_RATE_LIMITED":         3,
+		"ERROR_CODE_AUTH_FAILED":          4,
+		"ERROR_CODE_USERNAME_TAKEN":       5,
+		"ERROR_CODE_USERNAME_INVALID":     6,
+		"ERROR_CODE_PASSWORD_INVALID":     7,
+		"ERROR_CODE_NAME_TAKEN":           8,
+		"ERROR_CODE_NAME_INVALID":         9,
+		"ERROR_CODE_SLOT_OCCUPIED":        10,
+		"ERROR_CODE_CHAR_NOT_FOUND":       11,
+		"ERROR_CODE_NOT_IN_WORLD":         12,
+		"ERROR_CODE_ALREADY_IN_WORLD":     13,
+		"ERROR_CODE_ZONE_FULL":            14,
+		"ERROR_CODE_INTERNAL":             15,
+		"ERROR_CODE_INVALID_TARGET":       16,
+		"ERROR_CODE_OUT_OF_RANGE":         17,
+		"ERROR_CODE_ON_COOLDOWN":          18,
+		"ERROR_CODE_IN_SAFE_ZONE":         19,
+		"ERROR_CODE_DEAD":                 20,
+		"ERROR_CODE_NOT_DEAD":             21,
+		"ERROR_CODE_NOT_ENOUGH_POINTS":    22,
+		"ERROR_CODE_SKILL_NOT_LEARNED":    23,
+		"ERROR_CODE_NOT_ENOUGH_MP":        24,
+		"ERROR_CODE_SKILL_MAXED":          25,
+		"ERROR_CODE_LEVEL_TOO_LOW":        26,
+		"ERROR_CODE_BAG_FULL":             27,
+		"ERROR_CODE_ITEM_NOT_FOUND":       28,
+		"ERROR_CODE_WRONG_CLASS":          29,
+		"ERROR_CODE_NOT_ENOUGH_XU":        30,
+		"ERROR_CODE_NOT_ENOUGH_MATERIALS": 31,
+		"ERROR_CODE_ENHANCE_MAXED":        32,
+		"ERROR_CODE_NOT_IN_SAFE_ZONE":     33,
 	}
 )
 
@@ -392,6 +408,8 @@ type Envelope struct {
 	//	*Envelope_DiscardResp
 	//	*Envelope_SortBagReq
 	//	*Envelope_SortBagResp
+	//	*Envelope_EnhanceReq
+	//	*Envelope_EnhanceResp
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -828,6 +846,24 @@ func (x *Envelope) GetSortBagResp() *SortBagResp {
 	return nil
 }
 
+func (x *Envelope) GetEnhanceReq() *EnhanceReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EnhanceReq); ok {
+			return x.EnhanceReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEnhanceResp() *EnhanceResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EnhanceResp); ok {
+			return x.EnhanceResp
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1004,6 +1040,14 @@ type Envelope_SortBagResp struct {
 	SortBagResp *SortBagResp `protobuf:"bytes,70,opt,name=sort_bag_resp,json=sortBagResp,proto3,oneof"`
 }
 
+type Envelope_EnhanceReq struct {
+	EnhanceReq *EnhanceReq `protobuf:"bytes,71,opt,name=enhance_req,json=enhanceReq,proto3,oneof"`
+}
+
+type Envelope_EnhanceResp struct {
+	EnhanceResp *EnhanceResp `protobuf:"bytes,72,opt,name=enhance_resp,json=enhanceResp,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -1089,6 +1133,10 @@ func (*Envelope_DiscardResp) isEnvelope_Payload() {}
 func (*Envelope_SortBagReq) isEnvelope_Payload() {}
 
 func (*Envelope_SortBagResp) isEnvelope_Payload() {}
+
+func (*Envelope_EnhanceReq) isEnvelope_Payload() {}
+
+func (*Envelope_EnhanceResp) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2012,7 +2060,10 @@ type EntityEnter struct {
 	// True for a corpse still visible in the zone.
 	Dead bool `protobuf:"varint,12,opt,name=dead,proto3" json:"dead,omitempty"`
 	// Set for an ITEM entity; name is the item's name, level and HP are 0.
-	Item          *ItemInfo `protobuf:"bytes,13,opt,name=item,proto3" json:"item,omitempty"`
+	Item *ItemInfo `protobuf:"bytes,13,opt,name=item,proto3" json:"item,omitempty"`
+	// A player's worn weapon enhancement (0 without a wearable weapon); clients
+	// draw the glow from it.
+	WeaponEnhance int32 `protobuf:"varint,14,opt,name=weapon_enhance,json=weaponEnhance,proto3" json:"weapon_enhance,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2136,6 +2187,13 @@ func (x *EntityEnter) GetItem() *ItemInfo {
 		return x.Item
 	}
 	return nil
+}
+
+func (x *EntityEnter) GetWeaponEnhance() int32 {
+	if x != nil {
+		return x.WeaponEnhance
+	}
+	return 0
 }
 
 type EntityLeave struct {
@@ -2269,7 +2327,7 @@ func (x *EntityMove) GetSnap() bool {
 
 // Sent every tick, even when moves is empty. Events only cover entities in
 // the receiver's view. Clients apply them in this order: moves, casts, hits,
-// deaths, hp_changes, level_ups. Each HpChange is an entity's HP and max HP at
+// deaths, hp_changes, level_ups, looks. Each HpChange is an entity's HP and max HP at
 // the end of the tick, so it overrides any hp_after of the same tick.
 type WorldTick struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2282,6 +2340,7 @@ type WorldTick struct {
 	HpChanges     []*HpChange   `protobuf:"bytes,6,rep,name=hp_changes,json=hpChanges,proto3" json:"hp_changes,omitempty"`
 	LevelUps      []*LevelUp    `protobuf:"bytes,7,rep,name=level_ups,json=levelUps,proto3" json:"level_ups,omitempty"`
 	Casts         []*Cast       `protobuf:"bytes,8,rep,name=casts,proto3" json:"casts,omitempty"`
+	Looks         []*LookChange `protobuf:"bytes,9,rep,name=looks,proto3" json:"looks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2372,6 +2431,66 @@ func (x *WorldTick) GetCasts() []*Cast {
 	return nil
 }
 
+func (x *WorldTick) GetLooks() []*LookChange {
+	if x != nil {
+		return x.Looks
+	}
+	return nil
+}
+
+// A player's look changed; sent to everyone who sees the player and to the player.
+type LookChange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	WeaponEnhance int32                  `protobuf:"varint,2,opt,name=weapon_enhance,json=weaponEnhance,proto3" json:"weapon_enhance,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LookChange) Reset() {
+	*x = LookChange{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LookChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LookChange) ProtoMessage() {}
+
+func (x *LookChange) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LookChange.ProtoReflect.Descriptor instead.
+func (*LookChange) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *LookChange) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *LookChange) GetWeaponEnhance() int32 {
+	if x != nil {
+		return x.WeaponEnhance
+	}
+	return 0
+}
+
 type Ping struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClientTime    int64                  `protobuf:"varint,1,opt,name=client_time,json=clientTime,proto3" json:"client_time,omitempty"`
@@ -2381,7 +2500,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[22]
+	mi := &file_ds_v1_protocol_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2393,7 +2512,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[22]
+	mi := &file_ds_v1_protocol_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2406,7 +2525,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{22}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Ping) GetClientTime() int64 {
@@ -2426,7 +2545,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[23]
+	mi := &file_ds_v1_protocol_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2438,7 +2557,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[23]
+	mi := &file_ds_v1_protocol_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2451,7 +2570,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{23}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Pong) GetClientTime() int64 {
@@ -2477,7 +2596,7 @@ type Kicked struct {
 
 func (x *Kicked) Reset() {
 	*x = Kicked{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[24]
+	mi := &file_ds_v1_protocol_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2489,7 +2608,7 @@ func (x *Kicked) String() string {
 func (*Kicked) ProtoMessage() {}
 
 func (x *Kicked) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[24]
+	mi := &file_ds_v1_protocol_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2502,7 +2621,7 @@ func (x *Kicked) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Kicked.ProtoReflect.Descriptor instead.
 func (*Kicked) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{24}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Kicked) GetReason() KickReason {
@@ -2522,7 +2641,7 @@ type AttackReq struct {
 
 func (x *AttackReq) Reset() {
 	*x = AttackReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[25]
+	mi := &file_ds_v1_protocol_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2534,7 +2653,7 @@ func (x *AttackReq) String() string {
 func (*AttackReq) ProtoMessage() {}
 
 func (x *AttackReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[25]
+	mi := &file_ds_v1_protocol_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2547,7 +2666,7 @@ func (x *AttackReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttackReq.ProtoReflect.Descriptor instead.
 func (*AttackReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{25}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AttackReq) GetTargetId() uint64 {
@@ -2565,7 +2684,7 @@ type AttackResp struct {
 
 func (x *AttackResp) Reset() {
 	*x = AttackResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[26]
+	mi := &file_ds_v1_protocol_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2577,7 +2696,7 @@ func (x *AttackResp) String() string {
 func (*AttackResp) ProtoMessage() {}
 
 func (x *AttackResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[26]
+	mi := &file_ds_v1_protocol_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2590,7 +2709,7 @@ func (x *AttackResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttackResp.ProtoReflect.Descriptor instead.
 func (*AttackResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{26}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{27}
 }
 
 // Spends free potential points; each field is the number of points to add.
@@ -2606,7 +2725,7 @@ type AllocatePointsReq struct {
 
 func (x *AllocatePointsReq) Reset() {
 	*x = AllocatePointsReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[27]
+	mi := &file_ds_v1_protocol_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2618,7 +2737,7 @@ func (x *AllocatePointsReq) String() string {
 func (*AllocatePointsReq) ProtoMessage() {}
 
 func (x *AllocatePointsReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[27]
+	mi := &file_ds_v1_protocol_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2631,7 +2750,7 @@ func (x *AllocatePointsReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocatePointsReq.ProtoReflect.Descriptor instead.
 func (*AllocatePointsReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{27}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AllocatePointsReq) GetStrength() uint32 {
@@ -2671,7 +2790,7 @@ type AllocatePointsResp struct {
 
 func (x *AllocatePointsResp) Reset() {
 	*x = AllocatePointsResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[28]
+	mi := &file_ds_v1_protocol_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2683,7 +2802,7 @@ func (x *AllocatePointsResp) String() string {
 func (*AllocatePointsResp) ProtoMessage() {}
 
 func (x *AllocatePointsResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[28]
+	mi := &file_ds_v1_protocol_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2696,7 +2815,7 @@ func (x *AllocatePointsResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocatePointsResp.ProtoReflect.Descriptor instead.
 func (*AllocatePointsResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{28}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *AllocatePointsResp) GetStats() *SelfStats {
@@ -2714,7 +2833,7 @@ type RespawnReq struct {
 
 func (x *RespawnReq) Reset() {
 	*x = RespawnReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[29]
+	mi := &file_ds_v1_protocol_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2726,7 +2845,7 @@ func (x *RespawnReq) String() string {
 func (*RespawnReq) ProtoMessage() {}
 
 func (x *RespawnReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[29]
+	mi := &file_ds_v1_protocol_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2739,7 +2858,7 @@ func (x *RespawnReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RespawnReq.ProtoReflect.Descriptor instead.
 func (*RespawnReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{29}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{30}
 }
 
 // Where the character stands after respawning.
@@ -2753,7 +2872,7 @@ type RespawnResp struct {
 
 func (x *RespawnResp) Reset() {
 	*x = RespawnResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[30]
+	mi := &file_ds_v1_protocol_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2765,7 +2884,7 @@ func (x *RespawnResp) String() string {
 func (*RespawnResp) ProtoMessage() {}
 
 func (x *RespawnResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[30]
+	mi := &file_ds_v1_protocol_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2778,7 +2897,7 @@ func (x *RespawnResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RespawnResp.ProtoReflect.Descriptor instead.
 func (*RespawnResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{30}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *RespawnResp) GetX() float32 {
@@ -2823,14 +2942,19 @@ type SelfStats struct {
 	// Unspent skill points.
 	SkillPoints int32 `protobuf:"varint,20,opt,name=skill_points,json=skillPoints,proto3" json:"skill_points,omitempty"`
 	// Xu in the wallet.
-	Xu            int64 `protobuf:"varint,21,opt,name=xu,proto3" json:"xu,omitempty"`
+	Xu int64 `protobuf:"varint,21,opt,name=xu,proto3" json:"xu,omitempty"`
+	// HP regenerated per second from worn enhancement milestones, in basis
+	// points of max HP (100 = 1%).
+	HpRegenBp int32 `protobuf:"varint,22,opt,name=hp_regen_bp,json=hpRegenBp,proto3" json:"hp_regen_bp,omitempty"`
+	// MP regenerated per second from worn enhancement milestones.
+	MpRegen       int32 `protobuf:"varint,23,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SelfStats) Reset() {
 	*x = SelfStats{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[31]
+	mi := &file_ds_v1_protocol_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2842,7 +2966,7 @@ func (x *SelfStats) String() string {
 func (*SelfStats) ProtoMessage() {}
 
 func (x *SelfStats) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[31]
+	mi := &file_ds_v1_protocol_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2855,7 +2979,7 @@ func (x *SelfStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelfStats.ProtoReflect.Descriptor instead.
 func (*SelfStats) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{31}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SelfStats) GetLevel() int32 {
@@ -3005,6 +3129,20 @@ func (x *SelfStats) GetXu() int64 {
 	return 0
 }
 
+func (x *SelfStats) GetHpRegenBp() int32 {
+	if x != nil {
+		return x.HpRegenBp
+	}
+	return 0
+}
+
+func (x *SelfStats) GetMpRegen() int32 {
+	if x != nil {
+		return x.MpRegen
+	}
+	return 0
+}
+
 type Hit struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	AttackerId uint64                 `protobuf:"varint,1,opt,name=attacker_id,json=attackerId,proto3" json:"attacker_id,omitempty"`
@@ -3022,7 +3160,7 @@ type Hit struct {
 
 func (x *Hit) Reset() {
 	*x = Hit{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[32]
+	mi := &file_ds_v1_protocol_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3034,7 +3172,7 @@ func (x *Hit) String() string {
 func (*Hit) ProtoMessage() {}
 
 func (x *Hit) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[32]
+	mi := &file_ds_v1_protocol_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3047,7 +3185,7 @@ func (x *Hit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hit.ProtoReflect.Descriptor instead.
 func (*Hit) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{32}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Hit) GetAttackerId() uint64 {
@@ -3101,7 +3239,7 @@ type Death struct {
 
 func (x *Death) Reset() {
 	*x = Death{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[33]
+	mi := &file_ds_v1_protocol_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3113,7 +3251,7 @@ func (x *Death) String() string {
 func (*Death) ProtoMessage() {}
 
 func (x *Death) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[33]
+	mi := &file_ds_v1_protocol_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3126,7 +3264,7 @@ func (x *Death) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Death.ProtoReflect.Descriptor instead.
 func (*Death) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{33}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Death) GetId() uint64 {
@@ -3147,7 +3285,7 @@ type HpChange struct {
 
 func (x *HpChange) Reset() {
 	*x = HpChange{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[34]
+	mi := &file_ds_v1_protocol_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3159,7 +3297,7 @@ func (x *HpChange) String() string {
 func (*HpChange) ProtoMessage() {}
 
 func (x *HpChange) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[34]
+	mi := &file_ds_v1_protocol_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3172,7 +3310,7 @@ func (x *HpChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HpChange.ProtoReflect.Descriptor instead.
 func (*HpChange) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{34}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *HpChange) GetId() uint64 {
@@ -3206,7 +3344,7 @@ type LevelUp struct {
 
 func (x *LevelUp) Reset() {
 	*x = LevelUp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[35]
+	mi := &file_ds_v1_protocol_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3218,7 +3356,7 @@ func (x *LevelUp) String() string {
 func (*LevelUp) ProtoMessage() {}
 
 func (x *LevelUp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[35]
+	mi := &file_ds_v1_protocol_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3231,7 +3369,7 @@ func (x *LevelUp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LevelUp.ProtoReflect.Descriptor instead.
 func (*LevelUp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{35}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *LevelUp) GetId() uint64 {
@@ -3258,7 +3396,7 @@ type LearnSkillReq struct {
 
 func (x *LearnSkillReq) Reset() {
 	*x = LearnSkillReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[36]
+	mi := &file_ds_v1_protocol_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3270,7 +3408,7 @@ func (x *LearnSkillReq) String() string {
 func (*LearnSkillReq) ProtoMessage() {}
 
 func (x *LearnSkillReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[36]
+	mi := &file_ds_v1_protocol_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3283,7 +3421,7 @@ func (x *LearnSkillReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LearnSkillReq.ProtoReflect.Descriptor instead.
 func (*LearnSkillReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{36}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *LearnSkillReq) GetSkillId() string {
@@ -3303,7 +3441,7 @@ type LearnSkillResp struct {
 
 func (x *LearnSkillResp) Reset() {
 	*x = LearnSkillResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[37]
+	mi := &file_ds_v1_protocol_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3315,7 +3453,7 @@ func (x *LearnSkillResp) String() string {
 func (*LearnSkillResp) ProtoMessage() {}
 
 func (x *LearnSkillResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[37]
+	mi := &file_ds_v1_protocol_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3328,7 +3466,7 @@ func (x *LearnSkillResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LearnSkillResp.ProtoReflect.Descriptor instead.
 func (*LearnSkillResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{37}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *LearnSkillResp) GetStats() *SelfStats {
@@ -3359,7 +3497,7 @@ type CastReq struct {
 
 func (x *CastReq) Reset() {
 	*x = CastReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[38]
+	mi := &file_ds_v1_protocol_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3371,7 +3509,7 @@ func (x *CastReq) String() string {
 func (*CastReq) ProtoMessage() {}
 
 func (x *CastReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[38]
+	mi := &file_ds_v1_protocol_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3384,7 +3522,7 @@ func (x *CastReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CastReq.ProtoReflect.Descriptor instead.
 func (*CastReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{38}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CastReq) GetSkillId() string {
@@ -3423,7 +3561,7 @@ type CastResp struct {
 
 func (x *CastResp) Reset() {
 	*x = CastResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[39]
+	mi := &file_ds_v1_protocol_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3435,7 +3573,7 @@ func (x *CastResp) String() string {
 func (*CastResp) ProtoMessage() {}
 
 func (x *CastResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[39]
+	mi := &file_ds_v1_protocol_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3448,7 +3586,7 @@ func (x *CastResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CastResp.ProtoReflect.Descriptor instead.
 func (*CastResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{39}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{40}
 }
 
 type SkillLevel struct {
@@ -3461,7 +3599,7 @@ type SkillLevel struct {
 
 func (x *SkillLevel) Reset() {
 	*x = SkillLevel{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[40]
+	mi := &file_ds_v1_protocol_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3473,7 +3611,7 @@ func (x *SkillLevel) String() string {
 func (*SkillLevel) ProtoMessage() {}
 
 func (x *SkillLevel) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[40]
+	mi := &file_ds_v1_protocol_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3486,7 +3624,7 @@ func (x *SkillLevel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SkillLevel.ProtoReflect.Descriptor instead.
 func (*SkillLevel) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{40}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *SkillLevel) GetSkillId() string {
@@ -3523,7 +3661,7 @@ type Cast struct {
 
 func (x *Cast) Reset() {
 	*x = Cast{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[41]
+	mi := &file_ds_v1_protocol_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3535,7 +3673,7 @@ func (x *Cast) String() string {
 func (*Cast) ProtoMessage() {}
 
 func (x *Cast) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[41]
+	mi := &file_ds_v1_protocol_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3548,7 +3686,7 @@ func (x *Cast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cast.ProtoReflect.Descriptor instead.
 func (*Cast) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{41}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Cast) GetCasterId() uint64 {
@@ -3625,7 +3763,7 @@ type CastImpact struct {
 
 func (x *CastImpact) Reset() {
 	*x = CastImpact{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[42]
+	mi := &file_ds_v1_protocol_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3637,7 +3775,7 @@ func (x *CastImpact) String() string {
 func (*CastImpact) ProtoMessage() {}
 
 func (x *CastImpact) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[42]
+	mi := &file_ds_v1_protocol_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3650,7 +3788,7 @@ func (x *CastImpact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CastImpact.ProtoReflect.Descriptor instead.
 func (*CastImpact) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{42}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *CastImpact) GetTargetId() uint64 {
@@ -3683,7 +3821,7 @@ type ItemInfo struct {
 
 func (x *ItemInfo) Reset() {
 	*x = ItemInfo{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[43]
+	mi := &file_ds_v1_protocol_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3695,7 +3833,7 @@ func (x *ItemInfo) String() string {
 func (*ItemInfo) ProtoMessage() {}
 
 func (x *ItemInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[43]
+	mi := &file_ds_v1_protocol_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3708,7 +3846,7 @@ func (x *ItemInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemInfo.ProtoReflect.Descriptor instead.
 func (*ItemInfo) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{43}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ItemInfo) GetCode() string {
@@ -3770,7 +3908,7 @@ type ItemLine struct {
 
 func (x *ItemLine) Reset() {
 	*x = ItemLine{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[44]
+	mi := &file_ds_v1_protocol_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3782,7 +3920,7 @@ func (x *ItemLine) String() string {
 func (*ItemLine) ProtoMessage() {}
 
 func (x *ItemLine) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[44]
+	mi := &file_ds_v1_protocol_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3795,7 +3933,7 @@ func (x *ItemLine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemLine.ProtoReflect.Descriptor instead.
 func (*ItemLine) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{44}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ItemLine) GetStat() string {
@@ -3823,7 +3961,7 @@ type ItemSlot struct {
 
 func (x *ItemSlot) Reset() {
 	*x = ItemSlot{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[45]
+	mi := &file_ds_v1_protocol_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3835,7 +3973,7 @@ func (x *ItemSlot) String() string {
 func (*ItemSlot) ProtoMessage() {}
 
 func (x *ItemSlot) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[45]
+	mi := &file_ds_v1_protocol_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3848,7 +3986,7 @@ func (x *ItemSlot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemSlot.ProtoReflect.Descriptor instead.
 func (*ItemSlot) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{45}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ItemSlot) GetSlot() int32 {
@@ -3876,7 +4014,7 @@ type Inventory struct {
 
 func (x *Inventory) Reset() {
 	*x = Inventory{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[46]
+	mi := &file_ds_v1_protocol_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3888,7 +4026,7 @@ func (x *Inventory) String() string {
 func (*Inventory) ProtoMessage() {}
 
 func (x *Inventory) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[46]
+	mi := &file_ds_v1_protocol_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3901,7 +4039,7 @@ func (x *Inventory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Inventory.ProtoReflect.Descriptor instead.
 func (*Inventory) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{46}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *Inventory) GetBagSize() int32 {
@@ -3936,7 +4074,7 @@ type InventoryUpdate struct {
 
 func (x *InventoryUpdate) Reset() {
 	*x = InventoryUpdate{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[47]
+	mi := &file_ds_v1_protocol_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3948,7 +4086,7 @@ func (x *InventoryUpdate) String() string {
 func (*InventoryUpdate) ProtoMessage() {}
 
 func (x *InventoryUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[47]
+	mi := &file_ds_v1_protocol_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3961,7 +4099,7 @@ func (x *InventoryUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryUpdate.ProtoReflect.Descriptor instead.
 func (*InventoryUpdate) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{47}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *InventoryUpdate) GetBag() []*ItemSlot {
@@ -3988,7 +4126,7 @@ type PickupReq struct {
 
 func (x *PickupReq) Reset() {
 	*x = PickupReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[48]
+	mi := &file_ds_v1_protocol_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4000,7 +4138,7 @@ func (x *PickupReq) String() string {
 func (*PickupReq) ProtoMessage() {}
 
 func (x *PickupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[48]
+	mi := &file_ds_v1_protocol_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4013,7 +4151,7 @@ func (x *PickupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PickupReq.ProtoReflect.Descriptor instead.
 func (*PickupReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{48}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *PickupReq) GetItemId() uint64 {
@@ -4032,7 +4170,7 @@ type PickupResp struct {
 
 func (x *PickupResp) Reset() {
 	*x = PickupResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[49]
+	mi := &file_ds_v1_protocol_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4044,7 +4182,7 @@ func (x *PickupResp) String() string {
 func (*PickupResp) ProtoMessage() {}
 
 func (x *PickupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[49]
+	mi := &file_ds_v1_protocol_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4057,7 +4195,7 @@ func (x *PickupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PickupResp.ProtoReflect.Descriptor instead.
 func (*PickupResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{49}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *PickupResp) GetUpdate() *InventoryUpdate {
@@ -4077,7 +4215,7 @@ type EquipReq struct {
 
 func (x *EquipReq) Reset() {
 	*x = EquipReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[50]
+	mi := &file_ds_v1_protocol_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4089,7 +4227,7 @@ func (x *EquipReq) String() string {
 func (*EquipReq) ProtoMessage() {}
 
 func (x *EquipReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[50]
+	mi := &file_ds_v1_protocol_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4102,7 +4240,7 @@ func (x *EquipReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EquipReq.ProtoReflect.Descriptor instead.
 func (*EquipReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{50}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *EquipReq) GetBagSlot() int32 {
@@ -4122,7 +4260,7 @@ type EquipResp struct {
 
 func (x *EquipResp) Reset() {
 	*x = EquipResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[51]
+	mi := &file_ds_v1_protocol_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4134,7 +4272,7 @@ func (x *EquipResp) String() string {
 func (*EquipResp) ProtoMessage() {}
 
 func (x *EquipResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[51]
+	mi := &file_ds_v1_protocol_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4147,7 +4285,7 @@ func (x *EquipResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EquipResp.ProtoReflect.Descriptor instead.
 func (*EquipResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{51}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *EquipResp) GetUpdate() *InventoryUpdate {
@@ -4174,7 +4312,7 @@ type UnequipReq struct {
 
 func (x *UnequipReq) Reset() {
 	*x = UnequipReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[52]
+	mi := &file_ds_v1_protocol_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4186,7 +4324,7 @@ func (x *UnequipReq) String() string {
 func (*UnequipReq) ProtoMessage() {}
 
 func (x *UnequipReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[52]
+	mi := &file_ds_v1_protocol_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4199,7 +4337,7 @@ func (x *UnequipReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnequipReq.ProtoReflect.Descriptor instead.
 func (*UnequipReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{52}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *UnequipReq) GetEquipSlot() int32 {
@@ -4219,7 +4357,7 @@ type UnequipResp struct {
 
 func (x *UnequipResp) Reset() {
 	*x = UnequipResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[53]
+	mi := &file_ds_v1_protocol_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4231,7 +4369,7 @@ func (x *UnequipResp) String() string {
 func (*UnequipResp) ProtoMessage() {}
 
 func (x *UnequipResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[53]
+	mi := &file_ds_v1_protocol_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4244,7 +4382,7 @@ func (x *UnequipResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnequipResp.ProtoReflect.Descriptor instead.
 func (*UnequipResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{53}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *UnequipResp) GetUpdate() *InventoryUpdate {
@@ -4272,7 +4410,7 @@ type DiscardReq struct {
 
 func (x *DiscardReq) Reset() {
 	*x = DiscardReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[54]
+	mi := &file_ds_v1_protocol_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4284,7 +4422,7 @@ func (x *DiscardReq) String() string {
 func (*DiscardReq) ProtoMessage() {}
 
 func (x *DiscardReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[54]
+	mi := &file_ds_v1_protocol_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4297,7 +4435,7 @@ func (x *DiscardReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscardReq.ProtoReflect.Descriptor instead.
 func (*DiscardReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{54}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *DiscardReq) GetBagSlot() int32 {
@@ -4323,7 +4461,7 @@ type DiscardResp struct {
 
 func (x *DiscardResp) Reset() {
 	*x = DiscardResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[55]
+	mi := &file_ds_v1_protocol_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4335,7 +4473,7 @@ func (x *DiscardResp) String() string {
 func (*DiscardResp) ProtoMessage() {}
 
 func (x *DiscardResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[55]
+	mi := &file_ds_v1_protocol_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4348,7 +4486,7 @@ func (x *DiscardResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscardResp.ProtoReflect.Descriptor instead.
 func (*DiscardResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{55}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *DiscardResp) GetUpdate() *InventoryUpdate {
@@ -4367,7 +4505,7 @@ type SortBagReq struct {
 
 func (x *SortBagReq) Reset() {
 	*x = SortBagReq{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[56]
+	mi := &file_ds_v1_protocol_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4379,7 +4517,7 @@ func (x *SortBagReq) String() string {
 func (*SortBagReq) ProtoMessage() {}
 
 func (x *SortBagReq) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[56]
+	mi := &file_ds_v1_protocol_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4392,7 +4530,7 @@ func (x *SortBagReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SortBagReq.ProtoReflect.Descriptor instead.
 func (*SortBagReq) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{56}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{57}
 }
 
 // Every bag slot, empty ones without an item.
@@ -4405,7 +4543,7 @@ type SortBagResp struct {
 
 func (x *SortBagResp) Reset() {
 	*x = SortBagResp{}
-	mi := &file_ds_v1_protocol_proto_msgTypes[57]
+	mi := &file_ds_v1_protocol_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4417,7 +4555,7 @@ func (x *SortBagResp) String() string {
 func (*SortBagResp) ProtoMessage() {}
 
 func (x *SortBagResp) ProtoReflect() protoreflect.Message {
-	mi := &file_ds_v1_protocol_proto_msgTypes[57]
+	mi := &file_ds_v1_protocol_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4430,7 +4568,7 @@ func (x *SortBagResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SortBagResp.ProtoReflect.Descriptor instead.
 func (*SortBagResp) Descriptor() ([]byte, []int) {
-	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{57}
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SortBagResp) GetUpdate() *InventoryUpdate {
@@ -4440,11 +4578,207 @@ func (x *SortBagResp) GetUpdate() *InventoryUpdate {
 	return nil
 }
 
+// An item in the bag (equipped = false) or worn.
+type ItemRef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Equipped      bool                   `protobuf:"varint,1,opt,name=equipped,proto3" json:"equipped,omitempty"`
+	Slot          int32                  `protobuf:"varint,2,opt,name=slot,proto3" json:"slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ItemRef) Reset() {
+	*x = ItemRef{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemRef) ProtoMessage() {}
+
+func (x *ItemRef) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemRef.ProtoReflect.Descriptor instead.
+func (*ItemRef) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *ItemRef) GetEquipped() bool {
+	if x != nil {
+		return x.Equipped
+	}
+	return false
+}
+
+func (x *ItemRef) GetSlot() int32 {
+	if x != nil {
+		return x.Slot
+	}
+	return 0
+}
+
+// Enhances an equipment piece in a safe zone. The server tries up to times
+// attempts (0 means 1) and stops at the first success, the first level drop
+// or when the materials or Xu run out. protect spends one protection charm per
+// attempt whose target level can drop.
+type EnhanceReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Item          *ItemRef               `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	Protect       bool                   `protobuf:"varint,2,opt,name=protect,proto3" json:"protect,omitempty"`
+	Times         int32                  `protobuf:"varint,3,opt,name=times,proto3" json:"times,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnhanceReq) Reset() {
+	*x = EnhanceReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnhanceReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnhanceReq) ProtoMessage() {}
+
+func (x *EnhanceReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnhanceReq.ProtoReflect.Descriptor instead.
+func (*EnhanceReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *EnhanceReq) GetItem() *ItemRef {
+	if x != nil {
+		return x.Item
+	}
+	return nil
+}
+
+func (x *EnhanceReq) GetProtect() bool {
+	if x != nil {
+		return x.Protect
+	}
+	return false
+}
+
+func (x *EnhanceReq) GetTimes() int32 {
+	if x != nil {
+		return x.Times
+	}
+	return 0
+}
+
+// success is the outcome of the last attempt and level the item's level after
+// it. update holds the item's slot and the bag slots materials were taken from;
+// stats carries the new Xu.
+type EnhanceResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Attempts      int32                  `protobuf:"varint,1,opt,name=attempts,proto3" json:"attempts,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Level         int32                  `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
+	Update        *InventoryUpdate       `protobuf:"bytes,4,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,5,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnhanceResp) Reset() {
+	*x = EnhanceResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnhanceResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnhanceResp) ProtoMessage() {}
+
+func (x *EnhanceResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnhanceResp.ProtoReflect.Descriptor instead.
+func (*EnhanceResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *EnhanceResp) GetAttempts() int32 {
+	if x != nil {
+		return x.Attempts
+	}
+	return 0
+}
+
+func (x *EnhanceResp) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *EnhanceResp) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *EnhanceResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *EnhanceResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x94\x13\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x83\x14\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -4503,7 +4837,10 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fdiscard_resp\x18D \x01(\v2\x12.ds.v1.DiscardRespH\x00R\vdiscardResp\x125\n" +
 	"\fsort_bag_req\x18E \x01(\v2\x11.ds.v1.SortBagReqH\x00R\n" +
 	"sortBagReq\x128\n" +
-	"\rsort_bag_resp\x18F \x01(\v2\x12.ds.v1.SortBagRespH\x00R\vsortBagRespB\t\n" +
+	"\rsort_bag_resp\x18F \x01(\v2\x12.ds.v1.SortBagRespH\x00R\vsortBagResp\x124\n" +
+	"\venhance_req\x18G \x01(\v2\x11.ds.v1.EnhanceReqH\x00R\n" +
+	"enhanceReq\x127\n" +
+	"\fenhance_resp\x18H \x01(\v2\x12.ds.v1.EnhanceRespH\x00R\venhanceRespB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -4563,7 +4900,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\tMoveInput\x12\x1b\n" +
 	"\tinput_seq\x18\x01 \x01(\rR\binputSeq\x12\x13\n" +
 	"\x05dir_x\x18\x02 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xc5\x02\n" +
+	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xec\x02\n" +
 	"\vEntityEnter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x11.ds.v1.EntityKindR\x04kind\x12\x12\n" +
@@ -4579,7 +4916,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	" \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\v \x01(\x05R\x05maxHp\x12\x12\n" +
 	"\x04dead\x18\f \x01(\bR\x04dead\x12#\n" +
-	"\x04item\x18\r \x01(\v2\x0f.ds.v1.ItemInfoR\x04item\"\x1d\n" +
+	"\x04item\x18\r \x01(\v2\x0f.ds.v1.ItemInfoR\x04item\x12%\n" +
+	"\x0eweapon_enhance\x18\x0e \x01(\x05R\rweaponEnhance\"\x1d\n" +
 	"\vEntityLeave\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\"v\n" +
 	"\n" +
@@ -4589,7 +4927,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x01y\x18\x03 \x01(\x02R\x01y\x12\x13\n" +
 	"\x05dir_x\x18\x04 \x01(\x02R\x04dirX\x12\x13\n" +
 	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY\x12\x12\n" +
-	"\x04snap\x18\x06 \x01(\bR\x04snap\"\xb2\x02\n" +
+	"\x04snap\x18\x06 \x01(\bR\x04snap\"\xdb\x02\n" +
 	"\tWorldTick\x12\x12\n" +
 	"\x04tick\x18\x01 \x01(\rR\x04tick\x12\"\n" +
 	"\rack_input_seq\x18\x02 \x01(\rR\vackInputSeq\x12'\n" +
@@ -4600,7 +4938,12 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"hp_changes\x18\x06 \x03(\v2\x0f.ds.v1.HpChangeR\thpChanges\x12+\n" +
 	"\tlevel_ups\x18\a \x03(\v2\x0e.ds.v1.LevelUpR\blevelUps\x12!\n" +
-	"\x05casts\x18\b \x03(\v2\v.ds.v1.CastR\x05casts\"'\n" +
+	"\x05casts\x18\b \x03(\v2\v.ds.v1.CastR\x05casts\x12'\n" +
+	"\x05looks\x18\t \x03(\v2\x11.ds.v1.LookChangeR\x05looks\"C\n" +
+	"\n" +
+	"LookChange\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
+	"\x0eweapon_enhance\x18\x02 \x01(\x05R\rweaponEnhance\"'\n" +
 	"\x04Ping\x12\x1f\n" +
 	"\vclient_time\x18\x01 \x01(\x03R\n" +
 	"clientTime\"H\n" +
@@ -4626,7 +4969,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"RespawnReq\")\n" +
 	"\vRespawnResp\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x02R\x01y\"\xc4\x04\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\"\xff\x04\n" +
 	"\tSelfStats\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x10\n" +
 	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x19\n" +
@@ -4652,7 +4995,9 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fcrit_rate_bp\x18\x13 \x01(\x05R\n" +
 	"critRateBp\x12!\n" +
 	"\fskill_points\x18\x14 \x01(\x05R\vskillPoints\x12\x0e\n" +
-	"\x02xu\x18\x15 \x01(\x03R\x02xu\"\xa9\x01\n" +
+	"\x02xu\x18\x15 \x01(\x03R\x02xu\x12\x1e\n" +
+	"\vhp_regen_bp\x18\x16 \x01(\x05R\thpRegenBp\x12\x19\n" +
+	"\bmp_regen\x18\x17 \x01(\x05R\ampRegen\"\xa9\x01\n" +
 	"\x03Hit\x12\x1f\n" +
 	"\vattacker_id\x18\x01 \x01(\x04R\n" +
 	"attackerId\x12\x1b\n" +
@@ -4747,7 +5092,21 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"SortBagReq\"=\n" +
 	"\vSortBagResp\x12.\n" +
-	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update*\xf7\x06\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\"9\n" +
+	"\aItemRef\x12\x1a\n" +
+	"\bequipped\x18\x01 \x01(\bR\bequipped\x12\x12\n" +
+	"\x04slot\x18\x02 \x01(\x05R\x04slot\"`\n" +
+	"\n" +
+	"EnhanceReq\x12\"\n" +
+	"\x04item\x18\x01 \x01(\v2\x0e.ds.v1.ItemRefR\x04item\x12\x18\n" +
+	"\aprotect\x18\x02 \x01(\bR\aprotect\x12\x14\n" +
+	"\x05times\x18\x03 \x01(\x05R\x05times\"\xb1\x01\n" +
+	"\vEnhanceResp\x12\x1a\n" +
+	"\battempts\x18\x01 \x01(\x05R\battempts\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05level\x18\x03 \x01(\x05R\x05level\x12.\n" +
+	"\x06update\x18\x04 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x05 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats*\xf9\a\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -4779,7 +5138,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x18ERROR_CODE_LEVEL_TOO_LOW\x10\x1a\x12\x17\n" +
 	"\x13ERROR_CODE_BAG_FULL\x10\x1b\x12\x1d\n" +
 	"\x19ERROR_CODE_ITEM_NOT_FOUND\x10\x1c\x12\x1a\n" +
-	"\x16ERROR_CODE_WRONG_CLASS\x10\x1d*\x84\x02\n" +
+	"\x16ERROR_CODE_WRONG_CLASS\x10\x1d\x12\x1c\n" +
+	"\x18ERROR_CODE_NOT_ENOUGH_XU\x10\x1e\x12#\n" +
+	"\x1fERROR_CODE_NOT_ENOUGH_MATERIALS\x10\x1f\x12\x1c\n" +
+	"\x18ERROR_CODE_ENHANCE_MAXED\x10 \x12\x1f\n" +
+	"\x1bERROR_CODE_NOT_IN_SAFE_ZONE\x10!*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -4817,7 +5180,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -4845,42 +5208,46 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*EntityLeave)(nil),        // 23: ds.v1.EntityLeave
 	(*EntityMove)(nil),         // 24: ds.v1.EntityMove
 	(*WorldTick)(nil),          // 25: ds.v1.WorldTick
-	(*Ping)(nil),               // 26: ds.v1.Ping
-	(*Pong)(nil),               // 27: ds.v1.Pong
-	(*Kicked)(nil),             // 28: ds.v1.Kicked
-	(*AttackReq)(nil),          // 29: ds.v1.AttackReq
-	(*AttackResp)(nil),         // 30: ds.v1.AttackResp
-	(*AllocatePointsReq)(nil),  // 31: ds.v1.AllocatePointsReq
-	(*AllocatePointsResp)(nil), // 32: ds.v1.AllocatePointsResp
-	(*RespawnReq)(nil),         // 33: ds.v1.RespawnReq
-	(*RespawnResp)(nil),        // 34: ds.v1.RespawnResp
-	(*SelfStats)(nil),          // 35: ds.v1.SelfStats
-	(*Hit)(nil),                // 36: ds.v1.Hit
-	(*Death)(nil),              // 37: ds.v1.Death
-	(*HpChange)(nil),           // 38: ds.v1.HpChange
-	(*LevelUp)(nil),            // 39: ds.v1.LevelUp
-	(*LearnSkillReq)(nil),      // 40: ds.v1.LearnSkillReq
-	(*LearnSkillResp)(nil),     // 41: ds.v1.LearnSkillResp
-	(*CastReq)(nil),            // 42: ds.v1.CastReq
-	(*CastResp)(nil),           // 43: ds.v1.CastResp
-	(*SkillLevel)(nil),         // 44: ds.v1.SkillLevel
-	(*Cast)(nil),               // 45: ds.v1.Cast
-	(*CastImpact)(nil),         // 46: ds.v1.CastImpact
-	(*ItemInfo)(nil),           // 47: ds.v1.ItemInfo
-	(*ItemLine)(nil),           // 48: ds.v1.ItemLine
-	(*ItemSlot)(nil),           // 49: ds.v1.ItemSlot
-	(*Inventory)(nil),          // 50: ds.v1.Inventory
-	(*InventoryUpdate)(nil),    // 51: ds.v1.InventoryUpdate
-	(*PickupReq)(nil),          // 52: ds.v1.PickupReq
-	(*PickupResp)(nil),         // 53: ds.v1.PickupResp
-	(*EquipReq)(nil),           // 54: ds.v1.EquipReq
-	(*EquipResp)(nil),          // 55: ds.v1.EquipResp
-	(*UnequipReq)(nil),         // 56: ds.v1.UnequipReq
-	(*UnequipResp)(nil),        // 57: ds.v1.UnequipResp
-	(*DiscardReq)(nil),         // 58: ds.v1.DiscardReq
-	(*DiscardResp)(nil),        // 59: ds.v1.DiscardResp
-	(*SortBagReq)(nil),         // 60: ds.v1.SortBagReq
-	(*SortBagResp)(nil),        // 61: ds.v1.SortBagResp
+	(*LookChange)(nil),         // 26: ds.v1.LookChange
+	(*Ping)(nil),               // 27: ds.v1.Ping
+	(*Pong)(nil),               // 28: ds.v1.Pong
+	(*Kicked)(nil),             // 29: ds.v1.Kicked
+	(*AttackReq)(nil),          // 30: ds.v1.AttackReq
+	(*AttackResp)(nil),         // 31: ds.v1.AttackResp
+	(*AllocatePointsReq)(nil),  // 32: ds.v1.AllocatePointsReq
+	(*AllocatePointsResp)(nil), // 33: ds.v1.AllocatePointsResp
+	(*RespawnReq)(nil),         // 34: ds.v1.RespawnReq
+	(*RespawnResp)(nil),        // 35: ds.v1.RespawnResp
+	(*SelfStats)(nil),          // 36: ds.v1.SelfStats
+	(*Hit)(nil),                // 37: ds.v1.Hit
+	(*Death)(nil),              // 38: ds.v1.Death
+	(*HpChange)(nil),           // 39: ds.v1.HpChange
+	(*LevelUp)(nil),            // 40: ds.v1.LevelUp
+	(*LearnSkillReq)(nil),      // 41: ds.v1.LearnSkillReq
+	(*LearnSkillResp)(nil),     // 42: ds.v1.LearnSkillResp
+	(*CastReq)(nil),            // 43: ds.v1.CastReq
+	(*CastResp)(nil),           // 44: ds.v1.CastResp
+	(*SkillLevel)(nil),         // 45: ds.v1.SkillLevel
+	(*Cast)(nil),               // 46: ds.v1.Cast
+	(*CastImpact)(nil),         // 47: ds.v1.CastImpact
+	(*ItemInfo)(nil),           // 48: ds.v1.ItemInfo
+	(*ItemLine)(nil),           // 49: ds.v1.ItemLine
+	(*ItemSlot)(nil),           // 50: ds.v1.ItemSlot
+	(*Inventory)(nil),          // 51: ds.v1.Inventory
+	(*InventoryUpdate)(nil),    // 52: ds.v1.InventoryUpdate
+	(*PickupReq)(nil),          // 53: ds.v1.PickupReq
+	(*PickupResp)(nil),         // 54: ds.v1.PickupResp
+	(*EquipReq)(nil),           // 55: ds.v1.EquipReq
+	(*EquipResp)(nil),          // 56: ds.v1.EquipResp
+	(*UnequipReq)(nil),         // 57: ds.v1.UnequipReq
+	(*UnequipResp)(nil),        // 58: ds.v1.UnequipResp
+	(*DiscardReq)(nil),         // 59: ds.v1.DiscardReq
+	(*DiscardResp)(nil),        // 60: ds.v1.DiscardResp
+	(*SortBagReq)(nil),         // 61: ds.v1.SortBagReq
+	(*SortBagResp)(nil),        // 62: ds.v1.SortBagResp
+	(*ItemRef)(nil),            // 63: ds.v1.ItemRef
+	(*EnhanceReq)(nil),         // 64: ds.v1.EnhanceReq
+	(*EnhanceResp)(nil),        // 65: ds.v1.EnhanceResp
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -4902,72 +5269,78 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	22, // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
 	23, // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
 	25, // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
-	26, // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
-	27, // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
-	28, // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
-	29, // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
-	30, // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
-	31, // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
-	32, // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
-	33, // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
-	34, // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
-	35, // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
-	40, // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
-	41, // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
-	42, // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
-	43, // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
-	52, // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
-	53, // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
-	54, // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
-	55, // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
-	56, // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
-	57, // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
-	58, // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
-	59, // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
-	60, // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
-	61, // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
-	0,  // 43: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,  // 44: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10, // 45: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,  // 46: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10, // 47: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	35, // 48: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	44, // 49: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	50, // 50: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	3,  // 51: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,  // 52: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	47, // 53: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	24, // 54: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	36, // 55: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	37, // 56: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	38, // 57: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	39, // 58: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	45, // 59: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	1,  // 60: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	35, // 61: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	35, // 62: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	44, // 63: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	46, // 64: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,  // 65: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	48, // 66: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	48, // 67: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	47, // 68: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	49, // 69: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	49, // 70: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	49, // 71: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	49, // 72: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	51, // 73: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	51, // 74: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	35, // 75: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	51, // 76: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	35, // 77: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	51, // 78: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	51, // 79: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	80, // [80:80] is the sub-list for method output_type
-	80, // [80:80] is the sub-list for method input_type
-	80, // [80:80] is the sub-list for extension type_name
-	80, // [80:80] is the sub-list for extension extendee
-	0,  // [0:80] is the sub-list for field type_name
+	27, // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
+	28, // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
+	29, // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
+	30, // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
+	31, // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
+	32, // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
+	33, // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
+	34, // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
+	35, // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
+	36, // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
+	41, // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
+	42, // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
+	43, // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
+	44, // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
+	53, // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
+	54, // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
+	55, // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
+	56, // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
+	57, // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
+	58, // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
+	59, // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
+	60, // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
+	61, // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
+	62, // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
+	64, // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
+	65, // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
+	0,  // 45: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,  // 46: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10, // 47: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,  // 48: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10, // 49: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	36, // 50: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	45, // 51: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	51, // 52: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	3,  // 53: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,  // 54: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	48, // 55: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	24, // 56: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	37, // 57: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	38, // 58: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	39, // 59: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	40, // 60: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	46, // 61: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	26, // 62: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,  // 63: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	36, // 64: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	36, // 65: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	45, // 66: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	47, // 67: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,  // 68: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	49, // 69: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	49, // 70: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	48, // 71: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	50, // 72: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	50, // 73: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	50, // 74: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	50, // 75: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	52, // 76: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	52, // 77: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	36, // 78: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	52, // 79: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	36, // 80: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	52, // 81: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	52, // 82: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	63, // 83: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	52, // 84: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	36, // 85: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	86, // [86:86] is the sub-list for method output_type
+	86, // [86:86] is the sub-list for method input_type
+	86, // [86:86] is the sub-list for extension type_name
+	86, // [86:86] is the sub-list for extension extendee
+	0,  // [0:86] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -5019,6 +5392,8 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_DiscardResp)(nil),
 		(*Envelope_SortBagReq)(nil),
 		(*Envelope_SortBagResp)(nil),
+		(*Envelope_EnhanceReq)(nil),
+		(*Envelope_EnhanceResp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -5026,7 +5401,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   58,
+			NumMessages:   62,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
