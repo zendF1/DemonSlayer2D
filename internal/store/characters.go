@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 
@@ -50,6 +51,11 @@ type ItemRow struct {
 	Element       string
 	Enhance       int
 	Lines, Hidden []ItemLine
+	// Pity is the hidden enhancement bonus per target level: entry k is the
+	// bonus in percentage points for target k + 1. Empty means all zero, and
+	// an empty stored array loads as nil. The store does not check its
+	// length or values; the world does.
+	Pity []int
 }
 
 // ItemLine is an item line as stored in the lines and hidden jsonb columns.
@@ -123,7 +129,7 @@ func loadItems(ctx context.Context, q querier, chars []Character) error {
 		byID[chars[i].ID] = &chars[i]
 		ids[i] = chars[i].ID
 	}
-	rows, err := q.Query(ctx, `SELECT character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden
+	rows, err := q.Query(ctx, `SELECT character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity
 		FROM character_items WHERE character_id = ANY($1) ORDER BY character_id, equipped, slot`, ids)
 	if err != nil {
 		return err
@@ -133,8 +139,12 @@ func loadItems(ctx context.Context, q querier, chars []Character) error {
 		r      ItemRow
 	)
 	_, err = pgx.ForEachRow(rows, []any{&charID, &r.Equipped, &r.Slot, &r.Code, &r.Count, &r.Quality, &r.Element,
-		&r.Enhance, &r.Lines, &r.Hidden}, func() error {
-		// pgx decodes each jsonb value into a fresh slice, so rows share nothing.
+		&r.Enhance, &r.Lines, &r.Hidden, &r.Pity}, func() error {
+		// pgx decodes each jsonb and array value into a fresh slice, so rows
+		// share nothing.
+		if len(r.Pity) == 0 {
+			r.Pity = nil
+		}
 		c := byID[charID]
 		c.Items = append(c.Items, r)
 		return nil
@@ -277,7 +287,8 @@ func saveSkills(ctx context.Context, tx pgx.Tx, st CharState) error {
 
 // saveItems replaces the character's item rows: a delete, then one INSERT
 // from unnest over column arrays, with the lines sent as JSON text and cast
-// to jsonb per row.
+// to jsonb per row and the pity sent as array text and cast to smallint[]
+// (unnest would flatten an array of arrays).
 func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM character_items WHERE character_id = $1`, st.ID); err != nil {
 		return err
@@ -290,6 +301,7 @@ func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 		equipped                             = make([]bool, n)
 		slot, count, quality, enhance        = make([]int32, n), make([]int32, n), make([]int32, n), make([]int32, n)
 		code, element, linesJSON, hiddenJSON = make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+		pity                                 = make([]string, n)
 	)
 	for i, r := range st.Items {
 		equipped[i], code[i], element[i] = r.Equipped, r.Code, r.Element
@@ -301,14 +313,27 @@ func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 		if hiddenJSON[i], err = linesText(r.Hidden); err != nil {
 			return err
 		}
+		pity[i] = pityText(r.Pity)
 	}
 	_, err := tx.Exec(ctx,
-		`INSERT INTO character_items (character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden)
-		 SELECT $1, e, s, c, n, q, el, en, l::jsonb, h::jsonb
-		 FROM unnest($2::bool[], $3::int[], $4::text[], $5::int[], $6::int[], $7::text[], $8::int[], $9::text[], $10::text[])
-		   AS u(e, s, c, n, q, el, en, l, h)`,
-		st.ID, equipped, slot, code, count, quality, element, enhance, linesJSON, hiddenJSON)
+		`INSERT INTO character_items (character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity)
+		 SELECT $1, e, s, c, n, q, el, en, l::jsonb, h::jsonb, p::smallint[]
+		 FROM unnest($2::bool[], $3::int[], $4::text[], $5::int[], $6::int[], $7::text[], $8::int[], $9::text[], $10::text[], $11::text[])
+		   AS u(e, s, c, n, q, el, en, l, h, p)`,
+		st.ID, equipped, slot, code, count, quality, element, enhance, linesJSON, hiddenJSON, pity)
 	return err
+}
+
+// pityText is p as a Postgres array literal; nil is "{}".
+func pityText(p []int) string {
+	b := []byte{'{'}
+	for i, v := range p {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = strconv.AppendInt(b, int64(v), 10)
+	}
+	return string(append(b, '}'))
 }
 
 // linesText is ls as a JSON array; nil is "[]".

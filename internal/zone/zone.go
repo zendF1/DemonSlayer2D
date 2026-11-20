@@ -577,7 +577,7 @@ func itemRows(inv *items.Inventory) []store.ItemRow {
 		}
 		rows = append(rows, store.ItemRow{Equipped: equipped, Slot: slot, Code: it.Code, Count: it.Count,
 			Quality: it.Quality, Element: it.Element, Enhance: it.Enhance,
-			Lines: storeLines(it.Lines), Hidden: storeLines(it.Hidden)})
+			Lines: storeLines(it.Lines), Hidden: storeLines(it.Hidden), Pity: storePity(it.Pity)})
 	}
 	for i, it := range inv.Bag {
 		add(false, i, it)
@@ -586,6 +586,14 @@ func itemRows(inv *items.Inventory) []store.ItemRow {
 		add(true, i, it)
 	}
 	return rows
+}
+
+// storePity is p as a stored pity: nil when all zero, else a fresh slice.
+func storePity(p [items.MaxEnhance]int) []int {
+	if p == ([items.MaxEnhance]int{}) {
+		return nil
+	}
+	return p[:]
 }
 
 func storeLines(ls []items.Line) []store.ItemLine {

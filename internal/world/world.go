@@ -331,7 +331,9 @@ func (w *World) knownSkills(c store.Character) map[string]int {
 // earlier row; a count outside 1..stack_max, or not 1 for equipment; a
 // stackable with a quality, element, enhance level or lines; equipment with
 // a line of an unknown stat. A worn piece c may not wear (level, class) is
-// kept and simply adds nothing.
+// kept and simply adds nothing. A kept row whose pity is not empty or 15
+// entries in 0-99, or that is a stackable with a pity, keeps the item with a
+// zero pity and one warning (phase 3b spec 3).
 func (w *World) knownItems(c store.Character) *items.Inventory {
 	inv := items.NewInventory(w.items.BagSize)
 	for _, r := range c.Items {
@@ -342,6 +344,13 @@ func (w *World) knownItems(c store.Character) *items.Inventory {
 		}
 		it := &items.Item{Code: r.Code, Count: r.Count, Quality: r.Quality, Element: r.Element, Enhance: r.Enhance,
 			Lines: itemLines(r.Lines), Hidden: itemLines(r.Hidden)}
+		_, isStack := w.items.Stackables[r.Code]
+		if !goodPity(r.Pity) || isStack && len(r.Pity) > 0 {
+			w.log.Warn("reset stored pity", "char", c.ID, "equipped", r.Equipped, "slot", r.Slot,
+				"code", r.Code, "pity", r.Pity)
+		} else {
+			copy(it.Pity[:], r.Pity)
+		}
 		if r.Equipped {
 			inv.Worn[r.Slot] = it
 		} else {
@@ -374,6 +383,20 @@ func (w *World) badItem(inv *items.Inventory, r store.ItemRow) string {
 		return "unknown line stat"
 	}
 	return ""
+}
+
+// goodPity reports whether p is empty or one entry per target level, each in
+// 0-99.
+func goodPity(p []int) bool {
+	if len(p) != 0 && len(p) != items.MaxEnhance {
+		return false
+	}
+	for _, v := range p {
+		if v < 0 || v > 99 {
+			return false
+		}
+	}
+	return true
 }
 
 func knownStats(d *gamedata.Items, ls []store.ItemLine) bool {

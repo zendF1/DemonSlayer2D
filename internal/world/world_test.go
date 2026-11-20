@@ -758,15 +758,17 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 // ______________________TEST ITEMS_____________________
 
 // goodItemRows are valid rows of a level-10 Viêm: a Xanh boots piece and a
-// full stone stack in the bag, a Vàng sword worn, and a worn ring the
-// character is too low for, which is kept (it just adds nothing).
+// full stone stack in the bag, a Vàng sword with a hidden pity worn, and a
+// worn ring the character is too low for, which is kept (it just adds
+// nothing).
 func goodItemRows() []store.ItemRow {
 	return []store.ItemRow{
 		{Slot: 0, Code: "eq10_boots", Count: 1, Quality: 1, Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{}},
 		{Slot: 1, Code: "stone_enhance", Count: 999, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
 		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
 			Lines:  []store.ItemLine{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
-			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}}},
+			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}},
+			Pity:   []int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 99}},
 		{Equipped: true, Slot: 8, Code: "eq10_ring_left", Count: 1},
 	}
 }
@@ -778,9 +780,55 @@ func goodInventory() *items.Inventory {
 	inv.Bag[1] = &items.Item{Code: "stone_enhance", Count: 999}
 	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
 		Lines:  []items.Line{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
-		Hidden: []items.Line{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}}}
+		Hidden: []items.Line{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}},
+		Pity:   [items.MaxEnhance]int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 99}}
 	inv.Worn[8] = &items.Item{Code: "eq10_ring_left", Count: 1}
 	return inv
+}
+
+// A stored pity of the wrong length or with a value outside 0-99 is reset to
+// zero with one warning, and the item is kept; so is any pity on a stackable.
+func TestKnownItemsResetsBadPity(t *testing.T) {
+	good := make([]int, items.MaxEnhance)
+	with := func(i, v int) []int {
+		p := slices.Clone(good)
+		p[i] = v
+		return p
+	}
+	for _, c := range []struct {
+		name string
+		row  int
+		pity []int
+	}{
+		{"14 entries", 0, good[:14]},
+		{"16 entries", 0, append(slices.Clone(good), 0)},
+		{"one entry", 0, []int{5}},
+		{"100", 0, with(14, 100)},
+		{"negative", 0, with(0, -1)},
+		{"stone with a pity", 1, with(3, 5)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var buf lockedBuf
+			w, err := New(Config{StartMap: "m1", AOICellSize: 10}, testMaps(t), testMonsters, nopSaver{},
+				slog.New(slog.NewTextHandler(&buf, nil)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ch := char(1, "m1", 3.5, 4.5)
+			rows := goodItemRows()
+			rows[0].Enhance, rows[c.row].Pity = 3, c.pity
+			ch.Level, ch.Items = 10, rows
+			got := w.knownItems(ch)
+			want := goodInventory()
+			want.Bag[0].Enhance = 3
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("inventory\n%+v\nwant\n%+v", got, want)
+			}
+			if n := strings.Count(buf.String(), "reset stored pity"); n != 1 || strings.Contains(buf.String(), "dropped") {
+				t.Fatalf("%d pity warnings, want 1 and nothing dropped:\n%s", n, buf.String())
+			}
+		})
+	}
 }
 
 // Each bad stored row is dropped with one warning; the good rows are kept.

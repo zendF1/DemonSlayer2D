@@ -1154,24 +1154,27 @@ func TestJoinWithoutItems(t *testing.T) {
 	}
 }
 
-// state saves Xu and the items as rows that share nothing with the player.
+// state saves Xu and the items as rows that share nothing with the player;
+// an all-zero pity saves as none.
 func TestStateSavesItemsAndXu(t *testing.T) {
 	z, p, _, _ := gearZone(t, gearInventory())
 	p.xu = 1234
+	p.inv.Worn[0].Enhance, p.inv.Worn[0].Pity[7], p.inv.Worn[0].Pity[14] = 8, 4, 90
 	st := z.state(p)
 	want := []store.ItemRow{
 		{Slot: 0, Code: "eq10_boots", Count: 1, Quality: 2, Element: "thuy",
 			Lines:  []store.ItemLine{{Stat: "hp", Value: 43}, {Stat: "phys_defense", Value: 3}, {Stat: "magic_attack", Value: 4}},
 			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}}},
 		{Slot: 3, Code: "stone_enhance", Count: 12, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
-		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Enhance: 8, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{},
+			Pity: []int{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 90}},
 	}
 	if st.Xu != 1234 || !reflect.DeepEqual(st.Items, want) {
 		t.Fatalf("saved xu %d items %+v\nwant %+v", st.Xu, st.Items, want)
 	}
 	// Changing the saved copy leaves the player alone, and the other way round.
-	st.Items[0].Lines[0].Value, st.Items[0].Hidden[1].Stat = 1, "mp"
-	if p.inv.Bag[0].Lines[0].Value != 43 || p.inv.Bag[0].Hidden[1].Stat != "phys_attack" {
+	st.Items[0].Lines[0].Value, st.Items[0].Hidden[1].Stat, st.Items[2].Pity[7] = 1, "mp", 5
+	if p.inv.Bag[0].Lines[0].Value != 43 || p.inv.Bag[0].Hidden[1].Stat != "phys_attack" || p.inv.Worn[0].Pity[7] != 4 {
 		t.Fatal("the saved rows share lines with the player")
 	}
 	st = z.state(p)
