@@ -3,6 +3,7 @@ package items
 import (
 	"errors"
 	"maps"
+	"math"
 	"math/rand/v2"
 	"os"
 	"slices"
@@ -427,7 +428,7 @@ func sameInventory(a, b *Inventory) bool {
 			return x == y
 		}
 		return x.Code == y.Code && x.Count == y.Count && x.Quality == y.Quality && x.Element == y.Element &&
-			x.Enhance == y.Enhance && slices.Equal(x.Lines, y.Lines) && slices.Equal(x.Hidden, y.Hidden)
+			x.Enhance == y.Enhance && x.Pity == y.Pity && slices.Equal(x.Lines, y.Lines) && slices.Equal(x.Hidden, y.Hidden)
 	}
 	if len(a.Bag) != len(b.Bag) {
 		return false
@@ -449,7 +450,7 @@ func TestCloneIsDeep(t *testing.T) {
 	inv := NewInventory(4)
 	inv.Bag[1] = &Item{Code: "eq10_armor", Count: 1, Quality: 2, Element: "thuy",
 		Lines: []Line{{"hp", 50}}, Hidden: []Line{{"hp", 86}, {"phys_attack", 4}}}
-	inv.Worn[5] = &Item{Code: "eq10_armor", Count: 1, Lines: []Line{{"hp", 60}}}
+	inv.Worn[5] = &Item{Code: "eq10_armor", Count: 1, Lines: []Line{{"hp", 60}}, Pity: [MaxEnhance]int{7: 3}}
 	c := inv.Clone()
 	if !sameInventory(inv, c) {
 		t.Fatal("clone differs")
@@ -457,8 +458,10 @@ func TestCloneIsDeep(t *testing.T) {
 	c.Bag[1].Lines[0].Value = 1
 	c.Bag[1].Hidden[1].Value = 1
 	c.Worn[5].Lines[0].Value = 1
+	c.Worn[5].Pity[7] = 9
 	c.Bag[0] = sword()
-	if inv.Bag[1].Lines[0].Value != 50 || inv.Bag[1].Hidden[1].Value != 4 || inv.Worn[5].Lines[0].Value != 60 || inv.Bag[0] != nil {
+	if inv.Bag[1].Lines[0].Value != 50 || inv.Bag[1].Hidden[1].Value != 4 || inv.Worn[5].Lines[0].Value != 60 || inv.Bag[0] != nil ||
+		inv.Worn[5].Pity[7] != 3 {
 		t.Fatal("clone shares state with the original")
 	}
 	it := Item{Code: "x", Lines: []Line{{"hp", 1}}}
@@ -752,5 +755,559 @@ func TestGearBonusSlotMismatch(t *testing.T) {
 	inv.Worn[0] = &Item{Code: "eq10_ring_left", Count: 1}
 	if got := GearBonus(d, inv, 90, "viem"); got != (combat.Bonus{}) {
 		t.Fatalf("misplaced ring: %+v", got)
+	}
+}
+
+// ______________________TEST ENHANCE_____________________
+
+// rollSource is a rand.Source whose rand.Rand.IntN(100) results are rolls,
+// in order, then cycled: each value sits in the middle of its 1/100 band so
+// no rejection step ever draws again.
+type rollSource struct {
+	rolls []int
+	n     int
+}
+
+func (s *rollSource) Uint64() uint64 {
+	r := s.rolls[s.n%len(s.rolls)]
+	s.n++
+	q := ^uint64(0) / 100
+	return uint64(r)*q + q/2
+}
+
+func rolls(r ...int) *rand.Rand { return rand.New(&rollSource{rolls: r}) }
+
+func TestRollSource(t *testing.T) {
+	all := make([]int, 100)
+	for i := range all {
+		all[i] = i
+	}
+	rng := rolls(all...)
+	for i := range 200 {
+		if got := rng.IntN(100); got != i%100 {
+			t.Fatalf("roll %d: got %d", i, got)
+		}
+	}
+}
+
+const (
+	// t10 is a tier 10 piece (Xu per attempt is 10 x xu_per_tier), t50 a tier 50 one.
+	t10 = "eq10_weapon_viem"
+	t50 = "eq50_armor"
+	// rich is more Xu than any test spends.
+	rich = int64(1) << 40
+)
+
+func charm(n int) *Item { return &Item{Code: gamedata.CharmProtect, Count: n} }
+
+// forge is an inventory with the piece at bag slot 0 at level n, then stones
+// stacks at slots 1.. and, when charms > 0, a charm stack after them.
+func forge(code string, n int, stones []int, charms int) (*Inventory, *Item) {
+	inv := NewInventory(60)
+	it := &Item{Code: code, Count: 1, Enhance: n}
+	inv.Bag[0] = it
+	for i, c := range stones {
+		inv.Bag[1+i] = stone(c)
+	}
+	if charms > 0 {
+		inv.Bag[1+len(stones)] = charm(charms)
+	}
+	return inv, it
+}
+
+var bag0 = Ref{Slot: 0}
+
+func TestEnhanceFirstLevel(t *testing.T) {
+	d := realData(t)
+	// +1 is 100%: even the highest roll succeeds.
+	for _, code := range []string{t10, t50} {
+		inv, it := forge(code, 0, []int{3}, 0)
+		xu := rich
+		res, err := inv.Enhance(rolls(99), d, bag0, false, 1, &xu)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Attempts != 1 || !res.Success || res.Level != 1 || it.Enhance != 1 || !slices.Equal(res.Changed, []int{0, 1}) {
+			t.Fatalf("%s: %+v, item +%d", code, res, it.Enhance)
+		}
+		tier := d.Equipment[code].Tier
+		if inv.Bag[1].Count != 2 || xu != rich-int64(10*tier) {
+			t.Fatalf("%s: %d stones left, spent %d Xu, want 1 stone and %d Xu", code, inv.Bag[1].Count, rich-xu, 10*tier)
+		}
+		if it.Pity != [MaxEnhance]int{} {
+			t.Fatalf("%s: pity %v", code, it.Pity)
+		}
+	}
+}
+
+func TestEnhanceFailureAddsPity(t *testing.T) {
+	d := realData(t)
+	// +4 -> +5 is 90%: a roll of 95 fails, the level stays, pity[4] grows.
+	inv, it := forge(t10, 4, []int{10}, 0)
+	xu := rich
+	res, err := inv.Enhance(rolls(95), d, bag0, false, 1, &xu)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Attempts != 1 || res.Success || res.Level != 4 || it.Enhance != 4 || it.Pity != [MaxEnhance]int{4: 1} {
+		t.Fatalf("%+v, item +%d pity %v", res, it.Enhance, it.Pity)
+	}
+	if inv.Bag[1].Count != 8 || rich-xu != 400 {
+		t.Fatalf("%d stones, %d Xu spent", inv.Bag[1].Count, rich-xu)
+	}
+	// The pity counts on the next attempt: 90 + 1 = 91, so 90 succeeds and 91 fails.
+	inv, it = forge(t10, 4, []int{10}, 0)
+	it.Pity[4] = 1
+	if res, _ := inv.Enhance(rolls(90), d, bag0, false, 1, &xu); !res.Success || it.Pity[4] != 0 {
+		t.Fatalf("roll 90 with pity 1: %+v pity %v", res, it.Pity)
+	}
+	inv, it = forge(t10, 4, []int{10}, 0)
+	it.Pity[4] = 1
+	if res, _ := inv.Enhance(rolls(91), d, bag0, false, 1, &xu); res.Success || it.Pity[4] != 2 {
+		t.Fatalf("roll 91 with pity 1: %+v pity %v", res, it.Pity)
+	}
+}
+
+func TestEnhanceDropKeepsPity(t *testing.T) {
+	d := realData(t)
+	// +7 -> +8 is 60% and drops on failure: a roll of 99 takes it to +6.
+	inv, it := forge(t10, 7, []int{50}, 0)
+	it.Pity[6], it.Pity[9] = 4, 5
+	xu := rich
+	res, err := inv.Enhance(rolls(99), d, bag0, false, 1, &xu)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Attempts != 1 || res.Success || res.Level != 6 || it.Enhance != 6 {
+		t.Fatalf("%+v, item +%d", res, it.Enhance)
+	}
+	if it.Pity != [MaxEnhance]int{6: 4, 7: 1, 9: 5} {
+		t.Fatalf("pity %v", it.Pity)
+	}
+	// Back to +7 (resets pity[6] only), then +8 with a roll that only the
+	// kept pity makes succeed: 60 + 1 > 60.
+	if res, _ := inv.Enhance(rolls(0), d, bag0, false, 1, &xu); !res.Success || it.Enhance != 7 {
+		t.Fatalf("+6 -> +7: %+v", res)
+	}
+	if res, _ := inv.Enhance(rolls(60), d, bag0, false, 1, &xu); !res.Success || it.Enhance != 8 {
+		t.Fatalf("+7 -> +8 with pity 1 and roll 60: %+v", res)
+	}
+	if it.Pity != [MaxEnhance]int{9: 5} {
+		t.Fatalf("pity after the two successes %v, want only [9] = 5", it.Pity)
+	}
+}
+
+func TestEnhancePityCap(t *testing.T) {
+	d := realData(t)
+	// +15 is 10%: 90 protected failures in a row raise pity[14] to 90, its
+	// cap, and the 91st attempt succeeds whatever the roll.
+	inv, it := forge(t10, 14, []int{999}, 999)
+	xu := rich
+	res, err := inv.Enhance(rolls(99), d, bag0, true, 90, &xu)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Attempts != 90 || res.Success || it.Enhance != 14 || it.Pity[14] != 90 {
+		t.Fatalf("%+v, item +%d pity %d", res, it.Enhance, it.Pity[14])
+	}
+	res, _ = inv.Enhance(rolls(99), d, bag0, true, 1, &xu)
+	if !res.Success || it.Enhance != 15 || it.Pity[14] != 0 {
+		t.Fatalf("with pity 90: %+v, item +%d pity %d", res, it.Enhance, it.Pity[14])
+	}
+	// One request does the same: 91 attempts, the last one succeeds.
+	inv, it = forge(t10, 14, []int{999}, 999)
+	if res, _ := inv.Enhance(rolls(99), d, bag0, true, 100, &xu); res.Attempts != 91 || !res.Success || it.Enhance != 15 {
+		t.Fatalf("times 100: %+v", res)
+	}
+
+	// With a bigger pity step the cap binds below the step: 84 + 7 -> 90.
+	big := *d
+	big.Enhance.PityPct = 7
+	inv, it = forge(t10, 14, []int{999}, 999)
+	it.Pity[14] = 84
+	if res, _ := inv.Enhance(rolls(99), &big, bag0, true, 1, &xu); res.Success || it.Pity[14] != 90 {
+		t.Fatalf("pity step 7 from 84: %+v pity %d, want capped at 90", res, it.Pity[14])
+	}
+	// +5 (90%) caps at 10.
+	inv, it = forge(t10, 4, []int{999}, 0)
+	it.Pity[4] = 9
+	if res, _ := inv.Enhance(rolls(99), &big, bag0, false, 1, &xu); res.Success || it.Pity[4] != 10 {
+		t.Fatalf("+5 pity step 7 from 9: %+v pity %d, want 10", res, it.Pity[4])
+	}
+}
+
+func TestEnhanceCharm(t *testing.T) {
+	d := realData(t)
+	xu := rich
+	// Target +7 cannot drop: protect takes no charm and needs none.
+	inv, it := forge(t10, 6, []int{10}, 5)
+	res, err := inv.Enhance(rolls(99), d, bag0, true, 1, &xu)
+	if err != nil || res.Success || it.Enhance != 6 || inv.Bag[2].Count != 5 || !slices.Equal(res.Changed, []int{0, 1}) {
+		t.Fatalf("+7 with protect: %+v %v, charms %d", res, err, inv.Bag[2].Count)
+	}
+	inv, _ = forge(t10, 6, []int{10}, 0)
+	if _, err := inv.Enhance(rolls(99), d, bag0, true, 1, &xu); err != nil {
+		t.Fatalf("+7 with protect and no charm: %v", err)
+	}
+	// Target +8: protect takes one charm and a failure keeps +7.
+	inv, it = forge(t10, 7, []int{10}, 5)
+	res, err = inv.Enhance(rolls(99), d, bag0, true, 1, &xu)
+	if err != nil || res.Success || res.Level != 7 || it.Enhance != 7 || inv.Bag[2].Count != 4 || it.Pity[7] != 1 ||
+		!slices.Equal(res.Changed, []int{0, 1, 2}) {
+		t.Fatalf("+8 with protect: %+v %v, charms %d pity %v", res, err, inv.Bag[2].Count, it.Pity)
+	}
+	// A success with protect also uses a charm.
+	res, _ = inv.Enhance(rolls(0), d, bag0, true, 1, &xu)
+	if !res.Success || it.Enhance != 8 || inv.Bag[2].Count != 3 {
+		t.Fatalf("+8 success with protect: %+v charms %d", res, inv.Bag[2].Count)
+	}
+	// Without protect no charm is taken and the failure drops.
+	inv, it = forge(t10, 7, []int{10}, 5)
+	res, _ = inv.Enhance(rolls(99), d, bag0, false, 1, &xu)
+	if res.Level != 6 || it.Enhance != 6 || inv.Bag[2].Count != 5 {
+		t.Fatalf("+8 without protect: %+v charms %d", res, inv.Bag[2].Count)
+	}
+}
+
+func TestEnhanceTimesStops(t *testing.T) {
+	d := realData(t)
+	cost := func(target int) int64 { return int64(d.Enhance.Levels[target-1].XuPerTier) * 10 }
+	type run struct {
+		name           string
+		level          int
+		stones         []int
+		charms         int
+		protect        bool
+		times          int
+		xu             int64
+		rolls          []int
+		attempts       int
+		success        bool
+		wantLevel      int
+		stonesLeft     int // at bag slot 1
+		charmsLeftSlot int // bag slot of the charm stack, 0 for none
+		charmsLeft     int
+	}
+	for _, r := range []run{
+		// +5 -> +6 (80%): fail, fail, succeed.
+		{name: "first success", level: 5, stones: []int{100}, times: 100, xu: rich, rolls: []int{99, 99, 0},
+			attempts: 3, success: true, wantLevel: 6, stonesLeft: 94},
+		// +8 -> +9 without protect: the first failure drops and stops.
+		{name: "drop", level: 8, stones: []int{100}, times: 100, xu: rich, rolls: []int{99},
+			attempts: 1, wantLevel: 7, stonesLeft: 97},
+		// +4 -> +5 takes 2 stones: 5 stones pay for two attempts.
+		{name: "stones", level: 4, stones: []int{5}, times: 100, xu: rich, rolls: []int{99},
+			attempts: 2, wantLevel: 4, stonesLeft: 1},
+		// +8 -> +9 protected: 3 charms pay for three attempts.
+		{name: "charms", level: 8, stones: []int{100}, charms: 3, protect: true, times: 100, xu: rich, rolls: []int{99},
+			attempts: 3, wantLevel: 8, stonesLeft: 91, charmsLeftSlot: 2, charmsLeft: 0},
+		// +15 Xu for exactly three attempts and one short of a fourth.
+		{name: "xu", level: 14, stones: []int{100}, charms: 10, protect: true, times: 100, xu: 4*cost(15) - 1, rolls: []int{99},
+			attempts: 3, wantLevel: 14, stonesLeft: 85, charmsLeftSlot: 2, charmsLeft: 7},
+		{name: "times", level: 14, stones: []int{999}, charms: 999, protect: true, times: 50, xu: rich, rolls: []int{99},
+			attempts: 50, wantLevel: 14, stonesLeft: 749, charmsLeftSlot: 2, charmsLeft: 949},
+		{name: "times 0 is 1", level: 5, stones: []int{100}, times: 0, xu: rich, rolls: []int{99},
+			attempts: 1, wantLevel: 5, stonesLeft: 98},
+		// Stones run out over two stacks; the emptied stack leaves its slot.
+		{name: "two stacks", level: 4, stones: []int{1, 4}, times: 100, xu: rich, rolls: []int{99},
+			attempts: 2, wantLevel: 4, stonesLeft: -1},
+	} {
+		t.Run(r.name, func(t *testing.T) {
+			inv, it := forge(t10, r.level, r.stones, r.charms)
+			xu := r.xu
+			res, err := inv.Enhance(rolls(r.rolls...), d, bag0, r.protect, r.times, &xu)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Attempts != r.attempts || res.Success != r.success || res.Level != r.wantLevel || it.Enhance != r.wantLevel {
+				t.Fatalf("%+v, item +%d", res, it.Enhance)
+			}
+			if r.stonesLeft >= 0 && inv.Bag[1].Count != r.stonesLeft {
+				t.Fatalf("%d stones left, want %d", inv.Bag[1].Count, r.stonesLeft)
+			}
+			if r.charmsLeftSlot > 0 && inv.Count(gamedata.CharmProtect) != r.charmsLeft {
+				t.Fatalf("%d charms left, want %d", inv.Count(gamedata.CharmProtect), r.charmsLeft)
+			}
+			if want := int64(r.attempts) * cost(r.level+1); r.xu-xu != want {
+				t.Fatalf("spent %d Xu, want %d", r.xu-xu, want)
+			}
+		})
+	}
+}
+
+func TestEnhanceErrors(t *testing.T) {
+	d := realData(t)
+	type tc struct {
+		name    string
+		setup   func(inv *Inventory) // on forge(t10, 7, {100}, 0)
+		ref     Ref
+		protect bool
+		times   int
+		xu      int64
+		want    error
+	}
+	full := int64(1000) // +8 costs 800 Xu for tier 10
+	for _, c := range []tc{
+		{"bag slot -1", nil, Ref{Slot: -1}, false, -1, 0, ErrBadSlot},
+		{"bag slot 60", nil, Ref{Slot: 60}, false, 101, 0, ErrBadSlot},
+		{"worn slot 10", nil, Ref{Equipped: true, Slot: 10}, false, 1, full, ErrBadSlot},
+		{"worn slot -1", nil, Ref{Equipped: true, Slot: -1}, false, 1, full, ErrBadSlot},
+		{"times -1", nil, Ref{Slot: 5}, false, -1, 0, ErrBadCount},
+		{"times 101", nil, bag0, false, 101, full, ErrBadCount},
+		{"empty bag slot", nil, Ref{Slot: 5}, false, 1, 0, ErrNotFound},
+		{"empty worn slot", nil, Ref{Equipped: true, Slot: 3}, false, 1, 0, ErrNotFound},
+		{"stone", nil, Ref{Slot: 1}, false, 1, 0, ErrNotEquipment},
+		{"maxed", func(inv *Inventory) { inv.Bag[0].Enhance = 15; inv.Bag[1] = nil }, bag0, false, 1, 0, ErrMaxed},
+		{"no stones", func(inv *Inventory) { inv.Bag[1] = nil }, bag0, false, 1, 0, ErrNoMaterials},
+		{"too few stones", func(inv *Inventory) { inv.Bag[1].Count = 2 }, bag0, false, 1, 0, ErrNoMaterials},
+		{"protect without charm", nil, bag0, true, 1, 0, ErrNoMaterials},
+		{"xu one short", nil, bag0, false, 1, 799, ErrNoXu},
+		{"xu one short with charm", func(inv *Inventory) { inv.Bag[2] = charm(1) }, bag0, true, 1, 799, ErrNoXu},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			inv, _ := forge(t10, 7, []int{100}, 0)
+			if c.setup != nil {
+				c.setup(inv)
+			}
+			before := inv.Clone()
+			xu := c.xu
+			res, err := inv.Enhance(rolls(0), d, c.ref, c.protect, c.times, &xu)
+			if !errors.Is(err, c.want) {
+				t.Fatalf("got %v, want %v", err, c.want)
+			}
+			if res.Attempts != 0 || !sameInventory(inv, before) || xu != c.xu {
+				t.Fatalf("an error changed something: %+v xu %d", res, xu)
+			}
+		})
+	}
+	// A worn piece is enhanced in place and only material slots change.
+	inv, _ := forge(t10, 0, []int{5}, 0)
+	inv.Worn[0], inv.Bag[0] = inv.Bag[0], nil
+	xu := rich
+	res, err := inv.Enhance(rolls(0), d, Ref{Equipped: true, Slot: 0}, false, 1, &xu)
+	if err != nil || inv.Worn[0].Enhance != 1 || !slices.Equal(res.Changed, []int{1}) {
+		t.Fatalf("worn: %+v %v", res, err)
+	}
+	// times = max_times is allowed.
+	inv, _ = forge(t10, 0, []int{5}, 0)
+	if _, err := inv.Enhance(rolls(0), d, bag0, false, d.Enhance.MaxTimes, &xu); err != nil {
+		t.Fatalf("times %d: %v", d.Enhance.MaxTimes, err)
+	}
+}
+
+func TestEnhanceTakesLowestSlots(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(60)
+	inv.Bag[3] = stone(4)
+	inv.Bag[7] = stone(5)
+	inv.Bag[9] = charm(1)
+	inv.Bag[10] = &Item{Code: t10, Count: 1, Enhance: 7}
+	inv.Bag[12] = charm(4)
+	inv.Bag[20] = stone(9)
+	xu := rich
+	// +8 takes 3 stones and a charm per attempt: two attempts take slot 3's
+	// four stones, two of slot 7's, and slot 9's charm then one of slot 12's.
+	res, err := inv.Enhance(rolls(99, 0), d, Ref{Slot: 10}, true, 100, &xu)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Attempts != 2 || !res.Success || res.Level != 8 {
+		t.Fatalf("%+v", res)
+	}
+	if inv.Bag[3] != nil || inv.Bag[7].Count != 3 || inv.Bag[20].Count != 9 || inv.Bag[9] != nil || inv.Bag[12].Count != 3 {
+		t.Fatalf("bag 3 %+v, 7 %+v, 9 %+v, 12 %+v, 20 %+v", inv.Bag[3], inv.Bag[7], inv.Bag[9], inv.Bag[12], inv.Bag[20])
+	}
+	if !slices.Equal(res.Changed, []int{3, 7, 9, 10, 12}) {
+		t.Fatalf("changed %v", res.Changed)
+	}
+}
+
+func TestCountTakeAt(t *testing.T) {
+	inv := NewInventory(6)
+	inv.Bag[1], inv.Bag[2], inv.Bag[4] = stone(3), sword(), stone(5)
+	inv.Worn[0] = sword()
+	if inv.Count(gamedata.StoneEnhance) != 8 || inv.Count(gamedata.CharmProtect) != 0 {
+		t.Fatal("Count")
+	}
+	if ch := inv.Take(gamedata.StoneEnhance, 3); !slices.Equal(ch, []int{1}) || inv.Bag[1] != nil || inv.Bag[4].Count != 5 {
+		t.Fatalf("Take 3: %v", ch)
+	}
+	inv.Bag[0] = stone(2)
+	if ch := inv.Take(gamedata.StoneEnhance, 4); !slices.Equal(ch, []int{0, 4}) || inv.Bag[0] != nil || inv.Bag[4].Count != 3 {
+		t.Fatalf("Take 4: %v", ch)
+	}
+	if ch := inv.Take(gamedata.StoneEnhance, 0); len(ch) != 0 {
+		t.Fatalf("Take 0: %v", ch)
+	}
+	for _, c := range []struct {
+		r    Ref
+		want *Item
+		err  error
+	}{
+		{Ref{Slot: 2}, inv.Bag[2], nil},
+		{Ref{Equipped: true, Slot: 0}, inv.Worn[0], nil},
+		{Ref{Slot: 3}, nil, ErrNotFound},
+		{Ref{Equipped: true, Slot: 9}, nil, ErrNotFound},
+		{Ref{Slot: 6}, nil, ErrBadSlot},
+		{Ref{Slot: -1}, nil, ErrBadSlot},
+		{Ref{Equipped: true, Slot: 10}, nil, ErrBadSlot},
+	} {
+		if got, err := inv.At(c.r); got != c.want || !errors.Is(err, c.err) {
+			t.Errorf("At(%+v) = %p, %v; want %p, %v", c.r, got, err, c.want, c.err)
+		}
+	}
+}
+
+// climb enhances a fresh tier 10 piece from +0 to target with a seeded RNG,
+// times 100 per request and materials topped up, and returns the attempts.
+func climb(rng *rand.Rand, d *gamedata.Items, target int, protect bool) int {
+	inv := NewInventory(4)
+	it := &Item{Code: t10, Count: 1}
+	inv.Bag[0] = it
+	attempts := 0
+	for it.Enhance < target {
+		inv.Bag[1], inv.Bag[2] = stone(999), charm(999)
+		xu := rich
+		res, err := inv.Enhance(rng, d, bag0, protect, 100, &xu)
+		if err != nil {
+			panic(err)
+		}
+		attempts += res.Attempts
+	}
+	return attempts
+}
+
+// The mean attempts to +7 match the exact expectation of the pity rule,
+// and +15 without charms averages about 6,500 (game-design 3.3; spec 2.1).
+func TestEnhanceMeanAttempts(t *testing.T) {
+	d := realData(t)
+	// Exact mean attempts at one kept-level target from pity 0: the n-th
+	// attempt happens when the n-1 before failed.
+	keptMean := func(pct int) float64 {
+		mean, reach := 0.0, 1.0
+		for p := 0; reach > 0; p += d.Enhance.PityPct {
+			mean += reach
+			reach *= 1 - float64(min(100, pct+p))/100
+		}
+		return mean
+	}
+	want7 := 4.0 // +1 .. +4 always succeed
+	for _, l := range d.Enhance.Levels[4:7] {
+		want7 += keptMean(l.SuccessPct)
+	}
+	const runs7 = 40000
+	rng := seeded(7)
+	var sum, sumSq float64
+	for range runs7 {
+		a := float64(climb(rng, d, 7, false))
+		sum += a
+		sumSq += a * a
+	}
+	mean := sum / runs7
+	se := math.Sqrt((sumSq/runs7 - mean*mean) / runs7)
+	if math.Abs(mean-want7) > 4*se {
+		t.Fatalf("+7 mean attempts %.3f, want %.3f +- %.3f", mean, want7, 4*se)
+	}
+
+	const runs15 = 1000
+	rng = seeded(15)
+	sum = 0
+	for range runs15 {
+		sum += float64(climb(rng, d, 15, false))
+	}
+	if mean := sum / runs15; mean < 5500 || mean > 7500 {
+		t.Fatalf("+15 without charms: mean attempts %.0f, want 5,500-7,500", mean)
+	}
+	// Protected from +8 it is a few dozen (spec 2.1: about 37).
+	rng = seeded(16)
+	sum = 0
+	for range 4000 {
+		sum += float64(climb(rng, d, 15, true))
+	}
+	if mean := sum / 4000; mean < 35 || mean > 39 {
+		t.Fatalf("+15 with charms: mean attempts %.1f, want about 37", mean)
+	}
+}
+
+// The first +15 attempt from pity 0 succeeds 10% of the time.
+func TestEnhanceRate(t *testing.T) {
+	d := realData(t)
+	rng := seeded(10)
+	const n = 100000
+	wins := 0
+	for range n {
+		inv, _ := forge(t10, 14, []int{5}, 1)
+		xu := rich
+		if res, _ := inv.Enhance(rng, d, bag0, true, 1, &xu); res.Success {
+			wins++
+		}
+	}
+	if p := float64(wins) / n; math.Abs(p-0.10) > 4*math.Sqrt(0.1*0.9/n) {
+		t.Fatalf("+15 success rate %.4f, want 0.10", p)
+	}
+}
+
+// ______________________TEST REGEN_____________________
+
+func TestMilestone(t *testing.T) {
+	d := realData(t)
+	for _, c := range []struct {
+		enhance int
+		ok      bool
+		want    gamedata.RegenStep
+	}{
+		{0, false, gamedata.RegenStep{}}, {6, false, gamedata.RegenStep{}},
+		{7, true, gamedata.RegenStep{Enhance: 7, HPBP: 5, MP: 1}},
+		{9, true, gamedata.RegenStep{Enhance: 7, HPBP: 5, MP: 1}},
+		{10, true, gamedata.RegenStep{Enhance: 10, HPBP: 10, MP: 2}},
+		{11, true, gamedata.RegenStep{Enhance: 10, HPBP: 10, MP: 2}},
+		{12, true, gamedata.RegenStep{Enhance: 12, HPBP: 20, MP: 3}},
+		{14, true, gamedata.RegenStep{Enhance: 12, HPBP: 20, MP: 3}},
+		{15, true, gamedata.RegenStep{Enhance: 15, HPBP: 30, MP: 5}},
+	} {
+		if got, ok := Milestone(d, c.enhance); ok != c.ok || got != c.want {
+			t.Errorf("Milestone(+%d) = %+v %v, want %+v %v", c.enhance, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+// fullSet wears the tier 50 set for class at enhance n.
+func fullSet(d *gamedata.Items, class string, n int) *Inventory {
+	inv := NewInventory(10)
+	inv.Worn[0] = &Item{Code: d.Weapon(50, class), Count: 1, Enhance: n}
+	for slot := 1; slot < EquipSlots; slot++ {
+		inv.Worn[slot] = &Item{Code: d.Piece(50, slot), Count: 1, Enhance: n}
+	}
+	return inv
+}
+
+func TestRegen(t *testing.T) {
+	d := realData(t)
+	if hp, mp := Regen(d, fullSet(d, "viem", 15), 90, "viem"); hp != 150 || mp != 25 {
+		t.Fatalf("ten +15 pieces: %d bp %d MP, want 150 and 25", hp, mp)
+	}
+	if hp, mp := Regen(d, fullSet(d, "viem", 6), 90, "viem"); hp != 0 || mp != 0 {
+		t.Fatalf("ten +6 pieces: %d bp %d MP", hp, mp)
+	}
+	inv := fullSet(d, "viem", 0)
+	inv.Worn[1].Enhance = 7  // boots: HP
+	inv.Worn[5].Enhance = 12 // armour: HP
+	inv.Worn[0].Enhance = 10 // weapon: MP
+	inv.Worn[8].Enhance = 15 // left ring: MP
+	inv.Bag[0] = &Item{Code: d.Piece(50, 4), Count: 1, Enhance: 15}
+	if hp, mp := Regen(d, inv, 90, "viem"); hp != 25 || mp != 7 {
+		t.Fatalf("mixed: %d bp %d MP, want 25 and 7", hp, mp)
+	}
+	// Unwearable worn pieces add nothing: a weapon of another class, and
+	// everything at a level below the tier 50 pieces' wear levels.
+	if hp, mp := Regen(d, fullSet(d, "viem", 15), 90, "thuy"); hp != 150 || mp != 20 {
+		t.Fatalf("another class's weapon: %d bp %d MP, want 150 and 20", hp, mp)
+	}
+	// Level 54 wears slots 0-4 (levels 50-54) only: the weapon and four armour pieces.
+	if hp, mp := Regen(d, fullSet(d, "viem", 15), 54, "viem"); hp != 120 || mp != 5 {
+		t.Fatalf("level 54: %d bp %d MP, want 120 and 5", hp, mp)
+	}
+	if hp, mp := Regen(d, fullSet(d, "viem", 15), 1, "viem"); hp != 0 || mp != 0 {
+		t.Fatalf("level 1: %d bp %d MP", hp, mp)
 	}
 }

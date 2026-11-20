@@ -40,9 +40,14 @@ type Line struct {
 	Value int
 }
 
+// MaxEnhance is the highest enhance level.
+const MaxEnhance = gamedata.EnhanceLevels - 1
+
 // Item is one bag or worn item, or a stack. Count is 1 for equipment;
-// stackables have no quality, element, enhance or lines. Element is "" for
-// none. Lines keep their roll order; Hidden is empty or HiddenLines long.
+// stackables have no quality, element, enhance, lines or pity. Element is ""
+// for none. Lines keep their roll order; Hidden is empty or HiddenLines long.
+// Pity[k] is the hidden success bonus, in percentage points, of the attempt
+// at target level +k+1 (phase 3b spec 4.1); it is never sent to clients.
 type Item struct {
 	Code          string
 	Count         int
@@ -50,9 +55,10 @@ type Item struct {
 	Element       string
 	Enhance       int
 	Lines, Hidden []Line
+	Pity          [MaxEnhance]int
 }
 
-// Clone returns a deep copy of it.
+// Clone returns a deep copy of it (Pity is an array, copied by value).
 func (it Item) Clone() Item {
 	it.Lines = slices.Clone(it.Lines)
 	it.Hidden = slices.Clone(it.Hidden)
