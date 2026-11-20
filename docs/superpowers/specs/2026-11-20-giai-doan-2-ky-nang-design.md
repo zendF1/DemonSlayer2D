@@ -301,18 +301,19 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
 - **Bố cục HUD** (yêu cầu của người dùng):
   - **Giữa cạnh dưới: `ui/skill_bar.gd`**, năm ô cố định xếp thành một hàng: ô 1 là chém mặc định, ô 2–5 là bốn chiêu chủ động theo cấp học (ô kỹ năng 1–4 của dữ liệu). Bị động chỉ hiện trong tab Kỹ năng. Bấm một ô (hoặc phím 1–5 trên PC) để **chọn** chiêu; ô đang chọn có viền sáng và giữ nguyên tới khi chọn ô khác; vào game mặc định chọn ô 1. Ô chưa học thì xám và không chọn được; đang hồi thì có vòng quét và số giây; thiếu MP thì tối màu.
   - **Góc phải dưới:** nút **Đánh** ở giữa; phía trên nút Đánh là hai nút **bình HP** và **bình MP**. Bình thuốc thuộc Giai đoạn 4 nên hai nút hiện xám, bấm thì báo "Có ở bản sau". Bấm/giữ Đánh (hoặc Space) dùng chiêu đang chọn theo `cast_loop`; ô 1 thì chém như Giai đoạn 1.
-  - Nút "Đổi mục tiêu" và "Thông tin" là các nút tròn nhỏ bên trái nút Đánh.
+  - Nút "Đổi mục tiêu" là nút tròn nhỏ bên trái nút Đánh. **Không có nút "Thông tin" riêng:** bấm vào khung chân dung ở thẻ nhân vật góc trái trên thì mở cửa sổ nhân vật; chấm báo còn điểm tiềm năng/kỹ năng nằm ở góc khung chân dung.
+  - **Hồi chiêu trên mọi ô**, kể cả chém mặc định: vừa dùng thành công thì ô phủ xám và hiện số giây còn lại đếm về 0, hết hồi thì sáng lại. Chém mặc định hồi 0,8 giây; chiêu theo `cooldown_ms` của cấp đã học.
   - **Hình dáng** (theo ảnh tham khảo người dùng gửi; chỉ lấy bố cục, không chép icon hay art): ô kỹ năng vuông nền tối viền vàng, số phím 1–5 ghi phía trên mỗi ô, ô đang chọn viền sáng hơn; icon tạm vẽ bằng màu class kèm tên ngắn và cấp chiêu; đang hồi thì phủ tối kèm số giây. Nút Đánh tròn lớn; nút bình HP/MP tròn nhỏ có chỗ hiện số lượng.
   - **Thẻ nhân vật góc trái trên:** khung tròn chân dung tạm, cấp, thanh HP đỏ và thanh MP xanh (theo ảnh tham khảo). Bản đồ nhỏ góc phải trên để Giai đoạn 4.
   - **Nút di chuyển:** joystick đổi hình thành vòng tròn có bốn mũi tên lên/xuống/trái/phải; vẫn kéo đi mọi hướng như Giai đoạn 1 (chỉ đổi hình).
-- **Cửa sổ nhân vật `ui/char_window.gd`** (yêu cầu của người dùng): nút "Chỉ số" trên HUD đổi thành **"Thông tin"**; bấm vào mở một cửa sổ có năm tab theo thứ tự **Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang**. Phím `stats` hiện có mở cửa sổ ở tab Thông tin, phím K mở ở tab Kỹ năng; bấm lại phím của tab đang mở hoặc nút đóng thì đóng cửa sổ. Cửa sổ nhớ tab mở gần nhất trong phiên.
+- **Cửa sổ nhân vật `ui/char_window.gd`** (yêu cầu của người dùng): nút "Chỉ số" trên HUD bỏ; bấm khung chân dung mở một cửa sổ có năm tab theo thứ tự **Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang**. Phím `stats` hiện có mở cửa sổ ở tab Thông tin, phím K mở ở tab Kỹ năng; bấm lại phím của tab đang mở hoặc nút đóng thì đóng cửa sổ. Cửa sổ nhớ tab mở gần nhất trong phiên.
   - **Thông tin** (`ui/info_tab.gd`): tên, class, cấp, EXP, các chỉ số dẫn xuất và ghi chú chính xác/né tránh/chí mạng chưa có tác dụng (phần này chuyển từ bảng chỉ số cũ).
   - **Tiềm năng** (`ui/potential_tab.gd`): bốn thuộc tính với − và +, điểm còn lại, Xác nhận và Hủy, giữ nguyên hành vi của bảng chỉ số Giai đoạn 1.
   - **Kỹ năng** (`ui/skill_tab.gd`): năm chiêu của class: thức, tên, cấp n/10, cấp nhân vật cần, mô tả vùng; so sánh cấp hiện tại với cấp kế (hệ số, MP, hồi chiêu, số mục tiêu, hoặc hiệu ứng bị động). Nút "Học"/"Nâng" khóa thì ghi lý do. Đầu tab hiện điểm kỹ năng còn lại.
   - **Trang bị**, **Hành trang**: có tab nhưng nội dung chỉ ghi "Có ở bản sau" (Giai đoạn 3).
   - `ui/stats_panel.gd` được tách thành hai tab Thông tin và Tiềm năng rồi bỏ.
 - **`ui/skill_effect.gd`**: hiệu ứng tạm bằng `_draw`, khoảng 0,35 giây, đúng kích thước vùng server: quạt, vòng tròn, dải thẳng, chớp sáng tại mục tiêu (`single`), vệt lướt (`dash`). Màu theo class: Viêm đỏ cam, Thủy xanh nước, Minh vàng, Nham nâu xám, Phong xanh lá.
-- **HUD**: chấm báo trên nút Thông tin khi còn điểm tiềm năng hoặc điểm kỹ năng, và chấm trên tên tab Tiềm năng/Kỹ năng tương ứng; thanh MP giảm khi dùng chiêu.
+- **HUD**: chấm báo ở góc khung chân dung khi còn điểm tiềm năng hoặc điểm kỹ năng, và chấm trên tên tab Tiềm năng/Kỹ năng tương ứng; thanh MP giảm khi dùng chiêu.
 
 ### 6.3. Smoke
 
