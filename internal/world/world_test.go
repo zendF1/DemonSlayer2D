@@ -726,6 +726,7 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 		{"attack", func(m *Membership) bool { return m.Attack(5, 999999) }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"allocate", func(m *Membership) bool { return m.Allocate(5, combat.Points{}) }, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
 		{"respawn", func(m *Membership) bool { return m.Respawn(5) }, pb.ErrorCode_ERROR_CODE_NOT_DEAD},
+		{"enhance", func(m *Membership) bool { return m.Enhance(5, items.Ref{Slot: 0}, false, 1) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := newTestWorld(t, 10)

@@ -454,6 +454,8 @@ func (z *Zone) handle(c any) {
 		z.discard(c)
 	case sortBagCmd:
 		z.sortBag(c)
+	case enhanceCmd:
+		z.enhance(c)
 	}
 }
 

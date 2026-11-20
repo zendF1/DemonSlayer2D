@@ -1681,3 +1681,226 @@ func TestSortBag(t *testing.T) {
 		t.Fatalf("saves %+v, want one with the sorted bag", all)
 	}
 }
+
+// ______________________TEST ENHANCE ZONE_____________________
+
+// forgeInventory is gearInventory (the white sword worn, the Vàng boots in
+// bag slot 0, 12 stones in slot 3) with the white Lữ Hành armour worn, a +15
+// helmet in bag slot 8 and a +7 one in slot 9.
+func forgeInventory() *items.Inventory {
+	inv := gearInventory()
+	inv.Worn[testItemData.Equipment["eq10_armor"].SlotIndex] = &items.Item{Code: "eq10_armor", Count: 1}
+	inv.Bag[8] = &items.Item{Code: "eq10_helmet", Count: 1, Enhance: 15}
+	inv.Bag[9] = &items.Item{Code: "eq10_helmet", Count: 1, Enhance: 7}
+	return inv
+}
+
+// forgeZone is gearZoneAt for a level-19 Viêm with inv and 100,000 Xu,
+// standing inside a safe zone unless outside is set.
+func forgeZone(t *testing.T, inv *items.Inventory, outside bool) (*Zone, *player, *fakeSaver) {
+	t.Helper()
+	z, p, _, sv := gearZoneAt(t, 19, inv)
+	if !outside {
+		z.area.Safe = []Rect{{X: 0, Y: 0, W: 10, H: 10}}
+	}
+	p.xu = 100000
+	return z, p, sv
+}
+
+// failSource makes every rng.IntN(100) roll 99, so every attempt below 100%
+// fails.
+type failSource struct{}
+
+func (failSource) Uint64() uint64 { return math.MaxUint64 }
+
+// Each check of spec 4.1 in order, on forgeInventory. Every case also breaks
+// the checks after its own where it can, and none costs anything.
+func TestEnhanceErrors(t *testing.T) {
+	armour := testItemData.Equipment["eq10_armor"].SlotIndex
+	bag := func(slot int) items.Ref { return items.Ref{Slot: slot} }
+	worn := func(slot int) items.Ref { return items.Ref{Equipped: true, Slot: slot} }
+	broke := func(p *player) { p.xu = 0 }
+	const (
+		dead      = pb.ErrorCode_ERROR_CODE_DEAD
+		notSafe   = pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE
+		bad       = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		notFound  = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+		maxed     = pb.ErrorCode_ERROR_CODE_ENHANCE_MAXED
+		materials = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_MATERIALS
+		noXu      = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+	)
+	for _, c := range []struct {
+		name          string
+		dead, outside bool
+		setup         func(*player)
+		ref           items.Ref
+		protect       bool
+		times         int
+		code          pb.ErrorCode
+	}{
+		{"dead outside the safe zone, bad slot", true, true, broke, bag(60), false, 101, dead},
+		{"outside the safe zone, bad slot", false, true, broke, bag(60), false, 101, notSafe},
+		{"bag slot 60", false, false, broke, bag(60), false, 101, bad},
+		{"bag slot -1", false, false, broke, bag(-1), false, 1, bad},
+		{"worn slot 10", false, false, broke, worn(10), false, 1, bad},
+		{"worn slot -1", false, false, broke, worn(-1), false, 1, bad},
+		{"times -1", false, false, broke, bag(7), false, -1, bad},
+		{"times 101", false, false, broke, bag(7), false, 101, bad},
+		{"empty bag slot", false, false, broke, bag(7), false, 1, notFound},
+		{"empty worn slot", false, false, broke, worn(9), false, 1, notFound},
+		{"stones", false, false, broke, bag(3), false, 1, bad},
+		{"already +15", false, false, broke, bag(8), true, 1, maxed},
+		{"no stones", false, false, func(p *player) { p.xu, p.inv.Bag[3] = 0, nil }, bag(0), false, 1, materials},
+		{"2 of 3 stones for +8", false, false, func(p *player) { p.xu, p.inv.Bag[3].Count = 0, 2 }, bag(9), false, 1, materials},
+		{"protect at +8 without a charm", false, false, broke, bag(9), true, 1, materials},
+		{"1 Xu short", false, false, func(p *player) { p.xu = 99 }, bag(0), false, 1, noXu},
+		{"1 Xu short for the worn armour", false, false, func(p *player) { p.xu = 99 }, worn(armour), false, 100, noXu},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := forgeZone(t, forgeInventory(), c.outside)
+			out := p.out.(*fakeOut)
+			c.setup(p)
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			out.take()
+			before, stats, hp, xu, saves := p.inv.Clone(), p.stats, p.hp, p.xu, len(sv.all())
+			itemNow(t, z, z.Enhance(1, 9, c.ref, c.protect, c.times))
+			envs := out.take()
+			if er := errorFor(envs, 9); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if n := len(slices.DeleteFunc(slices.Clone(envs), func(e *pb.Envelope) bool { return e.Seq != 9 })); n != 1 {
+				t.Fatalf("%d replies to seq 9, want only the error", n)
+			}
+			if !reflect.DeepEqual(p.inv, before) || p.stats != stats || p.hp != hp || p.xu != xu {
+				t.Fatal("a rejected enhancement changed the inventory, stats or Xu")
+			}
+			if n := len(sv.all()); n != saves {
+				t.Fatalf("%d saves, want %d", n, saves)
+			}
+		})
+	}
+}
+
+// Enhancing the worn armour +0 -> +1 raises its stats per the data, keeps
+// the HP share (phase 3a spec 4.7), shows the new bar to viewers, replies
+// with the armour and the stones taken, and saves at once.
+func TestEnhanceWornArmour(t *testing.T) {
+	z, p, sv := forgeZone(t, forgeInventory(), false)
+	out := p.out.(*fakeOut)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	armour := testItemData.Equipment["eq10_armor"]
+	slot := armour.SlotIndex
+	p.hp = p.maxHP / 3
+	hp, oldMax, attack := p.hp, p.maxHP, p.stats.PhysAttack
+	itemNow(t, z, z.Enhance(1, 9, items.Ref{Equipped: true, Slot: slot}, false, 0))
+	envs := out.take()
+	resp := respFor(envs, 9, (*pb.Envelope).GetEnhanceResp)
+	if resp == nil || resp.Attempts != 1 || !resp.Success || resp.Level != 1 || p.inv.Worn[slot].Enhance != 1 {
+		t.Fatalf("EnhanceResp %v, want one successful attempt to +1", resp)
+	}
+	wantMax := oldMax + armour.HP[1] - armour.HP[0]
+	if p.maxHP != wantMax || p.hp != keepHPRatio(hp, oldMax, wantMax) || p.hp == hp ||
+		p.stats.PhysAttack != attack+armour.PhysAttack[1]-armour.PhysAttack[0] {
+		t.Fatalf("hp %d/%d attack %d, want %d/%d and %d", p.hp, p.maxHP, p.stats.PhysAttack,
+			keepHPRatio(hp, oldMax, wantMax), wantMax, attack+armour.PhysAttack[1]-armour.PhysAttack[0])
+	}
+	want := &pb.InventoryUpdate{
+		Bag:      []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 11}}},
+		Equipped: []*pb.ItemSlot{itemSlot(slot, p.inv.Worn[slot])},
+	}
+	if !proto.Equal(resp.Update, want) || resp.Update.Equipped[0].Item.Enhance != 1 {
+		t.Fatalf("update %v, want %v", resp.Update, want)
+	}
+	if cost := int64(testItemData.Enhance.Levels[0].XuPerTier * armour.Tier); p.xu != 100000-cost ||
+		resp.Stats.Xu != p.xu || !proto.Equal(resp.Stats, z.selfStats(p)) {
+		t.Fatalf("stats %v xu %d, want the new stats and %d Xu", resp.Stats, p.xu, 100000-cost)
+	}
+	if all := sv.all(); len(all) != 1 || all[0].Xu != p.xu || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+		t.Fatalf("saves %+v, want one with the +1 armour and the Xu paid", all)
+	}
+	z.advance(time.Now())
+	for name, es := range map[string][]*pb.Envelope{"player": append(envs, out.take()...), "viewer": v.take()} {
+		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(p.hp) || cs[0].MaxHp != int32(wantMax) {
+			t.Fatalf("%s HpChanges %v, want %d/%d for 1", name, cs, p.hp, wantMax)
+		}
+	}
+}
+
+// Enhancing a bag item changes no stats; protect below +8 takes no charm.
+func TestEnhanceBagItem(t *testing.T) {
+	z, p, sv := forgeZone(t, forgeInventory(), false)
+	out := p.out.(*fakeOut)
+	z.advance(time.Now())
+	out.take()
+	stats, hp, maxHP := p.stats, p.hp, p.maxHP
+	itemNow(t, z, z.Enhance(1, 9, items.Ref{Slot: 0}, true, 5))
+	envs := out.take()
+	resp := respFor(envs, 9, (*pb.Envelope).GetEnhanceResp)
+	if resp == nil || resp.Attempts != 1 || !resp.Success || resp.Level != 1 || p.inv.Bag[0].Enhance != 1 {
+		t.Fatalf("EnhanceResp %v, want one successful attempt to +1", resp)
+	}
+	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{itemSlot(0, p.inv.Bag[0]),
+		{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 11}}}}
+	if !proto.Equal(resp.Update, want) {
+		t.Fatalf("update %v, want %v", resp.Update, want)
+	}
+	if p.stats != stats || p.hp != hp || p.maxHP != maxHP || p.xu != 100000-100 || !proto.Equal(resp.Stats, z.selfStats(p)) {
+		t.Fatalf("stats %+v hp %d/%d xu %d, want them unchanged but 100 Xu less", p.stats, p.hp, p.maxHP, p.xu)
+	}
+	if all := sv.all(); len(all) != 1 || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+		t.Fatalf("saves %+v, want one with the +1 boots", all)
+	}
+	if cs := hpChangesIn(envs); len(cs) != 0 {
+		t.Fatalf("HpChanges %v, want none", cs)
+	}
+}
+
+// Failures go through the item package: without a charm a failed +8 drops to
+// +6 after one attempt; with charms the attempts go on until the charms run
+// out. The pity reaches the save.
+func TestEnhanceFailures(t *testing.T) {
+	lvl := testItemData.Enhance.Levels[7]
+	cost := int64(lvl.XuPerTier * testItemData.Equipment["eq10_helmet"].Tier)
+	for _, c := range []struct {
+		name            string
+		protect         bool
+		charms          int
+		attempts, level int
+		bag             []*pb.ItemSlot
+	}{
+		{"no charm", false, 0, 1, 6, []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: int32(12 - lvl.Stones)}}}},
+		{"two charms", true, 2, 2, 7, []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: int32(12 - 2*lvl.Stones)}}, {Slot: 10}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			inv := forgeInventory()
+			if c.charms > 0 {
+				inv.Bag[10] = &items.Item{Code: gamedata.CharmProtect, Count: c.charms}
+			}
+			z, p, sv := forgeZone(t, inv, false)
+			z.rng = rand.New(failSource{})
+			out := p.out.(*fakeOut)
+			itemNow(t, z, z.Enhance(1, 9, items.Ref{Slot: 9}, c.protect, 100))
+			resp := respFor(out.take(), 9, (*pb.Envelope).GetEnhanceResp)
+			if resp == nil || int(resp.Attempts) != c.attempts || resp.Success || int(resp.Level) != c.level {
+				t.Fatalf("EnhanceResp %v, want %d failed attempts ending at +%d", resp, c.attempts, c.level)
+			}
+			want := &pb.InventoryUpdate{Bag: append([]*pb.ItemSlot{}, c.bag[0], itemSlot(9, p.inv.Bag[9]))}
+			want.Bag = append(want.Bag, c.bag[1:]...)
+			if !proto.Equal(resp.Update, want) || p.xu != 100000-int64(c.attempts)*cost {
+				t.Fatalf("update %v xu %d, want %v and %d Xu", resp.Update, p.xu, want, 100000-int64(c.attempts)*cost)
+			}
+			all := sv.all()
+			i := slices.IndexFunc(all[0].Items, func(r store.ItemRow) bool { return !r.Equipped && r.Slot == 9 })
+			if len(all) != 1 || i < 0 || all[0].Items[i].Enhance != c.level || len(all[0].Items[i].Pity) != items.MaxEnhance ||
+				all[0].Items[i].Pity[7] != c.attempts*testItemData.Enhance.PityPct {
+				t.Fatalf("saves %+v, want one with the helmet at +%d and its pity", all, c.level)
+			}
+		})
+	}
+}

@@ -264,6 +264,13 @@ func (m *Membership) Discard(seq uint32, bagSlot, count int) bool {
 // reports false if the zone's inbox is full.
 func (m *Membership) SortBag(seq uint32) bool { return m.z.SortBag(m.EntityID, seq) }
 
+// Enhance queues up to times attempts at enhancing the item ref points to,
+// with protection charms when protect is set; the zone answers seq on the
+// outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Enhance(seq uint32, ref items.Ref, protect bool, times int) bool {
+	return m.z.Enhance(m.EntityID, seq, ref, protect, times)
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

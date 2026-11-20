@@ -210,7 +210,7 @@ func (z *Zone) sortBag(c sortBagCmd) {
 }
 
 // itemErrorCode maps an items error to the code the client gets (phase 3a
-// spec 4.7).
+// spec 4.7, phase 3b spec 4.1).
 func itemErrorCode(err error) pb.ErrorCode {
 	switch {
 	case errors.Is(err, items.ErrBagFull):
@@ -223,6 +223,12 @@ func itemErrorCode(err error) pb.ErrorCode {
 		return pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
 	case errors.Is(err, items.ErrBadSlot), errors.Is(err, items.ErrNotEquipment), errors.Is(err, items.ErrBadCount):
 		return pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	case errors.Is(err, items.ErrMaxed):
+		return pb.ErrorCode_ERROR_CODE_ENHANCE_MAXED
+	case errors.Is(err, items.ErrNoMaterials):
+		return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_MATERIALS
+	case errors.Is(err, items.ErrNoXu):
+		return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
 	}
 	return pb.ErrorCode_ERROR_CODE_INTERNAL
 }
