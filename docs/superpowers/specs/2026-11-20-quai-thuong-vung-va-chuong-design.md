@@ -27,6 +27,7 @@ Quái hiện đứng thành 4 bãi, mỗi bãi 12 con trong bán kính 5 ô, nê
 | Chưởng | Luôn trúng, server tính ngay lúc bắn; client vẽ viên chưởng bay 0,3 giây |
 | Đuổi | Bị đánh thì đuổi và đánh cận chiến, không bắn lúc đuổi; bỏ đuổi thì **không hồi máu** |
 | Chống lách (bổ sung sau review) | Lúc đuổi quái chạy 1,2 lần tốc độ người chơi; mục tiêu trốn vào khu an toàn thì quái chờ ở mép 5 giây rồi mới bỏ |
+| Chống lách, vòng 2 (sau review lần hai) | Tầm đánh cận chiến của quái bằng tầm chém thực của người chơi (2,0 ô); ra quá biên vùng phải 2 giây mới được bỏ; đang chờ ở mép mà có người khác vừa đánh thì quay sang người đó; quái nhớ người đã đánh nó trong 10 giây và lao vào đuổi ngay khi thấy, không bắn |
 | Sức chưởng | 50% sát thương cận chiến, mỗi 2 giây, tầm 5 ô, đứng yên khi bắn |
 | Khai báo vùng | Danh sách hình chữ nhật trong JSON của map |
 
@@ -82,7 +83,7 @@ File vẫn sinh từ `docs/balance/monster_stats.py` (sửa script, không sửa
 
 | Trường | Giá trị | Ghi chú |
 |---|---|---|
-| `attack_range` | 1,5 | giữ nguyên |
+| `attack_range` | 2,0 | tăng từ 1,5: bằng tầm chém thực của người chơi (1,5 + độ trễ 0,5), để người chơi không đứng ngoài tầm quái mà vẫn chém được |
 | `attack_sec` | 1,5 | nhịp đánh cận chiến, giữ nguyên |
 | `speed` | 0,8 | hệ số so với tốc độ người chơi, giữ nguyên |
 | `respawn_sec` | 8 | giữ nguyên |
@@ -93,6 +94,8 @@ File vẫn sinh từ `docs/balance/monster_stats.py` (sửa script, không sửa
 | `region_margin` | 3 | mới: mục tiêu ra khỏi vùng quá số ô này thì quái bỏ đuổi |
 | `chase_speed` | 1,2 | mới: hệ số so với tốc độ người chơi khi đang đuổi |
 | `safe_wait_sec` | 5 | mới: thời gian quái chờ ở mép khi mục tiêu ở trong khu an toàn |
+| `margin_grace_sec` | 2 | mới: mục tiêu phải ở ngoài biên vùng liên tục chừng này mới bị bỏ |
+| `grudge_sec` | 10 | mới: quái nhớ người đã đánh nó trong chừng này giây |
 
 Kiểm tra dữ liệu: các trường thời gian và khoảng cách đều dương; `region_margin ≥ 0`. Bảng HP, công, thủ theo cấp giữ nguyên.
 
@@ -126,7 +129,8 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
 - Quái đứng nghỉ ngẫu nhiên 2–5 giây, rồi chọn một ô ngẫu nhiên của vùng cách vị trí hiện tại không quá 6 ô và đi tới đó với nửa tốc độ.
 - Chỉ chọn ô mà đoạn thẳng từ quái tới tâm ô chỉ đi qua ô của vùng (dùng `lineBlocked` trên lưới coi ô ngoài vùng là bị chặn). Nhờ vậy quái không băng qua dải 1 ô quanh khu an toàn ở góc trong của vùng hình chữ L như `r1`, và không lao vào tường giữa vùng.
 - Tới nơi thì nghỉ tiếp. Nếu bị kẹt (hàm đi trả về "stuck") thì nghỉ rồi chọn ô khác.
-- Mỗi tick, quái tìm người chơi hợp lệ để bắn (mục 3.2). Có người thì chuyển sang **Bắn**.
+- **Nhớ thù:** mỗi tick (ở **Lang thang** và **Bắn**), nếu có người đã đánh quái trong `grudge_sec` (10 giây), hợp lệ, trong `detect_range` và không bị tường che, thì quái vào **Đuổi** người gần nhất trong số đó ngay, không bắn và không chờ độ trễ. Điều này áp dụng cả sau khi quái bỏ cuộc vì mục tiêu trốn trong khu an toàn.
+- Không có ai như vậy thì quái tìm người chơi hợp lệ để bắn (mục 3.2). Có người thì chuyển sang **Bắn**.
 
 ### 4.3. Bắn
 
@@ -146,8 +150,8 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
   - Lúc đuổi quái không bắn chưởng.
 - **Bỏ mục tiêu** khi xảy ra bất kỳ điều nào:
   - mục tiêu chết hoặc rời zone;
-  - mục tiêu ở trong khu an toàn liên tục quá `safe_wait_sec` (5 giây). Trong lúc chờ, quái giữ mục tiêu, đi sát tới mép (lưới của quái vẫn chặn ô khu an toàn) và đánh ngay khi mục tiêu bước ra trong tầm, khi đã hết hồi chiêu. Bộ đếm đặt lại mỗi khi mục tiêu ra khỏi khu an toàn. Trong lúc mục tiêu ở khu an toàn thì bỏ qua điều kiện biên vùng bên dưới;
-  - vị trí mục tiêu nằm ngoài mọi hình chữ nhật của vùng sau khi nới mỗi cạnh thêm `region_margin` ô;
+  - mục tiêu ở trong khu an toàn liên tục quá `safe_wait_sec` (5 giây). Trong lúc chờ, quái giữ mục tiêu, đi sát tới mép (lưới của quái vẫn chặn ô khu an toàn) và đánh ngay khi mục tiêu bước ra trong tầm, khi đã hết hồi chiêu. Bộ đếm đặt lại mỗi khi mục tiêu ra khỏi khu an toàn. Trong lúc mục tiêu ở khu an toàn thì bỏ qua điều kiện biên vùng bên dưới. Đang chờ mà có người khác đủ điều kiện dự phòng (đánh nó trong 5 giây, hợp lệ, trong biên) thì quái quay sang người đó ngay;
+  - vị trí mục tiêu nằm ngoài mọi hình chữ nhật của vùng sau khi nới mỗi cạnh thêm `region_margin` ô, liên tục quá `margin_grace_sec` (2 giây); quay lại trong biên thì bộ đếm đặt lại. Trong 2 giây đó quái vẫn đuổi và đánh bình thường;
   - quái đã cách chỗ bắt đầu đuổi hơn `chase_range`.
 - **Sau khi bỏ:** nếu có người khác trong danh sách đánh nó trong 5 giây gần nhất và vẫn hợp lệ, quái chuyển sang người gần nhất trong số đó. Chỗ bắt đầu đuổi đặt lại ở vị trí hiện tại. Không có ai thì quái vào **Về vùng**.
   - "Người khác" không gồm mục tiêu vừa bỏ, kể cả khi người đó vừa đánh nó; nếu không, quái bỏ vì quá `chase_range` sẽ lại chọn đúng người ấy và đuổi mãi.

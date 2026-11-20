@@ -402,6 +402,58 @@ The user chose to fix both (spec §1.3, §2.3, §4.4).
 - [ ] Regenerate the data. Run `make test-db` and the botclient live check.
 - [ ] Commit: `Make chasing monsters faster than players and wait at the safe zone edge`.
 
+### Task 7c: Server — anti-kite, round two (added after the Task 7b review)
+
+The Task 7b review still found zero-hit kills. Experiments are in the scratchpad (`copy7b/internal/zone/exploit*_test.go`).
+
+| Exploit | Cause |
+|---|---|
+| Margin kite | The target passes the margin before the 1.2× chaser closes from 1.82 to 1.5 tiles. |
+| Corner poke | Sliding along the safe edge keeps the monster at 1.59 tiles, beyond its 1.5 reach. The player's effective reach is 1.5 + 0.5 slack. |
+| Wait-out poke | After the 5 s wait the monster wanders or shoots, and the 0.5 s windup loses to the slash. |
+| Bait regression | While the monster waits for A, B slashes it freely. |
+
+The fix implements the user's choice A (spec §1.3 "Chống lách, vòng 2", §2.3, §4.2, §4.4).
+
+**Files:**
+- `docs/balance/monster_stats.py` and `data/monsters.json`
+- `internal/gamedata/gamedata.go`
+- `internal/zone/monster.go`, `internal/zone/combat.go`
+- tests
+- docs: the stale lines listed below
+
+**Data:**
+- `attack_range` changes from 1.5 to 2.0.
+- New field `margin_grace_sec` 2, validated `> 0`.
+- New field `grudge_sec` 10, validated `> 0`.
+
+**Behaviour:**
+- **Margin grace:** give up on the margin only after the target has been beyond the margin continuously for `MarginGraceSec`. Track it like `safeSince`, and reset it when the target is back inside or a chase starts. During the grace period the monster chases and hits normally.
+- **Bait:** while waiting for a target in a safe zone, call the fallback first. If a recent attacker (within 5 s, valid, inside the margin) exists, switch to the nearest one and start the chase with `chaseFrom = m.pos`.
+- **Grudge:** in `wander` and `shoot`, check every tick before looking for a shoot target.
+  - A player qualifies if they hit the monster within `GrudgeSec`, are valid, are within `DetectRange` and have line of sight.
+  - If any player qualifies, start chasing the nearest of them at once, with no windup. If one is in reach and the cooldown is ready, the monster hits on that same tick.
+  - `attackers` must keep entries for at least `GrudgeSec`. Prune entries older than that, not older than 5 s. The 5 s window stays the fallback's own filter.
+- **Unchanged:** `killPlayer` still deletes the player from `attackers`, and `back` does not check the grudge. The grudge applies from `wander` and `shoot` only.
+
+**TODO / tests** (section MONSTER AI, `exploit` style). Each test must fail on HEAD 585ba70:
+- [ ] `TestMarginKiteGetsHit`: slash at 1.9 tiles from about 1.4 tiles outside the region, then run straight out. The player takes a hit.
+- [ ] `TestCornerPokeGetsHit`: the reviewer's corner case at the kumotori-like corner (11,11), where the player leaves by the side next to the one the monster stands on. Over many tries (the reviewer used 2000), zero-hit kills must be 0.
+- [ ] `TestWaitOutPokeGetsHit`: hide past the 5 s wait, then poke. The grudge makes the monster chase and hit within a few cycles.
+- [ ] `TestBaitDoesNotProtectSecondPlayer`: A slashes and hides, then B slashes. B is targeted and hit.
+- [ ] `TestGrudgeExpires`: after `GrudgeSec` with no hit, the monster shoots that player again instead of chasing.
+- [ ] gamedata: the new fields must be positive.
+- [ ] Fix the weakened tests:
+  - `TestMonsterNeedsLineOfSight`: start the monster further back so it cannot hit on tick 1, and restore the exact `hitAt` assertion.
+  - `TestAttackHitsAndAggro`: set up the distance so the original exact assertion holds again, or assert the hit back explicitly. Fix its comment.
+- [ ] Wall-corner stuck case at about 1.6 tiles: check whether the 2.0 reach closes it. If not, note it in the report.
+- [ ] Re-run the reviewer's exploit files against the new code, adapted as needed, and report the zero-hit counts.
+- [ ] Docs:
+  - `docs/game-design.md:708` (§5.8): no heal, and the EXP data stays.
+  - Phase 1 spec §3.4 item 4 (~line 150), line 282 (AOI vs `aggro_range`) and the test list at lines 362–367: mark them "Đã thay bằng spec 2026-11-20", or correct them.
+- [ ] Run `make test-db` and the botclient live check.
+- [ ] Commit: `Close the remaining kiting gaps: monster reach, margin grace, grudge and bait`.
+
 ### Task 8: Server — docs
 
 **Files:**
