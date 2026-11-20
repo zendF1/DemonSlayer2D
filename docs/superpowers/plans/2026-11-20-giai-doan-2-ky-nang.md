@@ -369,6 +369,7 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 **TODO:**
 - [ ] game-design §2.2: replace the EXP formula text and table with the new curve (`kills(L) × exp(L)`), using numbers from the regenerated CSV; hours unchanged.
 - [ ] §5.8: EXP per hit = damage × EXP gốc / HP, EXP gốc = HP × r(L); add the ±10 level window. Update the 56 HP / 10 EXP example with the new numbers.
+- [ ] §2.6: the "Tầm đánh / vùng ảnh hưởng" column of the five class tables follows the unified ranges (single 5 ô; multi-target 4/5/6 ô by skill level, circle-self radii unchanged); replace the rule "Cộng điểm tăng hệ số và số mục tiêu theo bảng, không tăng tầm đánh hoặc kích thước vùng" with one saying points also raise the multi-target range by the 1–3/4–6/7–10 brackets; note the anti-kite reason.
 - [ ] §5.12: EXP row becomes `HP × r(L)` for normal monsters (elite and boss multipliers stay).
 - [ ] CLAUDE.md invariants: `skills.json` from `skill_stats.py`, `exp.json` from `exp_table.py`, `monster_stats.py` and `exp_table.py` run together when monster HP changes.
 - [ ] Phase 1 spec: a "Đã thay bằng spec Giai đoạn 2" note where it defines EXP gốc `10 × cấp` and `ExpToNext`.
