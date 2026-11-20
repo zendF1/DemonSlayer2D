@@ -25,6 +25,8 @@ Quái hiện đứng thành 4 bãi, mỗi bãi 12 con trong bán kính 5 ô, nê
 | Rải quái | Chia map thành vùng, mỗi vùng một loại quái và một khoảng cấp; quái rải đều trong vùng |
 | Phạm vi đi lại, hồi sinh | Quái chỉ đi trong vùng; chết thì hồi sinh tại ổ quỷ cố định của vùng rồi lang thang ra |
 | Chưởng | Luôn trúng, server tính ngay lúc bắn; client vẽ viên chưởng bay 0,3 giây |
+
+> Đã thay bằng [spec ba mốc](2026-11-20-moc-don-danh-design.md): server chốt chưởng lúc bắn nhưng chỉ trừ máu và gửi `Hit` khi chưởng tới nơi (bay theo `shot_speed`); client không còn vẽ cố định 0,3 giây.
 | Đuổi | Bị đánh thì đuổi và đánh cận chiến, không bắn lúc đuổi; bỏ đuổi thì **không hồi máu** |
 | Chống lách (bổ sung sau review) | Lúc đuổi quái chạy 1,2 lần tốc độ người chơi; mục tiêu trốn vào khu an toàn thì quái chờ ở mép 5 giây rồi mới bỏ |
 | Chống lách, vòng 2 (sau review lần hai) | Tầm đánh cận chiến của quái bằng tầm chém thực của người chơi (2,0 ô); ra quá biên vùng phải 2 giây mới được bỏ; đang chờ ở mép mà có người khác vừa đánh thì quay sang người đó; quái nhớ người đã đánh nó trong 10 giây và lao vào đuổi ngay khi thấy, không bắn |
@@ -199,6 +201,8 @@ Giữ như Giai đoạn 1. Đòn của người chơi được giải quyết tr
 ## 7. Client
 
 - `core/entity_table.gd`: `Hit` có `ranged` sinh hiệu ứng `projectile` (từ người bắn tới người trúng, kèm sát thương) thay cho hiệu ứng chém.
+> Đã thay bằng [spec ba mốc](2026-11-20-moc-don-danh-design.md) mục 5: quả cầu chưởng bay theo thời điểm trúng trong `Cast`, không cố định 0,3 giây, và `Hit` không còn sinh hiệu ứng bay.
+
 - `ui/`: thêm hiệu ứng quả cầu chưởng bay 0,3 giây từ quái tới mục tiêu. Tới nơi mới hiện số sát thương. Mục tiêu đã mất view thì bỏ hiệu ứng. Thanh HP vẫn cập nhật ngay theo `hp_changes`.
 - `PROTOCOL_VERSION = 3`; cập nhật submodule `server/` và chạy đồng bộ.
 - Smoke test: đọc `regions` thay cho `camps`, đi tới ổ quỷ gần nhất rồi đánh.

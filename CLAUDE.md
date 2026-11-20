@@ -32,6 +32,7 @@ Config comes only from environment variables (see `README.md`). The Makefile als
 ## Invariants (not visible in the graph)
 
 - A new login must wait until the previous session has finished saving (`world.Takeover`, serialised per account).
+- Zone tick order is fixed: `drain → runImpacts → resolveAttacks → movePlayers → thinkMonsters → runSpawnTimers → runPlayerTimers → syncView`. Attacks are decided at press and damage lands at its impact tick in `runImpacts`.
 - Zone state is touched only by that zone's goroutine. Zones never write to the DB; they pass saves to `saver`.
 - On shutdown, the saver flushes under its own timeout, even when the gateway step has timed out.
 - Rate limits use `Limiter.Take` and `Refund`; never split checking and recording into separate calls.

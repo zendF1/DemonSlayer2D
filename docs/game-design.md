@@ -143,12 +143,16 @@ Loại sát thương vật lý/phép và phạm vi đơn/nhiều mục tiêu là
 
 ### 2.4. Server xử lý sát thương, client hiển thị animation
 
-- Mỗi lệnh đánh hoặc dùng kỹ năng được server kiểm tra điều kiện, tính và áp dụng kết quả; không chờ animation kết thúc.
+Mỗi đòn đánh (kỹ năng, chém mặc định, đòn cận chiến và chưởng của quái) đi qua ba mốc: **chuẩn bị, bay, trúng**. Chi tiết ở [spec ba mốc](superpowers/specs/2026-11-20-moc-don-danh-design.md).
+
+- **Chốt lúc bấm:** server kiểm tra điều kiện, trừ MP, bắt đầu hồi chiêu, chốt danh sách mục tiêu và tính sát thương từng mục tiêu ngay tick nhận lệnh, rồi gửi `Cast` kèm thời gian chuẩn bị và thời điểm trúng.
+- **Áp dụng lúc trúng:** sát thương chỉ trừ vào máu và `Hit` chỉ được gửi đúng tick đòn trúng, sau thời gian chuẩn bị cộng thời gian bay. Không đòn nào trúng ngay tick bấm.
+- Thời gian chuẩn bị và tốc độ đạn nằm trong dữ liệu sinh bằng script (`data/skills.json`, `data/monsters.json`), không viết cứng trong code.
+- Animation không khóa việc nhận lệnh tiếp theo. Server vẫn kiểm tra MP, hồi chiêu và điều kiện thi triển; nhân vật vẫn đi lại được trong lúc chuẩn bị.
 - Mỗi lần xử lý sử dụng một kỹ năng; nhiều lệnh bấm không gộp thành một đòn combo.
-- Nếu đang phát animation kỹ năng 1 mà người chơi dùng kỹ năng 2 hợp lệ, client ngắt animation 1 để chuyển sang animation 2.
-- Ngắt animation không hủy hay hoàn lại sát thương đã được server xử lý.
+- Nếu đang phát animation kỹ năng 1 mà người chơi dùng kỹ năng 2 hợp lệ, client ngắt animation 1 để chuyển sang animation 2. Ngắt animation không hủy hay hoàn lại đòn đã được server chốt; đòn đó vẫn trúng đúng giờ.
+- **Không né đòn:** đòn đã ra thì trúng, dù mục tiêu chạy đi đâu. Mục tiêu đã chết hoặc đã rời zone trước tick trúng thì đòn bị bỏ, không có `Hit`.
 - Mỗi kỹ năng tính sát thương độc lập. Không thưởng sát thương do bấm đồng thời hoặc dùng liên tiếp.
-- Animation không khóa việc nhận lệnh tiếp theo. Server vẫn kiểm tra MP, hồi chiêu và điều kiện thi triển.
 
 ### 2.5. Chọn mục tiêu
 
@@ -725,7 +729,7 @@ Khi chết, người chơi chọn một trong hai cách:
 - Đây là chủ đích: ai trong tổ đội hạ quái thì các thành viên còn lại đều nhận 5%. Nếu cả năm người cùng tự đánh quái với tốc độ như nhau, mỗi người nhận thêm khoảng **20%** so với EXP tự đánh (4 đồng đội × 5%).
 - Điều kiện nhận EXP chia sẻ: **cùng map, cùng khu** với người hạ quái; không giới hạn khoảng cách và không yêu cầu đồng đội phải trực tiếp gây sát thương.
 - **Không chia sẻ tiến độ nhiệm vụ** cho đồng đội. Nhận 5% EXP không đồng nghĩa được cộng số quái hoặc mục tiêu nhiệm vụ.
-- **Đồ rơi thuộc người kết liễu**, kể cả khi đang ở tổ đội. Không chia quyền nhặt theo tổng sát thương hoặc theo người nhận EXP chia sẻ.
+- **Đồ rơi thuộc người kết liễu**, kể cả khi đang ở tổ đội. Người kết liễu là người có đòn **trúng trước** làm HP về 0 (tính theo tick trúng, không theo tick bấm); đòn trúng sau lên con quái đã chết bị bỏ. Không chia quyền nhặt theo tổng sát thương hoặc theo người nhận EXP chia sẻ.
 - Quyền nhặt đồ tách biệt với điểm cá nhân/bang trong sự kiện và phần thưởng trao qua bảng tổng kết.
 ### 5.9. Chỉ số quái — bộ số bản đầu
 
