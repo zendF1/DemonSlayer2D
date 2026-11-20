@@ -20,7 +20,8 @@ Giai đoạn này cũng đổi luật EXP: quái cấp càng cao cho càng nhi�
 | Sách kỹ năng | Tạm bỏ. Học chỉ cần đủ cấp nhân vật và 1 điểm kỹ năng | Sách đến từ nhiệm vụ (Giai đoạn 6) và là vật phẩm (Giai đoạn 3); thêm điều kiện khi có sách |
 | Trượt và chí mạng | Vẫn luôn trúng, không chí mạng. Lặng, Nhiệt Giới Lôi và phần chính xác của Tình Lam Phong Thụ chỉ tăng chỉ số hiển thị | Công thức trượt/chí mạng chưa chốt trong game-design; bật lên phải cân bằng lại quái và PvP |
 | Chiêu lao tới (Bất Tri Hỏa, Phích Lịch Nhất Thiểm) | Server dời nhân vật thật tới cạnh mục tiêu; đường lao bị chắn thì không dùng được | Đúng chữ "lao/lướt" và yêu cầu kiểm tra vị trí, vật cản ở game-design mục 2.6 |
-| Thanh kỹ năng | Bốn ô cố định theo cấp học, phím 1–4; học và nâng ở bảng Kỹ năng (phím K) | Mỗi class đúng bốn chiêu chủ động, không cần lưu cách xếp |
+| Thanh kỹ năng | Bốn ô cố định theo cấp học, phím 1–4 | Mỗi class đúng bốn chiêu chủ động, không cần lưu cách xếp |
+| Học và nâng chiêu | Tab Kỹ năng trong cửa sổ nhân vật (nút "Thông tin", tab Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang) | Người dùng yêu cầu; tab Trang bị và Hành trang để trống tới Giai đoạn 3 |
 | Nguồn định nghĩa chiêu | `docs/balance/skill_stats.py` sinh `data/skills.json`; server và client cùng đọc | Một nguồn số liệu, như `monsters.json` |
 | Mục tiêu của chiêu | Chỉ quái | PK thuộc Giai đoạn 5 |
 | Hồi MP | Như Giai đoạn 1: điểm nghỉ và lên cấp | Bình thuốc thuộc Giai đoạn 4 |
@@ -293,9 +294,14 @@ Gateway thêm giới hạn tần suất cho `CastReq` và `LearnSkillReq` bằng
 ### 6.2. Giao diện (`ui/`)
 
 - **`ui/skill_bar.gd`**: bốn ô quanh nút chém, phím 1–4 trên PC, bấm trên di động. Ô hiện tên ngắn và cấp; chưa học thì xám; đang hồi thì có vòng quét và số giây; thiếu MP thì tối màu.
-- **`ui/skill_panel.gd`**: phím K hoặc nút trên HUD. Năm chiêu của class: thức, tên, cấp n/10, cấp nhân vật cần, mô tả vùng; so sánh cấp hiện tại với cấp kế (hệ số, MP, hồi chiêu, số mục tiêu, hoặc hiệu ứng bị động). Nút "Học"/"Nâng" khóa thì ghi lý do. Đầu bảng hiện điểm kỹ năng còn lại.
+- **Cửa sổ nhân vật `ui/char_window.gd`** (yêu cầu của người dùng): nút "Chỉ số" trên HUD đổi thành **"Thông tin"**; bấm vào mở một cửa sổ có năm tab theo thứ tự **Trang bị, Thông tin, Tiềm năng, Kỹ năng, Hành trang**. Phím `stats` hiện có mở cửa sổ ở tab Thông tin, phím K mở ở tab Kỹ năng; bấm lại phím của tab đang mở hoặc nút đóng thì đóng cửa sổ. Cửa sổ nhớ tab mở gần nhất trong phiên.
+  - **Thông tin** (`ui/info_tab.gd`): tên, class, cấp, EXP, các chỉ số dẫn xuất và ghi chú chính xác/né tránh/chí mạng chưa có tác dụng (phần này chuyển từ bảng chỉ số cũ).
+  - **Tiềm năng** (`ui/potential_tab.gd`): bốn thuộc tính với − và +, điểm còn lại, Xác nhận và Hủy, giữ nguyên hành vi của bảng chỉ số Giai đoạn 1.
+  - **Kỹ năng** (`ui/skill_tab.gd`): năm chiêu của class: thức, tên, cấp n/10, cấp nhân vật cần, mô tả vùng; so sánh cấp hiện tại với cấp kế (hệ số, MP, hồi chiêu, số mục tiêu, hoặc hiệu ứng bị động). Nút "Học"/"Nâng" khóa thì ghi lý do. Đầu tab hiện điểm kỹ năng còn lại.
+  - **Trang bị**, **Hành trang**: có tab nhưng nội dung chỉ ghi "Có ở bản sau" (Giai đoạn 3).
+  - `ui/stats_panel.gd` được tách thành hai tab Thông tin và Tiềm năng rồi bỏ.
 - **`ui/skill_effect.gd`**: hiệu ứng tạm bằng `_draw`, khoảng 0,35 giây, đúng kích thước vùng server: quạt, vòng tròn, dải thẳng, chớp sáng tại mục tiêu (`single`), vệt lướt (`dash`). Màu theo class: Viêm đỏ cam, Thủy xanh nước, Minh vàng, Nham nâu xám, Phong xanh lá.
-- **HUD**: chấm báo trên nút Kỹ năng khi còn điểm kỹ năng; thanh MP giảm khi dùng chiêu.
+- **HUD**: chấm báo trên nút Thông tin khi còn điểm tiềm năng hoặc điểm kỹ năng, và chấm trên tên tab Tiềm năng/Kỹ năng tương ứng; thanh MP giảm khi dùng chiêu.
 
 ### 6.3. Smoke
 
@@ -328,5 +334,5 @@ Gateway thêm giới hạn tần suất cho `CastReq` và `LearnSkillReq` bằng
 
 - `docs/game-design.md`: mục 2.2 (công thức và bảng EXP lên cấp mới), 5.8 (EXP theo r(L), cửa sổ ±10 cấp), 5.12 (cột EXP là HP × r(L)).
 - `CLAUDE.md`: thêm bất biến `skills.json` sinh bằng `skill_stats.py`, `exp.json` bằng `exp_table.py`; không sửa tay.
-- README hai repo: `devchar`, phím 1–4 và K.
+- README hai repo: `devchar`, phím 1–4, K và nút Thông tin.
 - Spec Giai đoạn 1: ghi chú "đã thay bằng spec Giai đoạn 2" ở chỗ nói EXP gốc `10 × cấp` và `ExpToNext`.
