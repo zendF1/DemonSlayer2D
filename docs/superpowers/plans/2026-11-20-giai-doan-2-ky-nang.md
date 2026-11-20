@@ -404,11 +404,12 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 - `predictor.gd`: `func teleport(server_pos: Vector2, ack: int)` — position becomes `server_pos`, history keeps only entries with seq > ack, rebased so later reconciles match.
 - `entity_table.gd`: `apply_tick` returns a `cast` effect per `Cast` (`{"type": "cast", "caster", "skill_id", "target", "dir"}`); a `Hit` with `skill_id` returns the damage-number effect without the slash.
 
-**Behaviour (§6.1):** targeted shapes walk until within `cast_range − 0.3` like `attack_loop`'s approach, then send once; untargeted shapes send at once with the locked target (if any) and `facing`; a manual move, a new target or another press cancels; OUT_OF_RANGE switches to walking straight at the target and retrying, as `attack_loop` does; local cooldown and MP checks block sending.
+**Behaviour (§6.1):** every skill has a reach (`cast_range` for single/circle_target, `radius` for circle_self, `reach` for cone, `length` for line). With a locked target beyond the reach, walk (like `attack_loop`'s approach) until within reach − 0.3, then send once — for every shape. Targeted shapes need a locked target. Untargeted shapes without a locked target send at once with `facing`; a manual move, a new target or another press cancels; OUT_OF_RANGE switches to walking straight at the target and retrying, as `attack_loop` does; local cooldown and MP checks block sending.
 
 **TODO / tests** (`# ____TEST CAST LOOP____`, `# ____TEST DASH SNAP____`, `# ____TEST CAST EVENTS____`):
 - [ ] Single skill, target 6 tiles away, range 4: `step` walks towards the target and sends only when within range.
 - [ ] Cone with no target sends at once with `facing`.
+- [ ] Circle-self with a locked target 5 tiles away (radius 2.5) walks first and sends once the target is within the radius − 0.3.
 - [ ] Targeted skill without a target → `"no_target"`, nothing sent; on cooldown → `"cooldown"`; low MP → `"mp"`.
 - [ ] A manual move cancels a pending approach.
 - [ ] `teleport` jumps 3 tiles; a later reconcile at the next ack causes no further correction.

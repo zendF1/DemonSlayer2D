@@ -282,8 +282,10 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
 
 - **`core/skill_book.gd`**: nạp `skills.json`; giữ cấp chiêu đã học (từ `EnterWorldResp`, `LearnSkillResp`) và điểm kỹ năng (từ `SelfStats`). Trả về chiêu theo class và ô; MP, hồi chiêu, hệ số, số mục tiêu, hiệu ứng bị động ở cấp n; `learn_block(skill, char_level)` trả lý do không học được (`""`, `"maxed"`, `"level"`, `"points"`). Giữ thời điểm hết hồi chiêu của từng chiêu, đặt khi nhận `CastResp`.
 - **`core/cast_loop.gd`**: một lần bấm ô = một lần dùng chiêu.
-  - Chiêu `single`/`circle_target`/`dash` cần mục tiêu đang khóa; không có thì báo "Chưa chọn mục tiêu" và không gửi. Ngoài `cast_range` thì tự chạy lại gần (như `attack_loop`), tới tầm thì gửi.
-  - `cone`/`line`/`circle_self` gửi ngay, kèm mục tiêu đang khóa (nếu có) và hướng nhân vật đang nhìn.
+  - Mỗi chiêu có một **tầm**: `cast_range` với `single`/`circle_target`, `radius` với `circle_self`, `reach` với `cone`, `length` với `line`. Không chiêu nào tự lướt tới từng con quái; chỉ chiêu `dash` dời nhân vật, và chỉ tới một mục tiêu (mục 4.5).
+  - Chiêu `single`/`circle_target`/`dash` cần mục tiêu đang khóa; không có thì báo "Chưa chọn mục tiêu" và không gửi.
+  - Có mục tiêu đang khóa mà nó ở xa hơn tầm của chiêu thì tự chạy lại gần (như `attack_loop`), vào tầm thì gửi; áp dụng cho mọi shape.
+  - `cone`/`line`/`circle_self` không khóa mục tiêu thì gửi ngay tại chỗ, theo hướng nhân vật đang nhìn.
   - Trước khi gửi, tự kiểm tra hồi chiêu và MP; thiếu thì báo "Chưa hồi chiêu" hoặc "Không đủ MP" và không gửi.
   - Đang chạy lại gần mà người chơi tự di chuyển, đổi mục tiêu hoặc bấm ô khác thì hủy.
   - `OUT_OF_RANGE` thì chạy thẳng tới mục tiêu và thử lại, như `attack_loop`.
