@@ -111,6 +111,12 @@ def main():
     for level, entry, hp_ref, hit in rows:
         assert 0.039 <= hit / hp_ref <= 0.041, (level, hit, hp_ref)
     assert monster(10)[0]["attack"] == 95, monster(10)
+    # Pinned values: a wrong rule that gets regenerated must not slip through.
+    pinned = {1: (56, 30, 8), 2: (104, 39, 16), 3: (160, 45, 24), 4: (212, 52, 32), 5: (260, 60, 40)}
+    for level, want in pinned.items():
+        entry = levels[level - 1]
+        assert (entry["hp"], entry["attack"], entry["defense"]) == want, (level, entry)
+    assert (monster(10)[0]["hp"], monster(10)[0]["exp"]) == (658, 125), monster(10)
     if args.print_json:
         sys.stdout.write(to_json(levels))
         return

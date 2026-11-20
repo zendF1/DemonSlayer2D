@@ -74,6 +74,7 @@ def main():
     parser.add_argument("--write-csv", action="store_true")
     args = parser.parse_args()
     table = list(rows())
+    assert exp_to_next(1) == 80 and exp_to_next(10) == 80000, (exp_to_next(1), exp_to_next(10))
     assert all(a[1] < b[1] for a, b in zip(table, table[1:]))
     hours_to_10 = table[RAMP_END - 2][4]
     assert 2.8 <= hours_to_10 <= 3.2, hours_to_10
