@@ -1,6 +1,6 @@
 # Ba mốc của một đòn đánh: chuẩn bị, bay, trúng
 
-Ngày: 2026-11-20. Trạng thái: Đang triển khai: server xong (Task 1–4), client chờ.
+Ngày: 2026-11-20. Trạng thái: Đã triển khai (server 689b046, client 5d275f7), chờ người dùng chơi thử.
 
 Spec này sửa cách server và client (`../DemonSlayer2DGame`) xử lý thời gian của mọi đòn đánh. Nó xây trên [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md), [spec quái thường theo vùng](2026-11-20-quai-thuong-vung-va-chuong-design.md) và [spec Giai đoạn 1](2026-11-19-giai-doan-1-chien-dau-pve-design.md); phần nào không nhắc tới thì giữ nguyên như các spec đó.
 
