@@ -291,6 +291,20 @@ func (m *Membership) Unsocket(seq uint32, ref items.Ref, hole int) bool {
 	return m.z.Unsocket(m.EntityID, seq, ref, hole)
 }
 
+// Refine queues refining the sub-lines of the item ref points to, keeping
+// the locked ones; the zone answers seq on the outbox. It reports false if
+// the zone's inbox is full.
+func (m *Membership) Refine(seq uint32, ref items.Ref, locked []int) bool {
+	return m.z.Refine(m.EntityID, seq, ref, locked)
+}
+
+// RefineChoose queues taking (accept) or declining the waiting refine
+// result; the zone answers seq on the outbox. It reports false if the zone's
+// inbox is full.
+func (m *Membership) RefineChoose(seq uint32, accept bool) bool {
+	return m.z.RefineChoose(m.EntityID, seq, accept)
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

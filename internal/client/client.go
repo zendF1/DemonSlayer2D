@@ -392,6 +392,38 @@ func (c *Client) Unsocket(ctx context.Context, ref *pb.ItemRef, hole int) (*pb.U
 	return r, nil
 }
 
+// Refine refines the sub-lines of the item ref points to, keeping the lines
+// at the locked indices; the result waits for RefineChoose.
+func (c *Client) Refine(ctx context.Context, ref *pb.ItemRef, locked ...int) (*pb.RefineResp, error) {
+	ls := make([]int32, len(locked))
+	for i, l := range locked {
+		ls[i] = int32(l)
+	}
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_RefineReq{RefineReq: &pb.RefineReq{Item: ref, Locked: ls}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetRefineResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to RefineReq: %v", resp)
+	}
+	return r, nil
+}
+
+// RefineChoose takes (accept) or declines the waiting refine result.
+func (c *Client) RefineChoose(ctx context.Context, accept bool) (*pb.RefineChooseResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_RefineChooseReq{RefineChooseReq: &pb.RefineChooseReq{
+		Accept: accept}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetRefineChooseResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to RefineChooseReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Move sends a direction (no response). It returns the input seq used.
 func (c *Client) Move(ctx context.Context, dx, dy float32) (uint32, error) {
 	seq := c.inputSeq.Add(1)

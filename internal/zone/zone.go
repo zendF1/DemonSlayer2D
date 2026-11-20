@@ -102,6 +102,9 @@ type player struct {
 	// xu is the wallet; inv is never nil.
 	xu  int64
 	inv *items.Inventory
+	// refine is the paid refine result waiting for a choice, or nil; it is
+	// dropped by the other item commands (dropsRefine) and with the player.
+	refine *pendingRefine
 	// regenHPBP (1/10000 of max HP) and regenMP are the per-second regen of
 	// the worn enhancement milestones, set by recompute; hpCarry holds the
 	// fraction of HP, in 1/10000, not yet regenerated (phase 3b spec 4.2).
@@ -431,6 +434,11 @@ func (z *Zone) drain() {
 }
 
 func (z *Zone) handle(c any) {
+	if id, ok := dropsRefine(c); ok {
+		if p := z.players[id]; p != nil {
+			p.refine = nil
+		}
+	}
 	switch c := c.(type) {
 	case joinCmd:
 		c.reply <- z.join(c.info, c.out)
@@ -466,6 +474,10 @@ func (z *Zone) handle(c any) {
 		z.socket(c)
 	case unsocketCmd:
 		z.unsocket(c)
+	case refineCmd:
+		z.refine(c)
+	case refineChooseCmd:
+		z.refineChoose(c)
 	}
 }
 

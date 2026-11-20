@@ -730,6 +730,8 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 		{"punch", func(m *Membership) bool { return m.Punch(5, items.Ref{Slot: 0}) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
 		{"socket", func(m *Membership) bool { return m.Socket(5, items.Ref{Slot: 0}, 0, 1) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
 		{"unsocket", func(m *Membership) bool { return m.Unsocket(5, items.Ref{Slot: 0}, 0) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
+		{"refine", func(m *Membership) bool { return m.Refine(5, items.Ref{Slot: 0}, []int{0}) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
+		{"refine choose", func(m *Membership) bool { return m.RefineChoose(5, true) }, pb.ErrorCode_ERROR_CODE_NO_PENDING_REFINE},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := newTestWorld(t, 10)

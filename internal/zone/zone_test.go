@@ -2194,9 +2194,10 @@ func TestGlowOnLevelUp(t *testing.T) {
 // Vàng boots in bag slot 0, 12 stones in slot 3, a +15 helmet in slot 8 and a
 // +7 one in slot 9) with two holes in the worn armour (an empty one, then an
 // HP gem), three empty holes in the +15 helmet, three level-1 HP gems in bag
-// slot 4 and a level-2 attack gem in slot 5.
+// slot 4, a level-2 attack gem in slot 5 and two refine stones in slot 6.
 func socketInventory() *items.Inventory {
 	inv := forgeInventory()
+	inv.Bag[6] = &items.Item{Code: gamedata.StoneRefine, Count: 2}
 	inv.Worn[testItemData.Equipment["eq10_armor"].SlotIndex].Gems = []string{"", "gem_hp_1"}
 	inv.Bag[8].Gems = []string{"", "", ""}
 	inv.Bag[4] = &items.Item{Code: "gem_hp_1", Count: 3}
@@ -2250,12 +2251,14 @@ func runForgeErrors(t *testing.T, cases []forgeCase) {
 }
 
 const (
-	codeDead     = pb.ErrorCode_ERROR_CODE_DEAD
-	codeNotSafe  = pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE
-	codeBad      = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
-	codeNotFound = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
-	codeNoXu     = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
-	codeBagFull  = pb.ErrorCode_ERROR_CODE_BAG_FULL
+	codeDead      = pb.ErrorCode_ERROR_CODE_DEAD
+	codeNotSafe   = pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE
+	codeBad       = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	codeNotFound  = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+	codeNoXu      = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+	codeBagFull   = pb.ErrorCode_ERROR_CODE_BAG_FULL
+	codeNoRefine  = pb.ErrorCode_ERROR_CODE_NO_PENDING_REFINE
+	codeMaterials = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_MATERIALS
 )
 
 func bagRef(slot int) items.Ref  { return items.Ref{Slot: slot} }
@@ -2436,5 +2439,229 @@ func TestResonanceInZone(t *testing.T) {
 	}
 	if es := out.take(); errorFor(es, 9) != nil || errorFor(es, 10) != nil || errorFor(es, 11) != nil {
 		t.Fatalf("errors in %v", es)
+	}
+}
+
+// ______________________TEST REFINE ZONE_____________________
+
+// Each refine check of spec 4.5 in order, on socketInventory (the Vàng boots
+// in bag slot 0 have three lines; tier 10 costs 200 Xu and a stone, plus as
+// much per lock).
+func TestRefineErrors(t *testing.T) {
+	broke := func(p *player) { p.xu = 0 }
+	refine := func(r items.Ref, locked ...int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.Refine(1, 9, r, locked) }
+	}
+	runForgeErrors(t, []forgeCase{
+		{"dead outside the safe zone, bad slot", true, true, broke, refine(bagRef(60)), codeDead},
+		{"outside the safe zone, bad slot", false, true, broke, refine(bagRef(60)), codeNotSafe},
+		{"bag slot 60", false, false, broke, refine(bagRef(60)), codeBad},
+		{"empty bag slot", false, false, broke, refine(bagRef(7)), codeNotFound},
+		{"stones", false, false, broke, refine(bagRef(3)), codeBad},
+		{"white helmet", false, false, broke, refine(bagRef(9), 5), pb.ErrorCode_ERROR_CODE_NOT_REFINABLE},
+		{"lock 3 of 3 lines", false, false, broke, refine(bagRef(0), 3), codeBad},
+		{"lock repeated", false, false, broke, refine(bagRef(0), 1, 1), codeBad},
+		{"every line locked", false, false, broke, refine(bagRef(0), 0, 1, 2), codeBad},
+		{"3 stones for 2 locks", false, false, broke, refine(bagRef(0), 0, 1), codeMaterials},
+		{"1 Xu short for 1 lock", false, false, func(p *player) { p.xu = 399 }, refine(bagRef(0), 2), codeNoXu},
+	})
+}
+
+// refineNow refines the boots in bag slot 0 of socketInventory with seq and
+// locked and returns the reply; the zone's rng is seeded so the new lines are
+// the same every run.
+func refineNow(t *testing.T, z *Zone, seq uint32, locked ...int) *pb.RefineResp {
+	t.Helper()
+	out := z.players[1].out.(*fakeOut)
+	itemNow(t, z, z.Refine(1, seq, bagRef(0), locked))
+	envs := out.take()
+	r := respFor(envs, seq, (*pb.Envelope).GetRefineResp)
+	if r == nil {
+		t.Fatalf("no RefineResp to %d in %v", seq, envs)
+	}
+	return r
+}
+
+// chooseNow sends RefineChooseReq with seq and returns the reply and the
+// error, one of them nil.
+func chooseNow(t *testing.T, z *Zone, seq uint32, accept bool) (*pb.RefineChooseResp, *pb.ErrorResp) {
+	t.Helper()
+	out := z.players[1].out.(*fakeOut)
+	itemNow(t, z, z.RefineChoose(1, seq, accept))
+	envs := out.take()
+	return respFor(envs, seq, (*pb.Envelope).GetRefineChooseResp), errorFor(envs, seq)
+}
+
+func pbToLines(ls []*pb.ItemLine) []items.Line {
+	out := make([]items.Line, len(ls))
+	for i, l := range ls {
+		out[i] = items.Line{Stat: l.Stat, Value: int(l.Value)}
+	}
+	return out
+}
+
+// The roll pays and saves at once but leaves the item; taking the result
+// gives the boots the new lines, keeping the old lines keeps them, and both
+// clear the result, so a second choice gets NO_PENDING_REFINE.
+func TestRefineChoose(t *testing.T) {
+	for _, accept := range []bool{true, false} {
+		t.Run(fmt.Sprintf("accept %v", accept), func(t *testing.T) {
+			z, p, sv := forgeZone(t, socketInventory(), false)
+			z.rng = rand.New(rand.NewPCG(1, 2))
+			old := slices.Clone(p.inv.Bag[0].Lines)
+			resp := refineNow(t, z, 9, 1)
+			lines := pbToLines(resp.Lines)
+			if len(lines) != 3 || lines[1] != old[1] || slices.Equal(lines, old) || !slices.Equal(p.inv.Bag[0].Lines, old) {
+				t.Fatalf("lines %v from %v, want line 1 kept, others new and the boots untouched", lines, old)
+			}
+			// One lock on tier 10: 2 stones and (20 + 20) x 10 Xu, paid at the roll.
+			want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 6}}}
+			if p.xu != 100000-400 || p.inv.Bag[6] != nil || !proto.Equal(resp.Update, want) || resp.Stats.Xu != p.xu {
+				t.Fatalf("xu %d update %v, want 400 Xu and both stones gone", p.xu, resp.Update)
+			}
+			if all := sv.all(); len(all) != 1 || all[0].Xu != p.xu || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+				t.Fatalf("saves %+v, want one at the roll", all)
+			}
+
+			r, er := chooseNow(t, z, 10, accept)
+			kept := old
+			if accept {
+				kept = lines
+			}
+			if er != nil || r == nil || !slices.Equal(p.inv.Bag[0].Lines, kept) || p.refine != nil {
+				t.Fatalf("choose %v %v lines %v, want %v and no pending result", r, er, p.inv.Bag[0].Lines, kept)
+			}
+			if !proto.Equal(r.Update, &pb.InventoryUpdate{Bag: []*pb.ItemSlot{itemSlot(0, p.inv.Bag[0])}}) ||
+				p.xu != 100000-400 || !proto.Equal(r.Stats, z.selfStats(p)) {
+				t.Fatalf("update %v xu %d, want the boots and nothing refunded", r.Update, p.xu)
+			}
+			if all := sv.all(); len(all) != 2 || !reflect.DeepEqual(all[1].Items, itemRows(p.inv)) {
+				t.Fatalf("saves %+v, want a second one at the choice", all)
+			}
+			if _, er := chooseNow(t, z, 11, true); er == nil || er.Code != codeNoRefine {
+				t.Fatalf("second choice: %v, want NO_PENDING_REFINE", er)
+			}
+		})
+	}
+}
+
+// Without a refine there is nothing to choose; the error costs nothing.
+func TestRefineChooseWithoutRefine(t *testing.T) {
+	z, p, sv := forgeZone(t, socketInventory(), false)
+	before := p.inv.Clone()
+	if r, er := chooseNow(t, z, 9, true); r != nil || er == nil || er.Code != codeNoRefine {
+		t.Fatalf("choose %v %v, want NO_PENDING_REFINE", r, er)
+	}
+	if !reflect.DeepEqual(p.inv, before) || len(sv.all()) != 0 {
+		t.Fatal("a rejected choice changed the inventory or saved")
+	}
+}
+
+// Taking the result of a worn piece recomputes the stats; the choice needs
+// neither the safe zone nor a live character (spec 4.5).
+func TestRefineChooseWornWhileDeadOutside(t *testing.T) {
+	inv := socketInventory()
+	boots := testItemData.Equipment["eq10_boots"].SlotIndex
+	inv.Worn[boots], inv.Bag[0] = inv.Bag[0], nil
+	z, p, _ := forgeZone(t, inv, false)
+	z.rng = rand.New(rand.NewPCG(1, 2))
+	out := p.out.(*fakeOut)
+	itemNow(t, z, z.Refine(1, 9, wornRef(boots), nil))
+	if r := respFor(out.take(), 9, (*pb.Envelope).GetRefineResp); r == nil {
+		t.Fatal("no RefineResp")
+	}
+	stats, maxHP := p.stats, p.maxHP
+	z.area.Safe = nil
+	z.damagePlayer(p, 0, 1<<30, false)
+	z.advance(time.Now())
+	out.take()
+	r, er := chooseNow(t, z, 10, true)
+	if er != nil || r == nil {
+		t.Fatalf("choose %v %v, want a reply while dead outside the safe zone", r, er)
+	}
+	if p.stats == stats && p.maxHP == maxHP {
+		t.Fatalf("stats %+v unchanged by the new lines %v", p.stats, p.inv.Worn[boots].Lines)
+	}
+	got, gotMax := p.stats, p.maxHP
+	z.recompute(p)
+	if p.stats != got || p.maxHP != gotMax || !proto.Equal(r.Update, &pb.InventoryUpdate{
+		Equipped: []*pb.ItemSlot{itemSlot(boots, p.inv.Worn[boots])}}) {
+		t.Fatalf("stats %+v after the choice, %+v recomputed; update %v", got, p.stats, r.Update)
+	}
+}
+
+// Any other item command, even a rejected one, drops the waiting result
+// before it runs; a pickup does not, and a second refine replaces it.
+func TestRefinePendingCleared(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		send  func(z *Zone) bool
+		keeps bool
+	}{
+		{"equip", func(z *Zone) bool { return z.Equip(1, 20, 9) }, false},
+		{"rejected equip", func(z *Zone) bool { return z.Equip(1, 20, 7) }, false},
+		{"unequip", func(z *Zone) bool { return z.Unequip(1, 20, 0) }, false},
+		{"discard", func(z *Zone) bool { return z.Discard(1, 20, 9, 0) }, false},
+		{"sort", func(z *Zone) bool { return z.SortBag(1, 20) }, false},
+		{"enhance", func(z *Zone) bool { return z.Enhance(1, 20, bagRef(9), false, 1) }, false},
+		{"punch", func(z *Zone) bool { return z.Punch(1, 20, bagRef(9)) }, false},
+		{"socket", func(z *Zone) bool { return z.Socket(1, 20, bagRef(8), 0, 4) }, false},
+		{"unsocket", func(z *Zone) bool { return z.Unsocket(1, 20, bagRef(8), 0) }, false},
+		{"rejected refine", func(z *Zone) bool { return z.Refine(1, 20, bagRef(9), nil) }, false},
+		{"pickup", func(z *Zone) bool {
+			g := putGround(z, z.players[1].charID, z.players[1].pos, items.Item{Code: gamedata.StoneRefine, Count: 1})
+			return z.Pickup(1, 20, g.id)
+		}, true},
+		{"rejected pickup", func(z *Zone) bool { return z.Pickup(1, 20, 999999) }, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, _ := forgeZone(t, socketInventory(), false)
+			old := slices.Clone(p.inv.Bag[0].Lines)
+			lines := pbToLines(refineNow(t, z, 9).Lines)
+			itemNow(t, z, c.send(z))
+			p.out.(*fakeOut).take()
+			r, er := chooseNow(t, z, 21, true)
+			switch {
+			case c.keeps && (er != nil || !slices.Equal(p.inv.Bag[0].Lines, lines)):
+				t.Fatalf("choose %v %v lines %v, want the result %v taken", r, er, p.inv.Bag[0].Lines, lines)
+			case !c.keeps && (er == nil || er.Code != codeNoRefine || !slices.Equal(p.inv.Bag[0].Lines, old)):
+				t.Fatalf("choose %v %v lines %v, want NO_PENDING_REFINE and %v kept", r, er, p.inv.Bag[0].Lines, old)
+			}
+		})
+	}
+}
+
+// A second refine replaces the first result: the choice applies the second.
+func TestRefineReplacesPending(t *testing.T) {
+	inv := socketInventory()
+	inv.Bag[6].Count = 5
+	z, p, _ := forgeZone(t, inv, false)
+	z.rng = rand.New(rand.NewPCG(3, 4))
+	first := pbToLines(refineNow(t, z, 9).Lines)
+	second := pbToLines(refineNow(t, z, 10).Lines)
+	if slices.Equal(first, second) {
+		t.Fatalf("both rolls gave %v; pick another seed", first)
+	}
+	if _, er := chooseNow(t, z, 11, true); er != nil || !slices.Equal(p.inv.Bag[0].Lines, second) {
+		t.Fatalf("choose %v lines %v, want the second result %v", er, p.inv.Bag[0].Lines, second)
+	}
+}
+
+// Leaving drops the result with the player: back in the zone there is
+// nothing to choose.
+func TestRefinePendingDroppedOnLeave(t *testing.T) {
+	z, p, _ := forgeZone(t, socketInventory(), false)
+	refineNow(t, z, 9)
+	if p.refine == nil {
+		t.Fatal("no pending result after the roll")
+	}
+	<-z.leave(1)
+	in := info(1, 5.5, 5.5)
+	in.Inventory = socketInventory()
+	if err := z.join(in, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, er := chooseNow(t, z, 10, true); er == nil || er.Code != codeNoRefine {
+		t.Fatalf("choose after rejoining: %v, want NO_PENDING_REFINE", er)
 	}
 }

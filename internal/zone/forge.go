@@ -170,3 +170,120 @@ func (z *Zone) unsocket(c unsocketCmd) {
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_UnsocketResp{UnsocketResp: &pb.UnsocketResp{
 		Update: up, Stats: z.selfStats(p)}}})
 }
+
+type refineCmd struct {
+	id     uint64
+	seq    uint32
+	ref    items.Ref
+	locked []int
+}
+
+type refineChooseCmd struct {
+	id     uint64
+	seq    uint32
+	accept bool
+}
+
+// pendingRefine is a paid refine result waiting for the player's choice
+// (phase 3c spec 4.5): the new sub-lines of the piece ref points to.
+type pendingRefine struct {
+	ref   items.Ref
+	lines []items.Line
+}
+
+// Refine queues refining the sub-lines of the item ref points to, keeping
+// the lines at the locked indices. The zone answers seq with RefineResp or
+// ErrorResp on the player's outbox. It never blocks and reports false if the
+// inbox is full.
+func (z *Zone) Refine(id uint64, seq uint32, ref items.Ref, locked []int) bool {
+	return z.offer(refineCmd{id: id, seq: seq, ref: ref, locked: locked})
+}
+
+// RefineChoose queues taking (accept) or declining the waiting refine
+// result. The zone answers seq with RefineChooseResp or ErrorResp on the
+// player's outbox. It never blocks and reports false if the inbox is full.
+func (z *Zone) RefineChoose(id uint64, seq uint32, accept bool) bool {
+	return z.offer(refineChooseCmd{id: id, seq: seq, accept: accept})
+}
+
+// dropsRefine is the player whose waiting refine result c drops before it
+// runs: every item command but a pickup and the choice itself (phase 3c spec
+// 4.5), so the piece's slot cannot change while the result waits. A new
+// refine drops the old result and, if it succeeds, leaves its own.
+func dropsRefine(c any) (uint64, bool) {
+	switch c := c.(type) {
+	case equipCmd:
+		return c.id, true
+	case unequipCmd:
+		return c.id, true
+	case discardCmd:
+		return c.id, true
+	case sortBagCmd:
+		return c.id, true
+	case enhanceCmd:
+		return c.id, true
+	case punchCmd:
+		return c.id, true
+	case socketCmd:
+		return c.id, true
+	case unsocketCmd:
+		return c.id, true
+	case refineCmd:
+		return c.id, true
+	}
+	return 0, false
+}
+
+// refine runs a refine request (phase 3c spec 4.5): DEAD, NOT_IN_SAFE_ZONE,
+// then the item package's checks; a rejected request costs nothing. The
+// stones and Xu are paid at the roll, so the character is saved at once; the
+// piece keeps its lines and the new set waits in p.refine. The reply lists
+// the new set and the bag slots the stones came from.
+func (z *Zone) refine(c refineCmd) {
+	p := z.forgePlayer(c.id, c.seq)
+	if p == nil {
+		return
+	}
+	lines, changed, err := p.inv.RefineRoll(z.rng, z.area.Items, c.ref, c.locked, &p.xu)
+	if err != nil {
+		z.replyError(p, c.seq, itemErrorCode(err))
+		return
+	}
+	p.refine = &pendingRefine{ref: c.ref, lines: lines}
+	z.saver.Save(z.state(p), nil)
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_RefineResp{RefineResp: &pb.RefineResp{
+		Lines: pbLines(lines), Update: inventoryUpdate(p.inv, changed, nil), Stats: z.selfStats(p)}}})
+}
+
+// refineChoose takes or declines the waiting refine result (phase 3c spec
+// 4.5): NO_PENDING_REFINE without one. It needs neither the safe zone nor a
+// live character, as the result is already paid for. Either way the result
+// is cleared and the character saved; the reply holds the piece's slot.
+func (z *Zone) refineChoose(c refineChooseCmd) {
+	p, ok := z.players[c.id]
+	if !ok {
+		return // left or evicted; see queueAttack
+	}
+	pr := p.refine
+	if pr == nil {
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NO_PENDING_REFINE)
+		return
+	}
+	p.refine = nil
+	if c.accept {
+		if err := p.inv.RefineApply(pr.ref, pr.lines); err != nil {
+			z.replyError(p, c.seq, itemErrorCode(err))
+			return
+		}
+	}
+	bag, worn := []int{pr.ref.Slot}, []int(nil)
+	if pr.ref.Equipped {
+		bag, worn = nil, bag
+		if c.accept {
+			z.gearChanged(p)
+		}
+	}
+	z.saver.Save(z.state(p), nil)
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_RefineChooseResp{RefineChooseResp: &pb.RefineChooseResp{
+		Update: inventoryUpdate(p.inv, bag, worn), Stats: z.selfStats(p)}}})
+}

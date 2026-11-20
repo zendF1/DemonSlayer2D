@@ -234,6 +234,8 @@ func itemErrorCode(err error) pb.ErrorCode {
 		return pb.ErrorCode_ERROR_CODE_HOLES_MAXED
 	case errors.Is(err, items.ErrGemTooHigh):
 		return pb.ErrorCode_ERROR_CODE_GEM_TOO_HIGH
+	case errors.Is(err, items.ErrNotRefinable):
+		return pb.ErrorCode_ERROR_CODE_NOT_REFINABLE
 	}
 	return pb.ErrorCode_ERROR_CODE_INTERNAL
 }

@@ -158,6 +158,23 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 		}
 		r := p.UnsocketReq
 		c.zoneBusyIfDropped(seq, c.member.Unsocket(seq, itemRef(r.GetItem()), int(r.Hole)))
+	case *pb.Envelope_RefineReq:
+		// The zone checks the locks; their count is bounded by the packet
+		// size (phase 3c spec 4.5).
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.RefineReq
+		locked := make([]int, len(r.Locked))
+		for i, l := range r.Locked {
+			locked[i] = int(l)
+		}
+		c.zoneBusyIfDropped(seq, c.member.Refine(seq, itemRef(r.GetItem()), locked))
+	case *pb.Envelope_RefineChooseReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.RefineChoose(seq, p.RefineChooseReq.Accept))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}
