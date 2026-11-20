@@ -2,6 +2,7 @@ package zone
 
 import (
 	"cmp"
+	"math"
 	"slices"
 
 	"demonslayer2d/internal/classes"
@@ -63,15 +64,22 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	p.skillReady[s.ID] = z.tickNo + z.ticks(float64(s.CooldownMS[n-1])/1000)
 	p.statsDirty = true
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_CastResp{CastResp: &pb.CastResp{}}})
+	hit := z.victims(p, s, n, primary, dir)
 	ev := &pb.Cast{CasterId: p.id, SkillId: s.ID, DirX: dir.X, DirY: dir.Y}
-	if primary != nil {
+	switch {
+	case s.Shape == gamedata.ShapeCircleSelf:
+		// The named target only orders the hits; name it only if it was hit.
+		if primary != nil && len(hit) > 0 && hit[0] == primary {
+			ev.TargetId = primary.id
+		}
+	case primary != nil:
 		ev.TargetId = primary.id
 	}
 	z.events.casts = append(z.events.casts, ev)
 	// The cast is one action: a level gained on its first hit does not
 	// change the damage of the rest.
 	base, level := combat.SkillBase(p.stats, s.Damage == gamedata.DamageMagic, s.CoefPct[n-1]), p.level
-	for _, m := range z.victims(p, s, n, primary) {
+	for _, m := range hit {
 		z.strike(p, m, base, level, s.ID)
 	}
 }
@@ -100,50 +108,109 @@ func (z *Zone) checkCast(p *player, skillID string) (gamedata.Skill, int, pb.Err
 }
 
 // aim finds the primary target and direction of p's cast c of s at skill
-// level n (phase 2 spec 4.3), or the error to answer. A target must be
-// within the level's range plus attackRangeSlack, as for a slash. Dash
-// skills cast as plain single-target skills for now.
+// level n (phase 2 spec 4.3), or the error to answer. The direction is the
+// one the Cast event carries (spec 4.6): towards the target for single and
+// circle_target, the decided aim for cone and line, zero for circle_self.
+//
+// single and circle_target need a living monster within the level's range
+// plus attackRangeSlack and in sight, as a slash does. cone and line aim at a
+// living named monster at any range, else along the normalised dir; with
+// neither the cast is a BAD_REQUEST. Dash skills cast as plain single-target
+// skills for now.
 func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill, n int) (*monster, Vec2, pb.ErrorCode) {
+	m := z.monsters[c.target]
+	if m != nil && m.dead {
+		m = nil
+	}
 	switch s.Shape {
-	case gamedata.ShapeSingle:
-		m := z.monsters[c.target]
-		if m == nil || m.dead {
+	case gamedata.ShapeSingle, gamedata.ShapeCircleTarget:
+		if m == nil {
 			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
 		}
 		if distance(p.pos, m.pos) > float32(s.Range[n-1])+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
 			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
 		}
 		return m, dirTo(p.pos, m.pos), pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	case gamedata.ShapeCone, gamedata.ShapeLine:
+		var d Vec2
+		if m != nil {
+			d = dirTo(p.pos, m.pos)
+		}
+		if d == (Vec2{}) {
+			d = unitDir(c.dir) // also when the target stands on the caster
+		}
+		if m == nil && d == (Vec2{}) {
+			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		}
+		return m, d, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	case gamedata.ShapeCircleSelf:
 		// No target needed; a living one named is only hit first.
-		if m := z.monsters[c.target]; m != nil && !m.dead {
-			return m, Vec2{}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
-		}
-		return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+		return m, Vec2{}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	}
 	return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 }
 
-// victims are the monsters p's cast of s at skill level n hits, in hit order
-// (phase 2 spec 4.4): the primary target first if it is in the area, then
-// the rest by distance to the area's centre, ties by lower id, at most
-// max_targets of them. Only living monsters in sight of the area's origin
-// count.
-func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary *monster) []*monster {
+// victims are the monsters p's cast of s at skill level n hits, aimed at
+// primary along dir as aim decided, in hit order (phase 2 spec 4.4): the
+// primary target first if it is in the area, then the rest by distance to
+// the area's centre, ties by lower id, at most max_targets of them. Only
+// living monsters in sight of the area's origin count, and one standing on
+// the origin is always inside.
+//
+// circle_target's origin and centre are the primary target; the other
+// shapes' are the caster. A cone reaches range[n-1] within cone_deg/2 of
+// dir; a line runs range[n-1] along dir and is width wide. Neither adds
+// attackRangeSlack.
+func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary *monster, dir Vec2) []*monster {
 	if s.Shape == gamedata.ShapeSingle {
 		return []*monster{primary}
 	}
-	origin := p.pos // circle_self: origin and centre are the caster
-	r := float32(s.Radius)
+	origin := p.pos
+	if s.Shape == gamedata.ShapeCircleTarget {
+		origin = primary.pos
+	}
+	var reach float32 // how far from the origin the area extends
+	var inArea func(v Vec2, d float32) bool
+	switch s.Shape {
+	case gamedata.ShapeCircleSelf, gamedata.ShapeCircleTarget:
+		reach = float32(s.Radius)
+		inArea = func(_ Vec2, d float32) bool { return d <= reach }
+	case gamedata.ShapeCone:
+		reach = float32(s.Range[n-1])
+		cosHalf := math.Cos(s.ConeDeg / 2 * math.Pi / 180)
+		inArea = func(v Vec2, d float32) bool {
+			return d <= reach && float64(dot(v, dir))/float64(d) >= cosHalf
+		}
+	case gamedata.ShapeLine:
+		length, half := float32(s.Range[n-1]), float32(s.Width/2)
+		reach = length + half
+		inArea = func(v Vec2, _ float32) bool {
+			along, across := dot(v, dir), dir.X*v.Y-dir.Y*v.X
+			return along >= 0 && along <= length && abs32(across) <= half
+		}
+	default:
+		return nil
+	}
 	inside := func(m *monster) bool {
-		return !m.dead && distance(origin, m.pos) <= r && !lineBlocked(z.area.Grid, origin, m.pos)
+		if m.dead || lineBlocked(z.area.Grid, origin, m.pos) {
+			return false
+		}
+		v := Vec2{m.pos.X - origin.X, m.pos.Y - origin.Y}
+		d := distance(origin, m.pos)
+		if d == 0 {
+			return true
+		}
+		if dir == (Vec2{}) && (s.Shape == gamedata.ShapeCone || s.Shape == gamedata.ShapeLine) {
+			return false // aimed at a target on the caster: no direction to reach along
+		}
+		return inArea(v, d)
 	}
 	var out []*monster
 	if primary != nil && inside(primary) {
 		out = append(out, primary)
 	}
 	var rest []*monster
-	for _, m := range z.monstersInBox(Vec2{origin.X - r, origin.Y - r}, Vec2{origin.X + r, origin.Y + r}) {
+	for _, m := range z.monstersInBox(Vec2{origin.X - reach, origin.Y - reach}, Vec2{origin.X + reach, origin.Y + reach}) {
 		if m != primary && inside(m) {
 			rest = append(rest, m)
 		}
@@ -172,6 +239,24 @@ func (z *Zone) monstersInBox(lo, hi Vec2) []*monster {
 	}
 	return out
 }
+
+// minDirLen is the shortest cast dir taken as a direction; anything shorter
+// is noise from a stick at rest and counts as zero.
+const minDirLen = 1e-3
+
+// unitDir is d scaled to length 1, or zero when d is shorter than
+// minDirLen.
+func unitDir(d Vec2) Vec2 {
+	l := float32(math.Hypot(float64(d.X), float64(d.Y)))
+	if l < minDirLen {
+		return Vec2{}
+	}
+	return Vec2{d.X / l, d.Y / l}
+}
+
+func dot(a, b Vec2) float32 { return a.X*b.X + a.Y*b.Y }
+
+func abs32(v float32) float32 { return float32(math.Abs(float64(v))) }
 
 // dirTo is the unit vector from a to b, or zero when they coincide.
 func dirTo(a, b Vec2) Vec2 {

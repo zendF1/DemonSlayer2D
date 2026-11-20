@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
@@ -3026,10 +3027,6 @@ func TestCastValidation(t *testing.T) {
 			z.mgrid = z.area.monsterGrid()
 			return m.id
 		}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
-		// Cone, line and target circles come in a later task; until then
-		// they are refused before anything is spent.
-		{"a shape not yet cast", near, "thuy_2", func(z *Zone, m *monster, p *player) uint64 { return m.id },
-			pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			z, m, p, a := castZone(t, home, c.player)
@@ -3355,5 +3352,376 @@ func TestMonstersInBox(t *testing.T) {
 	slices.SortFunc(got, func(a, b Vec2) int { return int(a.X - b.X) })
 	if want := []Vec2{{9, 9}, {41, 11}}; !slices.Equal(got, want) {
 		t.Fatalf("in box %v, want %v", got, want)
+	}
+}
+
+// ______________________TEST AREAS_____________________
+
+// areaCaster is where areaZone's caster stands.
+var areaCaster = Vec2{30.5, 30.5}
+
+// areaZone is a zone like castZone whose player 1 is a level-12 caster of
+// skill's class who knows only skill, at skill level lv, standing at
+// areaCaster. One level-12 monster stands at each areaCaster+offs[i],
+// returned in that order, which is increasing id order. None of them
+// notices players by itself.
+func areaZone(t *testing.T, skill string, lv int, offs ...Vec2) (*Zone, *player, *fakeOut, []*monster) {
+	t.Helper()
+	at := func(o Vec2) Vec2 { return Vec2{areaCaster.X + o.X, areaCaster.Y + o.Y} }
+	z, first := newFightZone(t, 12, at(offs[0]))
+	z.area.Skills = repoSkills
+	first.region.Kind.DetectRange = 0.5
+	ms := []*monster{first}
+	for _, o := range offs[1:] {
+		before := maps.Clone(z.monsters)
+		if !z.spawn(first.region, at(o)) {
+			t.Fatal("spawn failed")
+		}
+		for id, m := range z.monsters {
+			if before[id] == nil {
+				ms = append(ms, m)
+			}
+		}
+		if n := len(ms); n != len(z.monsters) || ms[n-1].id <= ms[n-2].id {
+			t.Fatal("spawned monsters must get increasing ids")
+		}
+	}
+	in := info(1, areaCaster.X, areaCaster.Y)
+	in.Class, in.Level, in.Skills = classes.ToPB(repoSkills[skill].Class), 12, map[string]int{skill: lv}
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	a.take()
+	return z, z.players[1], a, ms
+}
+
+// wallAt turns tile (x, y) of a 60x60 zone into a wall.
+func wallAt(z *Zone, x, y int) {
+	rows := make([]string, 60)
+	for ty := range rows {
+		r := []byte(strings.Repeat(".", 60))
+		if ty == y {
+			r[x] = '#'
+		}
+		rows[ty] = string(r)
+	}
+	z.area.Grid = gridFrom(rows...)
+	z.mgrid = z.area.monsterGrid()
+}
+
+// polar is the offset of length d at deg degrees from the +x axis.
+func polar(d, deg float64) Vec2 {
+	r := deg * math.Pi / 180
+	return Vec2{float32(d * math.Cos(r)), float32(d * math.Sin(r))}
+}
+
+// targetIDs are the targets of hs in order.
+func targetIDs(hs []*pb.Hit) []uint64 {
+	var ids []uint64
+	for _, h := range hs {
+		ids = append(ids, h.TargetId)
+	}
+	return ids
+}
+
+func idsOf(ms ...*monster) []uint64 {
+	var ids []uint64
+	for _, m := range ms {
+		ids = append(ids, m.id)
+	}
+	return ids
+}
+
+// Each shape's membership rule (phase 2 spec 4.4), one monster at a time so
+// max_targets plays no part. A cone (thuy_2, 120 degrees) and a line
+// (phong_1, width 1.5) reach range[n-1] with no attackRangeSlack: 4 tiles at
+// skill level 1, 6 at level 10. Every cast is accepted; the question is only
+// whether the monster is hit. A wall between the origin and the monster
+// keeps it out.
+func TestCastAreaShapes(t *testing.T) {
+	east := Vec2{1, 0}
+	for _, c := range []struct {
+		name  string
+		skill string
+		lv    int
+		off   Vec2
+		dir   Vec2
+		wall  *[2]int
+		hit   bool
+	}{
+		{"cone 3.9 ahead", "thuy_2", 1, Vec2{3.9, 0}, east, nil, true},
+		{"cone 59 degrees left", "thuy_2", 1, polar(3, 59), east, nil, true},
+		{"cone 59 degrees right", "thuy_2", 1, polar(3, -59), east, nil, true},
+		{"cone 61 degrees left", "thuy_2", 1, polar(3, 61), east, nil, false},
+		{"cone 61 degrees right", "thuy_2", 1, polar(3, -61), east, nil, false},
+		{"cone behind", "thuy_2", 1, Vec2{-2, 0}, east, nil, false},
+		{"cone 4.1 ahead at level 1", "thuy_2", 1, Vec2{4.1, 0}, east, nil, false},
+		{"cone 5.9 ahead at level 10", "thuy_2", 10, Vec2{5.9, 0}, east, nil, true},
+		{"cone 6.1 ahead at level 10", "thuy_2", 10, Vec2{6.1, 0}, east, nil, false},
+		{"cone aimed north", "thuy_2", 1, Vec2{0, -3}, Vec2{0, -1}, nil, true},
+		{"cone aimed north, monster east", "thuy_2", 1, Vec2{3, 0}, Vec2{0, -1}, nil, false},
+		{"cone on the caster", "thuy_2", 1, Vec2{}, east, nil, true},
+		{"cone behind a wall", "thuy_2", 1, Vec2{3, 0}, east, &[2]int{32, 30}, false},
+		{"line at (5.9, 0.7) at level 10", "phong_1", 10, Vec2{5.9, 0.7}, east, nil, true},
+		{"line at (5.9, -0.7) at level 10", "phong_1", 10, Vec2{5.9, -0.7}, east, nil, true},
+		{"line at (6.1, 0) at level 10", "phong_1", 10, Vec2{6.1, 0}, east, nil, false},
+		{"line at (3, 0.8)", "phong_1", 10, Vec2{3, 0.8}, east, nil, false},
+		{"line behind", "phong_1", 10, Vec2{-1, 0}, east, nil, false},
+		{"line at (3.9, 0) at level 1", "phong_1", 1, Vec2{3.9, 0}, east, nil, true},
+		{"line at (4.1, 0) at level 1", "phong_1", 1, Vec2{4.1, 0}, east, nil, false},
+		{"line on a diagonal, 0.71 off", "phong_1", 10, Vec2{2, 3}, Vec2{1, 1}, nil, true},
+		{"line on a diagonal, 0.85 off", "phong_1", 10, Vec2{2, 3.2}, Vec2{1, 1}, nil, false},
+		{"line on the caster", "phong_1", 1, Vec2{}, east, nil, true},
+		{"line behind a wall", "phong_1", 1, Vec2{3, 0}, east, &[2]int{32, 30}, false},
+		{"circle_self 2.4 away", "thuy_4", 1, Vec2{2.4, 0}, Vec2{}, nil, true},
+		{"circle_self 2.6 away", "thuy_4", 1, Vec2{0, 2.6}, Vec2{}, nil, false},
+		{"circle_self behind a wall", "thuy_4", 1, Vec2{2.4, 0}, Vec2{}, &[2]int{31, 30}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, a, ms := areaZone(t, c.skill, c.lv, c.off)
+			if c.wall != nil {
+				wallAt(z, c.wall[0], c.wall[1])
+			}
+			m, mp := ms[0], p.mp
+			castNow(t, z, 1, 1, c.skill, 0, c.dir)
+			envs := a.take()
+			if castRespAt(envs, 1) < 0 || p.mp != mp-repoSkills[c.skill].MP[c.lv-1] {
+				t.Fatalf("cast refused (%v) or mp %d of %d not spent", errorFor(envs, 1), p.mp, mp)
+			}
+			hs := hitsBy(envs, 1)
+			if got := len(hs) == 1 && hs[0].TargetId == m.id && m.hp < m.maxHP; got != c.hit || (!c.hit && len(hs) != 0) {
+				t.Fatalf("hits %v (monster %d at %v), want hit=%v", hs, m.id, m.pos, c.hit)
+			}
+		})
+	}
+}
+
+// Cone and line aim (phase 2 spec 4.3): at a living named monster at any
+// range, else along dir scaled to length 1; with neither the cast is a
+// BAD_REQUEST that spends nothing. A dir too short to point anywhere counts
+// as none.
+func TestCastConeLineAim(t *testing.T) {
+	for _, skill := range []string{"thuy_2", "phong_1"} {
+		for _, c := range []struct {
+			name   string
+			target func(m *monster) uint64
+			dir    Vec2
+		}{
+			{"no target, no dir", func(m *monster) uint64 { return 0 }, Vec2{}},
+			{"unknown target, no dir", func(m *monster) uint64 { return 999999 }, Vec2{}},
+			{"no target, a tiny dir", func(m *monster) uint64 { return 0 }, Vec2{1e-4, 0}},
+			{"dead target, no dir", func(m *monster) uint64 { m.dead = true; return m.id }, Vec2{}},
+		} {
+			t.Run(skill+" "+c.name, func(t *testing.T) {
+				z, p, a, ms := areaZone(t, skill, 1, Vec2{2, 0})
+				target := c.target(ms[0])
+				mp, ready := p.mp, maps.Clone(p.skillReady)
+				castNow(t, z, 1, 3, skill, target, c.dir)
+				envs := a.take()
+				if er := errorFor(envs, 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_BAD_REQUEST {
+					t.Fatalf("error %v, want BAD_REQUEST", er)
+				}
+				if p.mp != mp || !maps.Equal(p.skillReady, ready) || len(castsIn(envs)) != 0 || len(hitsIn(envs)) != 0 {
+					t.Fatalf("mp %d ready %v casts %v: a refused cast spends and shows nothing", p.mp, p.skillReady, castsIn(envs))
+				}
+			})
+		}
+
+		// Only a short dir: it is scaled up, the area lies along it and the
+		// Cast carries it with no target.
+		t.Run(skill+" along a short dir", func(t *testing.T) {
+			z, _, a, ms := areaZone(t, skill, 1, Vec2{0, 3}, Vec2{3, 0})
+			castNow(t, z, 1, 4, skill, 999999, Vec2{0, 0.5})
+			envs := a.take()
+			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0])) {
+				t.Fatalf("hits %v, want only %d to the south", hs, ms[0].id)
+			}
+			want := &pb.Cast{CasterId: 1, SkillId: skill, DirY: 1}
+			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+				t.Fatalf("casts %v, want %v", cs, want)
+			}
+		})
+
+		// A named monster sets the direction even out of reach and against
+		// dir; it is the Cast's target but is not hit from 10 tiles.
+		t.Run(skill+" at a far target", func(t *testing.T) {
+			z, _, a, ms := areaZone(t, skill, 1, Vec2{0, -10}, Vec2{0, -3}, Vec2{3, 0})
+			castNow(t, z, 1, 5, skill, ms[0].id, Vec2{1, 0})
+			envs := a.take()
+			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[1])) {
+				t.Fatalf("hits %v, want only %d, towards the target", hs, ms[1].id)
+			}
+			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, DirY: -1}
+			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+				t.Fatalf("casts %v, want %v", cs, want)
+			}
+		})
+
+		// A named monster standing on the caster gives no direction; with
+		// no dir either the cast still lands on it, and on nothing else.
+		t.Run(skill+" at a target on the caster", func(t *testing.T) {
+			z, _, a, ms := areaZone(t, skill, 1, Vec2{}, Vec2{1, 0}, Vec2{0, 1})
+			castNow(t, z, 1, 7, skill, ms[0].id, Vec2{})
+			envs := a.take()
+			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0])) {
+				t.Fatalf("hits %v, want only %d", targetIDs(hs), ms[0].id)
+			}
+			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id}
+			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+				t.Fatalf("casts %v, want %v", cs, want)
+			}
+		})
+
+		// The named monster is hit first even when it is the farthest, and
+		// max_targets (2 at level 1) keeps only the nearest of the rest.
+		t.Run(skill+" named target first", func(t *testing.T) {
+			z, _, a, ms := areaZone(t, skill, 1, Vec2{3.5, 0}, Vec2{2, 0}, Vec2{1, 0})
+			castNow(t, z, 1, 6, skill, ms[0].id, Vec2{})
+			if hs := hitsBy(a.take(), 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[2])) {
+				t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[2]))
+			}
+		})
+	}
+}
+
+// A target circle (phase 2 spec 4.3-4.4) needs a living monster within
+// range[n-1] plus attackRangeSlack and in sight of the caster, like a
+// single-target skill; a refusal spends nothing.
+func TestCastCircleTargetAim(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		lv    int
+		off   Vec2
+		setup func(z *Zone, m *monster) uint64
+		code  pb.ErrorCode
+	}{
+		{"unknown target", 1, Vec2{2, 0}, func(z *Zone, m *monster) uint64 { return 999999 }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"no target", 1, Vec2{2, 0}, func(z *Zone, m *monster) uint64 { return 0 }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"dead target", 1, Vec2{2, 0}, func(z *Zone, m *monster) uint64 { m.dead = true; return m.id }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"4.49 away at level 1", 1, Vec2{4.49, 0}, func(z *Zone, m *monster) uint64 { return m.id }, pb.ErrorCode_ERROR_CODE_UNSPECIFIED},
+		{"4.51 away at level 1", 1, Vec2{4.51, 0}, func(z *Zone, m *monster) uint64 { return m.id }, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"5.49 away at level 4", 4, Vec2{5.49, 0}, func(z *Zone, m *monster) uint64 { return m.id }, pb.ErrorCode_ERROR_CODE_UNSPECIFIED},
+		{"5.51 away at level 4", 4, Vec2{5.51, 0}, func(z *Zone, m *monster) uint64 { return m.id }, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"behind a wall", 1, Vec2{3, 0}, func(z *Zone, m *monster) uint64 { wallAt(z, 32, 30); return m.id }, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, a, ms := areaZone(t, "viem_4", c.lv, c.off)
+			target := c.setup(z, ms[0])
+			mp := p.mp
+			castNow(t, z, 1, 2, "viem_4", target, Vec2{1, 0})
+			envs := a.take()
+			if c.code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+				if castRespAt(envs, 2) < 0 || len(hitsBy(envs, 1)) != 1 {
+					t.Fatalf("error %v, hits %v: want the cast to land", errorFor(envs, 2), hitsBy(envs, 1))
+				}
+				return
+			}
+			if er := errorFor(envs, 2); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if p.mp != mp || len(castsIn(envs)) != 0 || len(hitsIn(envs)) != 0 {
+				t.Fatalf("mp %d of %d, casts %v: a refused cast spends and shows nothing", p.mp, mp, castsIn(envs))
+			}
+		})
+	}
+}
+
+// A target circle is centred on the target: Viêm's level-4 viem_4 (radius
+// 1.5, 3 targets) hits a monster 1.4 from the target and not one 1.6 from
+// it, nor one next to the caster. Its Cast names the target and points at it.
+func TestCastCircleTargetArea(t *testing.T) {
+	z, _, a, ms := areaZone(t, "viem_4", 4, Vec2{3, 0}, Vec2{3, 1.4}, Vec2{3, -1.6}, Vec2{0.5, 0})
+	castNow(t, z, 1, 1, "viem_4", ms[0].id, Vec2{0, 1})
+	envs := a.take()
+	if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[1])) {
+		t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[1]))
+	}
+	want := &pb.Cast{CasterId: 1, SkillId: "viem_4", TargetId: ms[0].id, DirX: 1}
+	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+		t.Fatalf("casts %v, want %v", cs, want)
+	}
+}
+
+// A target circle checks line of sight from the target, not the caster:
+// with a wall between the target and a monster 1.9 from it, phong_4 (radius
+// 2) misses that monster although the caster sees it.
+func TestCastCircleTargetSight(t *testing.T) {
+	for _, wall := range []bool{false, true} {
+		z, _, a, ms := areaZone(t, "phong_4", 4, Vec2{3, 0}, Vec2{3, 1.9})
+		if wall {
+			wallAt(z, 33, 31)
+			if lineBlocked(z.area.Grid, areaCaster, ms[1].pos) || !lineBlocked(z.area.Grid, ms[0].pos, ms[1].pos) {
+				t.Fatal("the wall must block target to monster only")
+			}
+		}
+		castNow(t, z, 1, 1, "phong_4", ms[0].id, Vec2{})
+		want := idsOf(ms[0], ms[1])
+		if wall {
+			want = idsOf(ms[0])
+		}
+		if hs := hitsBy(a.take(), 1); !slices.Equal(targetIDs(hs), want) {
+			t.Fatalf("wall %v: hits %v, want %v", wall, targetIDs(hs), want)
+		}
+	}
+}
+
+// Hit order and max_targets (phase 2 spec 4.4) on Liệt Oa (radius 2.5): the
+// named target first even when it is the farthest, then the nearest to the
+// centre, cut at max_targets (2 at level 1, 4 at level 7). The monsters
+// spawn farthest first, so id order is not distance order. The Cast names
+// the target only when it was hit.
+func TestCastCircleSelfOrder(t *testing.T) {
+	// Distances 2.3, 2, 1.70, 1.5, 1, 0.5.
+	offs := []Vec2{{2.3, 0}, {-2, 0}, {1.2, 1.2}, {0, -1.5}, {-1, 0}, {0, 0.5}}
+	for _, c := range []struct {
+		name   string
+		lv     int
+		named  bool
+		far    Vec2 // where the named monster stands
+		want   []int
+		castTo bool
+	}{
+		{"level 1, named", 1, true, offs[0], []int{0, 5}, true},
+		{"level 1, no target", 1, false, offs[0], []int{5, 4}, false},
+		{"level 7, named", 7, true, offs[0], []int{0, 5, 4, 3}, true},
+		{"level 1, named out of reach", 1, true, Vec2{2.6, 0}, []int{5, 4}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _, a, ms := areaZone(t, "thuy_4", c.lv, append([]Vec2{c.far}, offs[1:]...)...)
+			var target uint64
+			if c.named {
+				target = ms[0].id
+			}
+			castNow(t, z, 1, 1, "thuy_4", target, Vec2{1, 0})
+			envs := a.take()
+			var want []uint64
+			for _, i := range c.want {
+				want = append(want, ms[i].id)
+			}
+			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), want) {
+				t.Fatalf("hits %v, want %v", targetIDs(hs), want)
+			}
+			cast := &pb.Cast{CasterId: 1, SkillId: "thuy_4"}
+			if c.castTo {
+				cast.TargetId = ms[0].id
+			}
+			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != cast.String() {
+				t.Fatalf("casts %v, want %v", cs, cast)
+			}
+		})
+	}
+}
+
+// Monsters at the same distance from the centre are hit lower id first: of
+// three at 1 tile, a level-1 Liệt Oa (2 targets) hits the two lowest ids in
+// that order, whatever order the AOI scan finds them in.
+func TestCastAreaTieByID(t *testing.T) {
+	for range 20 {
+		z, _, a, ms := areaZone(t, "thuy_4", 1, Vec2{1, 0}, Vec2{0, 1}, Vec2{-1, 0})
+		castNow(t, z, 1, 1, "thuy_4", 0, Vec2{})
+		if hs := hitsBy(a.take(), 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[1])) {
+			t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[1]))
+		}
 	}
 }
