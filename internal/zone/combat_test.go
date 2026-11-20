@@ -2890,8 +2890,9 @@ var repoSkills = func() map[string]gamedata.Skill {
 	return s
 }()
 
-// castSkills are what castZone's player has learned, all at level 1: two
-// actives of each Task 8 shape, a cone, and the passive.
+// castSkills are what castZone's player has learned, all at level 1: a
+// single-target skill (thuy_1), a cone (thuy_2), the passive (thuy_3) and a
+// self-centred circle (thuy_4).
 var castSkills = map[string]int{"thuy_1": 1, "thuy_2": 1, "thuy_3": 1, "thuy_4": 1}
 
 // castZone is newFightZone with the repo skills and a level-12 monster at
@@ -3196,6 +3197,68 @@ func TestCastCircleSelfAlone(t *testing.T) {
 	}
 	if p.mp != mp-repoSkills["thuy_4"].MP[0] || p.skillReady["thuy_4"] != z.tickNo+z.ticks(4) {
 		t.Fatalf("mp %d ready %v, want MP spent and the cooldown started", p.mp, p.skillReady)
+	}
+	// No EXP was paid, so only the MP spend can have pushed the stats.
+	wi := indexOfTick(envs)
+	si := slices.IndexFunc(envs, func(e *pb.Envelope) bool { return e.GetSelfStats() != nil })
+	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Mp != int32(p.mp) || si < wi {
+		t.Fatalf("self stats %v at %d (tick at %d), want one after the tick with mp %d", ss, si, wi, p.mp)
+	}
+}
+
+// A magic skill hits from magic attack, not the higher physical attack:
+// thuy_1 level 1 has coef 150%, so base = floor(magic attack * 1.5), and
+// damage = floor(base * (1 - def/(def + 20*level))) on a level-12 monster
+// (defense 96).
+func TestCastUsesSkillDamageKind(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 12, home)
+	z.area.Skills = repoSkills
+	m.region.Kind.DetectRange = 0.5
+	in := info(1, 32.5, 30.5)
+	in.Class, in.Level, in.Skills = pb.CharClass_CHAR_CLASS_THUY, 12, castSkills
+	in.Points = combat.Points{Str: 200}
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	p := z.players[1]
+	if p.stats.PhysAttack <= p.stats.MagicAttack {
+		t.Fatalf("phys %d magic %d: the test needs phys attack above magic attack", p.stats.PhysAttack, p.stats.MagicAttack)
+	}
+	base := p.stats.MagicAttack * 150 / 100
+	want := int(math.Floor(float64(base) * (1 - 96.0/(96.0+20*12))))
+	wrong := int(math.Floor(float64(p.stats.PhysAttack*150/100) * (1 - 96.0/(96.0+20*12))))
+	if want == wrong {
+		t.Fatalf("phys and magic give the same damage %d", want)
+	}
+	a.take()
+	castNow(t, z, 1, 1, "thuy_1", m.id, Vec2{})
+	if hs := hitsBy(a.take(), 1); len(hs) != 1 || int(hs[0].Damage) != want {
+		t.Fatalf("hits %v, want one hit of %d (phys attack would give %d)", hs, want, wrong)
+	}
+}
+
+// A monster that is dead but still lying inside the area is not hit.
+func TestCastSkipsDeadMonsterInArea(t *testing.T) {
+	z, m, _, a := castZone(t, Vec2{30.5, 30.5}, Vec2{29.5, 30.5}) // m is 1 tile east
+	if !z.spawn(m.region, Vec2{29.5, 31.5}) {                     // 1 tile south
+		t.Fatal("spawn failed")
+	}
+	var alive *monster
+	for _, o := range z.monsters {
+		if o != m {
+			alive = o
+		}
+	}
+	z.killMonster(m)
+	castNow(t, z, 1, 1, "thuy_4", m.id, Vec2{})
+	envs := a.take()
+	if castRespAt(envs, 1) < 0 {
+		t.Fatalf("cast refused: %v", errorFor(envs, 1))
+	}
+	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].TargetId != alive.id {
+		t.Fatalf("hits %v, want only the living monster %d hit", hs, alive.id)
 	}
 }
 
