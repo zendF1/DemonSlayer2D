@@ -123,7 +123,8 @@ func rangedHits(envs []*pb.Envelope) (ranged, melee []*pb.Hit) {
 
 // A player who steps within the detect range with a clear line is shot: the
 // first shot after the windup, then one every shoot_sec, each for the ranged
-// damage. The monster stands still and never chases (spec 4.3).
+// damage and landing after its flight at shot_speed. The monster stands still
+// and never chases (spec 4.3).
 func TestShootPasserBy(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	z, m := newFightZone(t, 1, home)
@@ -144,10 +145,16 @@ func TestShootPasserBy(t *testing.T) {
 	if want != 10 {
 		t.Fatalf("setup: ranged damage %d, want 10 (half of the melee 20)", want)
 	}
-	var shots []uint32
+	var shots, fired []uint32
 	for z.tickNo < stepAt+100 {
 		z.advance(now)
 		envs := a.take()
+		for _, c := range castsBy(envs, m.id) {
+			if !c.Ranged || c.TargetId != 1 || c.WindupMs != 0 {
+				t.Fatalf("tick %d: cast %v, want a ranged shot at 1 with no windup", z.tickNo, c)
+			}
+			fired = append(fired, z.tickNo)
+		}
 		ranged, melee := rangedHits(envs)
 		if len(melee) != 0 {
 			t.Fatalf("tick %d: melee hits %v from a shooting monster", z.tickNo, melee)
@@ -169,10 +176,17 @@ func TestShootPasserBy(t *testing.T) {
 			t.Fatalf("tick %d: state %v target %d, want shooting without a target", z.tickNo, m.state, m.target)
 		}
 	}
-	windup, every := z.ticks(testKind.ShootWindupSec), z.ticks(testKind.ShootSec)
-	wantShots := []uint32{stepAt + windup, stepAt + windup + every, stepAt + windup + 2*every, stepAt + windup + 3*every, stepAt + windup + 4*every}
-	if !slices.Equal(shots, wantShots) {
-		t.Fatalf("shots on ticks %v, want %v (windup %d, then every %d)", shots, wantShots, windup, every)
+	windup, every, flight := z.ticks(testKind.ShootWindupSec), z.ticks(testKind.ShootSec), z.ticks(4.9/testKind.ShotSpeed)
+	var wantFired, wantShots []uint32
+	for at := stepAt + windup; at < stepAt+100; at += every {
+		wantFired = append(wantFired, at)
+		if at+flight <= stepAt+100 {
+			wantShots = append(wantShots, at+flight)
+		}
+	}
+	if !slices.Equal(fired, wantFired) || !slices.Equal(shots, wantShots) {
+		t.Fatalf("shots fired on ticks %v landed on %v, want %v and %v (windup %d, then every %d, flight %d)",
+			fired, shots, wantFired, wantShots, windup, every, flight)
 	}
 	if m.state != shoot {
 		t.Fatalf("state %v, want shoot", m.state)
@@ -594,10 +608,18 @@ func TestMonsterAttacksOnInterval(t *testing.T) {
 	v := joinNow(t, z, 2, 30.5, 36.5) // in view, out of detect range
 	engage(m, 1)
 	now := time.Now()
-	var hitTicks []int
-	for i := 1; i <= 31; i++ {
+	var hitTicks, swingTicks []int
+	for i := 1; i <= 33; i++ {
 		z.advance(now)
-		ha, hv := hitsIn(a.take()), hitsIn(v.take())
+		ea, ev := a.take(), v.take()
+		if ca, cv := castsBy(ea, m.id), castsBy(ev, m.id); len(ca) != 0 {
+			want := &pb.Cast{CasterId: m.id, TargetId: 1, DirX: 1, WindupMs: 200, Impacts: []*pb.CastImpact{{TargetId: 1, ImpactMs: 200}}}
+			if len(ca) != 1 || ca[0].String() != want.String() || len(cv) != 1 || cv[0].String() != want.String() {
+				t.Fatalf("tick %d: casts %v viewer %v, want %v for both", i, ca, cv, want)
+			}
+			swingTicks = append(swingTicks, i)
+		}
+		ha, hv := hitsIn(ea), hitsIn(ev)
 		if len(ha) != len(hv) {
 			t.Fatalf("tick %d: target got %d hits, viewer %d", i, len(ha), len(hv))
 		}
@@ -613,8 +635,10 @@ func TestMonsterAttacksOnInterval(t *testing.T) {
 			hitTicks = append(hitTicks, i)
 		}
 	}
-	if !slices.Equal(hitTicks, []int{1, 16, 31}) {
-		t.Fatalf("hits on ticks %v, want 1, 16 and 31 (every 15 ticks)", hitTicks)
+	// Each swing lands its 200 ms windup (2 ticks) later; the cadence counts
+	// from the swing.
+	if !slices.Equal(swingTicks, []int{1, 16, 31}) || !slices.Equal(hitTicks, []int{3, 18, 33}) {
+		t.Fatalf("swings on ticks %v hits on %v, want 1, 16 and 31 (every 15 ticks), each landing 2 ticks later", swingTicks, hitTicks)
 	}
 	if hp := z.players[1].hp; hp != 440 {
 		t.Fatalf("hp = %d, want 440", hp)
@@ -682,14 +706,15 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 	hitAt := 0
 	for i := 1; i <= 20 && hitAt == 0; i++ {
 		z.advance(now)
-		if len(z.events.hits) == 0 {
+		if len(z.events.casts) == 0 {
 			continue
 		}
 		hitAt = i
 		if lineBlocked(z.area.Grid, m.pos, p.pos) {
-			t.Fatalf("tick %d: hit from %v through the wall", i, m.pos)
+			t.Fatalf("tick %d: swung from %v through the wall", i, m.pos)
 		}
 	}
+	settle(z)
 	if hitAt == 0 {
 		t.Fatalf("never hit: %v at %v, %.2f tiles away", m.state, m.pos, distance(m.pos, p.pos))
 	}
@@ -709,6 +734,10 @@ func TestPlayerDiesAtZeroHP(t *testing.T) {
 	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{0, 1}})
 	z.advance(time.Now())
 	p := z.players[1]
+	if p.dead || p.hp != 20 {
+		t.Fatalf("hp %d dead %v in the swing tick, want the hit still to come", p.hp, p.dead)
+	}
+	settle(z)
 	if !p.dead || p.hp != 0 || p.dir != (Vec2{}) {
 		t.Fatalf("hp %d dead %v dir %v, want dead at 0 HP, standing still", p.hp, p.dead, p.dir)
 	}
@@ -750,26 +779,31 @@ func TestEventsOnlyForVisible(t *testing.T) {
 	f := joinNow(t, z, 2, 5.5, 5.5) // safe zone, three cells away
 	engage(m, 1)
 	z.advance(time.Now())
-	if len(hitsIn(a.take())) != 1 {
-		t.Fatal("the target must see its own hit")
+	settle(z)
+	if ea := a.take(); len(hitsIn(ea)) != 1 || len(castsBy(ea, m.id)) != 1 {
+		t.Fatal("the target must see the swing and its own hit")
 	}
 	ef := f.take()
-	if hs, ds := hitsIn(ef), deathsIn(ef); len(hs) != 0 || len(ds) != 0 {
-		t.Fatalf("a far viewer got hits %v deaths %v", hs, ds)
+	if cs, hs, ds := castsIn(ef), hitsIn(ef), deathsIn(ef); len(cs) != 0 || len(hs) != 0 || len(ds) != 0 {
+		t.Fatalf("a far viewer got casts %v hits %v deaths %v", cs, hs, ds)
 	}
 }
 
-// A viewer who sees only the attacker still gets the Hit; the client ignores
-// ids it has no EntityEnter for.
+// A viewer who sees only the attacker still gets the Cast and the Hit; the
+// client ignores ids it has no EntityEnter for.
 func TestHitWithOnlyAttackerVisible(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{39.5, 30.5}) // AOI cell (3,3)
 	joinNow(t, z, 1, 40.5, 30.5)                 // target in cell (4,3)
 	v := joinNow(t, z, 2, 20.5, 30.5)            // cell (2,3): sees (3,3), not (4,3)
 	engage(m, 1)
 	z.advance(time.Now())
+	settle(z)
 	envs := v.take()
 	if slices.Contains(enters(envs), 1) || !slices.Contains(enters(envs), m.id) {
 		t.Fatalf("viewer enters %v, want the monster but not the target", enters(envs))
+	}
+	if cs := castsIn(envs); len(cs) != 1 || cs[0].CasterId != m.id || cs[0].TargetId != 1 {
+		t.Fatalf("viewer casts %v, want the monster's swing at 1", cs)
 	}
 	if hs := hitsIn(envs); len(hs) != 1 || hs[0].AttackerId != m.id || hs[0].TargetId != 1 {
 		t.Fatalf("viewer hits %v, want the monster's hit on 1", hs)
@@ -1157,6 +1191,7 @@ type bot struct {
 	seq           uint32
 	slashes       int
 	melee, ranged int // hits taken
+	swings        int // monster attacks started at it, landed or not
 }
 
 // newBot makes player id unkillable, so a run measures hits, not deaths.
@@ -1190,9 +1225,16 @@ func (b *bot) act(dir Vec2, slash uint64) {
 	}
 }
 
-// tickBots runs one tick and counts its hits for the bots.
+// tickBots runs one tick and counts its hits and monster swings for the bots.
 func tickBots(z *Zone, bots ...*bot) {
 	z.advance(time.Now())
+	for _, c := range z.events.casts {
+		for _, b := range bots {
+			if c.TargetId == b.id && z.monsters[c.CasterId] != nil {
+				b.swings++
+			}
+		}
+	}
 	for _, h := range z.events.hits {
 		for _, b := range bots {
 			if h.TargetId == b.id && h.Ranged {
@@ -1213,10 +1255,15 @@ func (b *bot) slashAndLand(dir Vec2, m uint64, others ...*bot) {
 	all := append([]*bot{b}, others...)
 	b.act(dir, m)
 	tickBots(b.z, all...)
-	for len(b.z.impacts) > 0 {
+	for b.slashInFlight() {
 		b.act(dir, 0)
 		tickBots(b.z, all...)
 	}
+}
+
+// slashInFlight reports whether an attack by b has yet to land.
+func (b *bot) slashInFlight() bool {
+	return slices.ContainsFunc(b.z.impacts, func(im impact) bool { return !im.byMonster && im.attacker == b.id })
 }
 
 func unit(a, b Vec2) Vec2 {
@@ -1437,8 +1484,9 @@ func TestGrudgeExpires(t *testing.T) {
 }
 
 // A monster going back after the safe-zone wait still bears its grudge: a
-// player who steps out in sight to poke it is chased and hit at once, before
-// the slash and the step back in (spec 4.5).
+// player who steps out in sight to poke it is chased and swung at at once,
+// before the slash and the step back in, and the swing lands although the
+// player is back in the safe zone by then (spec 4.5, attack phases spec 3.3).
 func TestBackMonsterTurnsOnRecentAttacker(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{13.5, 5.5}) // its one region tile, well off the safe edge
 	joinNow(t, z, 1, 12.0, 5.5)
@@ -1456,7 +1504,7 @@ func TestBackMonsterTurnsOnRecentAttacker(t *testing.T) {
 	if m.state != back || !z.area.InSafe(b.p().pos) || m.region.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
 		t.Fatalf("setup: state %v at %v, player at %v; want the monster going back from off its region", m.state, m.pos, b.p().pos)
 	}
-	hits := b.melee
+	hits, swings := b.melee, b.swings
 	b.act(Vec2{1, 0}, 0) // step out, in sight
 	tickBots(z, b)
 	if z.area.InSafe(b.p().pos) {
@@ -1464,8 +1512,14 @@ func TestBackMonsterTurnsOnRecentAttacker(t *testing.T) {
 	}
 	b.act(Vec2{-1, 0}, m.id) // slash and step back in
 	tickBots(z, b)
-	if b.melee == hits {
-		t.Fatalf("poked a monster going back without being hit: state %v target %d at %v", m.state, m.target, m.pos)
+	if b.swings == swings {
+		t.Fatalf("poked a monster going back without being swung at: state %v target %d at %v", m.state, m.target, m.pos)
+	}
+	for b.melee == hits && len(z.impacts) > 0 {
+		tickBots(z, b)
+	}
+	if b.melee == hits || !z.area.InSafe(b.p().pos) {
+		t.Fatalf("hits %d, player at %v: want the swing landed on the player back in the safe zone", b.melee-hits, b.p().pos)
 	}
 }
 
@@ -1622,7 +1676,7 @@ func TestBackMonsterIsAttackable(t *testing.T) {
 		t.Fatalf("state %v, want the monster still going back until the slash lands", m.state)
 	}
 	var hitAt Vec2 // where it stands when the slash lands, before it moves that tick
-	for len(z.impacts) > 0 {
+	for slices.ContainsFunc(z.impacts, func(im impact) bool { return !im.byMonster }) {
 		hitAt = m.pos
 		z.advance(time.Now())
 	}
@@ -1706,11 +1760,16 @@ func attackNow(t *testing.T, z *Zone, id uint64, seq uint32, target uint64) {
 	z.advance(time.Now())
 }
 
-// settle runs ticks until every impact in flight has landed and returns how
-// many it ran.
+// settle runs ticks until every impact in flight now has landed and returns
+// how many it ran. Impacts started meanwhile, such as a monster hitting back,
+// may still be in flight.
 func settle(z *Zone) int {
+	if len(z.impacts) == 0 {
+		return 0
+	}
+	last := z.impacts[len(z.impacts)-1].due
 	n := 0
-	for ; len(z.impacts) > 0; n++ {
+	for ; z.tickNo < last; n++ {
 		z.advance(time.Now())
 	}
 	return n
@@ -1861,14 +1920,16 @@ func TestAttackHitsAndAggro(t *testing.T) {
 		t.Fatalf("monster hp %d, want 42", m.hp)
 	}
 	// The slash, when it lands, turns the monster on its attacker, who stands
-	// within its reach, so it hits back on the same tick: 30*(1-10/30) = 20.
-	want := []*pb.Hit{
-		{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42},
-		{AttackerId: m.id, TargetId: 1, Damage: 20, HpAfter: 480},
-	}
-	for name, got := range map[string][]*pb.Hit{"attacker": hitsIn(envs), "viewer": hitsIn(v.take())} {
-		if len(got) != len(want) || got[0].String() != want[0].String() || got[1].String() != want[1].String() {
-			t.Fatalf("%s hits %v, want %v", name, got, want)
+	// within its reach, so it swings back on the same tick; the swing lands
+	// 2 ticks later for 30*(1-10/30) = 20.
+	slashHit := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42}
+	ev := v.take()
+	for name, envs := range map[string][]*pb.Envelope{"attacker": envs, "viewer": ev} {
+		if got := hitsIn(envs); len(got) != 1 || got[0].String() != slashHit.String() {
+			t.Fatalf("%s hits %v, want %v", name, got, slashHit)
+		}
+		if cs := castsBy(envs, m.id); len(cs) != 1 || cs[0].TargetId != 1 {
+			t.Fatalf("%s monster casts %v, want its swing at 1", name, cs)
 		}
 	}
 	if !chasing(m) || m.target != 1 {
@@ -1877,10 +1938,19 @@ func TestAttackHitsAndAggro(t *testing.T) {
 	if at, ok := m.attackers[1]; !ok || at != z.tickNo || m.chaseFrom != (Vec2{30.5, 30.5}) {
 		t.Fatalf("attackers %v chaseFrom %v, want the hit's tick recorded and the chase starting where it stood", m.attackers, m.chaseFrom)
 	}
+	if n := settle(z); n != 2 {
+		t.Fatalf("the swing landed %d ticks after it started, want 2 (200 ms)", n)
+	}
+	back := &pb.Hit{AttackerId: m.id, TargetId: 1, Damage: 20, HpAfter: 480}
+	for name, got := range map[string][]*pb.Hit{"attacker": hitsIn(a.take()), "viewer": hitsIn(v.take())} {
+		if len(got) != 1 || got[0].String() != back.String() {
+			t.Fatalf("%s hits %v, want %v", name, got, back)
+		}
+	}
 
 	// The cooldown is 8 ticks from the press: an attack 8 ticks after the
 	// last is accepted.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 3; i++ {
 		z.advance(time.Now())
 	}
 	a.take()
@@ -2090,8 +2160,9 @@ func TestLevelUp(t *testing.T) {
 	}
 }
 
-// HpChange carries end-of-tick HP: a level-up heal at step 2 followed by a
-// monster hit at step 4 must leave viewers with the real HP.
+// HpChange carries end-of-tick HP: a level-up heal from a slash's impact
+// followed by a monster's impact on the same tick must leave viewers with the
+// real HP.
 func TestLevelUpThenHitSameTick(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	area := Area{
@@ -2112,6 +2183,9 @@ func TestLevelUpThenHitSameTick(t *testing.T) {
 		t.Fatal(err)
 	}
 	v := joinNow(t, z, 2, 30.5, 36.5)
+	// The other monster swings in the press tick, after the slash: both land
+	// 2 ticks later, the slash first.
+	engage(z.monsters[ids[1]], 1)
 	attackLand(t, z, 1, 1, victim.id)
 	p := z.players[1]
 	if p.level != 2 || p.hp == p.maxHP {
@@ -2781,6 +2855,7 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 	joinHP(t, z, 1, 31.5, 30.5, 20)
 	engage(m, 1)
 	z.advance(time.Now())
+	settle(z)
 	p := z.players[1]
 	if !p.dead {
 		t.Fatal("the monster should have killed player 1")
@@ -2866,8 +2941,13 @@ func TestRestDoesNotHealPlayerKilledThatTick(t *testing.T) {
 	joinHP(t, z, 1, 31.5, 30.5, 20)
 	engage(m, 1)
 	p := z.players[1]
-	p.restTicks = z.ticks(restSec) - 1 // step 3 completes the count; the monster kills at step 4
-	z.advance(time.Now())
+	now := time.Now()
+	z.advance(now) // the swing
+	for z.impacts[0].due > z.tickNo+1 {
+		z.advance(now)
+	}
+	p.restTicks = z.ticks(restSec) - 1 // the landing tick would complete the count; the swing kills first
+	z.advance(now)
 	if !p.dead || p.hp != 0 || p.restTicks != 0 {
 		t.Fatalf("dead %v hp %d restTicks %d, want dead at 0 HP with the count reset", p.dead, p.hp, p.restTicks)
 	}
@@ -2997,6 +3077,17 @@ func castsIn(envs []*pb.Envelope) []*pb.Cast {
 	var cs []*pb.Cast
 	for _, wt := range ticksIn(envs) {
 		cs = append(cs, wt.Casts...)
+	}
+	return cs
+}
+
+// castsBy is the casts in envs by caster; monsters hitting back cast too.
+func castsBy(envs []*pb.Envelope, caster uint64) []*pb.Cast {
+	var cs []*pb.Cast
+	for _, c := range castsIn(envs) {
+		if c.CasterId == caster {
+			cs = append(cs, c)
+		}
 	}
 	return cs
 }
@@ -3300,7 +3391,7 @@ func TestCastCircleSelf(t *testing.T) {
 		t.Fatal("the monster 2.6 tiles away was hit")
 	}
 	want := &pb.Cast{CasterId: 1, SkillId: "thuy_4", Level: 1, WindupMs: 300, Impacts: []*pb.CastImpact{{TargetId: m.id, ImpactMs: 300}}}
-	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+	if cs := castsBy(envs, 1); len(cs) != 1 || cs[0].String() != want.String() {
 		t.Fatalf("casts %v, want %v", cs, want)
 	}
 	if p.mp != mp-s.MP[0] {
@@ -3620,7 +3711,7 @@ func TestCastConeLineAim(t *testing.T) {
 				t.Fatalf("hits %v, want only %d to the south", hs, ms[0].id)
 			}
 			want := &pb.Cast{CasterId: 1, SkillId: skill, DirY: 1, Level: 1}
-			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
+			if cs := castsBy(envs, 1); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
 		})
@@ -3635,7 +3726,7 @@ func TestCastConeLineAim(t *testing.T) {
 				t.Fatalf("hits %v, want only %d, towards the target", hs, ms[1].id)
 			}
 			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, DirY: -1, Level: 1}
-			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
+			if cs := castsBy(envs, 1); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
 		})
@@ -3650,7 +3741,7 @@ func TestCastConeLineAim(t *testing.T) {
 				t.Fatalf("hits %v, want only %d", targetIDs(hs), ms[0].id)
 			}
 			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, Level: 1}
-			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
+			if cs := castsBy(envs, 1); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
 		})
@@ -3666,7 +3757,7 @@ func TestCastConeLineAim(t *testing.T) {
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[2], ms[0])) {
 				t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[2], ms[0]))
 			}
-			if cs := castsIn(envs); len(cs) != 1 || !slices.Equal(impactIDs(cs[0]), idsOf(ms[0], ms[2])) {
+			if cs := castsBy(envs, 1); len(cs) != 1 || !slices.Equal(impactIDs(cs[0]), idsOf(ms[0], ms[2])) {
 				t.Fatalf("casts %v, want impacts on %v", cs, idsOf(ms[0], ms[2]))
 			}
 		})
@@ -3726,7 +3817,7 @@ func TestCastCircleTargetArea(t *testing.T) {
 		t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[1]))
 	}
 	want := &pb.Cast{CasterId: 1, SkillId: "viem_4", TargetId: ms[0].id, DirX: 1, Level: 4}
-	if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
+	if cs := castsBy(envs, 1); len(cs) != 1 || untimed(cs[0]).String() != want.String() {
 		t.Fatalf("casts %v, want %v", cs, want)
 	}
 }
@@ -3794,7 +3885,7 @@ func TestCastCircleSelfOrder(t *testing.T) {
 			if c.castTo {
 				cast.TargetId = ms[0].id
 			}
-			if cs := castsIn(envs); len(cs) != 1 || untimed(cs[0]).String() != cast.String() {
+			if cs := castsBy(envs, 1); len(cs) != 1 || untimed(cs[0]).String() != cast.String() {
 				t.Fatalf("casts %v, want %v", cs, cast)
 			}
 		})
@@ -4190,5 +4281,171 @@ func TestImpactAfterAttackerDies(t *testing.T) {
 	}
 	if len(m.attackers) != 0 || chasing(m) {
 		t.Fatalf("attackers %v state %v, want the dead attacker not recorded or chased", m.attackers, m.state)
+	}
+}
+
+// A player's impact can pay EXP to a player who died after the attack. If it
+// levels the corpse up, the level-up must not refill its HP and MP: the
+// corpse stays at 0 HP and respawns full anyway.
+func TestImpactLevelsUpDeadAttacker(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.region.Kind.DetectRange = 0.5
+	in := info(1, 31.5, 30.5)
+	in.Exp = testExp.ToNext(1) - combat.ExpShare(testLevels[1].Exp, testLevels[1].HP, 14) // the slash's share reaches level 2
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	attackNow(t, z, 1, 1, m.id)
+	p := z.players[1]
+	p.mp = 7
+	z.damagePlayer(p, 0, 10000, false)
+	a.take()
+	settle(z)
+	if p.level != 2 || !p.dead || p.hp != 0 || p.mp != 7 {
+		t.Fatalf("level %d dead %v hp %d mp %d, want level 2 with the corpse at 0 HP and 7 MP", p.level, p.dead, p.hp, p.mp)
+	}
+	for _, c := range hpChangesIn(a.take()) {
+		if c.Id == 1 && c.Hp != 0 {
+			t.Fatalf("HpChange %v, want the corpse shown at 0 HP", c)
+		}
+	}
+	if saves := z.saver.(*fakeSaver).all(); len(saves) != 1 || saves[0].Level != 2 || saves[0].HP != 0 {
+		t.Fatalf("saves %+v, want the level-up saved with 0 HP", saves)
+	}
+	if !z.Respawn(1, 2) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+	if p.dead || p.hp != p.maxHP || p.mp != p.stats.MaxMP {
+		t.Fatalf("dead %v hp %d/%d mp %d/%d, want respawned full", p.dead, p.hp, p.maxHP, p.mp, p.stats.MaxMP)
+	}
+}
+
+// ______________________TEST MONSTER IMPACTS_____________________
+
+// A melee swing is decided when the monster's attack is due: its Cast goes
+// out then, with the kind's 200 ms windup, and the Hit lands 2 ticks later.
+// The cadence counts from the swing.
+func TestMonsterMeleeLandsAtImpactTick(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 30.5, 31.5)
+	v := joinNow(t, z, 2, 30.5, 36.5)
+	engage(m, 1)
+	z.advance(time.Now())
+	t0 := z.tickNo
+	want := &pb.Cast{CasterId: m.id, TargetId: 1, DirY: 1, WindupMs: 200, Impacts: []*pb.CastImpact{{TargetId: 1, ImpactMs: 200}}}
+	for name, envs := range map[string][]*pb.Envelope{"target": a.take(), "viewer": v.take()} {
+		if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+			t.Fatalf("%s casts %v, want %v", name, cs, want)
+		}
+		if hs := hitsIn(envs); len(hs) != 0 {
+			t.Fatalf("%s hits %v in the swing tick, want none", name, hs)
+		}
+	}
+	p := z.players[1]
+	if p.hp != 500 || m.nextAttack != t0+z.ticks(testKind.AttackSec) {
+		t.Fatalf("hp %d nextAttack %d, want 500 and %d", p.hp, m.nextAttack, t0+z.ticks(testKind.AttackSec))
+	}
+	if n := settle(z); z.tickNo != t0+z.ticks(0.2) || n != 2 {
+		t.Fatalf("landed on tick %d, want %d", z.tickNo, t0+z.ticks(0.2))
+	}
+	hit := &pb.Hit{AttackerId: m.id, TargetId: 1, Damage: 20, HpAfter: 480}
+	for name, envs := range map[string][]*pb.Envelope{"target": a.take(), "viewer": v.take()} {
+		if hs := hitsIn(envs); len(hs) != 1 || hs[0].String() != hit.String() {
+			t.Fatalf("%s hits %v, want %v", name, hs, hit)
+		}
+	}
+}
+
+// shotInFlight has m shoot player 1, 5 tiles east of it, and returns once
+// the shot is fired, with the tick it was fired on and player 1's outbox.
+func shotInFlight(t *testing.T) (*Zone, *monster, *fakeOut, uint32) {
+	t.Helper()
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	a := joinNow(t, z, 1, 35.5, 30.5)
+	z.startShoot(m)
+	m.nextShot = z.tickNo + 1
+	z.advance(time.Now())
+	if len(z.impacts) != 1 {
+		t.Fatalf("impacts %v, want the shot in flight", z.impacts)
+	}
+	return z, m, a, z.tickNo
+}
+
+// A shot's damage is fixed when it is fired; it flies at shot_speed and lands
+// distance / speed later: 5 tiles at 15 tiles/s is 4 ticks.
+func TestMonsterShotLandsAfterFlight(t *testing.T) {
+	z, m, a, t0 := shotInFlight(t)
+	envs := a.take()
+	want := &pb.Cast{CasterId: m.id, TargetId: 1, DirX: 1, Ranged: true, Impacts: []*pb.CastImpact{{TargetId: 1, ImpactMs: 400}}}
+	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+		t.Fatalf("casts %v, want %v", cs, want)
+	}
+	if hs := hitsIn(envs); len(hs) != 0 {
+		t.Fatalf("hits %v in the firing tick, want none", hs)
+	}
+	p := z.players[1]
+	p.stats.PhysDefense = 1000 // fixed at the shot: a later defense changes nothing
+	settle(z)
+	hit := &pb.Hit{AttackerId: m.id, TargetId: 1, Damage: 10, HpAfter: 490, Ranged: true}
+	if hs := hitsIn(a.take()); z.tickNo != t0+z.ticks(5.0/15) || len(hs) != 1 || hs[0].String() != hit.String() {
+		t.Fatalf("tick %d hits %v, want %v on tick %d", z.tickNo, hs, hit, t0+z.ticks(5.0/15))
+	}
+	if m.state != shoot || m.nextShot != t0+z.ticks(testKind.ShootSec) {
+		t.Fatalf("state %v nextShot %d, want shooting again %d ticks after the shot", m.state, m.nextShot, z.ticks(testKind.ShootSec))
+	}
+}
+
+// A shot on a player who dies or leaves before it lands is dropped.
+func TestMonsterShotOnGonePlayerIsDropped(t *testing.T) {
+	for _, gone := range []string{"dies", "leaves"} {
+		t.Run(gone, func(t *testing.T) {
+			z, m, a, _ := shotInFlight(t)
+			v := joinNow(t, z, 2, 30.5, 36.5)
+			p := z.players[1]
+			if gone == "dies" {
+				z.damagePlayer(p, 0, 10000, false)
+			} else if err := <-z.leave(1); err != nil {
+				t.Fatal(err)
+			}
+			a.take()
+			settle(z)
+			if len(z.impacts) != 0 {
+				t.Fatalf("impacts %v, want the shot gone", z.impacts)
+			}
+			for _, envs := range [][]*pb.Envelope{a.take(), v.take()} {
+				for _, h := range hitsIn(envs) {
+					if h.AttackerId == m.id {
+						t.Fatalf("hit %v, want the shot dropped", h)
+					}
+				}
+			}
+		})
+	}
+}
+
+// A shot already fired lands even if the monster dies meanwhile, or the
+// player steps into a safe zone: the safe-zone check was made when it fired.
+func TestMonsterShotLandsAnyway(t *testing.T) {
+	for _, c := range []string{"monster dies", "player in a safe zone"} {
+		t.Run(c, func(t *testing.T) {
+			z, m, a, _ := shotInFlight(t)
+			if c == "monster dies" {
+				m.hp = 0
+				z.killMonster(m)
+			} else {
+				teleport(z, 1, Vec2{5.5, 5.5})
+				if !z.area.InSafe(z.players[1].pos) {
+					t.Fatal("setup: not in the safe zone")
+				}
+			}
+			a.take()
+			settle(z)
+			hit := &pb.Hit{AttackerId: m.id, TargetId: 1, Damage: 10, HpAfter: 490, Ranged: true}
+			if hs := hitsIn(a.take()); len(hs) != 1 || hs[0].String() != hit.String() || z.players[1].hp != 490 {
+				t.Fatalf("hits %v hp %d, want %v", hs, z.players[1].hp, hit)
+			}
+		})
 	}
 }

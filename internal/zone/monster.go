@@ -154,8 +154,9 @@ func (z *Zone) startShoot(m *monster) {
 }
 
 // shoot runs a shooting monster. It stands still, and on each shot picks the
-// nearest player it may shoot. With nobody left it goes back to wandering.
-// Shooting never gives it a target or starts a chase.
+// nearest player it may shoot; the shot's damage is fixed then and lands
+// when it has flown there at the kind's shot speed. With nobody left it goes
+// back to wandering. Shooting never gives it a target or starts a chase.
 func (z *Zone) shoot(m *monster) {
 	if z.tickNo < m.nextShot {
 		return
@@ -166,7 +167,7 @@ func (z *Zone) shoot(m *monster) {
 		return
 	}
 	dmg := combat.MonsterRangedDamage(z.area.Levels[m.level].Attack, p.stats.PhysDefense, m.level)
-	z.damagePlayer(p, m.id, dmg, true)
+	z.monsterAttack(m, p, dmg, 0, flightSec(distance(m.pos, p.pos), m.region.Kind.ShotSpeed), true)
 	m.nextShot += z.ticks(m.region.Kind.ShootSec)
 }
 
@@ -278,8 +279,9 @@ func (z *Zone) fallback(m *monster, old uint64) *player {
 // region. While the target waits in a safe zone, a recent attacker outside
 // is turned on at once; with none, the monster walks up to the target as
 // close as the monster grid allows, so it stands at the edge. Otherwise it
-// walks up to the target and hits it every AttackSec once in range with a
-// clear line, the same line of sight a player's slash needs. It never shoots.
+// walks up to the target and swings at it every AttackSec once in range with
+// a clear line, the same line of sight a player's slash needs; each swing
+// lands MeleeWindupMS later. It never shoots.
 func (z *Zone) fight(m *monster) {
 	t, hittable := z.chaseTarget(m)
 	if !hittable {
@@ -318,9 +320,22 @@ func (z *Zone) fight(m *monster) {
 	z.stopMonster(m)
 	if z.tickNo >= m.nextAttack {
 		dmg := combat.Damage(z.area.Levels[m.level].Attack, t.stats.PhysDefense, m.level)
-		z.damagePlayer(t, m.id, dmg, false)
+		z.monsterAttack(m, t, dmg, k.MeleeWindupMS, 0, false)
 		m.nextAttack = z.tickNo + z.ticks(k.AttackSec)
 	}
+}
+
+// monsterAttack starts m's attack on p (attack phases spec 2): dmg is fixed
+// now and lands after windupMS of windup and flight seconds of flight, at
+// least a tick later. Viewers of m get a Cast with an empty skill id; ranged
+// marks a shot. The safe-zone check is the one m made when deciding to
+// attack: p is still hit if it steps into a safe zone before the impact.
+func (z *Zone) monsterAttack(m *monster, p *player, dmg, windupMS int, flight float64, ranged bool) {
+	due := z.tickNo + z.impactTicks(windupMS, flight)
+	z.schedule(impact{due: due, attacker: m.id, byMonster: true, target: p.id, damage: dmg, ranged: ranged})
+	d := dirTo(m.pos, p.pos)
+	z.events.casts = append(z.events.casts, &pb.Cast{CasterId: m.id, TargetId: p.id, DirX: d.X, DirY: d.Y,
+		WindupMs: int32(windupMS), Impacts: []*pb.CastImpact{{TargetId: p.id, ImpactMs: z.impactMS(due)}}, Ranged: ranged})
 }
 
 // dropUnreachable lets go of t, which m has been stuck at a wall trying to

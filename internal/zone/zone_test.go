@@ -456,7 +456,7 @@ func TestJoinHonoursContextBeforeQueueing(t *testing.T) {
 
 var testKind = gamedata.Kind{ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 2.0, AttackSec: 1.5, Speed: 0.8,
 	DetectRange: 5, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, ChaseSpeed: 1.2, SafeWaitSec: 5,
-	MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8}
+	MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8, MeleeWindupMS: 200, ShotSpeed: 15}
 
 var testLevels = map[int]gamedata.Level{
 	1: {Level: 1, HP: 56, Attack: 30, Defense: 8, Exp: 6},
