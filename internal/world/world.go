@@ -131,13 +131,15 @@ func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
 	return a
 }
 
-// Start opens zone 1 of every map and the idle-zone janitor. Everything stops when ctx is cancelled.
-// It must be called before Enter.
+// Start opens zones 1 to min_zones of every map (spec 3.1) and the idle-zone
+// janitor. Everything stops when ctx is cancelled. It must be called before Enter.
 func (w *World) Start(ctx context.Context) {
 	w.ctx = ctx
 	w.mu.Lock()
 	for id := range w.maps {
-		w.openZoneLocked(id)
+		for range w.minZones(id) {
+			w.openZoneLocked(id)
+		}
 	}
 	w.mu.Unlock()
 	w.wg.Add(1)
@@ -158,6 +160,14 @@ func (w *World) Start(ctx context.Context) {
 
 // Wait blocks until every zone goroutine has exited (after the Start context is cancelled).
 func (w *World) Wait() { w.wg.Wait() }
+
+// minZones is how many zones of mapID are always open, at least one.
+func (w *World) minZones(mapID string) int {
+	if m := w.maps[mapID]; m != nil {
+		return max(m.MinZones, 1)
+	}
+	return 1
+}
 
 // StartPosition is where new characters appear.
 func (w *World) StartPosition() (string, mapdata.Point) { return w.cfg.StartMap, w.start }
@@ -202,6 +212,7 @@ type EnterRequest struct {
 // Membership is a character's presence in a zone.
 type Membership struct {
 	z        *zone.Zone
+	out      zone.Outbox // the connection's, kept across transfers
 	EntityID uint64
 	MapID    string
 	ZoneNo   int
@@ -331,24 +342,11 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		Inventory:   w.knownItems(req.Char),
 		RespSeq:     req.RespSeq,
 	}
-	for attempt := 0; attempt < 10; attempt++ {
-		s := w.reserve(mapID)
-		if s == nil {
-			return nil, ErrStopped
-		}
-		err := s.z.Join(ctx, info, req.Out)
-		s.reserved.Add(-1)
-		switch {
-		case err == nil:
-			return &Membership{z: s.z, EntityID: info.EntityID, MapID: mapID, ZoneNo: s.no}, nil
-		case errors.Is(err, zone.ErrZoneFull), errors.Is(err, zone.ErrZoneClosed):
-			continue
-		default:
-			// zone.Join only fails this way before the join is queued, so nothing to undo.
-			return nil, err
-		}
+	s := w.reserve(mapID)
+	if s == nil {
+		return nil, ErrStopped
 	}
-	return nil, zone.ErrZoneFull
+	return w.joinZone(ctx, s, mapID, info, req.Out)
 }
 
 // knownSkills is c's stored skills without those missing from the skill data,
@@ -511,16 +509,14 @@ func (w *World) reserve(mapID string) *slot {
 	if w.ctx.Err() != nil {
 		return nil
 	}
+	return w.reserveLocked(mapID)
+}
+
+// reserveLocked holds a seat in the first running zone of mapID with room,
+// opening a zone if all are full. Callers hold w.mu and have checked w.ctx.
+func (w *World) reserveLocked(mapID string) *slot {
 	for _, s := range w.zones[mapID] {
-		if s == nil {
-			continue
-		}
-		select {
-		case <-s.z.Done():
-			continue
-		default:
-		}
-		if s.z.Count()+int(s.reserved.Load()) < w.cfg.ZoneCapacity {
+		if s != nil && running(s) && w.hasRoom(s) {
 			s.reserved.Add(1)
 			return s
 		}
@@ -530,13 +526,30 @@ func (w *World) reserve(mapID string) *slot {
 	return s
 }
 
-// closeIdle stops zones other than zone 1 that have been empty for IdleZoneTTL.
+// hasRoom reports whether s's players and held seats are below the capacity.
+func (w *World) hasRoom(s *slot) bool {
+	return s.z.Count()+int(s.reserved.Load()) < w.cfg.ZoneCapacity
+}
+
+// running reports whether s's zone has not stopped.
+func running(s *slot) bool {
+	select {
+	case <-s.z.Done():
+		return false
+	default:
+		return true
+	}
+}
+
+// closeIdle stops zones above min_zones of their map that have been empty for
+// IdleZoneTTL (spec 3.1).
 func (w *World) closeIdle(now time.Time) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	for mapID, slots := range w.zones {
+		keep := w.minZones(mapID)
 		for i, s := range slots {
-			if i == 0 || s == nil || s.reserved.Load() > 0 || s.z.Count() > 0 {
+			if s == nil || s.no <= keep || s.reserved.Load() > 0 || s.z.Count() > 0 {
 				continue
 			}
 			since := s.z.EmptySince()

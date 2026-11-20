@@ -992,3 +992,486 @@ func TestEnterCarriesItemsAndXu(t *testing.T) {
 		t.Fatalf("stats %v, want %+v from the sword and its gems", r.Stats, want)
 	}
 }
+
+// ______________________TEST ZONES AND TRANSFER_____________________
+
+// portalMaps is two open 20x20 maps joined by portals: m1 (min_zones 2) has
+// the portal "east" on its east edge to m2's "from_m1", and m2 (min_zones 1)
+// the portal "west" on its west edge to m1's "from_m2".
+func portalMaps(t *testing.T) map[string]*mapdata.Map {
+	t.Helper()
+	rows := make([]string, 20)
+	for i := range rows {
+		rows[i] = strings.Repeat(".", 20)
+	}
+	parse := func(f map[string]any) *mapdata.Map {
+		f["type"], f["width"], f["height"], f["collision"] = "training", 20, 20, rows
+		f["safe_zones"] = []map[string]any{{"id": "camp", "x": 1, "y": 1, "w": 3, "h": 3}}
+		data, _ := json.Marshal(f)
+		m, err := mapdata.Parse(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	m1 := parse(map[string]any{"id": "m1", "name": "M1", "min_zones": 2,
+		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5, "respawn": true}, {"id": "from_m2", "x": 16.5, "y": 10.5}},
+		"portals":      []map[string]any{{"id": "east", "x": 19, "y": 8, "w": 1, "h": 4, "to_map": "m2", "to_spawn": "from_m1"}},
+	})
+	m2 := parse(map[string]any{"id": "m2", "name": "M2", "min_zones": 1,
+		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5, "respawn": true}, {"id": "from_m1", "x": 3.5, "y": 10.5}},
+		"portals":      []map[string]any{{"id": "west", "x": 0, "y": 8, "w": 1, "h": 4, "to_map": "m1", "to_spawn": "from_m2"}},
+	})
+	maps := map[string]*mapdata.Map{"m1": m1, "m2": m2}
+	if err := mapdata.Link(maps); err != nil {
+		t.Fatal(err)
+	}
+	return maps
+}
+
+// recSaver records every save and answers it at once.
+type recSaver struct {
+	mu    sync.Mutex
+	saves []store.CharState
+}
+
+func (s *recSaver) Save(st store.CharState, done chan<- error) {
+	s.mu.Lock()
+	s.saves = append(s.saves, st)
+	s.mu.Unlock()
+	if done != nil {
+		done <- nil
+	}
+}
+
+// last is the latest save of character id.
+func (s *recSaver) last(id int64) (store.CharState, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.saves) - 1; i >= 0; i-- {
+		if s.saves[i].ID == id {
+			return s.saves[i], true
+		}
+	}
+	return store.CharState{}, false
+}
+
+func startWorldSaver(t *testing.T, capacity int, maps map[string]*mapdata.Map, sv zone.Saver) *World {
+	t.Helper()
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: capacity,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, maps, testMonsters, sv, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.Start(ctx)
+	t.Cleanup(func() { cancel(); w.Wait() })
+	return w
+}
+
+// enterRespSeq is the next EnterWorldResp on o and its seq.
+func (o *recOut) enterRespSeq(t *testing.T) (*pb.EnterWorldResp, uint32) {
+	t.Helper()
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-o.ch:
+			if r := e.GetEnterWorldResp(); r != nil {
+				return r, e.Seq
+			}
+		case <-timeout:
+			t.Fatal("no EnterWorldResp")
+		}
+	}
+}
+
+// noEnterResp fails if o has an EnterWorldResp queued.
+func (o *recOut) noEnterResp(t *testing.T) {
+	t.Helper()
+	for {
+		select {
+		case e := <-o.ch:
+			if r := e.GetEnterWorldResp(); r != nil {
+				t.Fatalf("unexpected EnterWorldResp %v", r)
+			}
+		default:
+			return
+		}
+	}
+}
+
+// zoneNos is the running zones of each map as "map:no", sorted.
+func zoneNos(w *World) []string {
+	var out []string
+	for _, s := range w.Stats() {
+		out = append(out, fmt.Sprintf("%s:%d", s.MapID, s.ZoneNo))
+	}
+	slices.Sort(out)
+	return out
+}
+
+// enterAt puts character id into the world at (x, y) of mapID.
+func enterAt(t *testing.T, w *World, id int64, mapID string, x, y float32) (*Membership, *recOut) {
+	t.Helper()
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: char(id, mapID, x, y), Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out.enterResp(t)
+	return m, out
+}
+
+// slotOf is zone no of mapID, or nil.
+func slotOf(w *World, mapID string, no int) *slot {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, s := range w.zones[mapID] {
+		if s != nil && s.no == no {
+			return s
+		}
+	}
+	return nil
+}
+
+// transferCode is the refusal code of err, or 0.
+func transferCode(err error) pb.ErrorCode {
+	var te *TransferError
+	if errors.As(err, &te) {
+		return te.Code
+	}
+	return 0
+}
+
+func portal(id string) TransferReq { return TransferReq{Kind: TransferPortal, PortalID: id} }
+
+func zoneChange(no int) TransferReq { return TransferReq{Kind: TransferZone, Zone: no} }
+
+// Start opens min_zones zones per map, and the janitor keeps them: zone 2 of
+// m1 stays when it has emptied, an empty zone 3 above it closes.
+func TestMinZonesStayOpen(t *testing.T) {
+	w := startWorld(t, 1, portalMaps(t))
+	if got := zoneNos(w); !slices.Equal(got, []string{"m1:1", "m1:2", "m2:1"}) {
+		t.Fatalf("zones at start %v, want m1:1 m1:2 m2:1", got)
+	}
+	enterAt(t, w, 1, "m1", 5.5, 5.5)
+	b, _ := enterAt(t, w, 2, "m1", 5.5, 5.5)
+	c, _ := enterAt(t, w, 3, "m1", 5.5, 5.5)
+	if b.ZoneNo != 2 || c.ZoneNo != 3 {
+		t.Fatalf("zones %d %d, want 2 3", b.ZoneNo, c.ZoneNo)
+	}
+	<-b.Leave()
+	<-c.Leave()
+	w.closeIdle(time.Now().Add(10 * time.Minute))
+	if got := zoneNos(w); !slices.Equal(got, []string{"m1:1", "m1:2", "m2:1"}) {
+		t.Fatalf("zones after the janitor %v, want m1:1 m1:2 m2:1", got)
+	}
+}
+
+// A portal keeps the zone number when that zone of the target is open with
+// room: from m2 zone 2 to m1 zone 2, though m1 zone 1 has room. The player
+// arrives at the portal's spawn point, saved there, with the request's seq.
+func TestPortalKeepsZoneNumber(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 1, portalMaps(t), sv)
+	enterAt(t, w, 1, "m2", 5.5, 5.5)
+	m, out := enterAt(t, w, 2, "m2", 1.5, 9.0)
+	if m.ZoneNo != 2 {
+		t.Fatalf("zone %d, want 2", m.ZoneNo)
+	}
+	req := portal("west")
+	req.RespSeq = 42
+	nm, saved, err := w.Transfer(context.Background(), m, req)
+	if err != nil || saved != nil {
+		t.Fatalf("transfer: %v (saved %v)", err, saved)
+	}
+	if nm.MapID != "m1" || nm.ZoneNo != 2 || nm.EntityID != m.EntityID {
+		t.Fatalf("membership %+v, want m1 zone 2 with entity %d", nm, m.EntityID)
+	}
+	r, seq := out.enterRespSeq(t)
+	if seq != 42 || r.MapId != "m1" || r.Zone != 2 || r.X != 16.5 || r.Y != 10.5 || r.SelfEntityId != m.EntityID {
+		t.Fatalf("EnterWorldResp seq %d %v, want seq 42 at m1 zone 2 (16.5, 10.5)", seq, r)
+	}
+	if st, ok := sv.last(2); !ok || st.MapID != "m1" || st.X != 16.5 || st.Y != 10.5 {
+		t.Fatalf("departure save %+v, want m1 (16.5, 10.5)", st)
+	}
+	if n := slotOf(w, "m2", 2).z.Count(); n != 0 {
+		t.Fatalf("m2 zone 2 count %d, want 0", n)
+	}
+	if s := slotOf(w, "m1", 2); s.z.Count() != 1 || s.reserved.Load() != 0 {
+		t.Fatalf("m1 zone 2 count %d reserved %d, want 1 0", s.z.Count(), s.reserved.Load())
+	}
+	// The new membership talks to the new zone.
+	if err := <-nm.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	if n := slotOf(w, "m1", 2).z.Count(); n != 0 {
+		t.Fatalf("m1 zone 2 count after leave %d, want 0", n)
+	}
+}
+
+// Without its zone number open with room in the target, a portal takes the
+// first zone with room, and opens a new zone when all are full.
+func TestPortalFallsBackToFirstZoneWithRoom(t *testing.T) {
+	w := startWorld(t, 1, portalMaps(t))
+	a, _ := enterAt(t, w, 1, "m1", 18.5, 10.0)
+	b, _ := enterAt(t, w, 2, "m1", 18.5, 10.0)
+	if a.ZoneNo != 1 || b.ZoneNo != 2 {
+		t.Fatalf("zones %d %d, want 1 2", a.ZoneNo, b.ZoneNo)
+	}
+	nb, _, err := w.Transfer(context.Background(), b, portal("east"))
+	if err != nil || nb.MapID != "m2" || nb.ZoneNo != 1 {
+		t.Fatalf("B: %+v %v, want m2 zone 1 (m2 has one zone)", nb, err)
+	}
+	c, _ := enterAt(t, w, 3, "m1", 19.5, 11.9) // m1 zone 2 is free again
+	nc, _, err := w.Transfer(context.Background(), c, portal("east"))
+	if err != nil || nc.MapID != "m2" || nc.ZoneNo != 2 {
+		t.Fatalf("C: %+v %v, want a new m2 zone 2", nc, err)
+	}
+	// From zone 1 with m2 zones 1 and 2 full.
+	na, _, err := w.Transfer(context.Background(), a, portal("east"))
+	if err != nil || na.MapID != "m2" || na.ZoneNo != 3 {
+		t.Fatalf("A: %+v %v, want a new m2 zone 3", na, err)
+	}
+}
+
+// A portal refused by the zone or the world leaves the player where it is
+// and releases the seat held in the target; within 1 tile it is taken.
+func TestPortalRefused(t *testing.T) {
+	w := startWorld(t, 10, portalMaps(t))
+	m, out := enterAt(t, w, 1, "m1", 17.9, 10.0) // 1.1 tiles from the east portal
+	_, saved, err := w.Transfer(context.Background(), m, portal("east"))
+	if code := transferCode(err); code != pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE || saved != nil {
+		t.Fatalf("1.1 tiles away: %v (saved %v), want OUT_OF_RANGE", err, saved)
+	}
+	if _, _, err := w.Transfer(context.Background(), m, portal("west")); transferCode(err) != pb.ErrorCode_ERROR_CODE_BAD_REQUEST {
+		t.Fatalf("a portal of another map: %v, want BAD_REQUEST", err)
+	}
+	if s := slotOf(w, "m2", 1); s.reserved.Load() != 0 || s.z.Count() != 0 {
+		t.Fatalf("m2 zone 1 reserved %d count %d, want 0 0", s.reserved.Load(), s.z.Count())
+	}
+	if n := slotOf(w, "m1", 1).z.Count(); n != 1 {
+		t.Fatalf("m1 zone 1 count %d, want 1", n)
+	}
+	time.Sleep(50 * time.Millisecond)
+	out.noEnterResp(t)
+
+	n, _ := enterAt(t, w, 2, "m1", 18.1, 10.0) // 0.9 tiles away
+	if nn, _, err := w.Transfer(context.Background(), n, portal("east")); err != nil || nn.MapID != "m2" {
+		t.Fatalf("0.9 tiles away: %+v %v, want m2", nn, err)
+	}
+	// The refused player is still in m1 zone 1 and can leave from there.
+	if err := <-m.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	if n := slotOf(w, "m1", 1).z.Count(); n != 0 {
+		t.Fatalf("m1 zone 1 count after leave %d, want 0", n)
+	}
+}
+
+type fakeDeparting struct {
+	dead, ready bool
+	pos         zone.Vec2
+}
+
+func (d fakeDeparting) Dead() bool            { return d.dead }
+func (d fakeDeparting) Pos() zone.Vec2        { return d.pos }
+func (d fakeDeparting) ZoneChangeReady() bool { return d.ready }
+
+// The zone-side checks in spec 3.3 and 3.4 order: DEAD first.
+func TestTransferChecks(t *testing.T) {
+	rect := mapdata.Rect{X: 19, Y: 8, W: 1, H: 4}
+	in, near, far := zone.Vec2{X: 19.5, Y: 9}, zone.Vec2{X: 18.1, Y: 12.0}, zone.Vec2{X: 19.5, Y: 13.1}
+	for _, tc := range []struct {
+		d    fakeDeparting
+		want pb.ErrorCode
+	}{
+		{fakeDeparting{dead: true, pos: in}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{fakeDeparting{dead: true, pos: far}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{fakeDeparting{pos: far}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{fakeDeparting{pos: near}, 0},
+		{fakeDeparting{pos: in}, 0},
+	} {
+		if got := portalCheck(rect)(tc.d); got != tc.want {
+			t.Errorf("portal check %+v = %v, want %v", tc.d, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		d    fakeDeparting
+		want pb.ErrorCode
+	}{
+		{fakeDeparting{dead: true}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{fakeDeparting{dead: true, ready: true}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{fakeDeparting{}, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN},
+		{fakeDeparting{ready: true}, 0},
+	} {
+		if got := zoneChangeCheck(tc.d); got != tc.want {
+			t.Errorf("zone change check %+v = %v, want %v", tc.d, got, tc.want)
+		}
+	}
+}
+
+// Zone change refusals in spec 3.4 order, then a change that keeps the
+// position and entity id, starts the cooldown and is reported in
+// EnterWorldResp.
+func TestZoneChange(t *testing.T) {
+	w := startWorld(t, 1, portalMaps(t))
+	a, out := enterAt(t, w, 1, "m1", 7.5, 6.5)
+	b, _ := enterAt(t, w, 2, "m1", 9.5, 9.5)
+	code := func(no int) pb.ErrorCode {
+		t.Helper()
+		_, saved, err := w.Transfer(context.Background(), a, zoneChange(no))
+		if saved != nil {
+			t.Fatalf("zone %d: refused with a save channel", no)
+		}
+		return transferCode(err)
+	}
+	for _, tc := range []struct {
+		no   int
+		want pb.ErrorCode
+	}{
+		{0, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{-1, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{1, pb.ErrorCode_ERROR_CODE_BAD_REQUEST}, // the current zone
+		{5, pb.ErrorCode_ERROR_CODE_ZONE_NOT_FOUND},
+		{2, pb.ErrorCode_ERROR_CODE_ZONE_FULL}, // B is there
+	} {
+		if got := code(tc.no); got != tc.want {
+			t.Fatalf("zone %d: %v, want %v", tc.no, got, tc.want)
+		}
+	}
+	if s := slotOf(w, "m1", 2); s.reserved.Load() != 0 {
+		t.Fatalf("zone 2 reserved %d after ZONE_FULL, want 0", s.reserved.Load())
+	}
+
+	<-b.Leave()
+	req := zoneChange(2)
+	req.RespSeq = 9
+	na, saved, err := w.Transfer(context.Background(), a, req)
+	if err != nil || saved != nil || na.MapID != "m1" || na.ZoneNo != 2 || na.EntityID != a.EntityID {
+		t.Fatalf("zone change: %+v %v, want m1 zone 2 with entity %d", na, err, a.EntityID)
+	}
+	r, seq := out.enterRespSeq(t)
+	if seq != 9 || r.Zone != 2 || r.X != 7.5 || r.Y != 6.5 {
+		t.Fatalf("EnterWorldResp seq %d %v, want seq 9 zone 2 at (7.5, 6.5)", seq, r)
+	}
+	if cd := r.Cooldowns; len(cd) != 1 || cd[0].Key != zone.CooldownZoneChange || cd[0].RemainingMs < 9900 || cd[0].RemainingMs > 10000 {
+		t.Fatalf("cooldowns %v, want zone_change about 10000 ms", cd)
+	}
+
+	// On cooldown now; the world's checks still come first.
+	a = na
+	if got := code(3); got != pb.ErrorCode_ERROR_CODE_ZONE_NOT_FOUND {
+		t.Fatalf("zone 3 on cooldown: %v, want ZONE_NOT_FOUND", got)
+	}
+	if got := code(1); got != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("back to zone 1 at once: %v, want ON_COOLDOWN", got)
+	}
+	enterAt(t, w, 3, "m1", 9.5, 9.5) // fills zone 1
+	if got := code(1); got != pb.ErrorCode_ERROR_CODE_ZONE_FULL {
+		t.Fatalf("full zone 1 on cooldown: %v, want ZONE_FULL", got)
+	}
+	if s := slotOf(w, "m1", 2); s.z.Count() != 1 {
+		t.Fatalf("zone 2 count %d, want 1 (A stayed)", s.z.Count())
+	}
+}
+
+// Zones lists the running zones of a map in order with their player counts.
+func TestZones(t *testing.T) {
+	w := startWorld(t, 1, portalMaps(t))
+	enterAt(t, w, 1, "m1", 5.5, 5.5)
+	enterAt(t, w, 2, "m1", 5.5, 5.5)
+	c, _ := enterAt(t, w, 3, "m1", 5.5, 5.5)
+	if got, want := w.Zones("m1"), []ZoneInfo{{1, 1}, {2, 1}, {3, 1}}; !slices.Equal(got, want) {
+		t.Fatalf("zones %v, want %v", got, want)
+	}
+	<-c.Leave()
+	if got, want := w.Zones("m1"), []ZoneInfo{{1, 1}, {2, 1}, {3, 0}}; !slices.Equal(got, want) {
+		t.Fatalf("zones after leave %v, want %v", got, want)
+	}
+	w.closeIdle(time.Now().Add(10 * time.Minute))
+	if got, want := w.Zones("m1"), []ZoneInfo{{1, 1}, {2, 1}}; !slices.Equal(got, want) {
+		t.Fatalf("zones after the janitor %v, want %v", got, want)
+	}
+	if got, want := w.Zones("m2"), []ZoneInfo{{1, 0}}; !slices.Equal(got, want) {
+		t.Fatalf("m2 zones %v, want %v", got, want)
+	}
+	if got := w.Zones("nope"); got != nil {
+		t.Fatalf("unknown map zones %v, want none", got)
+	}
+	if w.Capacity() != 1 {
+		t.Fatalf("capacity %d, want 1", w.Capacity())
+	}
+}
+
+// After the world stops, a transfer reserves nothing and leaves the player
+// where it was saved.
+func TestTransferAfterStop(t *testing.T) {
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, portalMaps(t), testMonsters, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.Start(ctx)
+	m, _ := enterAt(t, w, 1, "m1", 18.5, 10.0)
+	cancel()
+	w.Wait()
+	_, saved, err := w.Transfer(context.Background(), m, portal("east"))
+	if !errors.Is(err, ErrStopped) || saved != nil {
+		t.Fatalf("transfer after stop: %v (saved %v), want ErrStopped and no save", err, saved)
+	}
+	if got := zoneNos(w); !slices.Equal(got, []string{"m1:1", "m1:2", "m2:1"}) {
+		t.Fatalf("zones %v, want the original ones", got)
+	}
+}
+
+// hookSaver answers every save at once and calls onSave first.
+type hookSaver struct{ onSave func(store.CharState) }
+
+func (s hookSaver) Save(st store.CharState, done chan<- error) {
+	s.onSave(st)
+	if done != nil {
+		done <- nil
+	}
+}
+
+// The world stops while the player is between zones: either the new zone
+// still took it (and evicts it on the way out) or Transfer reports
+// ErrStopped with the departure save to wait for.
+func TestTransferWorldStopsMidway(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sv := hookSaver{onSave: func(st store.CharState) {
+		if st.MapID == "m2" { // the departure save, on the old zone's goroutine
+			cancel()
+		}
+	}}
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, portalMaps(t), testMonsters, sv, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Start(ctx)
+	defer w.Wait()
+	m, _ := enterAt(t, w, 1, "m1", 18.5, 10.0)
+	nm, saved, err := w.Transfer(context.Background(), m, portal("east"))
+	switch {
+	case err == nil && saved == nil && nm != nil:
+		if e := <-nm.Leave(); e != nil {
+			t.Fatal(e)
+		}
+	case errors.Is(err, ErrStopped) && saved != nil && nm == nil:
+		if e := <-saved; e != nil {
+			t.Fatal(e)
+		}
+	default:
+		t.Fatalf("transfer: %+v %v (saved %v), want a membership or ErrStopped with the save", nm, err, saved)
+	}
+}
