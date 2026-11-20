@@ -243,12 +243,45 @@ func clientFixtures() map[string]*pb.Envelope {
 			Deaths:    []*pb.Death{{Id: 901}},
 			HpChanges: []*pb.HpChange{{Id: 900, Hp: 82, MaxHp: 160}},
 			LevelUps:  []*pb.LevelUp{{Id: 77, Level: 4}}}}},
+		"world_tick_ranged": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 44,
+			Hits: []*pb.Hit{{AttackerId: 900, TargetId: 77, Damage: 9, HpAfter: 111, Ranged: true}}}}},
 		"error_resp": {Seq: 4, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{
 			Code: pb.ErrorCode_ERROR_CODE_AUTH_FAILED, Detail: "wrong username or password"}}},
 		"kicked": {Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{
 			Reason: pb.KickReason_KICK_REASON_DUPLICATE_LOGIN}}},
 		"pong": {Payload: &pb.Envelope_Pong{Pong: &pb.Pong{
 			ClientTime: 1700000000123, ServerTime: 1700000000456}}},
+	}
+}
+
+// The client pins the same number in its handshake; bump both together.
+func TestProtocolVersion(t *testing.T) {
+	if ProtocolVersion != 3 {
+		t.Fatalf("ProtocolVersion = %d, want 3", ProtocolVersion)
+	}
+}
+
+// The ranged fixture decodes back to a Hit that carries the flag, and the
+// melee Hit of the combat fixture does not.
+func TestRangedHitFixtureRoundTrip(t *testing.T) {
+	for name, want := range map[string]bool{"world_tick_ranged": true, "world_tick_combat": false} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "client", name+".hex"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := hex.DecodeString(strings.TrimSpace(string(raw)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var env pb.Envelope
+		if err := proto.Unmarshal(b, &env); err != nil {
+			t.Fatal(err)
+		}
+		hits := env.GetWorldTick().GetHits()
+		if len(hits) != 1 || hits[0].GetRanged() != want {
+			t.Fatalf("%s: hits %v, want one with ranged=%v", name, hits, want)
+		}
 	}
 }
 

@@ -2697,11 +2697,13 @@ func (x *SelfStats) GetCritRateBp() int32 {
 }
 
 type Hit struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AttackerId    uint64                 `protobuf:"varint,1,opt,name=attacker_id,json=attackerId,proto3" json:"attacker_id,omitempty"`
-	TargetId      uint64                 `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
-	Damage        int32                  `protobuf:"varint,3,opt,name=damage,proto3" json:"damage,omitempty"`
-	HpAfter       int32                  `protobuf:"varint,4,opt,name=hp_after,json=hpAfter,proto3" json:"hp_after,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	AttackerId uint64                 `protobuf:"varint,1,opt,name=attacker_id,json=attackerId,proto3" json:"attacker_id,omitempty"`
+	TargetId   uint64                 `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	Damage     int32                  `protobuf:"varint,3,opt,name=damage,proto3" json:"damage,omitempty"`
+	HpAfter    int32                  `protobuf:"varint,4,opt,name=hp_after,json=hpAfter,proto3" json:"hp_after,omitempty"`
+	// True for a monster's ranged shot; the client draws a projectile, not a slash.
+	Ranged        bool `protobuf:"varint,5,opt,name=ranged,proto3" json:"ranged,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2762,6 +2764,13 @@ func (x *Hit) GetHpAfter() int32 {
 		return x.HpAfter
 	}
 	return 0
+}
+
+func (x *Hit) GetRanged() bool {
+	if x != nil {
+		return x.Ranged
+	}
+	return false
 }
 
 type Death struct {
@@ -3105,13 +3114,14 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\baccuracy\x18\x11 \x01(\x05R\baccuracy\x12\x18\n" +
 	"\aevasion\x18\x12 \x01(\x05R\aevasion\x12 \n" +
 	"\fcrit_rate_bp\x18\x13 \x01(\x05R\n" +
-	"critRateBp\"v\n" +
+	"critRateBp\"\x8e\x01\n" +
 	"\x03Hit\x12\x1f\n" +
 	"\vattacker_id\x18\x01 \x01(\x04R\n" +
 	"attackerId\x12\x1b\n" +
 	"\ttarget_id\x18\x02 \x01(\x04R\btargetId\x12\x16\n" +
 	"\x06damage\x18\x03 \x01(\x05R\x06damage\x12\x19\n" +
-	"\bhp_after\x18\x04 \x01(\x05R\ahpAfter\"\x17\n" +
+	"\bhp_after\x18\x04 \x01(\x05R\ahpAfter\x12\x16\n" +
+	"\x06ranged\x18\x05 \x01(\bR\x06ranged\"\x17\n" +
 	"\x05Death\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\"A\n" +
 	"\bHpChange\x12\x0e\n" +

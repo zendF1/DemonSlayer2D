@@ -306,6 +306,8 @@ message Hit {
   uint64 target_id = 2;
   int32 damage = 3;
   int32 hp_after = 4;
+  // True for a monster's ranged shot; the client draws a projectile, not a slash.
+  bool ranged = 5;
 }
 
 message Death {
