@@ -30,6 +30,7 @@ type tickEvents struct {
 	deaths    []*pb.Death
 	hpChanges []uint64 // entity ids, without duplicates
 	levelUps  []*pb.LevelUp
+	looks     []*pb.LookChange
 }
 
 // damagePlayer applies a hit of dmg from attacker to p and kills p at 0 HP.
@@ -88,8 +89,8 @@ func (z *Zone) entityByID(id uint64) *entity {
 }
 
 // addEvents puts into wt the events p may see: casts by visible casters, hits
-// whose attacker or target is visible to p, and deaths, HP changes and
-// level-ups of visible entities.
+// whose attacker or target is visible to p, and deaths, HP changes,
+// level-ups and look changes of visible entities.
 // A player always sees its own events. A Hit can name an entity p has had no
 // EntityEnter for (only one side in view); the client ignores unknown ids.
 func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
@@ -120,6 +121,11 @@ func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
 	for _, l := range z.events.levelUps {
 		if sees(l.Id) {
 			wt.LevelUps = append(wt.LevelUps, l)
+		}
+	}
+	for _, l := range z.events.looks {
+		if sees(l.Id) {
+			wt.Looks = append(wt.Looks, l)
 		}
 	}
 }

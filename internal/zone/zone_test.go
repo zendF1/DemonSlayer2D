@@ -2030,3 +2030,154 @@ func TestRegenDeadAndInCombat(t *testing.T) {
 		t.Fatalf("HP %d MP %d after 2 s of hits, want %d and 50", p.hp, p.mp, 1000-n+gain)
 	}
 }
+
+// ______________________TEST GLOW_____________________
+
+// looksIn collects the LookChanges of the WorldTicks in envs.
+func looksIn(envs []*pb.Envelope) []*pb.LookChange {
+	var ls []*pb.LookChange
+	for _, wt := range ticksIn(envs) {
+		ls = append(ls, wt.Looks...)
+	}
+	return ls
+}
+
+// enterOf is the EntityEnter for id in envs, or nil.
+func enterOf(envs []*pb.Envelope, id uint64) *pb.EntityEnter {
+	for _, e := range envs {
+		if en := e.GetEntityEnter(); en != nil && en.Id == id {
+			return en
+		}
+	}
+	return nil
+}
+
+// winSource makes every rng.IntN(100) roll 0, so every attempt succeeds. A
+// source of 0 would spin in the unbiasing loop of IntN.
+type winSource struct{}
+
+func (winSource) Uint64() uint64 { return 1 << 56 }
+
+// A viewer coming into view of a player with a worn +12 weapon gets
+// weapon_enhance 12; a weapon of another class shows nothing. Joining sends
+// no LookChange.
+func TestGlowOnEnter(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		class pb.CharClass
+		want  int32
+	}{
+		{"own class", pb.CharClass_CHAR_CLASS_THUY, 12},
+		{"another class", pb.CharClass_CHAR_CLASS_VIEM, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _, out, _ := regenZone(t, c.class, 19, 0, map[string]int{"eq10_weapon_thuy": 12})
+			v := joinNow(t, z, 2, 7.5, 5.5)
+			z.advance(time.Now())
+			venvs, envs := v.take(), out.take()
+			if en := enterOf(venvs, 1); en == nil || en.WeaponEnhance != c.want {
+				t.Fatalf("viewer's EntityEnter %v, want weapon_enhance %d", en, c.want)
+			}
+			if en := enterOf(envs, 2); en == nil || en.WeaponEnhance != 0 {
+				t.Fatalf("player's EntityEnter for the viewer %v, want weapon_enhance 0", en)
+			}
+			if ls := append(looksIn(envs), looksIn(venvs)...); len(ls) != 0 {
+				t.Fatalf("LookChanges %v on joining, want none", ls)
+			}
+		})
+	}
+}
+
+// Equipping a +10 weapon over the +0 one sends one LookChange to the player
+// and a viewer in view, none to one out of view; taking it off sends 0.
+func TestGlowOnEquip(t *testing.T) {
+	inv := gearInventory()
+	inv.Bag[5] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Enhance: 10}
+	z, _, _, _ := gearZone(t, inv)
+	out := z.players[1].out.(*fakeOut)
+	near := joinNow(t, z, 2, 7.5, 5.5)
+	far := joinNow(t, z, 3, 60.5, 60.5)
+	z.advance(time.Now())
+	for _, o := range []*fakeOut{out, near, far} {
+		o.take()
+	}
+	itemNow(t, z, z.Equip(1, 9, 5))
+	envs := out.take()
+	if respFor(envs, 9, (*pb.Envelope).GetEquipResp) == nil {
+		t.Fatalf("envs %v, want an EquipResp", envs)
+	}
+	want := &pb.LookChange{Id: 1, WeaponEnhance: 10}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": near.take()} {
+		if ls := looksIn(es); len(ls) != 1 || !proto.Equal(ls[0], want) {
+			t.Fatalf("%s LookChanges %v, want %v", name, ls, want)
+		}
+	}
+	if ls := looksIn(far.take()); len(ls) != 0 {
+		t.Fatalf("out-of-view LookChanges %v, want none", ls)
+	}
+	itemNow(t, z, z.Unequip(1, 10, 0))
+	if ls := looksIn(near.take()); len(ls) != 1 || ls[0].Id != 1 || ls[0].WeaponEnhance != 0 {
+		t.Fatalf("viewer LookChanges %v after unequip, want one with 0", ls)
+	}
+	z.advance(time.Now())
+	if en := enterOf(far.take(), 1); en != nil {
+		t.Fatalf("far viewer got %v", en)
+	}
+}
+
+// Enhancing the worn weapon +6 -> +7 sends a LookChange; enhancing a worn
+// helmet sends none.
+func TestGlowOnEnhance(t *testing.T) {
+	inv := forgeInventory()
+	inv.Worn[0].Enhance = 6
+	helmet := testItemData.Equipment["eq10_helmet"].SlotIndex
+	inv.Worn[helmet], inv.Bag[8] = inv.Bag[8], nil
+	inv.Worn[helmet].Enhance = 3
+	z, p, _ := forgeZone(t, inv, false)
+	z.rng = rand.New(winSource{})
+	out := p.out.(*fakeOut)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	itemNow(t, z, z.Enhance(1, 9, items.Ref{Equipped: true, Slot: helmet}, false, 1))
+	envs := out.take()
+	if r := respFor(envs, 9, (*pb.Envelope).GetEnhanceResp); r == nil || !r.Success || r.Level != 4 {
+		t.Fatalf("helmet EnhanceResp %v, want a success to +4", r)
+	}
+	if ls := append(looksIn(envs), looksIn(v.take())...); len(ls) != 0 {
+		t.Fatalf("LookChanges %v for the helmet, want none", ls)
+	}
+	itemNow(t, z, z.Enhance(1, 10, items.Ref{Equipped: true, Slot: 0}, false, 1))
+	envs = out.take()
+	if r := respFor(envs, 10, (*pb.Envelope).GetEnhanceResp); r == nil || !r.Success || r.Level != 7 {
+		t.Fatalf("weapon EnhanceResp %v, want a success to +7", r)
+	}
+	want := &pb.LookChange{Id: 1, WeaponEnhance: 7}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if ls := looksIn(es); len(ls) != 1 || !proto.Equal(ls[0], want) {
+			t.Fatalf("%s LookChanges %v, want %v", name, ls, want)
+		}
+	}
+}
+
+// A level-up that makes the worn +8 weapon wearable sends a LookChange.
+func TestGlowOnLevelUp(t *testing.T) {
+	inv := gearInventory()
+	inv.Worn[0].Enhance = 8
+	z, p, _, _ := gearZoneAt(t, 9, inv)
+	out := p.out.(*fakeOut)
+	z.advance(time.Now())
+	out.take()
+	if p.weaponEnhance != 0 {
+		t.Fatalf("weapon enhance %d at level 9, want 0", p.weaponEnhance)
+	}
+	z.gainExp(p, z.area.Exp.ToNext(p.level))
+	z.runPlayerTimers()
+	if !z.syncView(p) {
+		t.Fatal("outbox full")
+	}
+	if ls := looksIn(out.take()); p.level != 10 || len(ls) != 1 || ls[0].Id != 1 || ls[0].WeaponEnhance != 8 {
+		t.Fatalf("level %d LookChanges %v, want 10 and one with 8", p.level, ls)
+	}
+}

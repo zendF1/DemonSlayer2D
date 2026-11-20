@@ -12,8 +12,9 @@ import (
 )
 
 // recompute derives p's stats from its class, level, points, worn gear and
-// learned passives (phase 2 spec 3.2, phase 3a spec 4.2) and sets the max HP
-// and the per-second regen (phase 3b spec 4.2) that go with them. Current HP and MP are the caller's business. Every
+// learned passives (phase 2 spec 3.2, phase 3a spec 4.2) and sets the max HP,
+// the per-second regen (phase 3b spec 4.2) and the weapon glow (spec 4.3)
+// that go with them. Current HP and MP are the caller's business. Every
 // stat change in the zone goes through here.
 func (z *Zone) recompute(p *player) {
 	var pas combat.Passive
@@ -31,6 +32,31 @@ func (z *Zone) recompute(p *player) {
 	}
 	p.stats = combat.Compute(classes.IsMagic(p.class), p.level, p.points, gear, pas)
 	p.maxHP = p.stats.MaxHP
+	z.setWeaponEnhance(p)
+}
+
+// weaponSlot is the worn slot of the weapon.
+var weaponSlot = slices.Index(gamedata.SlotIDs[:], gamedata.SlotWeapon)
+
+// setWeaponEnhance sets p's weaponEnhance from its worn weapon (phase 3b spec
+// 4.3) and, when it changes for a player already in the zone, tells p and
+// its viewers with a LookChange. A joining player is not in z.players yet:
+// its viewers get the level in EntityEnter.
+func (z *Zone) setWeaponEnhance(p *player) {
+	n := 0
+	if it := p.inv.Worn[weaponSlot]; it != nil && z.area.Items != nil {
+		class, _ := classes.FromPB(p.class)
+		if items.Wearable(z.area.Items, it, p.level, class) && z.area.Items.Equipment[it.Code].SlotIndex == weaponSlot {
+			n = it.Enhance
+		}
+	}
+	if n == p.weaponEnhance {
+		return
+	}
+	p.weaponEnhance = n
+	if z.players[p.id] == p {
+		z.events.looks = append(z.events.looks, &pb.LookChange{Id: p.id, WeaponEnhance: int32(n)})
+	}
 }
 
 // gearChanged recomputes p's stats after its worn gear changed (phase 3a
