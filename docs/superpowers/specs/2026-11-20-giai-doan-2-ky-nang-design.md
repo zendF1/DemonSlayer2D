@@ -254,7 +254,7 @@ Phát một `Cast{caster_id, skill_id, target_id, dir_x, dir_y}` mỗi lần dù
 
 ### 4.7. Chống spam
 
-Gateway thêm giới hạn tần suất cho `CastReq` và `LearnSkillReq` bằng `Limiter.Take`/`Refund`, cùng cách và cùng mức với `AttackReq`/`AllocatePointsReq`.
+Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách và cùng mức với `AttackReq` (5 lệnh mỗi giây, vượt thì `RATE_LIMITED`). `LearnSkillReq` chỉ chịu giới hạn gói chung, như `AllocatePointsReq`.
 
 ## 5. Giao thức
 
@@ -322,7 +322,7 @@ Gateway thêm giới hạn tần suất cho `CastReq` và `LearnSkillReq` bằng
 - `store`: migration bù `skill_points`; lưu và nạp chiêu; `skill_id` lạ bị bỏ.
 - `zone` học chiêu: từng mã lỗi theo thứ tự; bị động tăng chỉ số, HP, MP; lên cấp cộng điểm kỹ năng.
 - `zone` dùng chiêu: từng mã lỗi theo thứ tự; lỗi không trừ MP và không hồi chiêu; hồi chiêu độc lập với chém; quạt không trúng phía sau; biên bán kính; bề rộng dải; `max_targets` và thứ tự ưu tiên; quái sau tường không trúng; chiêu không trúng ai vẫn tốn MP; lao tới đáp cách mục tiêu 1 ô và phát `snap`; đường lao bị chắn hoặc điểm đáp trong khu an toàn bị từ chối; nhân vật cấp 90 đánh quái cấp 5 không nhận EXP; `Cast` chỉ gửi cho người thấy.
-- `gateway`: giới hạn tần suất `CastReq`, `LearnSkillReq`; `ProtocolVersion` là 4; giải mã fixture mới.
+- `gateway`: giới hạn tần suất `CastReq`; `ProtocolVersion` là 4; giải mã fixture mới.
 - `cmd/devchar`: đặt đúng cấp và điểm; trả điểm tiềm năng; bớt chiêu khi điểm kỹ năng không đủ; tài khoản không có nhân vật thì báo lỗi.
 - e2e: nhân vật được đưa lên cấp 20 bằng helper store, vào game, học chiêu ô 1, ô 2, dùng lên quái; MP giảm, có `Hit` mang `skill_id`, dùng lại ngay bị `ON_COOLDOWN`.
 
