@@ -243,6 +243,7 @@ func TestParseTriggerErrors(t *testing.T) {
 	}
 	for want, mutate := range cases {
 		_, err := Parse(triggerJSON(t, mutate))
+		want = strings.TrimSuffix(want, " (nil)")
 		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "mapdata t1") {
 			t.Errorf("%s: got err %v", want, err)
 		}
@@ -312,7 +313,7 @@ func regionJSON(t *testing.T, mutate func(r map[string]any, m map[string]any)) [
 	return triggerJSON(t, func(m map[string]any) {
 		r := map[string]any{
 			"id": "r", "monster": "wanderer", "min_level": 1, "max_level": 2, "count": 3,
-			"rects": []map[string]any{{"x": 5, "y": 1, "w": 3, "h": 3}, {"x": 7, "y": 2, "w": 2, "h": 4}, {"x": 3, "y": 3, "w": 3, "h": 3}},
+			"rects": []map[string]any{{"x": 5, "y": 1, "w": 3, "h": 3}, {"x": 7, "y": 2, "w": 2, "h": 4}, {"x": 3, "y": 3, "w": 4, "h": 3}},
 			"nest":  map[string]any{"x": 5.5, "y": 1.5},
 		}
 		m["regions"] = []map[string]any{r}
@@ -335,9 +336,10 @@ func TestRegionTiles(t *testing.T) {
 		len(r.Rects) != 3 || r.Nest != (Point{5.5, 1.5}) {
 		t.Fatalf("region: %+v", r)
 	}
-	// Dropped: the blocked tile (6,4), the safe zone, its 1-tile margin
-	// (x or y in 0..4 beside it) and the tiles where rects overlap, once.
-	cols := map[int][]int{1: {5, 6, 7}, 2: {5, 6, 7, 8}, 3: {5, 6, 7, 8}, 4: {5, 7, 8}, 5: {3, 4, 5, 7, 8}}
+	// Dropped: the blocked tile (6,4), which rect 2 covers, the safe zone and
+	// its 1-tile margin (x or y in 0..4 beside it). Tiles where rects overlap
+	// are listed once.
+	cols := map[int][]int{1: {5, 6, 7}, 2: {5, 6, 7, 8}, 3: {5, 6, 7, 8}, 4: {5, 7, 8}, 5: {3, 4, 5, 6, 7, 8}}
 	var want []Point
 	for y := 1; y <= 5; y++ {
 		for _, x := range cols[y] {
@@ -365,11 +367,14 @@ func TestParseRegionErrors(t *testing.T) {
 		`region "r": rect 0: w and h must be positive`: func(r, m map[string]any) { rect(r, 0)["h"] = -1 },
 		`region "r": rect 2 is outside the map`:        func(r, m map[string]any) { rect(r, 2)["x"] = 9 },
 		`region "r": rect 0 is outside the map`:        func(r, m map[string]any) { rect(r, 0)["y"] = -1 },
+		`missing id`:                                   func(r, m map[string]any) { r["id"] = "" },
+		`region "r" needs at least one rect`:           func(r, m map[string]any) { r["rects"] = []map[string]any{} },
+		`region "r" needs at least one rect (nil)`:     func(r, m map[string]any) { delete(r, "rects") },
 		`region "r": min_level must be at least 1`:     func(r, m map[string]any) { r["min_level"] = 0 },
 		`region "r": min_level 3 > max_level 2`:        func(r, m map[string]any) { r["min_level"] = 3 },
 		`region "r": count must be positive`:           func(r, m map[string]any) { r["count"] = 0 },
-		`region "r" has 19 region tiles, want at least 20`: func(r, m map[string]any) {
-			r["count"] = 20
+		`region "r" has 20 region tiles, want at least 21`: func(r, m map[string]any) {
+			r["count"] = 21
 		},
 		`region "r": nest (2.50, 2.50) is not on a region tile`: func(r, m map[string]any) {
 			r["nest"] = map[string]any{"x": 2.5, "y": 2.5} // safe zone
@@ -378,7 +383,7 @@ func TestParseRegionErrors(t *testing.T) {
 			r["nest"] = map[string]any{"x": 4.5, "y": 4.5} // margin
 		},
 		`region "r": nest (6.50, 4.50) is not on a region tile`: func(r, m map[string]any) {
-			r["nest"] = map[string]any{"x": 6.5, "y": 4.5} // blocked
+			r["nest"] = map[string]any{"x": 6.5, "y": 4.5} // blocked, inside rect 2
 		},
 		`region "r": nest (9.50, 1.50) is not on a region tile`: func(r, m map[string]any) {
 			r["nest"] = map[string]any{"x": 9.5, "y": 1.5} // outside the rects
@@ -393,6 +398,7 @@ func TestParseRegionErrors(t *testing.T) {
 	}
 	for want, mutate := range cases {
 		_, err := Parse(regionJSON(t, mutate))
+		want = strings.TrimSuffix(want, " (nil)")
 		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "mapdata t1") {
 			t.Errorf("want error containing %q (naming the map), got %v", want, err)
 		}
@@ -400,7 +406,7 @@ func TestParseRegionErrors(t *testing.T) {
 }
 
 func TestParseRegionCountAtLimit(t *testing.T) {
-	if _, err := Parse(regionJSON(t, func(r, m map[string]any) { r["count"] = 19 })); err != nil {
+	if _, err := Parse(regionJSON(t, func(r, m map[string]any) { r["count"] = 20 })); err != nil {
 		t.Fatalf("count equal to the tile count must be accepted: %v", err)
 	}
 }

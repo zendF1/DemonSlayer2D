@@ -12,7 +12,10 @@ import (
 )
 
 // Point is a position in tile units; (12.5, 3.5) is the centre of tile (12, 3).
-type Point struct{ X, Y float32 }
+type Point struct {
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+}
 
 type Map struct {
 	ID     string
@@ -228,10 +231,16 @@ func (m *Map) parseRegions(regions []Region) error {
 	seen := map[string]bool{}
 	owner := map[[2]int]string{}
 	for _, r := range regions {
+		if r.ID == "" {
+			return fmt.Errorf("mapdata %s: region without id: missing id", m.ID)
+		}
 		if seen[r.ID] {
 			return fmt.Errorf("mapdata %s: duplicate region %q", m.ID, r.ID)
 		}
 		seen[r.ID] = true
+		if len(r.Rects) == 0 {
+			return fmt.Errorf("mapdata %s: region %q needs at least one rect", m.ID, r.ID)
+		}
 		for i, rc := range r.Rects {
 			if rc.W <= 0 || rc.H <= 0 {
 				return fmt.Errorf("mapdata %s: region %q: rect %d: w and h must be positive", m.ID, r.ID, i)

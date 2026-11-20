@@ -77,8 +77,8 @@ func TestParseKindFieldValues(t *testing.T) {
 func TestParseRejectsOldRangeFields(t *testing.T) {
 	for _, f := range []string{"aggro_range", "leash_range"} {
 		doc := strings.Replace(kindWith("speed", "0.8"), `"speed"`, `"`+f+`":4,"speed"`, 1)
-		if _, err := Parse([]byte(doc)); err == nil {
-			t.Errorf("%s must be rejected as unknown", f)
+		if _, err := Parse([]byte(doc)); err == nil || !strings.Contains(err.Error(), "unknown field") {
+			t.Errorf("%s must be rejected as an unknown field, got %v", f, err)
 		}
 	}
 }
