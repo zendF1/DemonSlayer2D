@@ -58,7 +58,7 @@ type monster struct {
 	outSince   uint32            // tick its target was first seen beyond the region margin this time; 0 while inside
 	attackers  map[uint64]uint32 // the last tick each player hit it
 	nextAttack uint32            // first tick it may hit again
-	stuck      uint32            // consecutive ticks a monster going back could not move
+	stuck      uint32            // consecutive ticks it could not move: going back, or chasing a target behind a wall
 	diedAt     uint32            // tick it died at, while dead
 
 	// Over its whole life: the damage each player has done to it that counts
@@ -203,7 +203,7 @@ func (z *Zone) grudgeTarget(m *monster) *player {
 
 // forgive forgets that player id hit m, so neither the grudge nor the
 // fallback turns m on it again until it hits m again. A monster forgives a
-// target it gave up on for the chase range.
+// target it gave up on for the chase range or as unreachable.
 func (z *Zone) forgive(m *monster, id uint64) { delete(m.attackers, id) }
 
 // forgetOldAttackers drops the players who last hit m more than GrudgeSec ago.
@@ -290,7 +290,7 @@ func (z *Zone) fight(m *monster) {
 			z.startBack(m)
 			return
 		} else {
-			m.state = chase
+			m.state, m.stuck = chase, 0
 			z.chaseStep(m, t)
 			return
 		}
@@ -300,7 +300,16 @@ func (z *Zone) fight(m *monster) {
 		m.state = chase
 	}
 	if m.state == chase {
-		z.chaseStep(m, t)
+		res := z.chaseStep(m, t)
+		if res == walkStuck && lineBlocked(z.area.Grid, m.pos, t.pos) {
+			m.stuck++
+		} else {
+			m.stuck = 0
+		}
+		if m.stuck >= z.ticks(returnStuckSec) {
+			z.dropUnreachable(m, t)
+			return
+		}
 		if !z.canHit(m, t) {
 			return
 		}
@@ -314,21 +323,32 @@ func (z *Zone) fight(m *monster) {
 	}
 }
 
+// dropUnreachable lets go of t, which m has been stuck at a wall trying to
+// reach for returnStuckSec, and forgives it (spec 4.4). m turns on a recent
+// attacker it can hit, or goes back.
+func (z *Zone) dropUnreachable(m *monster, t *player) {
+	z.forgive(m, t.id)
+	if f := z.fallback(m, t.id); f != nil {
+		z.startChase(m, f.id)
+		return
+	}
+	z.startBack(m)
+}
+
 // canHit reports whether t is within m's attack range with no blocked tile
 // between them.
 func (z *Zone) canHit(m *monster, t *player) bool {
 	return distance(m.pos, t.pos) <= float32(m.region.Kind.AttackRange) && !lineBlocked(z.area.Grid, m.pos, t.pos)
 }
 
-// chaseStep walks m straight towards t until it is chaseStop tiles away. While
-// a wall blocks the line to t it walks at t itself, however close, so sliding
-// along the wall takes it round the corner. A stuck monster just stands; it
-// keeps its state (spec 4.2).
-func (z *Zone) chaseStep(m *monster, t *player) {
+// chaseStep walks m straight towards t until it is chaseStop tiles away, and
+// says how the walk went. While a wall blocks the line to t it walks at t
+// itself, however close, so sliding along the wall takes it round the
+// corner. A stuck monster just stands; fight decides when to give up.
+func (z *Zone) chaseStep(m *monster, t *player) walkResult {
 	step := z.chaseSpeed(m)
 	if lineBlocked(z.area.Grid, m.pos, t.pos) {
-		z.walkTo(m, t.pos, step)
-		return
+		return z.walkTo(m, t.pos, step)
 	}
 	// Stop a little inside the attack range: a walk ends within arriveEps of
 	// its target, and float error must not leave m just beyond reach. The
@@ -338,11 +358,11 @@ func (z *Zone) chaseStep(m *monster, t *player) {
 	d := distance(m.pos, t.pos)
 	if d <= stop {
 		z.stopMonster(m)
-		return
+		return walkArrived
 	}
 	f := stop / d
 	to := Vec2{t.pos.X + (m.pos.X-t.pos.X)*f, t.pos.Y + (m.pos.Y-t.pos.Y)*f}
-	z.walkTo(m, to, step)
+	return z.walkTo(m, to, step)
 }
 
 // startBack sends m back to its region, forgetting its target (spec 4.5).

@@ -154,7 +154,8 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
   - mục tiêu chết hoặc rời zone;
   - mục tiêu ở trong khu an toàn liên tục quá `safe_wait_sec` (5 giây). Trong lúc chờ, quái giữ mục tiêu, đi sát tới mép (lưới của quái vẫn chặn ô khu an toàn) và đánh ngay khi mục tiêu bước ra trong tầm, khi đã hết hồi chiêu. Bộ đếm đặt lại mỗi khi mục tiêu ra khỏi khu an toàn. Trong lúc mục tiêu ở khu an toàn thì bỏ qua điều kiện biên vùng bên dưới. Đang chờ mà có người khác đủ điều kiện dự phòng (đánh nó trong 5 giây, hợp lệ, trong biên) thì quái quay sang người đó ngay;
   - vị trí mục tiêu nằm ngoài mọi hình chữ nhật của vùng sau khi nới mỗi cạnh thêm `region_margin` ô, liên tục quá `margin_grace_sec` (2 giây); quay lại trong biên thì bộ đếm đặt lại. Trong 2 giây đó quái vẫn đuổi và đánh bình thường;
-  - quái đã cách chỗ bắt đầu đuổi hơn `chase_range`.
+  - quái đã cách chỗ bắt đầu đuổi hơn `chase_range` (quái tha cho người này, mục 4.2);
+  - mục tiêu không với tới được: đường thẳng tới mục tiêu bị tường che và quái kẹt (hàm đi trả về "stuck") liên tục 2 giây (`returnStuckSec`). Bộ đếm đặt lại khi quái đi được hoặc khi bắt đầu một lần đuổi mới. Quái tha cho người này (không nhớ thù), rồi chuyển sang người dự phòng nếu có, không thì vào **Về vùng**. Nhờ vậy người thứ hai không chém được quái mãi trong lúc nó đâm vào tường đuổi người đứng sau tường.
 - **Sau khi bỏ:** nếu có người khác trong danh sách đánh nó trong 5 giây gần nhất và vẫn hợp lệ, quái chuyển sang người gần nhất trong số đó. Chỗ bắt đầu đuổi đặt lại ở vị trí hiện tại. Không có ai thì quái vào **Về vùng**.
   - "Người khác" không gồm mục tiêu vừa bỏ, kể cả khi người đó vừa đánh nó; nếu không, quái bỏ vì quá `chase_range` sẽ lại chọn đúng người ấy và đuổi mãi.
   - Người dự phòng phải hợp lệ (còn sống, không ở khu an toàn) và đứng trong vùng đã nới `region_margin` ô.

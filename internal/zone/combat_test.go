@@ -890,6 +890,54 @@ func TestChaseRangeGiveUpIsNotRestarted(t *testing.T) {
 	}
 }
 
+// A target behind a wall cannot be reached: after returnStuckSec stuck at the
+// wall, the monster turns on a player who hits it meanwhile, instead of
+// pushing at the wall while that player slashes it freely (spec 4.4).
+func TestUnreachableTargetIsDropped(t *testing.T) {
+	rows := make([]string, 60)
+	for y := range rows {
+		rows[y] = strings.Repeat(".", 60)
+	}
+	rows[20] = strings.Repeat("#", 60)     // a full wall, as row 20 of kumotori without its gaps
+	box := Rect{X: 10, Y: 5, W: 30, H: 15} // y 5..19; the margin reaches y 22
+	z, _ := newRegionZone(t, 1, Region{ID: "box", Tiles: rectTiles(box), Rects: []Rect{box}, Nest: Vec2{25.5, 10.5},
+		Count: 1, MinLevel: 2, MaxLevel: 2, Kind: testKind}) // level 2: 104 HP, so it outlives the wait
+	z.area.Grid = gridFrom(rows...)
+	z.mgrid = z.area.monsterGrid()
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	m.pos = Vec2{25.5, 17.5}
+	z.updateCell(&m.entity)
+	joinNow(t, z, 1, 25.5, 18.5)
+	a := newBot(z, 1)
+	a.act(Vec2{}, m.id) // A slashes, then gets behind the wall, inside the margin
+	tickBots(z, a)
+	teleport(z, 1, Vec2{25.5, 21.5})
+	joinNow(t, z, 2, 27.5, 18.5)
+	b := newBot(z, 2)
+	for i := 0; i < 50 && b.melee == 0; i++ { // 5 s
+		var s uint64
+		if b.canSlash(m) {
+			s = m.id
+		}
+		var dir Vec2
+		if distance(b.p().pos, m.pos) > 1.8 {
+			dir = unit(b.p().pos, m.pos)
+		}
+		b.act(dir, s)
+		tickBots(z, a, b)
+	}
+	t.Logf("B landed %d slashes and took %d hits", b.slashes, b.melee)
+	if b.melee == 0 {
+		t.Fatalf("B slashed %d times unhit while the monster pushed at the wall: state %v target %d at %v", b.slashes, m.state, m.target, m.pos)
+	}
+	if m.target == 1 {
+		t.Fatal("hit B but still targets A behind the wall")
+	}
+}
+
 // With the margin out of the way, a chase ends once the monster is more than
 // chase_range from where the chase started. It walks back at full speed
 // without healing.
