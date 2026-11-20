@@ -2665,3 +2665,386 @@ func TestRefinePendingDroppedOnLeave(t *testing.T) {
 		t.Fatalf("choose after rejoining: %v, want NO_PENDING_REFINE", er)
 	}
 }
+
+// ______________________TEST DEPART_____________________
+
+// departNow queues a departure of id and runs one tick, so the zone handles
+// it in drain as it would from Depart.
+func departNow(t *testing.T, z *Zone, id uint64, d Departure) departResult {
+	t.Helper()
+	reply := make(chan departResult, 1)
+	z.inbox <- departCmd{id: id, d: d, reply: reply}
+	z.advance(time.Now())
+	select {
+	case r := <-reply:
+		return r
+	default:
+		t.Fatal("the zone did not answer the departure")
+		return departResult{}
+	}
+}
+
+// joinByInbox queues a join of in and runs one tick, so the join happens in
+// drain as it would from Join. It returns the EnterWorldResp.
+func joinByInbox(t *testing.T, z *Zone, in PlayerInfo, out *fakeOut) *pb.EnterWorldResp {
+	t.Helper()
+	reply := make(chan error, 1)
+	z.inbox <- joinCmd{info: in, out: out, reply: reply}
+	z.advance(time.Now())
+	if err := <-reply; err != nil {
+		t.Fatal(err)
+	}
+	r := out.take()[0].GetEnterWorldResp()
+	if r == nil {
+		t.Fatal("the first message is not EnterWorldResp")
+	}
+	return r
+}
+
+func notDead(d *Departing) pb.ErrorCode {
+	if d.Dead() {
+		return pb.ErrorCode_ERROR_CODE_DEAD
+	}
+	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// zoneCheck is the zone-change check of spec 3.4 steps 4 and 5.
+func zoneCheck(d *Departing) pb.ErrorCode {
+	if c := notDead(d); c != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		return c
+	}
+	if !d.ZoneChangeReady() {
+		return pb.ErrorCode_ERROR_CODE_ON_COOLDOWN
+	}
+	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// transferZone is a zone laid out as castZone's, numbered no, with nobody in
+// it and thuy_4 on a 3 s cooldown.
+func transferZone(t *testing.T, no int) (*Zone, *monster) {
+	t.Helper()
+	z, m := newFightZone(t, 12, Vec2{30.5, 30.5})
+	z.cfg.ZoneNo = no
+	z.area.Skills = threeSecSkills()
+	m.region.Kind.DetectRange = 0.5
+	return z, m
+}
+
+func threeSecSkills() map[string]gamedata.Skill {
+	s := maps.Clone(repoSkills)
+	k := s["thuy_4"]
+	k.CooldownMS = slices.Clone(k.CooldownMS)
+	k.CooldownMS[0] = 3000
+	s["thuy_4"] = k
+	return s
+}
+
+// A refused departure changes nothing: the player stays in the zone and its
+// cell, the count holds, nothing is saved and a waiting refine stays.
+func TestDepartRefusedChangesNothing(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	joinNow(t, z, 1, 12.5, 7.5)
+	p := z.players[1]
+	p.refine = &pendingRefine{}
+	z.advance(time.Now())
+	var seen Vec2
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{3.5, 3.5}}, Check: func(d *Departing) pb.ErrorCode {
+		seen = d.Pos()
+		return pb.ErrorCode_ERROR_CODE_DEAD
+	}})
+	if r.code != pb.ErrorCode_ERROR_CODE_DEAD || r.err != nil || r.saved != nil {
+		t.Fatalf("result %+v, want a DEAD refusal without a save", r)
+	}
+	if seen != (Vec2{12.5, 7.5}) {
+		t.Fatalf("the check saw %v, want the live position", seen)
+	}
+	if z.players[1] != p || z.cells[p.cell][1] == nil || z.Count() != 1 || p.refine == nil {
+		t.Fatalf("player %v in cell %v count %d refine %v: a refusal must change nothing", z.players[1], z.cells[p.cell][1] != nil, z.Count(), p.refine)
+	}
+	if s := sv.all(); len(s) != 0 {
+		t.Fatalf("saves %v, want none", s)
+	}
+}
+
+// A departure takes the player out of the zone, saves it at the destination
+// and hands over its live state as a deep copy.
+func TestDepartHandsOverLiveState(t *testing.T) {
+	inv := socketInventory()
+	z, p, _, sv := gearZone(t, inv)
+	z.area.Skills = repoSkills
+	p.skills, p.skillPoints, p.freePoints, p.exp = map[string]int{"viem_1": 3}, 4, 2, 321
+	p.hp, p.mp = p.maxHP-17, p.stats.MaxMP-9
+	p.refine = &pendingRefine{}
+	v := joinNow(t, z, 2, 6.5, 5.5)
+	z.advance(time.Now())
+	v.take()
+	hp, mp, cell := p.hp, p.mp, p.cell
+	wantBag := p.inv.Clone()
+
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{20.5, 21.5}}, Check: notDead})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || r.err != nil || r.saved == nil {
+		t.Fatalf("result %+v, want a departure", r)
+	}
+	if err := <-r.saved; err != nil {
+		t.Fatal(err)
+	}
+	if z.players[1] != nil || z.cells[cell][1] != nil || z.Count() != 1 {
+		t.Fatalf("player %v in cell %v count %d, want gone", z.players[1], z.cells[cell][1] != nil, z.Count())
+	}
+	saves := sv.all()
+	st := saves[len(saves)-1]
+	if st.ID != p.charID || st.MapID != "m2" || st.X != 20.5 || st.Y != 21.5 || st.HP != hp || st.MP != mp || st.Xu != 77 {
+		t.Fatalf("saved %+v, want map m2 at (20.5, 21.5) with HP %d MP %d", st, hp, mp)
+	}
+	in := r.info
+	if in.EntityID != 1 || in.CharID != p.charID || in.Name != p.name || in.Class != p.class || in.Level != p.level ||
+		in.Exp != 321 || in.Points != p.points || in.FreePoints != 2 || in.SkillPoints != 4 ||
+		in.HP != hp || in.MP != mp || in.Xu != 77 || in.Pos != (Vec2{20.5, 21.5}) || in.RespSeq != 0 {
+		t.Fatalf("handoff %+v, want the live state at the destination", in)
+	}
+	if !maps.Equal(in.Skills, map[string]int{"viem_1": 3}) || !reflect.DeepEqual(in.Inventory, wantBag) {
+		t.Fatalf("handoff skills %v inventory %v", in.Skills, in.Inventory)
+	}
+	// The handoff shares nothing with the zone's player.
+	in.Skills["viem_1"] = 9
+	for _, it := range in.Inventory.Bag {
+		if it != nil {
+			it.Count = 99
+			if len(it.Lines) > 0 {
+				it.Lines[0].Value = -1
+			}
+			if len(it.Gems) > 0 {
+				it.Gems[0] = "mutated"
+			}
+		}
+	}
+	if p.skills["viem_1"] != 3 || !reflect.DeepEqual(p.inv, wantBag) {
+		t.Fatal("mutating the handoff changed the departed player")
+	}
+	// The viewer is told the player left.
+	z.advance(time.Now())
+	if l := leaves(v.take()); !slices.Contains(l, 1) {
+		t.Fatalf("viewer leaves %v, want 1", l)
+	}
+}
+
+// A zone change keeps the position, in the save and in the handoff.
+func TestDepartKeepPos(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	joinNow(t, z, 1, 12.5, 7.5)
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m1", Pos: Vec2{1, 1}}, KeepPos: true, ZoneChange: true, Check: zoneCheck})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || r.info.Pos != (Vec2{12.5, 7.5}) {
+		t.Fatalf("result %+v, want a departure at (12.5, 7.5)", r)
+	}
+	<-r.saved
+	if st := sv.all()[0]; st.MapID != "m1" || st.X != 12.5 || st.Y != 7.5 {
+		t.Fatalf("saved %+v, want m1 at (12.5, 7.5)", st)
+	}
+}
+
+// A monster chasing the departed player lets it go and forgets its hits, and
+// a shot already flying at it does not land, even if it comes back at once.
+func TestDepartMonsterLosesTarget(t *testing.T) {
+	z, m, p, a := castZone(t, Vec2{30.5, 30.5}, Vec2{35.5, 30.5})
+	z.startChase(m, 1)
+	m.attackers[1] = z.tickNo
+	z.schedule(impact{due: z.tickNo + 3, attacker: m.id, byMonster: true, target: 1, damage: 50})
+	a.take()
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("code %v", r.code)
+	}
+	z.advance(time.Now())
+	if m.target != 0 || chasing(m) {
+		t.Fatalf("monster target %d state %v, want no target", m.target, m.state)
+	}
+	if _, ok := m.attackers[1]; ok {
+		t.Fatal("the monster still remembers the departed player's hit")
+	}
+	hp := r.info.HP
+	joinByInbox(t, z, r.info, &fakeOut{})
+	for range 5 {
+		z.advance(time.Now())
+	}
+	if q := z.players[1]; q == nil || q.hp != hp || p == q {
+		t.Fatalf("back in the zone: %v, want a new player with HP %d", q, hp)
+	}
+}
+
+// A fresh login has no cooldowns; a skill cast 1 s before leaving is still on
+// cooldown in the next zone for the 2 s left, and EnterWorldResp says so.
+func TestDepartCarriesSkillCooldown(t *testing.T) {
+	za, _ := transferZone(t, 1)
+	outA := &fakeOut{}
+	in := info(1, 35.5, 30.5)
+	in.Class, in.Level, in.Skills = pb.CharClass_CHAR_CLASS_THUY, 12, castSkills
+	if r := joinByInbox(t, za, in, outA); len(r.Cooldowns) != 0 {
+		t.Fatalf("fresh login cooldowns %v, want none", r.Cooldowns)
+	}
+	castNow(t, za, 1, 2, "thuy_4", 0, Vec2{})
+	if envs := outA.take(); castRespAt(envs, 2) < 0 {
+		t.Fatalf("cast refused: %v", errorFor(envs, 2))
+	}
+	t0 := za.tickNo
+	for za.tickNo < t0+9 {
+		za.advance(time.Now())
+	}
+	r := departNow(t, za, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead}) // tick t0+10: 1 s later
+	if got := r.info.Cooldowns; !maps.Equal(got, map[string]time.Duration{"thuy_4": 2 * time.Second}) {
+		t.Fatalf("handoff cooldowns %v, want thuy_4 2s", got)
+	}
+
+	zb, _ := transferZone(t, 2)
+	outB := &fakeOut{}
+	ew := joinByInbox(t, zb, r.info, outB)
+	j := zb.tickNo
+	if cd := ew.Cooldowns; len(cd) != 1 || cd[0].Key != "thuy_4" || cd[0].RemainingMs != 2000 {
+		t.Fatalf("EnterWorldResp cooldowns %v, want thuy_4 2000 ms", cd)
+	}
+	for zb.tickNo < j+18 {
+		zb.advance(time.Now())
+	}
+	castNow(t, zb, 1, 3, "thuy_4", 0, Vec2{}) // tick j+19
+	if er := errorFor(outB.take(), 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("cast 1.9 s after arriving: %v, want ON_COOLDOWN", er)
+	}
+	castNow(t, zb, 1, 4, "thuy_4", 0, Vec2{}) // tick j+20: 3 s after the first cast
+	if envs := outB.take(); castRespAt(envs, 4) < 0 {
+		t.Fatalf("cast 2 s after arriving refused: %v", errorFor(envs, 4))
+	}
+}
+
+// The slash interval carries over too.
+func TestDepartCarriesSlashCooldown(t *testing.T) {
+	za, ma := transferZone(t, 1)
+	outA := &fakeOut{}
+	in := info(1, 31.5, 30.5)
+	in.Class, in.Level = pb.CharClass_CHAR_CLASS_THUY, 12
+	joinByInbox(t, za, in, outA)
+	if !za.Attack(1, 2, ma.id) {
+		t.Fatal("inbox full")
+	}
+	za.advance(time.Now())
+	if envs := outA.take(); attackRespAt(envs, 2) < 0 {
+		t.Fatalf("slash refused: %v", errorFor(envs, 2))
+	}
+	r := departNow(t, za, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead}) // 1 tick later
+	slash := za.ticks(combat.SlashCooldown.Seconds()) - 1
+	want := time.Duration(slash) * time.Second / 10
+	if got := r.info.Cooldowns; !maps.Equal(got, map[string]time.Duration{"slash": want}) {
+		t.Fatalf("handoff cooldowns %v, want slash %v", got, want)
+	}
+
+	zb, mb := transferZone(t, 2)
+	outB := &fakeOut{}
+	ew := joinByInbox(t, zb, r.info, outB)
+	j := zb.tickNo
+	if cd := ew.Cooldowns; len(cd) != 1 || cd[0].Key != "slash" || cd[0].RemainingMs != int32(want.Milliseconds()) {
+		t.Fatalf("EnterWorldResp cooldowns %v, want slash %v", cd, want)
+	}
+	for zb.tickNo < j+slash-2 {
+		zb.advance(time.Now())
+	}
+	if !zb.Attack(1, 3, mb.id) {
+		t.Fatal("inbox full")
+	}
+	zb.advance(time.Now()) // j+slash-1
+	if er := errorFor(outB.take(), 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("slash one tick early: %v, want ON_COOLDOWN", er)
+	}
+	if !zb.Attack(1, 4, mb.id) {
+		t.Fatal("inbox full")
+	}
+	zb.advance(time.Now()) // j+slash
+	if envs := outB.take(); attackRespAt(envs, 4) < 0 {
+		t.Fatalf("slash on time refused: %v", errorFor(envs, 4))
+	}
+}
+
+// A zone change starts a 10 s zone-change cooldown: a second zone change
+// within it is refused, a portal is not and carries what is left, and once it
+// has run out the zone change is accepted.
+func TestZoneChangeCooldown(t *testing.T) {
+	za, _ := newTestZone(10, openGrid(64, 64))
+	joinNow(t, za, 1, 12.5, 7.5)
+	change := Departure{To: Place{MapID: "m1"}, KeepPos: true, ZoneChange: true, Check: zoneCheck}
+	r := departNow(t, za, 1, change)
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || r.info.Cooldowns["zone_change"] != ZoneChangeCooldown {
+		t.Fatalf("first zone change %+v, want accepted with a %v cooldown", r, ZoneChangeCooldown)
+	}
+
+	zb, _ := newTestZone(10, openGrid(64, 64))
+	ew := joinByInbox(t, zb, r.info, &fakeOut{})
+	if cd := ew.Cooldowns; len(cd) != 1 || cd[0].Key != "zone_change" || cd[0].RemainingMs != 10000 {
+		t.Fatalf("EnterWorldResp cooldowns %v, want zone_change 10000 ms", cd)
+	}
+	if r := departNow(t, zb, 1, change); r.code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN || zb.players[1] == nil {
+		t.Fatalf("second zone change %+v, want ON_COOLDOWN", r)
+	}
+	portal := Departure{To: Place{MapID: "m2", Pos: Vec2{3.5, 3.5}}, Check: notDead}
+	r = departNow(t, zb, 1, portal) // two ticks after arriving
+	if left := ZoneChangeCooldown - 2*100*time.Millisecond; r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED ||
+		!maps.Equal(r.info.Cooldowns, map[string]time.Duration{"zone_change": left}) {
+		t.Fatalf("portal %+v, want accepted carrying zone_change %v", r, left)
+	}
+
+	zc, _ := newTestZone(10, openGrid(64, 64))
+	joinByInbox(t, zc, r.info, &fakeOut{})
+	k := zc.tickNo // ready at k+98
+	for zc.tickNo < k+96 {
+		zc.advance(time.Now())
+	}
+	if r := departNow(t, zc, 1, change); r.code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("zone change one tick early: %+v, want ON_COOLDOWN", r)
+	}
+	// On time: the zone change would pass, and a portal hands over nothing.
+	var ready bool
+	r = departNow(t, zc, 1, Departure{To: portal.To, Check: func(d *Departing) pb.ErrorCode {
+		ready = zoneCheck(d) == pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+		return notDead(d)
+	}})
+	if !ready || r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || len(r.info.Cooldowns) != 0 {
+		t.Fatalf("on time: zone change ready %v, portal %+v, want ready and no cooldowns", ready, r)
+	}
+}
+
+// Depart through a running zone: it answers, the save completes, a second
+// departure finds nobody (ErrNotInZone), and a stopped zone answers
+// ErrZoneClosed. A player evicted before its departure keeps its save for Leave.
+func TestDepartRunningZone(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	ctx, cancel := context.WithCancel(context.Background())
+	go z.Run(ctx)
+	out := &fakeOut{}
+	if err := z.Join(ctx, info(1, 5.5, 5.5), out); err != nil {
+		t.Fatal(err)
+	}
+	if err := z.Join(ctx, info(2, 6.5, 5.5), &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	in, saved, code, err := z.Depart(ctx, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{9.5, 9.5}}, Check: notDead})
+	if err != nil || code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || in.EntityID != 1 || in.Pos != (Vec2{9.5, 9.5}) {
+		t.Fatalf("depart: %+v %v %v", in, code, err)
+	}
+	if err := <-saved; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := z.Depart(ctx, 1, Departure{Check: notDead}); !errors.Is(err, ErrNotInZone) {
+		t.Fatalf("second departure: %v, want ErrNotInZone", err)
+	}
+	cancel()
+	<-z.Done()
+	if _, _, _, err := z.Depart(context.Background(), 2, Departure{Check: notDead}); !errors.Is(err, ErrZoneClosed) {
+		t.Fatalf("departure from a stopped zone: %v, want ErrZoneClosed", err)
+	}
+
+	ze, _ := newTestZone(10, openGrid(64, 64))
+	joinNow(t, ze, 3, 5.5, 5.5)
+	ze.departed[3] = ze.remove(ze.players[3])
+	if r := departNow(t, ze, 3, Departure{Check: notDead}); !errors.Is(r.err, ErrNotInZone) {
+		t.Fatalf("evicted: %+v, want ErrNotInZone", r)
+	}
+	if _, ok := ze.departed[3]; !ok {
+		t.Fatal("the evicted player's save is gone before Leave")
+	}
+}

@@ -73,7 +73,10 @@ type PlayerInfo struct {
 	// against Area.Items; Join clones it, and nil means an empty bag.
 	Xu        int64
 	Inventory *items.Inventory
-	RespSeq   uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
+	// Cooldowns are the time left on the cooldowns of a handed-over player,
+	// keyed by skill id, CooldownSlash or CooldownZoneChange; nil on a login.
+	Cooldowns map[string]time.Duration
+	RespSeq   uint32 // seq of the EnterWorldReq or transfer request; the zone answers it with EnterWorldResp
 }
 
 var (
@@ -112,12 +115,13 @@ type player struct {
 
 	deadUntil     uint32     // tick at which a dead player respawns by itself
 	restTicks     uint32     // consecutive ticks standing still, alive, on a rest point
-	lastAttack    uint32     // tick of the last accepted attack; 0 means never
+	slashReady    uint32     // first tick a slash may be accepted again
 	pendingAttack *attackCmd // this tick's attack, resolved after drain
 	pendingCast   *castCmd   // this tick's cast, resolved after the attack
 	// skillReady maps a skill id to the first tick it may be cast again.
 	skillReady map[string]uint32
-	statsDirty bool // send SelfStats after this tick's WorldTick
+	zoneReady  uint32 // first tick a zone change may be made again
+	statsDirty bool   // send SelfStats after this tick's WorldTick
 }
 
 type joinCmd struct {
@@ -444,6 +448,8 @@ func (z *Zone) handle(c any) {
 		c.reply <- z.join(c.info, c.out)
 	case leaveCmd:
 		c.reply <- z.leave(c.id)
+	case departCmd:
+		c.reply <- z.depart(c)
 	case moveCmd:
 		z.move(c)
 	case attackCmd:
@@ -506,6 +512,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	} else {
 		p.inv = items.NewInventory(z.bagSize())
 	}
+	z.setCooldowns(p, info.Cooldowns)
 	z.recompute(p)
 	p.hp, p.mp = info.HP, info.MP // -1 = full
 	// HP 0: logged out dead, so back at the respawn point nearest to the saved
@@ -535,6 +542,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		Stats:        z.selfStats(p),
 		Skills:       skillLevels(p),
 		Inventory:    z.inventory(p),
+		Cooldowns:    z.cooldownList(p),
 	}}})
 	return nil
 }

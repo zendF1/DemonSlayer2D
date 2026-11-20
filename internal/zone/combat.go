@@ -169,7 +169,7 @@ func (z *Zone) resolveAttack(p *player, c *attackCmd) {
 		z.replyError(p, c.seq, code)
 		return
 	}
-	p.lastAttack = z.tickNo
+	p.slashReady = z.tickNo + z.ticks(combat.SlashCooldown.Seconds())
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AttackResp{AttackResp: &pb.AttackResp{}}})
 	z.slash(p, m)
 }
@@ -190,7 +190,7 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 	if distance(p.pos, m.pos) > combat.SlashRange+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
 		return nil, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
 	}
-	if p.lastAttack != 0 && z.tickNo-p.lastAttack < z.ticks(combat.SlashCooldown.Seconds()) {
+	if z.tickNo < p.slashReady {
 		return nil, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN
 	}
 	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED

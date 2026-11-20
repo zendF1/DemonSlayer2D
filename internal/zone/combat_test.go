@@ -1208,7 +1208,7 @@ func (b *bot) p() *player { return b.z.players[b.id] }
 // slashReady reports whether a slash sent now is off cooldown next tick.
 func (b *bot) slashReady() bool {
 	p := b.p()
-	return p.lastAttack == 0 || b.z.tickNo+1-p.lastAttack >= b.z.ticks(combat.SlashCooldown.Seconds())
+	return b.z.tickNo+1 >= p.slashReady
 }
 
 // canSlash reports whether a slash at m sent now would be accepted.
@@ -1873,7 +1873,7 @@ func TestAttackValidation(t *testing.T) {
 			z, m := newFightZone(t, 1, home)
 			a := joinNow(t, z, 1, c.player.X, c.player.Y)
 			target := c.setup(z, m)
-			hp, last := m.hp, z.players[1].lastAttack
+			hp, last := m.hp, z.players[1].slashReady
 			a.take()
 			attackNow(t, z, 1, 42, target)
 			envs := a.take()
@@ -1884,8 +1884,8 @@ func TestAttackValidation(t *testing.T) {
 			if attackRespAt(envs, 42) >= 0 || m.hp != hp {
 				t.Fatalf("a rejected attack must not land: hp %d, want %d", m.hp, hp)
 			}
-			if got := z.players[1].lastAttack; got != last {
-				t.Fatalf("lastAttack %d, want %d: a rejected attack must not start the cooldown", got, last)
+			if got := z.players[1].slashReady; got != last {
+				t.Fatalf("slashReady %d, want %d: a rejected attack must not start the cooldown", got, last)
 			}
 		})
 	}
@@ -3416,8 +3416,8 @@ func TestSlashAndCastSameTick(t *testing.T) {
 	if len(hs) != 2 || hs[0].SkillId != "" || hs[1].SkillId != "thuy_1" {
 		t.Fatalf("hits %v, want the slash then the skill", hs)
 	}
-	if p.lastAttack != t0 || p.skillReady["thuy_1"] <= t0 {
-		t.Fatalf("lastAttack %d ready %v, want both cooldowns started", p.lastAttack, p.skillReady)
+	if p.slashReady != t0+z.ticks(combat.SlashCooldown.Seconds()) || p.skillReady["thuy_1"] <= t0 {
+		t.Fatalf("slashReady %d ready %v, want both cooldowns started", p.slashReady, p.skillReady)
 	}
 }
 
