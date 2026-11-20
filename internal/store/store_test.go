@@ -638,10 +638,11 @@ func TestDevGiveItem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// An enhanced piece keeps its level and pity through place (phase 3b spec 7).
+	// An enhanced piece keeps its level and pity (phase 3b spec 7) and its
+	// holes and gems (phase 3c spec 7) through place.
 	worn := store.ItemRow{Equipped: true, Slot: 4, Code: "eq10_armor", Count: 1, Quality: 2, Element: "thuy", Enhance: 9,
 		Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{{Stat: "hp", Value: 50}, {Stat: "hp", Value: 50}},
-		Pity: []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0}}
+		Pity: []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0}, Gems: []string{"gem_hp_1", ""}}
 	stones := store.ItemRow{Slot: 0, Code: "stone_enhance", Count: 7, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
 	if err := st.SaveCharacterState(ctx, store.CharState{ID: first.ID, MapID: "kumotori_1", Level: 1, HP: -1, MP: -1,
 		Xu: 100, Items: []store.ItemRow{stones, worn}}); err != nil {
@@ -649,7 +650,8 @@ func TestDevGiveItem(t *testing.T) {
 	}
 
 	// place sees the current rows and its list replaces them; Xu is added.
-	sword := store.ItemRow{Slot: 1, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
+	sword := store.ItemRow{Slot: 1, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{},
+		Gems: []string{"", "", ""}}
 	var seen []store.ItemRow
 	res, err := st.DevGiveItem(ctx, "owner", func(rows []store.ItemRow) ([]store.ItemRow, error) {
 		seen = rows

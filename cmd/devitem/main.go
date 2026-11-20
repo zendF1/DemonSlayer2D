@@ -1,16 +1,17 @@
 // Command devitem gives an account's first character an item or Xu, for
 // development only (phase 3a spec 7):
 //
-//	go run ./cmd/devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-xu N]
+//	go run ./cmd/devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-holes H] [-xu N]
 //
 // It reads the database from DATABASE_URL and the item data from DATA_DIR
 // (default ./data). An equipment code adds one piece of quality -quality
 // (0 Trắng to 4 Đỏ, default 0) at enhance level -enhance (0 to 15, default
-// 0, phase 3b spec 7) with its lines and element rolled from a random seed
-// into the first empty bag slot; a stackable code (stones, charm_protect)
-// adds -count
-// (default 1) by the bag rules, topping up existing stacks first. A full bag
-// is an error and nothing is written. -xu adds Xu and may be used alone.
+// 0, phase 3b spec 7) with -holes empty holes (0 to sockets.max, default 0,
+// phase 3c spec 7) and its lines and element rolled from a random seed into
+// the first empty bag slot; a stackable code (stones, charm_protect, gems
+// such as gem_hp_3) adds -count (default 1) by the bag rules, topping up
+// existing stacks first. A full bag is an error and nothing is written. -xu
+// adds Xu and may be used alone.
 //
 // The character must be offline: the server does not record who is online,
 // so a running server's next save of the character overwrites the change.
@@ -33,7 +34,7 @@ import (
 	"demonslayer2d/internal/store"
 )
 
-const usage = "usage: devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-xu N]"
+const usage = "usage: devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-holes H] [-xu N]"
 
 func main() {
 	if err := run(os.Args[1:], os.Getenv, os.Stdout); err != nil {
@@ -50,6 +51,7 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 	count := fs.Int("count", 1, "how many of a stackable to add")
 	quality := fs.Int("quality", 0, "quality of a piece of equipment, 0 (Trắng) to 4 (Đỏ)")
 	enhance := fs.Int("enhance", 0, "enhance level of a piece of equipment, 0 to 15")
+	holes := fs.Int("holes", 0, "empty holes punched in a piece of equipment, 0 to 3")
 	xu := fs.Int64("xu", 0, "Xu to add")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
@@ -78,7 +80,7 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if item, err = newItem(d, *code, *count, *quality, *enhance); err != nil {
+		if item, err = newItem(d, *code, *count, *quality, *enhance, *holes); err != nil {
 			return err
 		}
 		return give(getenv, out, *user, d, item, *xu)
@@ -87,8 +89,9 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 }
 
 // newItem checks the flags against the item data and makes the item: a
-// freshly rolled piece of equipment at the given enhance level, or a stack.
-func newItem(d *gamedata.Items, code string, count, quality, enhance int) (*items.Item, error) {
+// freshly rolled piece of equipment at the given enhance level with holes
+// empty holes, or a stack.
+func newItem(d *gamedata.Items, code string, count, quality, enhance, holes int) (*items.Item, error) {
 	if d.IsEquipment(code) {
 		if quality < 0 || quality >= len(d.Qualities) {
 			return nil, fmt.Errorf("-quality %d is outside 0-%d", quality, len(d.Qualities)-1)
@@ -96,12 +99,18 @@ func newItem(d *gamedata.Items, code string, count, quality, enhance int) (*item
 		if enhance < 0 || enhance > items.MaxEnhance {
 			return nil, fmt.Errorf("-enhance %d is outside 0-%d", enhance, items.MaxEnhance)
 		}
+		if holes < 0 || holes > d.Sockets.Max {
+			return nil, fmt.Errorf("-holes %d is outside 0-%d", holes, d.Sockets.Max)
+		}
 		if count != 1 {
 			return nil, fmt.Errorf("-count %d: equipment is added one piece at a time", count)
 		}
 		rng := rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), rand.Uint64()))
 		it := items.NewEquipment(rng, d, code, quality)
 		it.Enhance = enhance
+		if holes > 0 {
+			it.Gems = make([]string, holes)
+		}
 		return &it, nil
 	}
 	if _, ok := d.Stackables[code]; !ok {
@@ -112,6 +121,9 @@ func newItem(d *gamedata.Items, code string, count, quality, enhance int) (*item
 	}
 	if enhance != 0 {
 		return nil, fmt.Errorf("-enhance %d: %s is not equipment", enhance, code)
+	}
+	if holes != 0 {
+		return nil, fmt.Errorf("-holes %d: %s is not equipment", holes, code)
 	}
 	return &items.Item{Code: code, Count: count}, nil
 }
@@ -173,7 +185,7 @@ func addItem(d *gamedata.Items, rows []store.ItemRow, it items.Item) ([]store.It
 	for _, slot := range changed {
 		b := inv.Bag[slot]
 		r := store.ItemRow{Slot: slot, Code: b.Code, Count: b.Count, Quality: b.Quality, Element: b.Element,
-			Enhance: b.Enhance, Lines: storeLines(b.Lines), Hidden: storeLines(b.Hidden)}
+			Enhance: b.Enhance, Lines: storeLines(b.Lines), Hidden: storeLines(b.Hidden), Gems: b.Gems}
 		if i := bagRow(rows, slot); i >= 0 {
 			// Only a stack's count changes in an occupied slot; keep the rest of its row.
 			rows[i].Count = r.Count
@@ -202,8 +214,8 @@ func storeLines(ls []items.Line) []store.ItemLine {
 }
 
 // describe names it for the summary: "Kiếm Lữ Hành +9 (eq10_weapon_viem),
-// Vàng, lines hp+43 phys_attack+12" (no "+0") or "5 × Đá cường hóa
-// (stone_enhance)".
+// Vàng, lines hp+43 phys_attack+12, 2 holes" (no "+0", no holes part
+// without holes) or "5 × Đá cường hóa (stone_enhance)".
 func describe(d *gamedata.Items, it *items.Item) string {
 	if e, ok := d.Equipment[it.Code]; ok {
 		name := e.Name
@@ -220,6 +232,13 @@ func describe(d *gamedata.Items, it *items.Item) string {
 		}
 		if len(ls) > 0 {
 			s += ", lines " + strings.Join(ls, " ")
+		}
+		switch n := len(it.Gems); n {
+		case 0:
+		case 1:
+			s += ", 1 hole"
+		default:
+			s += fmt.Sprintf(", %d holes", n)
 		}
 		return s
 	}

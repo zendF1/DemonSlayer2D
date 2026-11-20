@@ -116,15 +116,20 @@ go run ./cmd/devitem -u tanjiro -code eq50_armor -quality 2   # a Vàng Áo Xíc
 go run ./cmd/devitem -u tanjiro -code eq10_weapon_viem -enhance 9   # a +9 sword
 go run ./cmd/devitem -u tanjiro -code stone_enhance -count 100
 go run ./cmd/devitem -u tanjiro -code charm_protect -count 20      # protection charms
+go run ./cmd/devitem -u tanjiro -code eq20_armor -quality 2 -holes 3   # three empty holes
+go run ./cmd/devitem -u tanjiro -code gem_hp_3 -count 5           # Ngọc Sinh Lực cấp 3
 go run ./cmd/devitem -u tanjiro -xu 100000
 ```
 
 An equipment code adds one piece into the first empty bag slot, with quality
 `-quality` (0 Trắng, 1 Xanh Dương, 2 Vàng, 3 Cam, 4 Đỏ; default 0), enhance
-level `-enhance` (0 to 15, default 0; equipment only) and lines and element
-rolled at random. Stackable codes are the stones (`stone_enhance`,
-`stone_refine`) and the protection charm `charm_protect`, which only the
-general store will sell from phase 4. A stackable code adds `-count` (default 1), topping
+level `-enhance` (0 to 15, default 0; equipment only), `-holes` empty holes
+(0 to 3, default 0; equipment only) and lines and element rolled at random.
+Stackable codes are the stones (`stone_enhance`, `stone_refine`), the
+protection charm `charm_protect`, which only the general store will sell from
+phase 4, and the 15 gems `gem_attack_N`, `gem_hp_N` and `gem_defense_N` (level
+N 1 to 5; a level N gem fits tier 10N or higher gear), which events and quests
+will hand out from phase 6. A stackable code adds `-count` (default 1), topping
 up existing stacks first (999 per stack). `-xu` adds Xu and can be used alone
 or with `-code`. An unknown code or a full bag is an error, and nothing is
 written. It prints the character's name, the item added and its bag slots,

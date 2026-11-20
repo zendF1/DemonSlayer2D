@@ -41,6 +41,9 @@ func TestRunRefusesBadFlags(t *testing.T) {
 		{"enhance too high", []string{"-u", "a", "-code", "eq10_armor", "-enhance", "16"}, "-enhance"},
 		{"negative enhance", []string{"-u", "a", "-code", "eq10_armor", "-enhance", "-1"}, "-enhance"},
 		{"enhance on a stack", []string{"-u", "a", "-code", "charm_protect", "-enhance", "1"}, "-enhance"},
+		{"holes too high", []string{"-u", "a", "-code", "eq10_armor", "-holes", "4"}, "-holes 4 is outside 0-3"},
+		{"negative holes", []string{"-u", "a", "-code", "eq10_armor", "-holes", "-1"}, "-holes -1 is outside 0-3"},
+		{"holes on a gem", []string{"-u", "a", "-code", "gem_hp_1", "-holes", "1"}, "-holes 1: gem_hp_1 is not equipment"},
 		{"no database", []string{"-u", "a", "-xu", "5"}, "DATABASE_URL"},
 	}
 	for _, c := range cases {
@@ -157,11 +160,30 @@ func TestRunGivesItemsAndXu(t *testing.T) {
 		t.Fatalf("items %+v, want a +9 armour in slot 2 and 3 charms in slot 3", items)
 	}
 
+	// -holes 2 punches two empty holes (phase 3c spec 7); gems are stacks.
+	if out, err = give("-code", "eq20_armor", "-quality", "2", "-holes", "2"); err != nil ||
+		!strings.Contains(out, "2 holes") || !strings.Contains(out, "bag slot 4") {
+		t.Fatalf("holes: %q, %v", out, err)
+	}
+	if out, err = give("-code", "gem_hp_3", "-count", "2"); err != nil || !strings.Contains(out, "2 × Ngọc Sinh Lực cấp 3") ||
+		!strings.Contains(out, "bag slot 5") {
+		t.Fatalf("gem: %q, %v", out, err)
+	}
+	items = load().Items
+	gem := store.ItemRow{Slot: 5, Code: "gem_hp_3", Count: 2, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
+	if len(items) != 6 || items[4].Code != "eq20_armor" || !reflect.DeepEqual(items[4].Gems, []string{"", ""}) ||
+		!reflect.DeepEqual(items[5], gem) {
+		t.Fatalf("items %+v, want an armour with two empty holes in slot 4 and 2 gems in slot 5", items)
+	}
+	if len(items[2].Gems) != 0 {
+		t.Fatalf("the armour given without -holes has holes %q", items[2].Gems)
+	}
+
 	// -xu alone adds Xu and leaves the items alone.
 	if out, err = give("-xu", "500"); err != nil || !strings.Contains(out, "500 Xu") {
 		t.Fatalf("xu: %q, %v", out, err)
 	}
-	if got := load(); got.Xu != 500 || len(got.Items) != 4 {
+	if got := load(); got.Xu != 500 || len(got.Items) != 6 {
 		t.Fatalf("after -xu: xu %d, items %+v", got.Xu, got.Items)
 	}
 

@@ -1107,3 +1107,178 @@ func TestEnhanceOverWebSocket(t *testing.T) {
 		t.Fatalf("re-entered wearing %v with %d Xu, want the +4 sword and 9,300 Xu", eq, again.Stats.GetXu())
 	}
 }
+
+// ______________________TEST FORGE_____________________
+
+// Phase 3c spec 8: a level 25 Viêm given a Thanh Thiết Vàng armour (Thủy), a
+// Lữ Hành Vàng necklace (Minh), a Ngọc Sinh Lực cấp 2, 3 refine stones and
+// 10,000 Xu forges at the camp. Wearing the necklace lights the armour's
+// hidden line 1 (Minh generates Thủy; the necklace is the armour's first
+// activating slot) but not line 2 or the necklace's own lines. It punches
+// two holes in the worn armour and sockets the gem into hole 1 from bag slot
+// 3, so both arguments cross the gateway: max HP rises by exactly 156, and
+// unsocketing drops it again. A refine with line 0 locked keeps that line
+// and is taken; a second, unlocked refine is declined and changes nothing.
+// After leaving and re-entering, the holes, the gem and the taken lines are
+// all still there.
+func TestForgeOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	b, err := os.ReadFile("../data/items.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := gamedata.ParseItems(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := newPlayer(t, s, "rin01", "Rin", pb.CharClass_CHAR_CLASS_VIEM)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetLevel(ctx, "rin01", 25); err != nil {
+		t.Fatal(err)
+	}
+	lines := func(ls ...store.ItemLine) []store.ItemLine { return ls }
+	give := func([]store.ItemRow) ([]store.ItemRow, error) {
+		return []store.ItemRow{
+			{Slot: 0, Code: "eq20_armor", Count: 1, Quality: 2, Element: "thuy",
+				Lines:  lines(store.ItemLine{Stat: "hp", Value: 100}, store.ItemLine{Stat: "phys_attack", Value: 5}, store.ItemLine{Stat: "magic_attack", Value: 5}),
+				Hidden: lines(store.ItemLine{Stat: "magic_defense", Value: 1}, store.ItemLine{Stat: "phys_defense", Value: 1})},
+			{Slot: 1, Code: "eq10_necklace", Count: 1, Quality: 2, Element: "minh",
+				Lines:  lines(store.ItemLine{Stat: "hp", Value: 50}, store.ItemLine{Stat: "phys_attack", Value: 3}, store.ItemLine{Stat: "magic_attack", Value: 3}),
+				Hidden: lines(store.ItemLine{Stat: "magic_defense", Value: 5}, store.ItemLine{Stat: "magic_defense", Value: 5})},
+			{Slot: 2, Code: "stone_refine", Count: 3, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+			{Slot: 3, Code: "gem_hp_2", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		}, nil
+	}
+	if _, err := s.store.DevGiveItem(ctx, "rin01", give, 10000); err != nil {
+		t.Fatal(err)
+	}
+	for drained := false; !drained; {
+		select {
+		case <-p.c.Pushes():
+		default:
+			drained = true
+		}
+	}
+	if _, err := p.c.EnterWorld(ctx, p.charID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resonance: the armour alone has no lit lines; the Minh necklace lights
+	// its line 1 (+1 magic defense) and nothing else.
+	er, err := p.c.Equip(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	armour := &pb.ItemRef{Equipped: true, Slot: er.Update.GetEquipped()[0].GetSlot()}
+	before := er.Stats
+	nr, err := p.c.Equip(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	neck := data.Equipment["eq10_necklace"]
+	if md, pd := nr.Stats.GetMagicDefense()-before.GetMagicDefense(), nr.Stats.GetPhysDefense()-before.GetPhysDefense(); md != int32(neck.MagicDefense[0])+1 || pd != int32(neck.PhysDefense[0]) {
+		t.Fatalf("the necklace added magic defense %d and phys defense %d, want %d and %d", md, pd,
+			neck.MagicDefense[0]+1, neck.PhysDefense[0])
+	}
+	maxHP := nr.Stats.GetMaxHp()
+
+	// Two holes: 100 × 20 + 200 × 20 Xu.
+	for want := int32(1); want <= 2; want++ {
+		r, err := p.c.Punch(ctx, armour)
+		if err != nil {
+			t.Fatalf("punch %d: %v", want, err)
+		}
+		if got := r.Update.GetEquipped()[0].GetItem(); got.GetHoles() != want || len(got.GetGems()) != int(want) {
+			t.Fatalf("punch %d: %v", want, got)
+		}
+	}
+	sr, err := p.c.Socket(ctx, armour, 1, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sr.Update.GetEquipped()[0].GetItem().GetGems(); len(got) != 2 || got[0] != "" || got[1] != "gem_hp_2" {
+		t.Fatalf("socketed gems %q, want the gem in hole 1", got)
+	}
+	if sr.Stats.GetMaxHp() != maxHP+156 || sr.Stats.GetXu() != 10000-6000 {
+		t.Fatalf("after socketing: max HP %d, %d Xu, want %d and 4,000", sr.Stats.GetMaxHp(), sr.Stats.GetXu(), maxHP+156)
+	}
+
+	// Unsocketing (500 × 2 Xu) puts the gem back in the bag; socket it again.
+	ur, err := p.c.Unsocket(ctx, armour, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gemSlot := -1
+	for _, e := range ur.Update.GetBag() {
+		if e.GetItem().GetCode() == "gem_hp_2" {
+			gemSlot = int(e.GetSlot())
+		}
+	}
+	if gemSlot < 0 || ur.Stats.GetMaxHp() != maxHP || ur.Stats.GetXu() != 3000 ||
+		ur.Update.GetEquipped()[0].GetItem().GetGems()[1] != "" {
+		t.Fatalf("after unsocketing: %v, want the gem in the bag, max HP %d and 3,000 Xu", ur, maxHP)
+	}
+	if sr, err = p.c.Socket(ctx, armour, 1, gemSlot); err != nil || sr.Stats.GetMaxHp() != maxHP+156 {
+		t.Fatalf("socket again: %v, %v", sr, err)
+	}
+
+	// Refine with line 0 locked: 2 stones and (20 + 20) × 20 Xu; take it.
+	rr, err := p.c.Refine(ctx, armour, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := rr.GetLines()
+	stats := map[string]bool{}
+	for _, l := range got {
+		stats[l.GetStat()] = true
+	}
+	if len(got) != 3 || len(stats) != 3 || got[0].GetStat() != "hp" || got[0].GetValue() != 100 || rr.Stats.GetXu() != 2200 {
+		t.Fatalf("refine: %v, want 3 distinct lines with hp+100 first and 2,200 Xu", rr)
+	}
+	cr, err := p.c.RefineChoose(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taken := cr.Update.GetEquipped()[0].GetItem().GetLines()
+	if !proto.Equal(&pb.ItemInfo{Lines: taken}, &pb.ItemInfo{Lines: got}) {
+		t.Fatalf("taken lines %v, want %v", taken, got)
+	}
+
+	// An unlocked refine (1 stone, 20 × 20 Xu), declined, keeps the lines.
+	if rr, err = p.c.Refine(ctx, armour); err != nil || rr.Stats.GetXu() != 1800 {
+		t.Fatalf("second refine: %v, %v", rr, err)
+	}
+	if cr, err = p.c.RefineChoose(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	if kept := cr.Update.GetEquipped()[0].GetItem().GetLines(); !proto.Equal(&pb.ItemInfo{Lines: kept}, &pb.ItemInfo{Lines: taken}) {
+		t.Fatalf("declined, the lines are %v, want %v", kept, taken)
+	}
+	if _, err := p.c.RefineChoose(ctx, true); client.Code(err) != pb.ErrorCode_ERROR_CODE_NO_PENDING_REFINE {
+		t.Fatalf("a second choice: %v, want NO_PENDING_REFINE", err)
+	}
+	wantHP := cr.Stats.GetMaxHp()
+
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var worn *pb.ItemInfo
+	for _, e := range again.Inventory.GetEquipped() {
+		if e.GetSlot() == armour.Slot {
+			worn = e.GetItem()
+		}
+	}
+	if worn.GetHoles() != 2 || len(worn.GetGems()) != 2 || worn.GetGems()[1] != "gem_hp_2" ||
+		!proto.Equal(&pb.ItemInfo{Lines: worn.GetLines()}, &pb.ItemInfo{Lines: taken}) ||
+		again.Stats.GetMaxHp() != wantHP || again.Stats.GetXu() != 1800 {
+		t.Fatalf("re-entered wearing %v with max HP %d and %d Xu, want 2 holes, the gem in hole 1, lines %v, max HP %d and 1,800 Xu",
+			worn, again.Stats.GetMaxHp(), again.Stats.GetXu(), taken, wantHP)
+	}
+}
