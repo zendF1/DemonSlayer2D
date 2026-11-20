@@ -52,6 +52,17 @@ message Envelope {
     LearnSkillResp learn_skill_resp = 58;
     CastReq cast_req = 59;
     CastResp cast_resp = 60;
+
+    PickupReq pickup_req = 61;
+    PickupResp pickup_resp = 62;
+    EquipReq equip_req = 63;
+    EquipResp equip_resp = 64;
+    UnequipReq unequip_req = 65;
+    UnequipResp unequip_resp = 66;
+    DiscardReq discard_req = 67;
+    DiscardResp discard_resp = 68;
+    SortBagReq sort_bag_req = 69;
+    SortBagResp sort_bag_resp = 70;
   }
 }
 
@@ -89,8 +100,14 @@ enum ErrorCode {
   ERROR_CODE_NOT_ENOUGH_MP = 24;
   // The skill is already at its maximum level.
   ERROR_CODE_SKILL_MAXED = 25;
-  // The character level is below the level the skill needs.
+  // The character level is below the level the skill or item needs.
   ERROR_CODE_LEVEL_TOO_LOW = 26;
+  // The bag has no room for the item.
+  ERROR_CODE_BAG_FULL = 27;
+  // No such item: an empty slot, or no ground item of the character's with that id.
+  ERROR_CODE_ITEM_NOT_FOUND = 28;
+  // The weapon belongs to another class.
+  ERROR_CODE_WRONG_CLASS = 29;
 }
 
 enum KickReason {
@@ -117,6 +134,8 @@ enum EntityKind {
   ENTITY_KIND_UNSPECIFIED = 0;
   ENTITY_KIND_PLAYER = 1;
   ENTITY_KIND_MONSTER = 2;
+  // An item on the ground, seen only by its owner.
+  ENTITY_KIND_ITEM = 3;
 }
 
 message ErrorResp {
@@ -192,6 +211,8 @@ message EnterWorldResp {
   SelfStats stats = 9;
   // Every skill the character has learned.
   repeated SkillLevel skills = 10;
+  // The bag and the worn items.
+  Inventory inventory = 11;
 }
 
 message LeaveWorldReq {}
@@ -219,6 +240,8 @@ message EntityEnter {
   int32 max_hp = 11;
   // True for a corpse still visible in the zone.
   bool dead = 12;
+  // Set for an ITEM entity; name is the item's name, level and HP are 0.
+  ItemInfo item = 13;
 }
 
 message EntityLeave {
@@ -317,6 +340,8 @@ message SelfStats {
   int32 crit_rate_bp = 19;
   // Unspent skill points.
   int32 skill_points = 20;
+  // Xu in the wallet.
+  int64 xu = 21;
 }
 
 message Hit {
@@ -391,4 +416,85 @@ message Cast {
 message CastImpact {
   uint64 target_id = 1;
   int32 impact_ms = 2; // from the Cast tick to the impact: (impact tick - t0) * 1000 / tick rate
+}
+
+// An item in the bag, worn or on the ground.
+message ItemInfo {
+  string code = 1;
+  int32 count = 2;       // 1 for equipment
+  int32 quality = 3;     // 0 Trắng … 4 Đỏ
+  CharClass element = 4; // UNSPECIFIED: no element
+  int32 enhance = 5;
+  repeated ItemLine lines = 6;
+  repeated ItemLine hidden = 7;
+}
+
+message ItemLine {
+  string stat = 1; // hp, phys_attack, magic_attack, phys_defense, magic_defense
+  int32 value = 2;
+}
+
+// A bag slot (0..bag_size-1) or an equipment slot (0..9). No item: the slot is empty.
+message ItemSlot {
+  int32 slot = 1;
+  ItemInfo item = 2;
+}
+
+message Inventory {
+  int32 bag_size = 1;
+  repeated ItemSlot bag = 2;      // occupied slots only
+  repeated ItemSlot equipped = 3; // occupied slots only
+}
+
+// Slots that changed; an ItemSlot without an item is now empty.
+message InventoryUpdate {
+  repeated ItemSlot bag = 1;
+  repeated ItemSlot equipped = 2;
+}
+
+// Picks up one of the character's ground items into the bag.
+message PickupReq {
+  uint64 item_id = 1;
+}
+
+message PickupResp {
+  InventoryUpdate update = 1;
+}
+
+// Wears the piece in a bag slot, swapping with the worn one.
+message EquipReq {
+  int32 bag_slot = 1;
+}
+
+message EquipResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Takes off a worn item into the first empty bag slot.
+message UnequipReq {
+  int32 equip_slot = 1;
+}
+
+message UnequipResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Destroys count of the item in a bag slot; count 0 destroys the whole slot.
+message DiscardReq {
+  int32 bag_slot = 1;
+  int32 count = 2;
+}
+
+message DiscardResp {
+  InventoryUpdate update = 1;
+}
+
+// Merges stacks and sorts the bag.
+message SortBagReq {}
+
+// Every bag slot, empty ones without an item.
+message SortBagResp {
+  InventoryUpdate update = 1;
 }

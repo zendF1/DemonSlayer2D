@@ -57,8 +57,14 @@ const (
 	ErrorCode_ERROR_CODE_NOT_ENOUGH_MP ErrorCode = 24
 	// The skill is already at its maximum level.
 	ErrorCode_ERROR_CODE_SKILL_MAXED ErrorCode = 25
-	// The character level is below the level the skill needs.
+	// The character level is below the level the skill or item needs.
 	ErrorCode_ERROR_CODE_LEVEL_TOO_LOW ErrorCode = 26
+	// The bag has no room for the item.
+	ErrorCode_ERROR_CODE_BAG_FULL ErrorCode = 27
+	// No such item: an empty slot, or no ground item of the character's with that id.
+	ErrorCode_ERROR_CODE_ITEM_NOT_FOUND ErrorCode = 28
+	// The weapon belongs to another class.
+	ErrorCode_ERROR_CODE_WRONG_CLASS ErrorCode = 29
 )
 
 // Enum value maps for ErrorCode.
@@ -91,6 +97,9 @@ var (
 		24: "ERROR_CODE_NOT_ENOUGH_MP",
 		25: "ERROR_CODE_SKILL_MAXED",
 		26: "ERROR_CODE_LEVEL_TOO_LOW",
+		27: "ERROR_CODE_BAG_FULL",
+		28: "ERROR_CODE_ITEM_NOT_FOUND",
+		29: "ERROR_CODE_WRONG_CLASS",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":       0,
@@ -120,6 +129,9 @@ var (
 		"ERROR_CODE_NOT_ENOUGH_MP":     24,
 		"ERROR_CODE_SKILL_MAXED":       25,
 		"ERROR_CODE_LEVEL_TOO_LOW":     26,
+		"ERROR_CODE_BAG_FULL":          27,
+		"ERROR_CODE_ITEM_NOT_FOUND":    28,
+		"ERROR_CODE_WRONG_CLASS":       29,
 	}
 )
 
@@ -278,6 +290,8 @@ const (
 	EntityKind_ENTITY_KIND_UNSPECIFIED EntityKind = 0
 	EntityKind_ENTITY_KIND_PLAYER      EntityKind = 1
 	EntityKind_ENTITY_KIND_MONSTER     EntityKind = 2
+	// An item on the ground, seen only by its owner.
+	EntityKind_ENTITY_KIND_ITEM EntityKind = 3
 )
 
 // Enum value maps for EntityKind.
@@ -286,11 +300,13 @@ var (
 		0: "ENTITY_KIND_UNSPECIFIED",
 		1: "ENTITY_KIND_PLAYER",
 		2: "ENTITY_KIND_MONSTER",
+		3: "ENTITY_KIND_ITEM",
 	}
 	EntityKind_value = map[string]int32{
 		"ENTITY_KIND_UNSPECIFIED": 0,
 		"ENTITY_KIND_PLAYER":      1,
 		"ENTITY_KIND_MONSTER":     2,
+		"ENTITY_KIND_ITEM":        3,
 	}
 )
 
@@ -366,6 +382,16 @@ type Envelope struct {
 	//	*Envelope_LearnSkillResp
 	//	*Envelope_CastReq
 	//	*Envelope_CastResp
+	//	*Envelope_PickupReq
+	//	*Envelope_PickupResp
+	//	*Envelope_EquipReq
+	//	*Envelope_EquipResp
+	//	*Envelope_UnequipReq
+	//	*Envelope_UnequipResp
+	//	*Envelope_DiscardReq
+	//	*Envelope_DiscardResp
+	//	*Envelope_SortBagReq
+	//	*Envelope_SortBagResp
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -712,6 +738,96 @@ func (x *Envelope) GetCastResp() *CastResp {
 	return nil
 }
 
+func (x *Envelope) GetPickupReq() *PickupReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PickupReq); ok {
+			return x.PickupReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPickupResp() *PickupResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PickupResp); ok {
+			return x.PickupResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEquipReq() *EquipReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EquipReq); ok {
+			return x.EquipReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEquipResp() *EquipResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EquipResp); ok {
+			return x.EquipResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetUnequipReq() *UnequipReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_UnequipReq); ok {
+			return x.UnequipReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetUnequipResp() *UnequipResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_UnequipResp); ok {
+			return x.UnequipResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetDiscardReq() *DiscardReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_DiscardReq); ok {
+			return x.DiscardReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetDiscardResp() *DiscardResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_DiscardResp); ok {
+			return x.DiscardResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSortBagReq() *SortBagReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SortBagReq); ok {
+			return x.SortBagReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSortBagResp() *SortBagResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SortBagResp); ok {
+			return x.SortBagResp
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -848,6 +964,46 @@ type Envelope_CastResp struct {
 	CastResp *CastResp `protobuf:"bytes,60,opt,name=cast_resp,json=castResp,proto3,oneof"`
 }
 
+type Envelope_PickupReq struct {
+	PickupReq *PickupReq `protobuf:"bytes,61,opt,name=pickup_req,json=pickupReq,proto3,oneof"`
+}
+
+type Envelope_PickupResp struct {
+	PickupResp *PickupResp `protobuf:"bytes,62,opt,name=pickup_resp,json=pickupResp,proto3,oneof"`
+}
+
+type Envelope_EquipReq struct {
+	EquipReq *EquipReq `protobuf:"bytes,63,opt,name=equip_req,json=equipReq,proto3,oneof"`
+}
+
+type Envelope_EquipResp struct {
+	EquipResp *EquipResp `protobuf:"bytes,64,opt,name=equip_resp,json=equipResp,proto3,oneof"`
+}
+
+type Envelope_UnequipReq struct {
+	UnequipReq *UnequipReq `protobuf:"bytes,65,opt,name=unequip_req,json=unequipReq,proto3,oneof"`
+}
+
+type Envelope_UnequipResp struct {
+	UnequipResp *UnequipResp `protobuf:"bytes,66,opt,name=unequip_resp,json=unequipResp,proto3,oneof"`
+}
+
+type Envelope_DiscardReq struct {
+	DiscardReq *DiscardReq `protobuf:"bytes,67,opt,name=discard_req,json=discardReq,proto3,oneof"`
+}
+
+type Envelope_DiscardResp struct {
+	DiscardResp *DiscardResp `protobuf:"bytes,68,opt,name=discard_resp,json=discardResp,proto3,oneof"`
+}
+
+type Envelope_SortBagReq struct {
+	SortBagReq *SortBagReq `protobuf:"bytes,69,opt,name=sort_bag_req,json=sortBagReq,proto3,oneof"`
+}
+
+type Envelope_SortBagResp struct {
+	SortBagResp *SortBagResp `protobuf:"bytes,70,opt,name=sort_bag_resp,json=sortBagResp,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -913,6 +1069,26 @@ func (*Envelope_LearnSkillResp) isEnvelope_Payload() {}
 func (*Envelope_CastReq) isEnvelope_Payload() {}
 
 func (*Envelope_CastResp) isEnvelope_Payload() {}
+
+func (*Envelope_PickupReq) isEnvelope_Payload() {}
+
+func (*Envelope_PickupResp) isEnvelope_Payload() {}
+
+func (*Envelope_EquipReq) isEnvelope_Payload() {}
+
+func (*Envelope_EquipResp) isEnvelope_Payload() {}
+
+func (*Envelope_UnequipReq) isEnvelope_Payload() {}
+
+func (*Envelope_UnequipResp) isEnvelope_Payload() {}
+
+func (*Envelope_DiscardReq) isEnvelope_Payload() {}
+
+func (*Envelope_DiscardResp) isEnvelope_Payload() {}
+
+func (*Envelope_SortBagReq) isEnvelope_Payload() {}
+
+func (*Envelope_SortBagResp) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1573,7 +1749,9 @@ type EnterWorldResp struct {
 	// The character's own stats at entry.
 	Stats *SelfStats `protobuf:"bytes,9,opt,name=stats,proto3" json:"stats,omitempty"`
 	// Every skill the character has learned.
-	Skills        []*SkillLevel `protobuf:"bytes,10,rep,name=skills,proto3" json:"skills,omitempty"`
+	Skills []*SkillLevel `protobuf:"bytes,10,rep,name=skills,proto3" json:"skills,omitempty"`
+	// The bag and the worn items.
+	Inventory     *Inventory `protobuf:"bytes,11,opt,name=inventory,proto3" json:"inventory,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1674,6 +1852,13 @@ func (x *EnterWorldResp) GetStats() *SelfStats {
 func (x *EnterWorldResp) GetSkills() []*SkillLevel {
 	if x != nil {
 		return x.Skills
+	}
+	return nil
+}
+
+func (x *EnterWorldResp) GetInventory() *Inventory {
+	if x != nil {
+		return x.Inventory
 	}
 	return nil
 }
@@ -1825,7 +2010,9 @@ type EntityEnter struct {
 	Hp        int32                  `protobuf:"varint,10,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp     int32                  `protobuf:"varint,11,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	// True for a corpse still visible in the zone.
-	Dead          bool `protobuf:"varint,12,opt,name=dead,proto3" json:"dead,omitempty"`
+	Dead bool `protobuf:"varint,12,opt,name=dead,proto3" json:"dead,omitempty"`
+	// Set for an ITEM entity; name is the item's name, level and HP are 0.
+	Item          *ItemInfo `protobuf:"bytes,13,opt,name=item,proto3" json:"item,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1942,6 +2129,13 @@ func (x *EntityEnter) GetDead() bool {
 		return x.Dead
 	}
 	return false
+}
+
+func (x *EntityEnter) GetItem() *ItemInfo {
+	if x != nil {
+		return x.Item
+	}
+	return nil
 }
 
 type EntityLeave struct {
@@ -2627,7 +2821,9 @@ type SelfStats struct {
 	// Critical rate in basis points (100 = 1%).
 	CritRateBp int32 `protobuf:"varint,19,opt,name=crit_rate_bp,json=critRateBp,proto3" json:"crit_rate_bp,omitempty"`
 	// Unspent skill points.
-	SkillPoints   int32 `protobuf:"varint,20,opt,name=skill_points,json=skillPoints,proto3" json:"skill_points,omitempty"`
+	SkillPoints int32 `protobuf:"varint,20,opt,name=skill_points,json=skillPoints,proto3" json:"skill_points,omitempty"`
+	// Xu in the wallet.
+	Xu            int64 `protobuf:"varint,21,opt,name=xu,proto3" json:"xu,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2798,6 +2994,13 @@ func (x *SelfStats) GetCritRateBp() int32 {
 func (x *SelfStats) GetSkillPoints() int32 {
 	if x != nil {
 		return x.SkillPoints
+	}
+	return 0
+}
+
+func (x *SelfStats) GetXu() int64 {
+	if x != nil {
+		return x.Xu
 	}
 	return 0
 }
@@ -3464,11 +3667,784 @@ func (x *CastImpact) GetImpactMs() int32 {
 	return 0
 }
 
+// An item in the bag, worn or on the ground.
+type ItemInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	Count         int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`                          // 1 for equipment
+	Quality       int32                  `protobuf:"varint,3,opt,name=quality,proto3" json:"quality,omitempty"`                      // 0 Trắng … 4 Đỏ
+	Element       CharClass              `protobuf:"varint,4,opt,name=element,proto3,enum=ds.v1.CharClass" json:"element,omitempty"` // UNSPECIFIED: no element
+	Enhance       int32                  `protobuf:"varint,5,opt,name=enhance,proto3" json:"enhance,omitempty"`
+	Lines         []*ItemLine            `protobuf:"bytes,6,rep,name=lines,proto3" json:"lines,omitempty"`
+	Hidden        []*ItemLine            `protobuf:"bytes,7,rep,name=hidden,proto3" json:"hidden,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ItemInfo) Reset() {
+	*x = ItemInfo{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemInfo) ProtoMessage() {}
+
+func (x *ItemInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemInfo.ProtoReflect.Descriptor instead.
+func (*ItemInfo) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *ItemInfo) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *ItemInfo) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *ItemInfo) GetQuality() int32 {
+	if x != nil {
+		return x.Quality
+	}
+	return 0
+}
+
+func (x *ItemInfo) GetElement() CharClass {
+	if x != nil {
+		return x.Element
+	}
+	return CharClass_CHAR_CLASS_UNSPECIFIED
+}
+
+func (x *ItemInfo) GetEnhance() int32 {
+	if x != nil {
+		return x.Enhance
+	}
+	return 0
+}
+
+func (x *ItemInfo) GetLines() []*ItemLine {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+func (x *ItemInfo) GetHidden() []*ItemLine {
+	if x != nil {
+		return x.Hidden
+	}
+	return nil
+}
+
+type ItemLine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Stat          string                 `protobuf:"bytes,1,opt,name=stat,proto3" json:"stat,omitempty"` // hp, phys_attack, magic_attack, phys_defense, magic_defense
+	Value         int32                  `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ItemLine) Reset() {
+	*x = ItemLine{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemLine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemLine) ProtoMessage() {}
+
+func (x *ItemLine) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemLine.ProtoReflect.Descriptor instead.
+func (*ItemLine) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *ItemLine) GetStat() string {
+	if x != nil {
+		return x.Stat
+	}
+	return ""
+}
+
+func (x *ItemLine) GetValue() int32 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+// A bag slot (0..bag_size-1) or an equipment slot (0..9). No item: the slot is empty.
+type ItemSlot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Slot          int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
+	Item          *ItemInfo              `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ItemSlot) Reset() {
+	*x = ItemSlot{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemSlot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemSlot) ProtoMessage() {}
+
+func (x *ItemSlot) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemSlot.ProtoReflect.Descriptor instead.
+func (*ItemSlot) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *ItemSlot) GetSlot() int32 {
+	if x != nil {
+		return x.Slot
+	}
+	return 0
+}
+
+func (x *ItemSlot) GetItem() *ItemInfo {
+	if x != nil {
+		return x.Item
+	}
+	return nil
+}
+
+type Inventory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BagSize       int32                  `protobuf:"varint,1,opt,name=bag_size,json=bagSize,proto3" json:"bag_size,omitempty"`
+	Bag           []*ItemSlot            `protobuf:"bytes,2,rep,name=bag,proto3" json:"bag,omitempty"`           // occupied slots only
+	Equipped      []*ItemSlot            `protobuf:"bytes,3,rep,name=equipped,proto3" json:"equipped,omitempty"` // occupied slots only
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Inventory) Reset() {
+	*x = Inventory{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Inventory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Inventory) ProtoMessage() {}
+
+func (x *Inventory) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Inventory.ProtoReflect.Descriptor instead.
+func (*Inventory) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *Inventory) GetBagSize() int32 {
+	if x != nil {
+		return x.BagSize
+	}
+	return 0
+}
+
+func (x *Inventory) GetBag() []*ItemSlot {
+	if x != nil {
+		return x.Bag
+	}
+	return nil
+}
+
+func (x *Inventory) GetEquipped() []*ItemSlot {
+	if x != nil {
+		return x.Equipped
+	}
+	return nil
+}
+
+// Slots that changed; an ItemSlot without an item is now empty.
+type InventoryUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bag           []*ItemSlot            `protobuf:"bytes,1,rep,name=bag,proto3" json:"bag,omitempty"`
+	Equipped      []*ItemSlot            `protobuf:"bytes,2,rep,name=equipped,proto3" json:"equipped,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InventoryUpdate) Reset() {
+	*x = InventoryUpdate{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InventoryUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InventoryUpdate) ProtoMessage() {}
+
+func (x *InventoryUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InventoryUpdate.ProtoReflect.Descriptor instead.
+func (*InventoryUpdate) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *InventoryUpdate) GetBag() []*ItemSlot {
+	if x != nil {
+		return x.Bag
+	}
+	return nil
+}
+
+func (x *InventoryUpdate) GetEquipped() []*ItemSlot {
+	if x != nil {
+		return x.Equipped
+	}
+	return nil
+}
+
+// Picks up one of the character's ground items into the bag.
+type PickupReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ItemId        uint64                 `protobuf:"varint,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PickupReq) Reset() {
+	*x = PickupReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PickupReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PickupReq) ProtoMessage() {}
+
+func (x *PickupReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PickupReq.ProtoReflect.Descriptor instead.
+func (*PickupReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *PickupReq) GetItemId() uint64 {
+	if x != nil {
+		return x.ItemId
+	}
+	return 0
+}
+
+type PickupResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PickupResp) Reset() {
+	*x = PickupResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PickupResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PickupResp) ProtoMessage() {}
+
+func (x *PickupResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PickupResp.ProtoReflect.Descriptor instead.
+func (*PickupResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *PickupResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+// Wears the piece in a bag slot, swapping with the worn one.
+type EquipReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BagSlot       int32                  `protobuf:"varint,1,opt,name=bag_slot,json=bagSlot,proto3" json:"bag_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EquipReq) Reset() {
+	*x = EquipReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EquipReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EquipReq) ProtoMessage() {}
+
+func (x *EquipReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EquipReq.ProtoReflect.Descriptor instead.
+func (*EquipReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *EquipReq) GetBagSlot() int32 {
+	if x != nil {
+		return x.BagSlot
+	}
+	return 0
+}
+
+type EquipResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EquipResp) Reset() {
+	*x = EquipResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EquipResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EquipResp) ProtoMessage() {}
+
+func (x *EquipResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EquipResp.ProtoReflect.Descriptor instead.
+func (*EquipResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *EquipResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *EquipResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Takes off a worn item into the first empty bag slot.
+type UnequipReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EquipSlot     int32                  `protobuf:"varint,1,opt,name=equip_slot,json=equipSlot,proto3" json:"equip_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnequipReq) Reset() {
+	*x = UnequipReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnequipReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnequipReq) ProtoMessage() {}
+
+func (x *UnequipReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnequipReq.ProtoReflect.Descriptor instead.
+func (*UnequipReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *UnequipReq) GetEquipSlot() int32 {
+	if x != nil {
+		return x.EquipSlot
+	}
+	return 0
+}
+
+type UnequipResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnequipResp) Reset() {
+	*x = UnequipResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnequipResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnequipResp) ProtoMessage() {}
+
+func (x *UnequipResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnequipResp.ProtoReflect.Descriptor instead.
+func (*UnequipResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *UnequipResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *UnequipResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Destroys count of the item in a bag slot; count 0 destroys the whole slot.
+type DiscardReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BagSlot       int32                  `protobuf:"varint,1,opt,name=bag_slot,json=bagSlot,proto3" json:"bag_slot,omitempty"`
+	Count         int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscardReq) Reset() {
+	*x = DiscardReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscardReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscardReq) ProtoMessage() {}
+
+func (x *DiscardReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscardReq.ProtoReflect.Descriptor instead.
+func (*DiscardReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *DiscardReq) GetBagSlot() int32 {
+	if x != nil {
+		return x.BagSlot
+	}
+	return 0
+}
+
+func (x *DiscardReq) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type DiscardResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscardResp) Reset() {
+	*x = DiscardResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscardResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscardResp) ProtoMessage() {}
+
+func (x *DiscardResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscardResp.ProtoReflect.Descriptor instead.
+func (*DiscardResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *DiscardResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+// Merges stacks and sorts the bag.
+type SortBagReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SortBagReq) Reset() {
+	*x = SortBagReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SortBagReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SortBagReq) ProtoMessage() {}
+
+func (x *SortBagReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SortBagReq.ProtoReflect.Descriptor instead.
+func (*SortBagReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{56}
+}
+
+// Every bag slot, empty ones without an item.
+type SortBagResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SortBagResp) Reset() {
+	*x = SortBagResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SortBagResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SortBagResp) ProtoMessage() {}
+
+func (x *SortBagResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SortBagResp.ProtoReflect.Descriptor instead.
+func (*SortBagResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *SortBagResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xf9\x0e\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x94\x13\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -3511,7 +4487,23 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x0flearn_skill_req\x189 \x01(\v2\x14.ds.v1.LearnSkillReqH\x00R\rlearnSkillReq\x12A\n" +
 	"\x10learn_skill_resp\x18: \x01(\v2\x15.ds.v1.LearnSkillRespH\x00R\x0elearnSkillResp\x12+\n" +
 	"\bcast_req\x18; \x01(\v2\x0e.ds.v1.CastReqH\x00R\acastReq\x12.\n" +
-	"\tcast_resp\x18< \x01(\v2\x0f.ds.v1.CastRespH\x00R\bcastRespB\t\n" +
+	"\tcast_resp\x18< \x01(\v2\x0f.ds.v1.CastRespH\x00R\bcastResp\x121\n" +
+	"\n" +
+	"pickup_req\x18= \x01(\v2\x10.ds.v1.PickupReqH\x00R\tpickupReq\x124\n" +
+	"\vpickup_resp\x18> \x01(\v2\x11.ds.v1.PickupRespH\x00R\n" +
+	"pickupResp\x12.\n" +
+	"\tequip_req\x18? \x01(\v2\x0f.ds.v1.EquipReqH\x00R\bequipReq\x121\n" +
+	"\n" +
+	"equip_resp\x18@ \x01(\v2\x10.ds.v1.EquipRespH\x00R\tequipResp\x124\n" +
+	"\vunequip_req\x18A \x01(\v2\x11.ds.v1.UnequipReqH\x00R\n" +
+	"unequipReq\x127\n" +
+	"\funequip_resp\x18B \x01(\v2\x12.ds.v1.UnequipRespH\x00R\vunequipResp\x124\n" +
+	"\vdiscard_req\x18C \x01(\v2\x11.ds.v1.DiscardReqH\x00R\n" +
+	"discardReq\x127\n" +
+	"\fdiscard_resp\x18D \x01(\v2\x12.ds.v1.DiscardRespH\x00R\vdiscardResp\x125\n" +
+	"\fsort_bag_req\x18E \x01(\v2\x11.ds.v1.SortBagReqH\x00R\n" +
+	"sortBagReq\x128\n" +
+	"\rsort_bag_resp\x18F \x01(\v2\x12.ds.v1.SortBagRespH\x00R\vsortBagRespB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -3550,7 +4542,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fconfirm_name\x18\x02 \x01(\tR\vconfirmName\"\x10\n" +
 	"\x0eDeleteCharResp\"(\n" +
 	"\rEnterWorldReq\x12\x17\n" +
-	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xad\x02\n" +
+	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xdd\x02\n" +
 	"\x0eEnterWorldResp\x12$\n" +
 	"\x0eself_entity_id\x18\x01 \x01(\x04R\fselfEntityId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x12\n" +
@@ -3564,13 +4556,14 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\ttick_rate\x18\b \x01(\rR\btickRate\x12&\n" +
 	"\x05stats\x18\t \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\x12)\n" +
 	"\x06skills\x18\n" +
-	" \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\"\x0f\n" +
+	" \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\x12.\n" +
+	"\tinventory\x18\v \x01(\v2\x10.ds.v1.InventoryR\tinventory\"\x0f\n" +
 	"\rLeaveWorldReq\"\x10\n" +
 	"\x0eLeaveWorldResp\"R\n" +
 	"\tMoveInput\x12\x1b\n" +
 	"\tinput_seq\x18\x01 \x01(\rR\binputSeq\x12\x13\n" +
 	"\x05dir_x\x18\x02 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xa0\x02\n" +
+	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xc5\x02\n" +
 	"\vEntityEnter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x11.ds.v1.EntityKindR\x04kind\x12\x12\n" +
@@ -3585,7 +4578,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x02hp\x18\n" +
 	" \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\v \x01(\x05R\x05maxHp\x12\x12\n" +
-	"\x04dead\x18\f \x01(\bR\x04dead\"\x1d\n" +
+	"\x04dead\x18\f \x01(\bR\x04dead\x12#\n" +
+	"\x04item\x18\r \x01(\v2\x0f.ds.v1.ItemInfoR\x04item\"\x1d\n" +
 	"\vEntityLeave\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\"v\n" +
 	"\n" +
@@ -3632,7 +4626,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"RespawnReq\")\n" +
 	"\vRespawnResp\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x02R\x01y\"\xb4\x04\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\"\xc4\x04\n" +
 	"\tSelfStats\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x10\n" +
 	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x19\n" +
@@ -3657,7 +4651,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\aevasion\x18\x12 \x01(\x05R\aevasion\x12 \n" +
 	"\fcrit_rate_bp\x18\x13 \x01(\x05R\n" +
 	"critRateBp\x12!\n" +
-	"\fskill_points\x18\x14 \x01(\x05R\vskillPoints\"\xa9\x01\n" +
+	"\fskill_points\x18\x14 \x01(\x05R\vskillPoints\x12\x0e\n" +
+	"\x02xu\x18\x15 \x01(\x03R\x02xu\"\xa9\x01\n" +
 	"\x03Hit\x12\x1f\n" +
 	"\vattacker_id\x18\x01 \x01(\x04R\n" +
 	"attackerId\x12\x1b\n" +
@@ -3704,7 +4699,55 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"CastImpact\x12\x1b\n" +
 	"\ttarget_id\x18\x01 \x01(\x04R\btargetId\x12\x1b\n" +
-	"\timpact_ms\x18\x02 \x01(\x05R\bimpactMs*\xa3\x06\n" +
+	"\timpact_ms\x18\x02 \x01(\x05R\bimpactMs\"\xe4\x01\n" +
+	"\bItemInfo\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x14\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\x12\x18\n" +
+	"\aquality\x18\x03 \x01(\x05R\aquality\x12*\n" +
+	"\aelement\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\aelement\x12\x18\n" +
+	"\aenhance\x18\x05 \x01(\x05R\aenhance\x12%\n" +
+	"\x05lines\x18\x06 \x03(\v2\x0f.ds.v1.ItemLineR\x05lines\x12'\n" +
+	"\x06hidden\x18\a \x03(\v2\x0f.ds.v1.ItemLineR\x06hidden\"4\n" +
+	"\bItemLine\x12\x12\n" +
+	"\x04stat\x18\x01 \x01(\tR\x04stat\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value\"C\n" +
+	"\bItemSlot\x12\x12\n" +
+	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12#\n" +
+	"\x04item\x18\x02 \x01(\v2\x0f.ds.v1.ItemInfoR\x04item\"v\n" +
+	"\tInventory\x12\x19\n" +
+	"\bbag_size\x18\x01 \x01(\x05R\abagSize\x12!\n" +
+	"\x03bag\x18\x02 \x03(\v2\x0f.ds.v1.ItemSlotR\x03bag\x12+\n" +
+	"\bequipped\x18\x03 \x03(\v2\x0f.ds.v1.ItemSlotR\bequipped\"a\n" +
+	"\x0fInventoryUpdate\x12!\n" +
+	"\x03bag\x18\x01 \x03(\v2\x0f.ds.v1.ItemSlotR\x03bag\x12+\n" +
+	"\bequipped\x18\x02 \x03(\v2\x0f.ds.v1.ItemSlotR\bequipped\"$\n" +
+	"\tPickupReq\x12\x17\n" +
+	"\aitem_id\x18\x01 \x01(\x04R\x06itemId\"<\n" +
+	"\n" +
+	"PickupResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\"%\n" +
+	"\bEquipReq\x12\x19\n" +
+	"\bbag_slot\x18\x01 \x01(\x05R\abagSlot\"c\n" +
+	"\tEquipResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"+\n" +
+	"\n" +
+	"UnequipReq\x12\x1d\n" +
+	"\n" +
+	"equip_slot\x18\x01 \x01(\x05R\tequipSlot\"e\n" +
+	"\vUnequipResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"=\n" +
+	"\n" +
+	"DiscardReq\x12\x19\n" +
+	"\bbag_slot\x18\x01 \x01(\x05R\abagSlot\x12\x14\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\"=\n" +
+	"\vDiscardResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\"\f\n" +
+	"\n" +
+	"SortBagReq\"=\n" +
+	"\vSortBagResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update*\xf7\x06\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -3733,7 +4776,10 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x1cERROR_CODE_SKILL_NOT_LEARNED\x10\x17\x12\x1c\n" +
 	"\x18ERROR_CODE_NOT_ENOUGH_MP\x10\x18\x12\x1a\n" +
 	"\x16ERROR_CODE_SKILL_MAXED\x10\x19\x12\x1c\n" +
-	"\x18ERROR_CODE_LEVEL_TOO_LOW\x10\x1a*\x84\x02\n" +
+	"\x18ERROR_CODE_LEVEL_TOO_LOW\x10\x1a\x12\x17\n" +
+	"\x13ERROR_CODE_BAG_FULL\x10\x1b\x12\x1d\n" +
+	"\x19ERROR_CODE_ITEM_NOT_FOUND\x10\x1c\x12\x1a\n" +
+	"\x16ERROR_CODE_WRONG_CLASS\x10\x1d*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -3750,12 +4796,13 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x0fCHAR_CLASS_THUY\x10\x02\x12\x13\n" +
 	"\x0fCHAR_CLASS_MINH\x10\x03\x12\x13\n" +
 	"\x0fCHAR_CLASS_NHAM\x10\x04\x12\x14\n" +
-	"\x10CHAR_CLASS_PHONG\x10\x05*Z\n" +
+	"\x10CHAR_CLASS_PHONG\x10\x05*p\n" +
 	"\n" +
 	"EntityKind\x12\x1b\n" +
 	"\x17ENTITY_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ENTITY_KIND_PLAYER\x10\x01\x12\x17\n" +
-	"\x13ENTITY_KIND_MONSTER\x10\x02B\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
+	"\x13ENTITY_KIND_MONSTER\x10\x02\x12\x14\n" +
+	"\x10ENTITY_KIND_ITEM\x10\x03B\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
 
 var (
 	file_ds_v1_protocol_proto_rawDescOnce sync.Once
@@ -3770,7 +4817,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -3819,6 +4866,21 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*SkillLevel)(nil),         // 44: ds.v1.SkillLevel
 	(*Cast)(nil),               // 45: ds.v1.Cast
 	(*CastImpact)(nil),         // 46: ds.v1.CastImpact
+	(*ItemInfo)(nil),           // 47: ds.v1.ItemInfo
+	(*ItemLine)(nil),           // 48: ds.v1.ItemLine
+	(*ItemSlot)(nil),           // 49: ds.v1.ItemSlot
+	(*Inventory)(nil),          // 50: ds.v1.Inventory
+	(*InventoryUpdate)(nil),    // 51: ds.v1.InventoryUpdate
+	(*PickupReq)(nil),          // 52: ds.v1.PickupReq
+	(*PickupResp)(nil),         // 53: ds.v1.PickupResp
+	(*EquipReq)(nil),           // 54: ds.v1.EquipReq
+	(*EquipResp)(nil),          // 55: ds.v1.EquipResp
+	(*UnequipReq)(nil),         // 56: ds.v1.UnequipReq
+	(*UnequipResp)(nil),        // 57: ds.v1.UnequipResp
+	(*DiscardReq)(nil),         // 58: ds.v1.DiscardReq
+	(*DiscardResp)(nil),        // 59: ds.v1.DiscardResp
+	(*SortBagReq)(nil),         // 60: ds.v1.SortBagReq
+	(*SortBagResp)(nil),        // 61: ds.v1.SortBagResp
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -3854,31 +4916,58 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	41, // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
 	42, // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
 	43, // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
-	0,  // 33: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,  // 34: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10, // 35: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,  // 36: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10, // 37: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	35, // 38: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	44, // 39: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	3,  // 40: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,  // 41: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	24, // 42: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	36, // 43: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	37, // 44: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	38, // 45: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	39, // 46: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	45, // 47: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	1,  // 48: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	35, // 49: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	35, // 50: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	44, // 51: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	46, // 52: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	53, // [53:53] is the sub-list for method output_type
-	53, // [53:53] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	52, // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
+	53, // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
+	54, // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
+	55, // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
+	56, // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
+	57, // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
+	58, // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
+	59, // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
+	60, // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
+	61, // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
+	0,  // 43: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,  // 44: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10, // 45: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,  // 46: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10, // 47: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	35, // 48: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	44, // 49: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	50, // 50: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	3,  // 51: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,  // 52: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	47, // 53: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	24, // 54: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	36, // 55: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	37, // 56: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	38, // 57: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	39, // 58: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	45, // 59: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	1,  // 60: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	35, // 61: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	35, // 62: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	44, // 63: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	46, // 64: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,  // 65: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	48, // 66: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	48, // 67: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	47, // 68: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	49, // 69: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	49, // 70: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	49, // 71: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	49, // 72: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	51, // 73: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	51, // 74: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	35, // 75: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	51, // 76: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	35, // 77: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	51, // 78: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	51, // 79: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	80, // [80:80] is the sub-list for method output_type
+	80, // [80:80] is the sub-list for method input_type
+	80, // [80:80] is the sub-list for extension type_name
+	80, // [80:80] is the sub-list for extension extendee
+	0,  // [0:80] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -3920,6 +5009,16 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_LearnSkillResp)(nil),
 		(*Envelope_CastReq)(nil),
 		(*Envelope_CastResp)(nil),
+		(*Envelope_PickupReq)(nil),
+		(*Envelope_PickupResp)(nil),
+		(*Envelope_EquipReq)(nil),
+		(*Envelope_EquipResp)(nil),
+		(*Envelope_UnequipReq)(nil),
+		(*Envelope_UnequipResp)(nil),
+		(*Envelope_DiscardReq)(nil),
+		(*Envelope_DiscardResp)(nil),
+		(*Envelope_SortBagReq)(nil),
+		(*Envelope_SortBagResp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3927,7 +5026,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   43,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

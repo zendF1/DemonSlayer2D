@@ -291,13 +291,101 @@ func clientFixtures() map[string]*pb.Envelope {
 			Reason: pb.KickReason_KICK_REASON_DUPLICATE_LOGIN}}},
 		"pong": {Payload: &pb.Envelope_Pong{Pong: &pb.Pong{
 			ClientTime: 1700000000123, ServerTime: 1700000000456}}},
+		"enter_world_resp_inventory": {Seq: 6, Payload: &pb.Envelope_EnterWorldResp{EnterWorldResp: &pb.EnterWorldResp{
+			SelfEntityId: 77, MapId: "kumotori_1", Zone: 2, X: 5.5, Y: 6.25,
+			ServerTick: 1234, MoveSpeed: 4, TickRate: 10,
+			Stats: &pb.SelfStats{Level: 12, Exp: 40, ExpNext: 2000, Hp: 900, MaxHp: 900, Mp: 120, MaxMp: 120,
+				PhysAttack: 230, Xu: 1234567},
+			Inventory: &pb.Inventory{BagSize: 60,
+				Bag: []*pb.ItemSlot{
+					{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_armor", Count: 1, Quality: 1,
+						Lines: []*pb.ItemLine{{Stat: "hp", Value: 60}}}},
+					{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 12}},
+				},
+				Equipped: []*pb.ItemSlot{
+					{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_weapon_viem", Count: 1}},
+				}}}}},
+		"entity_enter_item": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
+			Id: 950, Kind: pb.EntityKind_ENTITY_KIND_ITEM, Name: "Áo Lữ Hành", X: 13.1, Y: 9.5,
+			Item: &pb.ItemInfo{Code: "eq10_armor", Count: 1, Quality: 2, Element: pb.CharClass_CHAR_CLASS_THUY,
+				Lines: []*pb.ItemLine{
+					{Stat: "hp", Value: 60},
+					{Stat: "phys_defense", Value: 1},
+					{Stat: "magic_attack", Value: 3},
+				},
+				Hidden: []*pb.ItemLine{
+					{Stat: "hp", Value: 86},
+					{Stat: "phys_attack", Value: 4},
+				}}}}},
+		"equip_resp": {Seq: 13, Payload: &pb.Envelope_EquipResp{EquipResp: &pb.EquipResp{
+			// Worn into an empty slot: bag slot 4 is now empty.
+			Update: &pb.InventoryUpdate{
+				Bag: []*pb.ItemSlot{{Slot: 4}},
+				Equipped: []*pb.ItemSlot{{Slot: 5, Item: &pb.ItemInfo{Code: "eq10_armor", Count: 1, Quality: 1,
+					Lines: []*pb.ItemLine{{Stat: "hp", Value: 60}}}}},
+			},
+			Stats: &pb.SelfStats{Level: 15, Exp: 10, ExpNext: 3000, Hp: 1100, MaxHp: 1200, Mp: 150, MaxMp: 150,
+				PhysAttack: 230, PhysDefense: 95, MagicDefense: 90, Xu: 1234567}}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 5 {
-		t.Fatalf("ProtocolVersion = %d, want 5", ProtocolVersion)
+	if ProtocolVersion != 6 {
+		t.Fatalf("ProtocolVersion = %d, want 6", ProtocolVersion)
+	}
+}
+
+// readFixture decodes a committed client fixture.
+func readFixture(t *testing.T, name string) *pb.Envelope {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "client", name+".hex"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := hex.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env pb.Envelope
+	if err := proto.Unmarshal(b, &env); err != nil {
+		t.Fatal(err)
+	}
+	return &env
+}
+
+// The ground item fixture decodes to an ITEM entity with its quality, element,
+// lines and hidden lines.
+func TestItemFixturesRoundTrip(t *testing.T) {
+	e := readFixture(t, "entity_enter_item").GetEntityEnter()
+	it := e.GetItem()
+	if e.GetKind() != pb.EntityKind_ENTITY_KIND_ITEM || e.GetName() != "Áo Lữ Hành" || e.GetLevel() != 0 || e.GetMaxHp() != 0 {
+		t.Fatalf("entity %v, want an ITEM named Áo Lữ Hành with no level or HP", e)
+	}
+	if it.GetCode() != "eq10_armor" || it.GetCount() != 1 || it.GetQuality() != 2 || it.GetElement() != pb.CharClass_CHAR_CLASS_THUY {
+		t.Fatalf("item %v, want one Vàng Thủy eq10_armor", it)
+	}
+	lines, hidden := it.GetLines(), it.GetHidden()
+	if len(lines) != 3 || lines[0].GetStat() != "hp" || lines[0].GetValue() != 60 || lines[2].GetStat() != "magic_attack" ||
+		len(hidden) != 2 || hidden[0].GetStat() != "hp" || hidden[0].GetValue() != 86 || hidden[1].GetStat() != "phys_attack" {
+		t.Fatalf("lines %v hidden %v", lines, hidden)
+	}
+
+	inv := readFixture(t, "enter_world_resp_inventory").GetEnterWorldResp()
+	if inv.GetStats().GetXu() != 1234567 || inv.GetInventory().GetBagSize() != 60 ||
+		len(inv.GetInventory().GetBag()) != 2 || inv.GetInventory().GetBag()[1].GetItem().GetCount() != 12 ||
+		len(inv.GetInventory().GetEquipped()) != 1 {
+		t.Fatalf("enter world %v", inv)
+	}
+
+	// An updated slot without an item decodes as empty.
+	up := readFixture(t, "equip_resp").GetEquipResp()
+	if bag := up.GetUpdate().GetBag(); len(bag) != 1 || bag[0].GetSlot() != 4 || bag[0].GetItem() != nil {
+		t.Fatalf("bag update %v, want slot 4 empty", bag)
+	}
+	if eq := up.GetUpdate().GetEquipped(); len(eq) != 1 || eq[0].GetSlot() != 5 || eq[0].GetItem().GetCode() != "eq10_armor" ||
+		up.GetStats().GetMaxHp() != 1200 {
+		t.Fatalf("equip resp %v", up)
 	}
 }
 
