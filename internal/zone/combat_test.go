@@ -90,44 +90,375 @@ func hpChangesIn(envs []*pb.Envelope) []*pb.HpChange {
 
 // ______________________TEST MONSTER AI_____________________
 
-func TestMonsterAggroWithinRange(t *testing.T) {
-	for _, c := range []struct {
-		dx    float32
-		chase bool
-	}{{3.9, true}, {4.1, false}} {
-		z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
-		joinNow(t, z, 1, 30.5+c.dx, 30.5)
-		z.advance(time.Now())
-		if got := m.target == 1 && m.state == chase; got != c.chase {
-			t.Fatalf("player %.1f tiles away: target %d state %v, want chase=%v", c.dx, m.target, m.state, c.chase)
-		}
-		if !c.chase && (m.target != 0 || m.state != idle) {
-			t.Fatalf("player out of detect range: target %d state %v, want idle with no target", m.target, m.state)
+// engage puts m in a chase on player id, the way a slash does. Tests of melee
+// use it now that a passer-by is shot instead of chased.
+func engage(m *monster, id uint64) { m.target, m.state = id, chase }
+
+// teleport puts player id at pos, as if it had walked there.
+func teleport(z *Zone, id uint64, pos Vec2) {
+	p := z.players[id]
+	p.pos = pos
+	z.updateCell(&p.entity)
+}
+
+// rangedHits splits envs' hits into ranged and melee ones.
+func rangedHits(envs []*pb.Envelope) (ranged, melee []*pb.Hit) {
+	for _, h := range hitsIn(envs) {
+		if h.Ranged {
+			ranged = append(ranged, h)
+		} else {
+			melee = append(melee, h)
 		}
 	}
+	return ranged, melee
+}
 
-	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
-	joinNow(t, z, 1, 30.5, 33.5)
-	joinNow(t, z, 2, 28.5, 30.5)
-	joinNow(t, z, 3, 33.0, 30.5)
-	z.advance(time.Now())
-	if m.target != 2 {
-		t.Fatalf("target %d, want the nearest player 2", m.target)
+// A player who steps within the detect range with a clear line is shot: the
+// first shot after the windup, then one every shoot_sec, each for the ranged
+// damage. The monster stands still and never chases (spec 4.3).
+func TestShootPasserBy(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	a := joinNow(t, z, 1, home.X+7, home.Y) // in view, out of range
+	v := joinNow(t, z, 2, home.X, home.Y+7)
+	now := time.Now()
+	for i := 0; i < 10; i++ {
+		z.advance(now)
+	}
+	if hs := hitsIn(a.take()); len(hs) != 0 || m.state != wander {
+		t.Fatalf("out of range: hits %v state %v, want none and wandering", hs, m.state)
+	}
+	v.take()
+	teleport(z, 1, Vec2{home.X + 4.9, home.Y})
+	stepAt := z.tickNo + 1 // the tick that sees it
+	p := z.players[1]
+	want := int32(combat.MonsterRangedDamage(testLevels[1].Attack, p.stats.PhysDefense, 1))
+	if want != 10 {
+		t.Fatalf("setup: ranged damage %d, want 10 (half of the melee 20)", want)
+	}
+	var shots []uint32
+	for z.tickNo < stepAt+100 {
+		z.advance(now)
+		envs := a.take()
+		ranged, melee := rangedHits(envs)
+		if len(melee) != 0 {
+			t.Fatalf("tick %d: melee hits %v from a shooting monster", z.tickNo, melee)
+		}
+		for _, h := range ranged {
+			hp := int32(500) - want*int32(len(shots)+1)
+			if h.AttackerId != m.id || h.TargetId != 1 || h.Damage != want || h.HpAfter != hp {
+				t.Fatalf("tick %d: shot %v, want %d hits 1 for %d leaving %d", z.tickNo, h, m.id, want, hp)
+			}
+			shots = append(shots, z.tickNo)
+		}
+		if vr, _ := rangedHits(v.take()); len(vr) != len(ranged) {
+			t.Fatalf("tick %d: viewer saw %d shots, target %d", z.tickNo, len(vr), len(ranged))
+		}
+		if m.pos != home || m.dir != (Vec2{}) {
+			t.Fatalf("tick %d: a shooting monster moved to %v dir %v", z.tickNo, m.pos, m.dir)
+		}
+		if m.target != 0 || m.state == chase || m.state == attack {
+			t.Fatalf("tick %d: state %v target %d, want shooting without a target", z.tickNo, m.state, m.target)
+		}
+	}
+	windup, every := z.ticks(testKind.ShootWindupSec), z.ticks(testKind.ShootSec)
+	wantShots := []uint32{stepAt + windup, stepAt + windup + every, stepAt + windup + 2*every, stepAt + windup + 3*every, stepAt + windup + 4*every}
+	if !slices.Equal(shots, wantShots) {
+		t.Fatalf("shots on ticks %v, want %v (windup %d, then every %d)", shots, wantShots, windup, every)
+	}
+	if m.state != shoot {
+		t.Fatalf("state %v, want shoot", m.state)
 	}
 }
 
-func TestMonsterIgnoresPlayerInSafeZone(t *testing.T) {
-	z, m := newFightZone(t, 1, Vec2{11.5, 5.5})
-	a := joinNow(t, z, 1, 9.5, 5.5) // tile 9 is the safe rect's last column
+// Nobody is shot beyond the detect range, in a safe zone or behind a wall.
+func TestShootIgnoresFarSafeAndHidden(t *testing.T) {
+	wall := func(z *Zone) {
+		rows := make([]string, 60)
+		for y := range rows {
+			r := []byte(strings.Repeat(".", 60))
+			if y >= 25 && y <= 36 {
+				r[32] = '#'
+			}
+			rows[y] = string(r)
+		}
+		z.area.Grid = gridFrom(rows...)
+		z.mgrid = z.area.monsterGrid()
+	}
+	for _, c := range []struct {
+		name   string
+		home   Vec2
+		player Vec2
+		setup  func(z *Zone)
+	}{
+		{"5.1 tiles away", Vec2{30.5, 30.5}, Vec2{35.6, 30.5}, nil},
+		{"in the safe zone", Vec2{11.5, 5.5}, Vec2{9.5, 5.5}, nil}, // tile 9 is the safe rect's last column
+		{"behind a wall", Vec2{30.5, 30.5}, Vec2{33.5, 30.5}, wall},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m := newFightZone(t, 1, c.home)
+			if c.setup != nil {
+				c.setup(z)
+			}
+			a := joinNow(t, z, 1, c.player.X, c.player.Y)
+			now := time.Now()
+			for i := 0; i < 50; i++ {
+				z.advance(now)
+				if m.state != wander || m.target != 0 {
+					t.Fatalf("tick %d: state %v target %d, want a wandering monster", i, m.state, m.target)
+				}
+			}
+			if hs := hitsIn(a.take()); len(hs) != 0 || z.players[1].hp != 500 {
+				t.Fatalf("hits %v hp %d, want none", hs, z.players[1].hp)
+			}
+		})
+	}
+}
+
+// A player who walks out of range is not shot again: at the next shot time
+// the monster finds nobody and wanders, starting with a rest.
+func TestShootStopsWhenPlayerLeaves(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	a := joinNow(t, z, 1, home.X+3, home.Y)
 	now := time.Now()
-	for i := 0; i < 50; i++ {
+	for len(hitsIn(a.take())) == 0 {
+		if z.tickNo > 20 {
+			t.Fatal("never shot")
+		}
 		z.advance(now)
-		if m.target != 0 || m.state != idle {
-			t.Fatalf("tick %d: target %d state %v, want an idle monster", i, m.target, m.state)
+	}
+	next := m.nextShot
+	teleport(z, 1, Vec2{home.X + 8, home.Y})
+	for z.tickNo < next {
+		z.advance(now)
+		if hs := hitsIn(a.take()); len(hs) != 0 {
+			t.Fatalf("tick %d: hit %v after the player left", z.tickNo, hs)
 		}
 	}
-	if hs := hitsIn(a.take()); len(hs) != 0 || z.players[1].hp != 500 {
-		t.Fatalf("a player in the safe zone must not be hit, hits %v hp %d", hs, z.players[1].hp)
+	if m.state != wander || m.target != 0 || m.dir != (Vec2{}) {
+		t.Fatalf("at the shot time: state %v target %d dir %v, want wandering", m.state, m.target, m.dir)
+	}
+	if rest := m.nextWander - z.tickNo; rest < z.ticks(restMinSec) || rest > z.ticks(restMaxSec) {
+		t.Fatalf("rest of %d ticks, want %d-%d", rest, z.ticks(restMinSec), z.ticks(restMaxSec))
+	}
+}
+
+// nextShot advances z until a monster shoots and returns that tick's ranged hits.
+func nextShot(t *testing.T, z *Zone) []*pb.Hit {
+	t.Helper()
+	now := time.Now()
+	for range 100 {
+		z.advance(now)
+		var shots []*pb.Hit
+		for _, h := range z.events.hits {
+			if h.Ranged {
+				shots = append(shots, h)
+			}
+		}
+		if len(shots) > 0 {
+			return shots
+		}
+	}
+	t.Fatal("no shot in 100 ticks")
+	return nil
+}
+
+// Each shot goes to the nearest player at that moment, a tie to the lower id.
+func TestShootPicksNearest(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, _ := newFightZone(t, 1, home)
+	joinNow(t, z, 1, home.X, home.Y+4)   // farther
+	joinNow(t, z, 2, home.X-2.5, home.Y) // nearer
+	if hs := nextShot(t, z); len(hs) != 1 || hs[0].TargetId != 2 {
+		t.Fatalf("first shot %v, want the nearer player 2 shot", hs)
+	}
+	teleport(z, 2, Vec2{home.X - 4.5, home.Y}) // now 1 is the nearer
+	if hs := nextShot(t, z); len(hs) != 1 || hs[0].TargetId != 1 {
+		t.Fatalf("second shot %v, want player 1 shot", hs)
+	}
+	teleport(z, 2, Vec2{home.X + 4, home.Y})
+	if hs := nextShot(t, z); len(hs) != 1 || hs[0].TargetId != 1 {
+		t.Fatalf("tied shot %v, want the lower id 1 shot", hs)
+	}
+}
+
+// A shot can kill: the player dies as from a melee hit, the monster does not
+// shoot the corpse, and the player respawns as usual.
+func TestShotKillsPlayer(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	a := joinHP(t, z, 1, home.X+3, home.Y, 1)
+	v := joinNow(t, z, 2, home.X, home.Y+7)
+	p := z.players[1]
+	now := time.Now()
+	for !p.dead && z.tickNo < 20 {
+		z.advance(now)
+	}
+	ea, ev := a.take(), v.take()
+	if hs := hitsIn(ea); len(hs) != 1 || !hs[0].Ranged || hs[0].HpAfter != 0 || hs[0].AttackerId != m.id {
+		t.Fatalf("hits %v, want one ranged hit leaving 0 HP", hs)
+	}
+	if !p.dead || p.hp != 0 || p.deadUntil != z.tickNo+z.ticks(autoRespawnSec) {
+		t.Fatalf("dead %v hp %d deadUntil %d, want dead with the usual respawn timer", p.dead, p.hp, p.deadUntil)
+	}
+	if !slices.Equal(deathsIn(ea), []uint64{1}) || !slices.Equal(deathsIn(ev), []uint64{1}) {
+		t.Fatalf("deaths %v / %v, want [1] for both", deathsIn(ea), deathsIn(ev))
+	}
+	for next := m.nextShot; z.tickNo < next; {
+		z.advance(now)
+	}
+	if hs := hitsIn(a.take()); len(hs) != 0 || m.state != wander {
+		t.Fatalf("after the kill: hits %v state %v, want no shot at the corpse and wandering", hs, m.state)
+	}
+	if !z.Respawn(1, 3) {
+		t.Fatal("inbox full")
+	}
+	z.advance(now)
+	if r, _ := respawnRespFor(a.take(), 3); r == nil || p.dead || p.pos != z.area.Respawn || p.hp != p.maxHP {
+		t.Fatalf("respawn %v dead %v at %v hp %d, want alive and full at the respawn point", r, p.dead, p.pos, p.hp)
+	}
+}
+
+// A slash on a shooting monster turns it on the attacker: it chases and hits
+// in melee and shoots no more.
+func TestHitStartsChaseFromShoot(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	a := joinNow(t, z, 1, home.X+2.5, home.Y) // out of its 1.5 attack range
+	now := time.Now()
+	for len(hitsIn(a.take())) == 0 {
+		if z.tickNo > 20 {
+			t.Fatal("never shot")
+		}
+		z.advance(now)
+	}
+	if m.state != shoot {
+		t.Fatalf("state %v, want shoot", m.state)
+	}
+	teleport(z, 1, Vec2{home.X + 1.9, home.Y}) // in slash range with the slack
+	attackNow(t, z, 1, 5, m.id)
+	envs := a.take()
+	if attackRespAt(envs, 5) < 0 {
+		t.Fatalf("slash rejected: %v", errorFor(envs, 5))
+	}
+	if m.state != chase && m.state != attack || m.target != 1 {
+		t.Fatalf("state %v target %d, want chasing the attacker", m.state, m.target)
+	}
+	melee := 0
+	for i := 0; i < 40; i++ {
+		z.advance(now)
+		for _, h := range hitsIn(a.take()) {
+			if h.AttackerId != m.id {
+				continue
+			}
+			if h.Ranged {
+				t.Fatalf("tick %d: ranged hit %v from a chasing monster", z.tickNo, h)
+			}
+			melee++
+		}
+	}
+	if melee == 0 || m.state != attack {
+		t.Fatalf("melee hits %d state %v, want it to close in and hit", melee, m.state)
+	}
+}
+
+// wanderRegion builds a zone whose region is rect minus the blocked block,
+// with count monsters, and a viewer in the safe zone who sees it all.
+func wanderRegion(t *testing.T, seed uint64, rect Rect, block Rect, count int) (*Zone, *regionState, *fakeOut) {
+	t.Helper()
+	rows := make([]string, 60)
+	for y := range rows {
+		r := []byte(strings.Repeat(".", 60))
+		for x := range r {
+			if block.containsTile(x, y) {
+				r[x] = '#'
+			}
+		}
+		rows[y] = string(r)
+	}
+	var tiles []Vec2
+	for _, c := range rectTiles(rect) {
+		if !block.containsTile(floor(c.X), floor(c.Y)) {
+			tiles = append(tiles, c)
+		}
+	}
+	z, _ := newRegionZone(t, seed, Region{ID: "r", Tiles: tiles, Rects: []Rect{rect}, Nest: tiles[0],
+		Count: count, MinLevel: 1, MaxLevel: 2, Kind: testKind})
+	z.area.Grid = gridFrom(rows...)
+	z.mgrid = z.area.monsterGrid()
+	v := joinNow(t, z, 1, 5.5, 5.5)
+	return z, z.regions[0], v
+}
+
+// With nobody around, monsters walk at half speed and only ever stand on
+// region tiles, walls inside the region included (spec 4.2).
+func TestWanderStaysInRegion(t *testing.T) {
+	z, r, v := wanderRegion(t, 3, Rect{X: 11, Y: 1, W: 9, H: 18}, Rect{X: 14, Y: 8, W: 3, H: 3}, 8)
+	step := wanderSpeed * testKind.Speed * 4 / 10
+	start := map[uint64]Vec2{}
+	prev := map[uint64]Vec2{}
+	for id, m := range z.monsters {
+		start[id], prev[id] = m.pos, m.pos
+	}
+	moved, broadcast := map[uint64]bool{}, map[uint64]bool{}
+	now := time.Now()
+	for i := 0; i < 2000; i++ {
+		z.advance(now)
+		for _, mv := range lastTick(v.take()).GetMoves() {
+			broadcast[mv.Id] = true
+		}
+		for id, m := range z.monsters {
+			if !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
+				t.Fatalf("tick %d: monster %d at %v is off the region", i, id, m.pos)
+			}
+			if d := dist(m.pos, prev[id]); d > step+1e-4 {
+				t.Fatalf("tick %d: monster %d moved %.4f tiles, faster than the wander step %.4f", i, id, d, step)
+			}
+			if m.state != wander {
+				t.Fatalf("tick %d: monster %d state %v with nobody around", i, id, m.state)
+			}
+			prev[id] = m.pos
+			if m.pos != start[id] {
+				moved[id] = true
+			}
+		}
+	}
+	for id := range start {
+		if !moved[id] || !broadcast[id] {
+			t.Fatalf("monster %d moved=%v broadcast=%v, want both", id, moved[id], broadcast[id])
+		}
+	}
+}
+
+// One monster in a big region gets well beyond 6 tiles from its spawn point
+// over time, resting 2-5 s between walks.
+func TestWanderReachesAcrossRegion(t *testing.T) {
+	z, _, _ := wanderRegion(t, 5, Rect{X: 20, Y: 20, W: 30, H: 30}, Rect{X: 33, Y: 33, W: 2, H: 2}, 1)
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	start := m.pos
+	far := 0.0
+	walking, stoppedAt, walks := false, z.tickNo, 0
+	now := time.Now()
+	for i := 0; i < 6000 && (far <= 6 || walks < 10); i++ {
+		z.advance(now)
+		far = max(far, dist(m.pos, start))
+		switch {
+		case !walking && m.dir != (Vec2{}):
+			if rest := z.tickNo - stoppedAt; walks > 0 && (rest < z.ticks(restMinSec) || rest > z.ticks(restMaxSec)) {
+				t.Fatalf("tick %d: rested %d ticks, want %d-%d", z.tickNo, rest, z.ticks(restMinSec), z.ticks(restMaxSec))
+			}
+			walking = true
+		case walking && m.dir == (Vec2{}):
+			walking, stoppedAt = false, z.tickNo
+			walks++
+		}
+	}
+	if far <= 6 || walks < 10 {
+		t.Fatalf("after %d walks the farthest from spawn is %.2f tiles, want beyond 6", walks, far)
 	}
 }
 
@@ -135,6 +466,7 @@ func TestMonsterAttacksOnInterval(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)
 	v := joinNow(t, z, 2, 30.5, 36.5) // in view, out of detect range
+	engage(m, 1)
 	now := time.Now()
 	var hitTicks []int
 	for i := 1; i <= 31; i++ {
@@ -171,6 +503,7 @@ func TestMonsterLeashesAndHeals(t *testing.T) {
 	z, m := newFightZone(t, 1, home)
 	m.hp = 10
 	a := joinNow(t, z, 1, 33.5, 30.5)
+	engage(m, 1)
 	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{1, 0}}) // lure it east, faster than it walks
 	step := testKind.Speed * 4 / 10
 	now := time.Now()
@@ -193,12 +526,12 @@ func TestMonsterLeashesAndHeals(t *testing.T) {
 				returned = true
 			}
 		}
-		if returned && m.state == idle {
+		if returned && m.state == wander {
 			break
 		}
 	}
-	if !returned || m.state != idle {
-		t.Fatalf("returned=%v state %v, want back home and idle", returned, m.state)
+	if !returned || m.state != wander {
+		t.Fatalf("returned=%v state %v, want back home and wandering", returned, m.state)
 	}
 	if far <= 10 || far > 10+step+1e-3 {
 		t.Fatalf("farthest from home %.3f, want just beyond the chase range 10", far)
@@ -246,13 +579,13 @@ func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
 				heal = c
 			}
 		}
-		if m.state == idle {
+		if m.state == wander {
 			idleAt = i
 		}
 	}
 	// About 4 ticks to reach the wall, then 20 ticks (2 s) stuck.
 	if idleAt < 20 || idleAt > 30 {
-		t.Fatalf("idle at tick %d, want teleported home after 2 s stuck", idleAt)
+		t.Fatalf("wandering at tick %d, want teleported home after 2 s stuck", idleAt)
 	}
 	if m.pos != home || m.hp != m.maxHP || m.snap {
 		t.Fatalf("at %v hp %d/%d snap %v, want home, full HP and snap cleared after the tick", m.pos, m.hp, m.maxHP, m.snap)
@@ -279,11 +612,17 @@ func TestMonsterHitsWithShortAttackRange(t *testing.T) {
 			k.AttackRange = reach
 			z, m := newFightZoneOf(t, k, 1, Vec2{30.5, 30.5})
 			joinNow(t, z, 1, p.X, p.Y)
+			engage(m, 1)
 			now := time.Now()
 			hit := false
 			for i := 0; i < 40 && !hit; i++ {
 				z.advance(now)
-				hit = len(z.events.hits) > 0
+				for _, h := range z.events.hits {
+					if h.Ranged {
+						t.Fatalf("attack range %v from %v: a chasing monster shot %v", reach, p, h)
+					}
+					hit = true
+				}
 			}
 			if !hit {
 				t.Fatalf("attack range %v from %v: never hit, %v at %.7f tiles", reach, p, m.state, dist(m.pos, z.players[1].pos))
@@ -341,6 +680,7 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 func TestMonsterKeepsTargetWhenOthersPass(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)
+	engage(m, 1)
 	z.advance(time.Now())
 	if m.target != 1 {
 		t.Fatalf("target %d, want 1", m.target)
@@ -380,6 +720,7 @@ func TestMonsterSwitchesToAttackerWhenTargetDies(t *testing.T) {
 			z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 			m.pos = Vec2{31, 30.5} // off home, so a return takes more than a tick
 			joinNow(t, z, 1, 31.5, 30.5)
+			engage(m, 1)
 			z.advance(time.Now())
 			if m.target != 1 {
 				t.Fatalf("target %d, want 1", m.target)
@@ -391,7 +732,7 @@ func TestMonsterSwitchesToAttackerWhenTargetDies(t *testing.T) {
 			if c.near {
 				joinNow(t, z, 3, 30.5, 28.5)
 			}
-			z.damagePlayer(z.players[1], m.id, 10000)
+			z.damagePlayer(z.players[1], m.id, 10000, false)
 			z.advance(time.Now())
 			if m.target != c.target || m.state != c.state {
 				t.Fatalf("target %d state %v, want %d %v", m.target, m.state, c.target, c.state)
@@ -404,6 +745,7 @@ func TestPlayerDiesAtZeroHP(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinHP(t, z, 1, 31.5, 30.5, 20)
 	v := joinNow(t, z, 2, 30.5, 36.5)
+	engage(m, 1)
 	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{0, 1}})
 	z.advance(time.Now())
 	p := z.players[1]
@@ -443,9 +785,10 @@ func TestPlayerDiesAtZeroHP(t *testing.T) {
 }
 
 func TestEventsOnlyForVisible(t *testing.T) {
-	z, _ := newFightZone(t, 1, Vec2{30.5, 30.5})
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinHP(t, z, 1, 31.5, 30.5, 20)
 	f := joinNow(t, z, 2, 5.5, 5.5) // safe zone, three cells away
+	engage(m, 1)
 	z.advance(time.Now())
 	if len(hitsIn(a.take())) != 1 {
 		t.Fatal("the target must see its own hit")
@@ -462,6 +805,7 @@ func TestHitWithOnlyAttackerVisible(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{39.5, 30.5}) // AOI cell (3,3)
 	joinNow(t, z, 1, 40.5, 30.5)                 // target in cell (4,3)
 	v := joinNow(t, z, 2, 20.5, 30.5)            // cell (2,3): sees (3,3), not (4,3)
+	engage(m, 1)
 	z.advance(time.Now())
 	envs := v.take()
 	if slices.Contains(enters(envs), 1) || !slices.Contains(enters(envs), m.id) {
@@ -623,7 +967,7 @@ func TestAttackHitsAndAggro(t *testing.T) {
 		}
 	}
 	if m.state != chase || m.target != 1 {
-		t.Fatalf("state %v target %d, want an idle monster to chase its attacker", m.state, m.target)
+		t.Fatalf("state %v target %d, want a wandering monster to chase its attacker", m.state, m.target)
 	}
 	if _, ok := m.attackers[1]; !ok {
 		t.Fatal("the attacker must be in the monster's attackers")
@@ -958,7 +1302,7 @@ func TestLeashHealResetsExpTracking(t *testing.T) {
 	m.pos = Vec2{home.X + 11, home.Y}
 	z.updateCell(&m.entity)
 	now := time.Now()
-	for i := 0; i < 100 && !(m.state == idle && m.pos == home); i++ {
+	for i := 0; i < 100 && !(m.state == wander && m.pos == home); i++ {
 		z.advance(now)
 	}
 	if m.pos != home || m.hp != m.maxHP {
@@ -1201,7 +1545,7 @@ func TestAllocateErrors(t *testing.T) {
 			}
 			p := z.players[1]
 			if c.dead {
-				z.damagePlayer(p, 0, 10000)
+				z.damagePlayer(p, 0, 10000, false)
 			}
 			before := p.stats
 			allocateNow(t, z, 1, 3, c.pts)
@@ -1257,7 +1601,7 @@ func TestRespawnRequest(t *testing.T) {
 		t.Fatalf("respawn while alive: error %v, want NOT_DEAD", er)
 	}
 
-	z.damagePlayer(p, 0, 10000)
+	z.damagePlayer(p, 0, 10000, false)
 	z.advance(time.Now())
 	a.take()
 	v.take()
@@ -1306,7 +1650,7 @@ func TestAutoRespawnAfter60s(t *testing.T) {
 	v := joinNow(t, z, 2, 12.5, 5.5)
 	p := z.players[1]
 	z.advance(time.Now())
-	z.damagePlayer(p, 0, 10000)
+	z.damagePlayer(p, 0, 10000, false)
 	diedAt := z.tickNo
 	now := time.Now()
 	for z.tickNo < diedAt+599 {
@@ -1341,6 +1685,7 @@ func TestMonsterDropsDeadTarget(t *testing.T) {
 	for _, other := range []bool{true, false} {
 		z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 		joinHP(t, z, 1, 31.5, 30.5, 20)
+		engage(m, 1)
 		if other {
 			joinNow(t, z, 2, 30.5, 33.5)
 			m.attackers[2] = struct{}{}
@@ -1356,7 +1701,7 @@ func TestMonsterDropsDeadTarget(t *testing.T) {
 		if other && (m.target != 2 || m.state == returning) {
 			t.Fatalf("target %d state %v, want the monster on player 2", m.target, m.state)
 		}
-		if !other && (m.target != 0 || (m.state != returning && m.state != idle)) {
+		if !other && (m.target != 0 || (m.state != returning && m.state != wander)) {
 			t.Fatalf("target %d state %v, want the monster going home", m.target, m.state)
 		}
 	}
@@ -1368,7 +1713,7 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	area := Area{
 		Grid:    openGrid(60, 60),
-		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside aggro, inside leash
+		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside the detect range, inside the leash
 		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
 		Levels:  testLevels,
 	}
@@ -1378,6 +1723,7 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 		m = mm
 	}
 	joinHP(t, z, 1, 31.5, 30.5, 20)
+	engage(m, 1)
 	z.advance(time.Now())
 	p := z.players[1]
 	if !p.dead {
@@ -1459,9 +1805,10 @@ func TestRestHealsAfterFiveSeconds(t *testing.T) {
 
 // A player killed on the tick its rest count completes stays dead at 0 HP.
 func TestRestDoesNotHealPlayerKilledThatTick(t *testing.T) {
-	z, _ := newFightZone(t, 1, Vec2{30.5, 30.5})
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	z.area.Rests = []Circle{{C: Vec2{31.5, 30.5}, R: 2}} // outside the safe zone, as a bad map might have it
 	joinHP(t, z, 1, 31.5, 30.5, 20)
+	engage(m, 1)
 	p := z.players[1]
 	p.restTicks = z.ticks(restSec) - 1 // step 3 completes the count; the monster kills at step 4
 	z.advance(time.Now())
@@ -1485,7 +1832,7 @@ func TestRestOnlyInsideRadiusAndAlive(t *testing.T) {
 	}
 
 	z, p, _, _ = newRestZone(t, 100)
-	z.damagePlayer(p, 0, 10000)
+	z.damagePlayer(p, 0, 10000, false)
 	for i := 0; i < 60; i++ {
 		z.advance(now)
 	}

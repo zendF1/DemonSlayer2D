@@ -32,12 +32,13 @@ type tickEvents struct {
 }
 
 // damagePlayer applies a hit of dmg from attacker to p and kills p at 0 HP.
-func (z *Zone) damagePlayer(p *player, attacker uint64, dmg int) {
+// ranged marks a monster's shot.
+func (z *Zone) damagePlayer(p *player, attacker uint64, dmg int, ranged bool) {
 	if p.dead {
 		return
 	}
 	p.hp = max(p.hp-dmg, 0)
-	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: attacker, TargetId: p.id, Damage: int32(dmg), HpAfter: int32(p.hp)})
+	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: attacker, TargetId: p.id, Damage: int32(dmg), HpAfter: int32(p.hp), Ranged: ranged})
 	if p.hp == 0 {
 		z.killPlayer(p)
 	}
@@ -171,8 +172,9 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// slash lands p's default slash on m: p earns its EXP share of the hit, an
-// idle monster turns on its attacker, and one brought to 0 HP dies.
+// slash lands p's default slash on m: p earns its EXP share of the hit, a
+// wandering or shooting monster turns on its attacker, and one brought to 0
+// HP dies.
 func (z *Zone) slash(p *player, m *monster) {
 	dmg := combat.Damage(combat.SlashBase(p.stats), z.area.Levels[m.level].Defense, p.level)
 	counted := min(dmg, m.hp) // overkill earns no EXP
@@ -180,7 +182,7 @@ func (z *Zone) slash(p *player, m *monster) {
 	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: p.id, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp)})
 	m.attackers[p.id] = struct{}{}
 	z.payExpShare(p, m, counted)
-	if m.state == idle {
+	if m.state == wander || m.state == shoot {
 		m.target, m.state = p.id, chase
 	}
 	if m.hp == 0 {

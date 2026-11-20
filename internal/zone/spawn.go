@@ -101,8 +101,8 @@ func (z *Zone) spawn(r *regionState, pos Vec2) bool {
 		attackers:  make(map[uint64]struct{}),
 		dmgBy:      make(map[uint64]int),
 		expPaid:    make(map[uint64]int64),
-		state:      idle,
-		nextWander: z.tickNo + z.wanderDelay(),
+		state:      wander,
+		nextWander: z.tickNo + z.restDelay(),
 	}
 	m.cell = z.cellOf(pos)
 	z.monsters[m.id] = m

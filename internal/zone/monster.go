@@ -10,20 +10,21 @@ import (
 
 type monsterState int
 
-// Monster states (spec 4.2).
+// Monster states (spec 4). chase and attack together are the spec's chase.
 const (
-	idle      monsterState = iota // wanders around home
+	wander    monsterState = iota // rests, then walks to a random region tile nearby
+	shoot                         // stands still, shooting the nearest player in sight
 	chase                         // walks to its target
 	attack                        // hits its target every AttackSec
 	returning                     // walks home, ignoring everyone
 )
 
 const (
-	wanderRadius = 2   // tiles from home
-	wanderMinSec = 4.0 // pause between wanders
-	wanderMaxSec = 8.0
-	wanderSpeed  = 0.5 // factor of the kind's speed
-	arriveEps    = 1e-3
+	wanderReach = 6   // tiles from its position a wander walk may go
+	restMinSec  = 2.0 // pause between wander walks
+	restMaxSec  = 5.0
+	wanderSpeed = 0.5 // factor of the kind's speed
+	arriveEps   = 1e-3
 	// minProgress is the fraction of a step a walk must gain towards its target
 	// each tick. Sliding along a wall gains less and less, so below this the
 	// monster counts as stuck instead of crawling in place.
@@ -61,7 +62,8 @@ type monster struct {
 	expPaid map[uint64]int64
 
 	wanderTo   Vec2
-	nextWander uint32 // tick at which an idle monster picks a new wander target
+	nextWander uint32 // tick at which a resting monster picks a new wander target
+	nextShot   uint32 // tick of a shooting monster's next shot
 }
 
 // thinkMonsters runs every live monster's behaviour for this tick, in id order
@@ -73,13 +75,14 @@ func (z *Zone) thinkMonsters() {
 			continue
 		}
 		switch m.state {
-		case idle:
-			if p := z.nearestInDetect(m); p != nil {
-				m.target, m.state = p.id, chase
-				z.fight(m)
+		case wander:
+			if z.nearestShootable(m) != nil {
+				z.startShoot(m)
 			} else {
 				z.wander(m)
 			}
+		case shoot:
+			z.shoot(m)
 		case chase, attack:
 			z.fight(m)
 		case returning:
@@ -128,6 +131,59 @@ func (z *Zone) nearestInDetect(m *monster) *player {
 	return best
 }
 
+// nearestShootable is the nearest valid player m may shoot (spec 3.2): within
+// the kind's detect range with no blocked tile between them. Only the AOI
+// cells around m are searched.
+func (z *Zone) nearestShootable(m *monster) *player {
+	reach := float32(m.region.Kind.DetectRange)
+	var best *player
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			for id, e := range z.cells[cellKey{m.cell.X + dx, m.cell.Y + dy}] {
+				if e.kind != pb.EntityKind_ENTITY_KIND_PLAYER {
+					continue
+				}
+				p := z.validTarget(id)
+				if p != nil && distance(m.pos, p.pos) <= reach && !lineBlocked(z.area.Grid, m.pos, p.pos) && nearer(m, p, best) {
+					best = p
+				}
+			}
+		}
+	}
+	return best
+}
+
+// startShoot stops m to shoot; the first shot comes after the windup (spec 4.3).
+func (z *Zone) startShoot(m *monster) {
+	z.stopMonster(m)
+	m.state = shoot
+	m.nextShot = z.tickNo + z.ticks(m.region.Kind.ShootWindupSec)
+}
+
+// shoot runs a shooting monster. It stands still, and on each shot picks the
+// nearest player it may shoot. With nobody left it goes back to wandering.
+// Shooting never gives it a target or starts a chase.
+func (z *Zone) shoot(m *monster) {
+	if z.tickNo < m.nextShot {
+		return
+	}
+	p := z.nearestShootable(m)
+	if p == nil {
+		z.startWander(m)
+		return
+	}
+	dmg := combat.MonsterRangedDamage(z.area.Levels[m.level].Attack, p.stats.PhysDefense, m.level)
+	z.damagePlayer(p, m.id, dmg, true)
+	m.nextShot += z.ticks(m.region.Kind.ShootSec)
+}
+
+// startWander makes m wander, starting with a rest.
+func (z *Zone) startWander(m *monster) {
+	z.stopMonster(m)
+	m.state = wander
+	m.nextWander = z.tickNo + z.restDelay()
+}
+
 // retarget picks a new target once the old one is lost (spec 4.2): the nearest
 // valid player who has hit m, else the nearest valid player in detect range.
 func (z *Zone) retarget(m *monster) *player {
@@ -174,7 +230,7 @@ func (z *Zone) fight(m *monster) {
 	z.stopMonster(m)
 	if z.tickNo >= m.nextAttack {
 		dmg := combat.Damage(z.area.Levels[m.level].Attack, t.stats.PhysDefense, m.level)
-		z.damagePlayer(t, m.id, dmg)
+		z.damagePlayer(t, m.id, dmg, false)
 		m.nextAttack = z.tickNo + z.ticks(k.AttackSec)
 	}
 }
@@ -233,7 +289,7 @@ func (z *Zone) goHome(m *monster) {
 	}
 }
 
-// arriveHome makes a returned monster idle at home with full HP. Players keep
+// arriveHome makes a returned monster wander from home with full HP. Players keep
 // the EXP it paid them, and its damage tracking starts again.
 func (z *Zone) arriveHome(m *monster) {
 	if m.pos != m.home {
@@ -247,8 +303,8 @@ func (z *Zone) arriveHome(m *monster) {
 	}
 	clear(m.dmgBy)
 	clear(m.expPaid)
-	m.state, m.stuck = idle, 0
-	m.nextWander = z.tickNo + z.wanderDelay()
+	m.stuck = 0
+	z.startWander(m)
 }
 
 // monsterStep is how far m walks in one tick at full speed.
@@ -256,9 +312,9 @@ func (z *Zone) monsterStep(m *monster) float32 {
 	return float32(m.region.Kind.Speed) * z.cfg.MoveSpeed / float32(z.cfg.TickRate)
 }
 
-// wander walks an idle monster to a random spot near home every 4-8 s. The
-// straight path stays within wanderRadius of home, but sliding along a wall can
-// take it a little beyond.
+// wander runs a wandering monster (spec 4.2): it rests restMinSec to
+// restMaxSec, then walks at wanderSpeed to a random region tile within
+// wanderReach, and rests again once it arrives or is stuck.
 func (z *Zone) wander(m *monster) {
 	if m.dir == (Vec2{}) {
 		if z.tickNo < m.nextWander {
@@ -266,29 +322,26 @@ func (z *Zone) wander(m *monster) {
 		}
 		to, ok := z.wanderTarget(m)
 		if !ok {
-			m.nextWander = z.tickNo + z.wanderDelay()
+			m.nextWander = z.tickNo + z.restDelay()
 			return
 		}
 		m.wanderTo = to
 	}
-	if z.walkTo(m, m.wanderTo, wanderSpeed*z.monsterStep(m)) != walkMoving { // stuck just ends this walk
-		m.nextWander = z.tickNo + z.wanderDelay()
+	if z.walkTo(m, m.wanderTo, wanderSpeed*z.monsterStep(m)) != walkMoving {
+		m.nextWander = z.tickNo + z.restDelay()
 	}
 }
 
-// wanderTarget picks a random tile centre within wanderRadius of home that
-// monsters may stand on, other than the one m stands on.
+// wanderTarget picks a random tile of m's region within wanderReach of m,
+// other than the tile m stands on.
 func (z *Zone) wanderTarget(m *monster) (Vec2, bool) {
-	hx, hy := floor(m.home.X), floor(m.home.Y)
+	tx, ty := floor(m.pos.X), floor(m.pos.Y)
 	var opts []Vec2
-	for ty := hy - wanderRadius; ty <= hy+wanderRadius; ty++ {
-		for tx := hx - wanderRadius; tx <= hx+wanderRadius; tx++ {
-			c := Vec2{float32(tx) + 0.5, float32(ty) + 0.5}
-			if c == m.pos || distance(c, m.home) > wanderRadius || z.mgrid.Blocked(tx, ty) {
-				continue
-			}
-			opts = append(opts, c)
+	for _, c := range m.region.Tiles {
+		if (floor(c.X) == tx && floor(c.Y) == ty) || distance(c, m.pos) > wanderReach {
+			continue
 		}
+		opts = append(opts, c)
 	}
 	if len(opts) == 0 {
 		return Vec2{}, false
@@ -296,8 +349,9 @@ func (z *Zone) wanderTarget(m *monster) (Vec2, bool) {
 	return opts[z.rng.IntN(len(opts))], true
 }
 
-func (z *Zone) wanderDelay() uint32 {
-	return z.ticks(wanderMinSec + (wanderMaxSec-wanderMinSec)*z.rng.Float64())
+// restDelay is a random rest between wander walks.
+func (z *Zone) restDelay() uint32 {
+	return z.ticks(restMinSec + (restMaxSec-restMinSec)*z.rng.Float64())
 }
 
 // walkTo moves m one tick of at most step tiles straight towards to, on the

@@ -473,7 +473,7 @@ func TestAreaOfKumotori(t *testing.T) {
 
 // The real map's regions keep their first monsters at least 2 tiles apart.
 // A zone on kumotori_1 is joined by a player who sees the whole map, and the
-// monsters it is shown are sorted into regions by tile.
+// monsters it is shown are sorted into regions by their exact tile centre.
 func TestKumotoriSpawnSpreadsOut(t *testing.T) {
 	a := kumotoriArea(t)
 	region := map[zone.Vec2]string{}
@@ -486,7 +486,8 @@ func TestKumotoriSpawnSpreadsOut(t *testing.T) {
 	for seed := uint64(1); seed <= 10; seed++ {
 		var next atomic.Uint64
 		next.Store(1000)
-		z := zone.New(zone.Config{MapID: "kumotori_1", ZoneNo: 1, TickRate: 20, MoveSpeed: 4, AOICellSize: 64, Capacity: 10,
+		const tickRate = 20
+		z := zone.New(zone.Config{MapID: "kumotori_1", ZoneNo: 1, TickRate: tickRate, MoveSpeed: 4, AOICellSize: 64, Capacity: 10,
 			SaveInterval: time.Minute, NewID: func() uint64 { return next.Add(1) }, Rand: rand.New(rand.NewPCG(seed, 7))},
 			a, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 		ctx, cancel := context.WithCancel(context.Background())
@@ -494,6 +495,12 @@ func TestKumotoriSpawnSpreadsOut(t *testing.T) {
 		out := newRecOut()
 		if err := z.Join(ctx, zone.PlayerInfo{EntityID: 1, CharID: 1, Name: "p", Level: 1, Pos: a.Respawn, HP: -1, MP: -1}, out); err != nil {
 			t.Fatal(err)
+		}
+		// The join's tick sends the EntityEnters. Before the first rest of
+		// 2 s (in ticks) ends, no monster has taken a step, so they show the
+		// spawn positions. A join any later would make the test meaningless.
+		if ew := out.enterResp(t); ew.ServerTick >= uint32(2*tickRate) {
+			t.Fatalf("seed %d: joined at tick %d, after the monsters may have started walking", seed, ew.ServerTick)
 		}
 		pos := map[string][]zone.Vec2{}
 		seen := 0

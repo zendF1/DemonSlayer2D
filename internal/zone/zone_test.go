@@ -453,7 +453,7 @@ func TestJoinHonoursContextBeforeQueueing(t *testing.T) {
 // ______________________TEST MONSTERS_____________________
 
 var testKind = gamedata.Kind{ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8,
-	DetectRange: 4, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, RespawnSec: 8}
+	DetectRange: 5, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, RespawnSec: 8}
 
 var testLevels = map[int]gamedata.Level{
 	1: {Level: 1, HP: 56, Attack: 30, Defense: 8},
@@ -531,43 +531,6 @@ func TestPlayerEnterHasHP(t *testing.T) {
 	}
 }
 
-func TestMonstersWander(t *testing.T) {
-	z, _ := newMonsterZone(t, fewTiles...)
-	a := joinNow(t, z, 1, 30.5, 39.5) // in view, beyond detect range plus the wander radius
-	home := map[uint64]Vec2{}
-	for id, m := range z.monsters {
-		home[id] = m.home
-	}
-	step := 0.5 * testKind.Speed * 4 / 10
-	moved := map[uint64]bool{}
-	broadcast := map[uint64]bool{}
-	prev := maps.Clone(home)
-	now := time.Now()
-	for i := 0; i < 300; i++ { // 30 s: several wander cycles of 4-8 s
-		z.advance(now)
-		for _, mv := range lastTick(a.take()).GetMoves() {
-			broadcast[mv.Id] = true
-		}
-		for id, m := range z.monsters {
-			if m.pos != home[id] {
-				moved[id] = true
-			}
-			if d := dist(m.pos, prev[id]); d > step+1e-4 {
-				t.Fatalf("tick %d: monster %d moved %.4f tiles, faster than the wander step %.4f", i, id, d, step)
-			}
-			prev[id] = m.pos
-			if d := dist(m.pos, home[id]); d > 2+step/2 {
-				t.Fatalf("tick %d: monster %d is %.3f tiles from home", i, id, d)
-			}
-		}
-	}
-	for id := range home {
-		if !moved[id] || !broadcast[id] {
-			t.Fatalf("monster %d moved=%v broadcast=%v, want both", id, moved[id], broadcast[id])
-		}
-	}
-}
-
 func TestMonstersNeverEnterSafeZone(t *testing.T) {
 	// Region tiles border the safe rect (0,0,10,10) on its right edge.
 	z, _ := newMonsterZone(t, Vec2{10.5, 5.5}, Vec2{10.5, 6.5}, Vec2{11.5, 5.5})
@@ -582,7 +545,7 @@ func TestMonstersNeverEnterSafeZone(t *testing.T) {
 	}
 }
 
-// A wall right next to home: walks towards tiles behind it slide along the wall.
+// A wall through the region: walks towards tiles behind it end at the wall.
 // Each walk must end soon, and a walking monster must really move every tick.
 func TestWanderStopsAtWalls(t *testing.T) {
 	rows := make([]string, 60)
@@ -593,7 +556,7 @@ func TestWanderStopsAtWalls(t *testing.T) {
 		}
 		rows[y] = string(r)
 	}
-	z, _ := newMonsterZone(t, Vec2{31.5, 30.5}, Vec2{31.5, 29.5}, Vec2{31.5, 31.5})
+	z, _ := newMonsterZone(t, Vec2{31.5, 30.5}, Vec2{33.5, 29.5}, Vec2{31.5, 31.5}, Vec2{33.5, 31.5})
 	z.area.Grid = gridFrom(rows...)
 	z.mgrid = z.area.monsterGrid()
 	step := 0.5 * testKind.Speed * 4 / 10
@@ -673,11 +636,11 @@ func TestMonsterGridBlocksSafeTiles(t *testing.T) {
 	if (&Area{Grid: z.area.Grid}).monsterGrid() != z.area.Grid {
 		t.Fatal("without safe zones the monster grid is the map grid")
 	}
-	m := &monster{entity: entity{pos: Vec2{10.5, 5.5}}, home: Vec2{10.5, 5.5}}
+	m := &monster{entity: entity{pos: Vec2{10.5, 5.5}}, region: z.regions[0]}
 	for i := 0; i < 1000; i++ {
 		to, ok := z.wanderTarget(m)
-		if !ok || z.area.InSafe(to) || dist(to, m.home) > wanderRadius {
-			t.Fatalf("wander target %v ok=%v, want a non-safe tile within 2 of home", to, ok)
+		if !ok || z.area.InSafe(to) || !slices.Contains(m.region.Tiles, to) || to == m.pos {
+			t.Fatalf("wander target %v ok=%v, want another region tile", to, ok)
 		}
 	}
 	if p := Step(z.mgrid, Vec2{11.5, 5.5}, Vec2{-1, 0}, 5); p.X != 10+halfSize {
@@ -814,8 +777,9 @@ func TestSpawnFillsRegions(t *testing.T) {
 }
 
 // Best-candidate placement spreads a region's monsters out: on a 20x20 open
-// region 8 monsters stay at least 2 tiles apart, for every seed tried
-// (uniform random placement fails this for most seeds).
+// region 8 monsters stay at least 2 tiles apart, for every seed tried.
+// Uniform random placement (one sample) fails it for 6 of these 20 seeds, so
+// the seeds together catch a placement that does not spread.
 func TestSpawnSpreadsOut(t *testing.T) {
 	open := Rect{X: 20, Y: 20, W: 20, H: 20}
 	for seed := uint64(1); seed <= 20; seed++ {
