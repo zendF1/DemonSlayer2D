@@ -2968,7 +2968,7 @@ func skillDamage(p *player, s gamedata.Skill, lv int) int {
 // cooldown or lands.
 func TestCastValidation(t *testing.T) {
 	home := Vec2{30.5, 30.5}
-	near := Vec2{32.5, 30.5} // 2 tiles from home: within thuy_1's 3 + 0.5
+	near := Vec2{32.5, 30.5} // 2 tiles from home: within thuy_1's 5 + 0.5
 	for _, c := range []struct {
 		name   string
 		player Vec2
@@ -3011,7 +3011,7 @@ func TestCastValidation(t *testing.T) {
 		}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"a dead monster", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { m.dead = true; return m.id },
 			pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
-		{"3.6 tiles away", Vec2{34.1, 30.5}, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { return m.id },
+		{"5.51 tiles away", Vec2{36.01, 30.5}, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { return m.id },
 			pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
 		{"a wall in between", Vec2{28.5, 30.5}, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
 			rows := make([]string, 60)
@@ -3055,7 +3055,7 @@ func TestCastValidation(t *testing.T) {
 // ahead of the WorldTick, which carries the Cast, and SelfStats follows.
 func TestCastSingleHitsAndAggro(t *testing.T) {
 	home := Vec2{30.5, 30.5}
-	z, m, p, a := castZone(t, home, Vec2{33.99, 30.5}) // 3.49 tiles: in range with the slack
+	z, m, p, a := castZone(t, home, Vec2{35.99, 30.5}) // 5.49 tiles: in range with the slack
 	s := repoSkills["thuy_1"]
 	mp, exp := p.mp, p.exp
 	castNow(t, z, 1, 9, "thuy_1", m.id, Vec2{})
@@ -3088,6 +3088,50 @@ func TestCastSingleHitsAndAggro(t *testing.T) {
 	}
 	if !chasing(m) || m.target != 1 || m.attackers[1] != z.tickNo {
 		t.Fatalf("state %v target %d attackers %v, want the monster chasing its caster", m.state, m.target, m.attackers)
+	}
+}
+
+// A single-target skill reaches range[n-1] of its learned level n plus
+// attackRangeSlack: the repo's thuy_1 (5 tiles at level 1) lands at 5.49
+// and not at 5.51, and with a range table that grows by level the learned
+// level picks the entry.
+func TestCastRangeByLevel(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	grown := maps.Clone(repoSkills)
+	s := grown["thuy_1"]
+	s.Range = []float64{5, 7, 9, 9, 9, 9, 9, 9, 9, 9}
+	grown["thuy_1"] = s
+	for _, c := range []struct {
+		name   string
+		skills map[string]gamedata.Skill
+		level  int
+		dist   float32
+		ok     bool
+	}{
+		{"repo level 1 at 5.49", repoSkills, 1, 5.49, true},
+		{"repo level 1 at 5.51", repoSkills, 1, 5.51, false},
+		{"grown level 1 at 5.51", grown, 1, 5.51, false},
+		{"grown level 2 at 7.49", grown, 2, 7.49, true},
+		{"grown level 2 at 7.51", grown, 2, 7.51, false},
+		{"grown level 3 at 9.49", grown, 3, 9.49, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m, p, a := castZone(t, home, Vec2{home.X + c.dist, home.Y})
+			z.area.Skills = c.skills
+			p.skills["thuy_1"] = c.level
+			hp := m.hp
+			castNow(t, z, 1, 7, "thuy_1", m.id, Vec2{})
+			envs := a.take()
+			if c.ok {
+				if castRespAt(envs, 7) < 0 || m.hp >= hp {
+					t.Fatalf("error %v, hp %d of %d: want the cast to land", errorFor(envs, 7), m.hp, hp)
+				}
+				return
+			}
+			if er := errorFor(envs, 7); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE || m.hp != hp {
+				t.Fatalf("error %v, hp %d of %d: want OUT_OF_RANGE and no hit", er, m.hp, hp)
+			}
+		})
 	}
 }
 

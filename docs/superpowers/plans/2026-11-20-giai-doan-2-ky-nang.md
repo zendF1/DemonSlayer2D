@@ -434,7 +434,7 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 
 ### Task 16: Client — character window, skill bar and effects
 
-**Files:** `ui/char_window.gd`, `ui/info_tab.gd`, `ui/potential_tab.gd`, `ui/skill_tab.gd`, `ui/skill_bar.gd`, `ui/skill_effect.gd` (all new), `ui/stats_panel.gd` (removed), `ui/hud.gd`, `autoload/config.gd`, `screens/world.gd`, `screens/world_entities.gd`.
+**Files:** `ui/char_window.gd`, `ui/info_tab.gd`, `ui/potential_tab.gd`, `ui/skill_tab.gd`, `ui/skill_bar.gd`, `ui/skill_effect.gd` (all new), `ui/stats_panel.gd` (removed), `ui/hud.gd`, `ui/joystick.gd`, `autoload/config.gd`, `screens/world.gd`, `screens/world_entities.gd`.
 
 **Behaviour (§6.2):**
 - `config.gd`: actions `slot_1..slot_5` (`KEY_1..KEY_5`, select a bar slot) and `skills` (`KEY_K`); `attack` (Space) uses the selected slot; `stats` (C) stays and opens the window on Thông tin.
@@ -444,6 +444,8 @@ tests/smoke/smoke.gd, tools/smoke.sh, README.md                 skill smoke step
 - `hud.gd`: "Chỉ số" becomes "Thông tin"; its dot shows when free potential or skill points exist.
 - `skill_bar.gd`: five slots in one row at the bottom centre per §6.2 (slot 1 default slash, slots 2–5 the four actives); selecting highlights the slot until another is chosen (default slot 1); unlearned slots are grey and not selectable; cooldown sweep and seconds; dark when MP is short; emits `selected(slot)`.
 - `hud.gd` bottom-right: the Đánh button in the centre, the HP and MP potion buttons above it, greyed, each showing "Có ở bản sau" when pressed; "Đổi mục tiêu" and "Thông tin" stay beside Đánh.
+- Look (spec §6.2, from the user's reference screenshots; layout only, no copied art): square dark slots with a gold border and the key number above each; the selected slot's border brighter; round large Đánh button; small round potion buttons with a count label; "Đổi mục tiêu" and "Thông tin" as small round buttons left of Đánh.
+- `ui/joystick.gd`: redraw as a ring with four direction arrows (up/down/left/right); input stays analog as in Phase 1.
 - `skill_effect.gd`: `_draw` shapes sized from the skill data, class colours from §6.2, freed after about 0.35 s; dash draws a streak from the old to the new position.
 - `world.gd`: wire slot keys and the bar to the selected slot, the Đánh button/Space to `attack_loop` (slot 1) or `cast_loop` (slots 2–5), send `CastReq`/`LearnSkillReq`, handle `CastResp` (start cooldown) and errors (notice text), own `EntityMove` with `snap` while alive → `_predictor.teleport`, `EnterWorldResp.skills` and `SelfStats.skill_points` into the skill book.
 

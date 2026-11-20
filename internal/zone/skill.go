@@ -53,7 +53,7 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	var primary *monster
 	var dir Vec2
 	if code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
-		primary, dir, code = z.aim(p, c, s)
+		primary, dir, code = z.aim(p, c, s, n)
 	}
 	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 		z.replyError(p, c.seq, code)
@@ -99,17 +99,18 @@ func (z *Zone) checkCast(p *player, skillID string) (gamedata.Skill, int, pb.Err
 	return s, n, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// aim finds the primary target and direction of p's cast c of s (phase 2
-// spec 4.3), or the error to answer. Dash skills cast as plain single-target
-// skills for now.
-func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill) (*monster, Vec2, pb.ErrorCode) {
+// aim finds the primary target and direction of p's cast c of s at skill
+// level n (phase 2 spec 4.3), or the error to answer. A target must be
+// within the level's range plus attackRangeSlack, as for a slash. Dash
+// skills cast as plain single-target skills for now.
+func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill, n int) (*monster, Vec2, pb.ErrorCode) {
 	switch s.Shape {
 	case gamedata.ShapeSingle:
 		m := z.monsters[c.target]
 		if m == nil || m.dead {
 			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
 		}
-		if distance(p.pos, m.pos) > float32(s.CastRange)+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
+		if distance(p.pos, m.pos) > float32(s.Range[n-1])+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
 			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
 		}
 		return m, dirTo(p.pos, m.pos), pb.ErrorCode_ERROR_CODE_UNSPECIFIED

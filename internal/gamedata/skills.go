@@ -74,16 +74,18 @@ type Skill struct {
 	Form       string `json:"form"`
 	LearnLevel int    `json:"learn_level"`
 	// Slot is 1-4 for actives and 0 for the passive.
-	Slot      int     `json:"slot"`
-	Damage    string  `json:"damage"`
-	Shape     string  `json:"shape"`
-	CastRange float64 `json:"cast_range"`
-	Radius    float64 `json:"radius"`
-	ConeDeg   float64 `json:"cone_deg"`
-	Reach     float64 `json:"reach"`
-	Length    float64 `json:"length"`
-	Width     float64 `json:"width"`
-	Dash      bool    `json:"dash"`
+	Slot    int     `json:"slot"`
+	Damage  string  `json:"damage"`
+	Shape   string  `json:"shape"`
+	Radius  float64 `json:"radius"`
+	ConeDeg float64 `json:"cone_deg"`
+	Width   float64 `json:"width"`
+	Dash    bool    `json:"dash"`
+	// Range is the range in tiles per skill level, index 0 = level 1, on
+	// every shape but circle_self: the targeting range of single and
+	// circle_target, the reach of a cone, the length of a line. Tiles are
+	// float64 like the other measures, though the data uses whole numbers.
+	Range []float64 `json:"range"`
 	// Per-level arrays, index 0 = skill level 1.
 	CoefPct    []int `json:"coef_pct"`
 	MP         []int `json:"mp"`
@@ -217,10 +219,9 @@ func validatePassive(s Skill, present map[string]json.RawMessage, bad func(strin
 	if len(s.Passive) == 0 {
 		return bad("passive needs at least one key in passive")
 	}
-	if s.Damage != "" || s.Shape != "" || s.CastRange != 0 || s.Radius != 0 || s.ConeDeg != 0 ||
-		s.Reach != 0 || s.Length != 0 || s.Width != 0 || s.Dash ||
-		s.CoefPct != nil || s.MP != nil || s.CooldownMS != nil || s.MaxTargets != nil ||
-		hasAny(present, "damage", "shape", "cast_range", "radius", "cone_deg", "reach", "length", "width",
+	if s.Damage != "" || s.Shape != "" || s.Radius != 0 || s.ConeDeg != 0 || s.Width != 0 || s.Dash ||
+		s.Range != nil || s.CoefPct != nil || s.MP != nil || s.CooldownMS != nil || s.MaxTargets != nil ||
+		hasAny(present, "damage", "shape", "radius", "cone_deg", "width", "range",
 			"dash", "coef_pct", "mp", "cooldown_ms", "max_targets") {
 		return bad("passive must not have active fields")
 	}
@@ -247,23 +248,18 @@ func validateActive(s Skill, present map[string]json.RawMessage, bad func(string
 	if s.Damage != DamagePhys && s.Damage != DamageMagic {
 		return bad("damage %q must be phys or magic", s.Damage)
 	}
-	// Each shape has exactly its own measures, all positive; the rest stay zero.
-	measures := map[string]float64{
-		"cast_range": s.CastRange, "radius": s.Radius, "cone_deg": s.ConeDeg,
-		"reach": s.Reach, "length": s.Length, "width": s.Width,
-	}
+	// Each shape has exactly its own measures, all positive; the rest stay
+	// zero. range is checked on its own, in validateRange.
+	measures := map[string]float64{"radius": s.Radius, "cone_deg": s.ConeDeg, "width": s.Width}
 	var need []string
 	switch s.Shape {
 	case ShapeSingle:
-		need = []string{"cast_range"}
 	case ShapeCone:
-		need = []string{"cone_deg", "reach"}
-	case ShapeCircleSelf:
+		need = []string{"cone_deg"}
+	case ShapeCircleSelf, ShapeCircleTarget:
 		need = []string{"radius"}
-	case ShapeCircleTarget:
-		need = []string{"cast_range", "radius"}
 	case ShapeLine:
-		need = []string{"length", "width"}
+		need = []string{"width"}
 	default:
 		return bad("shape %q is not valid", s.Shape)
 	}
@@ -278,6 +274,9 @@ func validateActive(s Skill, present map[string]json.RawMessage, bad func(string
 		if v != 0 {
 			return bad("%s is not allowed for shape %s", n, s.Shape)
 		}
+	}
+	if err := validateRange(s, present, bad); err != nil {
+		return err
 	}
 	if s.ConeDeg > 360 {
 		return bad("cone_deg %v must be in (0, 360]", s.ConeDeg)
@@ -296,6 +295,34 @@ func validateActive(s Skill, present map[string]json.RawMessage, bad func(string
 		}
 	} else if err := positiveArray("max_targets", s.MaxTargets, bad); err != nil {
 		return err
+	}
+	return nil
+}
+
+// validateRange checks range[10]: required on every shape but circle_self
+// and forbidden there, positive and non-decreasing over the levels.
+func validateRange(s Skill, present map[string]json.RawMessage, bad func(string, ...any) error) error {
+	_, has := present["range"]
+	if s.Shape == ShapeCircleSelf {
+		if has {
+			return bad("range is not allowed for shape %s", s.Shape)
+		}
+		return nil
+	}
+	if !has {
+		return bad("range is required for shape %s", s.Shape)
+	}
+	if len(s.Range) != SkillLevels {
+		return bad("range has %d entries, want %d", len(s.Range), SkillLevels)
+	}
+	for i, r := range s.Range {
+		// The negated comparison also rejects NaN.
+		if !(r > 0) {
+			return bad("range must be positive")
+		}
+		if i > 0 && r < s.Range[i-1] {
+			return bad("range must not decrease: level %d has %v, level %d has %v", i+1, r, i, s.Range[i-1])
+		}
 	}
 	return nil
 }

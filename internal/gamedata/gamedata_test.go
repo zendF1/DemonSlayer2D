@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -277,6 +278,13 @@ func ten(v int) []int {
 	return a
 }
 
+// singleRange and areaRange are the range tables of spec 2.1: single-target
+// skills, and cone, line and circle_target.
+var (
+	singleRange = []float64{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}
+	areaRange   = []float64{4, 4, 4, 5, 5, 5, 6, 6, 6, 6}
+)
+
 // validSkills is a minimal valid skills.json: for each of the five classes
 // four actives (single, cone, circle_target, circle_self) and a passive, in
 // that order of index 5c+0..4 (c = class number).
@@ -293,11 +301,11 @@ func validSkills() []obj {
 			return s
 		}
 		out = append(out,
-			active(1, 1, 10, "single", obj{"cast_range": 4, "dash": true}),
-			active(2, 2, 20, "cone", obj{"cone_deg": 120, "reach": 2, "max_targets": ten(2)}),
+			active(1, 1, 10, "single", obj{"range": singleRange, "dash": true}),
+			active(2, 2, 20, "cone", obj{"cone_deg": 120, "range": areaRange, "max_targets": ten(2)}),
 			obj{"id": class + "_3", "class": class, "name": "p", "form": "III", "learn_level": 30, "slot": 0,
 				"passive": obj{"phys_def_pct": ten(2)}},
-			active(4, 3, 40, "circle_target", obj{"cast_range": 5, "radius": 1.5, "max_targets": ten(2)}),
+			active(4, 3, 40, "circle_target", obj{"range": areaRange, "radius": 1.5, "max_targets": ten(2)}),
 			active(5, 4, 50, "circle_self", obj{"radius": 2, "max_targets": ten(2)}),
 		)
 	}
@@ -321,6 +329,9 @@ func TestParseSkillsValid(t *testing.T) {
 	if len(m) != 25 || !m["viem_1"].Dash || !m["viem_1"].Active() || m["viem_3"].Active() {
 		t.Fatalf("parsed: %+v", m)
 	}
+	if !slices.Equal(m["viem_2"].Range, areaRange) || m["viem_5"].Range != nil {
+		t.Fatalf("ranges: cone %v, circle_self %v", m["viem_2"].Range, m["viem_5"].Range)
+	}
 }
 
 func TestParseSkillsRejects(t *testing.T) {
@@ -335,9 +346,8 @@ func TestParseSkillsRejects(t *testing.T) {
 	asLine := func(mutate func(obj)) func([]obj) []obj {
 		return func(s []obj) []obj {
 			x := s[3]
-			delete(x, "cast_range")
 			delete(x, "radius")
-			x["shape"], x["length"], x["width"] = "line", 6, 1.5
+			x["shape"], x["width"] = "line", 1.5
 			mutate(x)
 			return s
 		}
@@ -352,7 +362,25 @@ func TestParseSkillsRejects(t *testing.T) {
 		{"bad class", set(0, "class", "ghost"), `class "ghost" is not valid`},
 		{"missing class", func(s []obj) []obj { return s[:20] }, `class "phong" has no skill`},
 		{"missing radius", del(4, "radius"), "radius must be positive"},
-		{"reach on single", set(0, "reach", 2), "reach is not allowed"},
+		{"radius on single", set(0, "radius", 2), "radius is not allowed"},
+		{"old cast_range", set(0, "cast_range", 5), `unknown field "cast_range"`},
+		{"old reach", set(1, "reach", 4), `unknown field "reach"`},
+		{"old length", asLine(func(x obj) { x["length"] = 6 }), `unknown field "length"`},
+		{"single missing range", del(0, "range"), "range is required for shape single"},
+		{"cone missing range", del(1, "range"), "range is required for shape cone"},
+		{"circle_target missing range", del(3, "range"), "range is required for shape circle_target"},
+		{"line missing range", asLine(func(x obj) { delete(x, "range") }), "range is required for shape line"},
+		{"null range on single", set(0, "range", nil), "range has 0 entries"},
+		{"range on circle_self", set(4, "range", areaRange), "range is not allowed for shape circle_self"},
+		{"null range on circle_self", set(4, "range", nil), "range is not allowed for shape circle_self"},
+		{"range on passive", set(2, "range", areaRange), "passive must not have active fields"},
+		{"null range on passive", set(2, "range", nil), "passive must not have active fields"},
+		{"range of 9", set(1, "range", areaRange[:9]), "range has 9 entries"},
+		{"range of 11", set(1, "range", append(slices.Clone(areaRange), 6)), "range has 11 entries"},
+		{"zero range", set(0, "range", []float64{0, 5, 5, 5, 5, 5, 5, 5, 5, 5}), "range must be positive"},
+		{"negative range", set(1, "range", []float64{4, 4, 4, 5, 5, -5, 6, 6, 6, 6}), "range must be positive"},
+		{"decreasing range", set(1, "range", []float64{4, 4, 4, 5, 5, 5, 6, 6, 6, 5.5}), "range must not decrease"},
+		{"decreasing range early", set(3, "range", []float64{5, 4, 4, 5, 5, 5, 6, 6, 6, 6}), "range must not decrease"},
 		{"array of 9", set(0, "mp", ten(10)[:9]), "mp has 9 entries"},
 		{"zero in mp", set(0, "mp", append([]int{0}, ten(10)[1:]...)), "mp must be positive"},
 		{"dash on cone", set(1, "dash", true), "dash needs shape single"},
@@ -361,7 +389,7 @@ func TestParseSkillsRejects(t *testing.T) {
 		{"empty max_targets on single", set(0, "max_targets", []int{}), "max_targets is not allowed"},
 		{"missing max_targets on cone", del(1, "max_targets"), "max_targets has 0 entries"},
 		{"line missing max_targets", asLine(func(x obj) { delete(x, "max_targets") }), "max_targets has 0 entries"},
-		{"line missing length", asLine(func(x obj) { delete(x, "length") }), "length must be positive"},
+		{"line with radius", asLine(func(x obj) { x["radius"] = 1 }), "radius is not allowed for shape line"},
 		{"line missing width", asLine(func(x obj) { delete(x, "width") }), "width must be positive"},
 		{"passive at level 20", set(2, "learn_level", 20), "learn_level 20 must be 30"},
 		{"passive with shape", set(2, "shape", "single"), "passive must not have active fields"},
@@ -421,6 +449,19 @@ func TestRepoData(t *testing.T) {
 	}
 	if s := d.Skills["viem_1"]; s.Shape != ShapeSingle || !s.Dash || s.CoefPct[0] != 150 {
 		t.Fatalf("viem_1: %+v", s)
+	}
+	// Every class has the same ranges (spec 2.1).
+	for id, s := range d.Skills {
+		want := areaRange
+		switch {
+		case !s.Active() || s.Shape == ShapeCircleSelf:
+			want = nil
+		case s.Shape == ShapeSingle:
+			want = singleRange
+		}
+		if !slices.Equal(s.Range, want) {
+			t.Fatalf("%s (%s): range %v, want %v", id, s.Shape, s.Range, want)
+		}
 	}
 	if len(d.Exp) != 89 || d.Exp[0] != 80 {
 		t.Fatalf("exp: %d values, first %v", len(d.Exp), d.Exp[:1])

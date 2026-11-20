@@ -10,7 +10,11 @@ passive (always the third skill) has slot 0. Per skill level n (1-10):
 - coef_pct = coef0 + step * (n - 1), mp = mp0 + mp_step * (n - 1);
 - cooldown_ms = round_half_up(cooldown0 * 0.9 ** (n - 1) * 1000), exact
   fractions so the output never depends on float rounding;
-- max_targets = 2,2,2,3,3,3,4,4,4,5 for every shape except single.
+- max_targets = 2,2,2,3,3,3,4,4,4,5 for every shape except single;
+- range (tiles) is the same for every class: 5 at every level for single
+  (dash included), 4,4,4,5,5,5,6,6,6,6 for cone, line and circle_target. It
+  is the targeting range of single/circle_target, the cone's reach and the
+  line's length. circle_self has no range, only its radius.
 monster_stats.py imports coef_pct() for the Bat Tri Hoa (viem_1) coefficient.
 """
 
@@ -22,6 +26,8 @@ from pathlib import Path
 
 LEVELS = range(1, 11)
 MAX_TARGETS = [2, 2, 2, 3, 3, 3, 4, 4, 4, 5]
+SINGLE_RANGE = [5] * 10
+AREA_RANGE = [4, 4, 4, 5, 5, 5, 6, 6, 6, 6]
 ROMAN = ["I", "II", "III", "IV", "V"]
 
 # Tiers of the four actives: (coef0, coef step, mp0, mp step, cooldown0 seconds).
@@ -44,31 +50,31 @@ def passive(cls, n, name, **effects):
 
 # Order inside a class is the learn order; the passive is the third skill.
 SKILLS = [
-    active("viem", 1, "Bất Tri Hỏa", "phys", "single", TIER_1, cast_range=4, dash=True),
-    active("viem", 2, "Thăng Viêm Thiên", "phys", "cone", TIER_2, cone_deg=120, reach=2),
+    active("viem", 1, "Bất Tri Hỏa", "phys", "single", TIER_1, dash=True),
+    active("viem", 2, "Thăng Viêm Thiên", "phys", "cone", TIER_2, cone_deg=120),
     passive("viem", 3, "Thịnh Viêm Lãng Triều", phys_def_pct=2, magic_def_pct=2),
-    active("viem", 4, "Viêm Hổ", "phys", "circle_target", TIER_3, cast_range=5, radius=1.5),
-    active("viem", 5, "Luyện Ngục", "phys", "single", TIER_4, cast_range=5),
-    active("thuy", 1, "Thủy Diện Trảm", "magic", "single", TIER_1, cast_range=3),
-    active("thuy", 2, "Đả Triều", "magic", "cone", TIER_2, cone_deg=120, reach=4),
+    active("viem", 4, "Viêm Hổ", "phys", "circle_target", TIER_3, radius=1.5),
+    active("viem", 5, "Luyện Ngục", "phys", "single", TIER_4),
+    active("thuy", 1, "Thủy Diện Trảm", "magic", "single", TIER_1),
+    active("thuy", 2, "Đả Triều", "magic", "cone", TIER_2, cone_deg=120),
     passive("thuy", 3, "Lặng", evasion_pct=3),
     active("thuy", 4, "Liệt Oa", "magic", "circle_self", TIER_3, radius=2.5),
-    active("thuy", 5, "Sinh Sinh Lưu Chuyển", "magic", "single", TIER_4, cast_range=5),
-    active("minh", 1, "Phích Lịch Nhất Thiểm", "phys", "single", TIER_1, cast_range=5, dash=True),
+    active("thuy", 5, "Sinh Sinh Lưu Chuyển", "magic", "single", TIER_4),
+    active("minh", 1, "Phích Lịch Nhất Thiểm", "phys", "single", TIER_1, dash=True),
     active("minh", 2, "Tụ Văn Thành Lôi", "phys", "circle_self", TIER_2, radius=2),
     passive("minh", 3, "Nhiệt Giới Lôi", crit_bp=100),
-    active("minh", 4, "Viễn Lôi", "phys", "line", TIER_3, length=6, width=1.5),
-    active("minh", 5, "Hỏa Lôi Thần", "phys", "single", TIER_4, cast_range=6),
-    active("nham", 1, "Xà Văn Nham · Song Cực", "phys", "single", TIER_1, cast_range=3),
-    active("nham", 2, "Thiên Diện Toái", "phys", "circle_target", TIER_2, cast_range=4, radius=1.5),
+    active("minh", 4, "Viễn Lôi", "phys", "line", TIER_3, width=1.5),
+    active("minh", 5, "Hỏa Lôi Thần", "phys", "single", TIER_4),
+    active("nham", 1, "Xà Văn Nham · Song Cực", "phys", "single", TIER_1),
+    active("nham", 2, "Thiên Diện Toái", "phys", "circle_target", TIER_2, radius=1.5),
     passive("nham", 3, "Nham Phu Khu", max_hp_pct=2, phys_def_pct=2),
     active("nham", 4, "Lưu Văn Nham · Tốc Chinh", "phys", "circle_self", TIER_3, radius=3),
-    active("nham", 5, "Ngõa Hình Luân Bộ", "phys", "single", TIER_4, cast_range=4),
-    active("phong", 1, "Trần Toàn Phong · Tước", "magic", "line", TIER_2, length=5, width=1.5),
-    active("phong", 2, "Trảo · Khoa Hộ Phong", "magic", "single", TIER_1, cast_range=5),
+    active("nham", 5, "Ngõa Hình Luân Bộ", "phys", "single", TIER_4),
+    active("phong", 1, "Trần Toàn Phong · Tước", "magic", "line", TIER_2, width=1.5),
+    active("phong", 2, "Trảo · Khoa Hộ Phong", "magic", "single", TIER_1),
     passive("phong", 3, "Tình Lam Phong Thụ", accuracy_pct=2, magic_attack_pct=1),
-    active("phong", 4, "Mộc Khô Lạp Phong", "magic", "circle_target", TIER_3, cast_range=5, radius=2),
-    active("phong", 5, "Vi Đà Thiên Đài Phong", "magic", "circle_target", TIER_5, cast_range=6, radius=3),
+    active("phong", 4, "Mộc Khô Lạp Phong", "magic", "circle_target", TIER_3, radius=2),
+    active("phong", 5, "Vi Đà Thiên Đài Phong", "magic", "circle_target", TIER_5, radius=3),
 ]
 
 
@@ -104,6 +110,10 @@ def build():
             entry["damage"] = skill["damage"]
             entry["shape"] = skill["shape"]
             entry.update(skill["area"])
+            if skill["shape"] == "single":
+                entry["range"] = list(SINGLE_RANGE)
+            elif skill["shape"] != "circle_self":
+                entry["range"] = list(AREA_RANGE)
             entry["coef_pct"] = [coef0 + coef_step * (n - 1) for n in LEVELS]
             entry["mp"] = [mp0 + mp_step * (n - 1) for n in LEVELS]
             entry["cooldown_ms"] = [cooldown_ms(cd0, n) for n in LEVELS]
@@ -125,6 +135,7 @@ def main():
     skills = build()
     assert len(skills) == 25 and len({s["id"] for s in skills}) == 25
     assert skills[0]["cooldown_ms"] == [1500, 1350, 1215, 1094, 984, 886, 797, 717, 646, 581]
+    assert all(("range" in s) == (s.get("shape", "circle_self") != "circle_self") for s in skills)
     if args.print_json:
         sys.stdout.write(to_json(skills))
         return
