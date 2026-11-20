@@ -162,3 +162,22 @@ func TestExpShareCumulative(t *testing.T) {
 		t.Fatalf("payments %v total %d, want [2 3 2 3] and 10", got, paid)
 	}
 }
+
+// ______________________TEST RANGED_____________________
+
+func TestMonsterRangedDamage(t *testing.T) {
+	for _, c := range []struct{ base, def, lvl, want int }{
+		{30, 0, 1, 15},
+		{30, 8, 1, Damage(30, 8, 1) / 2},
+		{30, 16, 1, Damage(30, 16, 1) / 2},
+		{1, 0, 1, 1},    // Damage 1 still gives 1
+		{2, 1000, 1, 1}, // floors to 0, clamped to 1
+	} {
+		if got := MonsterRangedDamage(c.base, c.def, c.lvl); got != c.want {
+			t.Errorf("MonsterRangedDamage(%d, %d, %d) = %d, want %d", c.base, c.def, c.lvl, got, c.want)
+		}
+	}
+	if Damage(30, 8, 1) == 30 {
+		t.Fatal("test expects defense to reduce damage")
+	}
+}

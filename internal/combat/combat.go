@@ -64,6 +64,20 @@ func Damage(base, defense, attackerLevel int) int {
 	return got
 }
 
+// RangedFactor scales a monster's ranged shot against its melee hit
+// (monster regions spec 3.1).
+const RangedFactor = 0.5
+
+// MonsterRangedDamage is max(1, floor(Damage * RangedFactor)). Shots always
+// land and never crit.
+func MonsterRangedDamage(base, defense, attackerLevel int) int {
+	got := int(math.Floor(float64(Damage(base, defense, attackerLevel)) * RangedFactor))
+	if got < 1 {
+		return 1
+	}
+	return got
+}
+
 // SlashBase is the base damage of the default slash: the higher attack stat
 // (spec 3.2, 3.3).
 func SlashBase(s Stats) int { return max(s.PhysAttack, s.MagicAttack) }
