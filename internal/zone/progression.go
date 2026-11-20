@@ -7,6 +7,7 @@ import (
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
 )
 
@@ -21,8 +22,11 @@ func (z *Zone) recompute(p *player) {
 			pas = pas.Add(s.PassiveAt(lv))
 		}
 	}
-	// Players carry no items yet, so the worn-gear bonus is zero.
 	var gear combat.Bonus
+	if z.area.Items != nil {
+		class, _ := classes.FromPB(p.class)
+		gear = items.GearBonus(z.area.Items, p.inv, p.level, class)
+	}
 	p.stats = combat.Compute(classes.IsMagic(p.class), p.level, p.points, gear, pas)
 	p.maxHP = p.stats.MaxHP
 }
@@ -189,5 +193,6 @@ func (z *Zone) selfStats(p *player) *pb.SelfStats {
 		Accuracy:     int32(s.Accuracy),
 		Evasion:      int32(s.Evasion),
 		CritRateBp:   int32(s.CritRateBP),
+		Xu:           p.xu,
 	}
 }

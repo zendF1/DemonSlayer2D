@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"math"
 	"math/rand/v2"
+	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +20,7 @@ import (
 
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -91,6 +94,20 @@ var testMonsters = &gamedata.Data{
 		"nham_3": {ID: "nham_3", Class: "nham", Slot: 0, LearnLevel: 30,
 			Passive: map[string][]int{gamedata.PassiveMaxHPPct: {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}}},
 	},
+	Items: realItems(),
+}
+
+// realItems is the committed items.json.
+func realItems() *gamedata.Items {
+	b, err := os.ReadFile("../../data/items.json")
+	if err != nil {
+		panic(err)
+	}
+	it, err := gamedata.ParseItems(b)
+	if err != nil {
+		panic(err)
+	}
+	return it
 }
 
 // triggerMap is a 20x20 open map with a safe zone around the default spawn,
@@ -155,6 +172,14 @@ func TestNewRejectsUnknownStartMap(t *testing.T) {
 
 // Monsters look for players only in the 3x3 AOI cells around them, so a cell
 // must be at least as wide as the largest detect range (4 in testMonsters).
+func TestNewRejectsMissingItemData(t *testing.T) {
+	d := *testMonsters
+	d.Items = nil
+	if _, err := New(Config{StartMap: "m1", AOICellSize: 10}, testMaps(t), &d, nopSaver{}, slog.Default()); err == nil {
+		t.Fatal("no error without item data")
+	}
+}
+
 func TestNewRejectsDetectBeyondAOICell(t *testing.T) {
 	for _, c := range []struct {
 		cell int
@@ -534,6 +559,9 @@ func TestAreaOf(t *testing.T) {
 	if len(a.Skills) != 3 || a.Skills["nham_3"].Class != "nham" {
 		t.Fatalf("skills = %v", a.Skills)
 	}
+	if a.Items != testMonsters.Items {
+		t.Fatal("the area must share the item data")
+	}
 }
 
 // kumotoriArea is the zone's view of the real kumotori_1 with the real monster data.
@@ -724,5 +752,109 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// ______________________TEST ITEMS_____________________
+
+// goodItemRows are valid rows of a level-10 Viêm: a Xanh boots piece and a
+// full stone stack in the bag, a Vàng sword worn, and a worn ring the
+// character is too low for, which is kept (it just adds nothing).
+func goodItemRows() []store.ItemRow {
+	return []store.ItemRow{
+		{Slot: 0, Code: "eq10_boots", Count: 1, Quality: 1, Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{}},
+		{Slot: 1, Code: "stone_enhance", Count: 999, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
+			Lines:  []store.ItemLine{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
+			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}}},
+		{Equipped: true, Slot: 8, Code: "eq10_ring_left", Count: 1},
+	}
+}
+
+// goodInventory is goodItemRows as an inventory.
+func goodInventory() *items.Inventory {
+	inv := items.NewInventory(60)
+	inv.Bag[0] = &items.Item{Code: "eq10_boots", Count: 1, Quality: 1, Lines: []items.Line{{Stat: "hp", Value: 40}}}
+	inv.Bag[1] = &items.Item{Code: "stone_enhance", Count: 999}
+	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
+		Lines:  []items.Line{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
+		Hidden: []items.Line{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}}}
+	inv.Worn[8] = &items.Item{Code: "eq10_ring_left", Count: 1}
+	return inv
+}
+
+// Each bad stored row is dropped with one warning; the good rows are kept.
+func TestKnownItemsDropsBadRows(t *testing.T) {
+	stone := func(slot, count int) store.ItemRow {
+		return store.ItemRow{Slot: slot, Code: "stone_enhance", Count: count}
+	}
+	for _, c := range []struct {
+		name string
+		row  store.ItemRow
+	}{
+		{"unknown code", store.ItemRow{Slot: 5, Code: "eq99_nothing", Count: 1}},
+		{"bag slot 60", stone(60, 1)},
+		{"bag slot -1", stone(-1, 1)},
+		{"worn slot 10", store.ItemRow{Equipped: true, Slot: 10, Code: "eq10_boots", Count: 1}},
+		{"ring in the weapon slot", store.ItemRow{Equipped: true, Slot: 0, Code: "eq10_ring_left", Count: 1}},
+		{"left ring in the right ring slot", store.ItemRow{Equipped: true, Slot: 9, Code: "eq10_ring_left", Count: 1}},
+		{"boots in the helmet slot", store.ItemRow{Equipped: true, Slot: 4, Code: "eq10_boots", Count: 1}},
+		{"stone worn", store.ItemRow{Equipped: true, Slot: 1, Code: "stone_enhance", Count: 1}},
+		{"two rows in one slot", store.ItemRow{Slot: 0, Code: "stone_refine", Count: 5}},
+		{"two worn in one slot", store.ItemRow{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1}},
+		{"stack of 1000", stone(6, 1000)},
+		{"stack of 0", stone(6, 0)},
+		{"equipment count 2", store.ItemRow{Slot: 7, Code: "eq10_boots", Count: 2}},
+		{"stone with quality", store.ItemRow{Slot: 8, Code: "stone_enhance", Count: 1, Quality: 1}},
+		{"stone with element", store.ItemRow{Slot: 8, Code: "stone_enhance", Count: 1, Element: "viem"}},
+		{"stone with enhance", store.ItemRow{Slot: 8, Code: "stone_enhance", Count: 1, Enhance: 1}},
+		{"stone with lines", store.ItemRow{Slot: 8, Code: "stone_enhance", Count: 1, Lines: []store.ItemLine{{Stat: "hp", Value: 1}}}},
+		{"stone with hidden lines", store.ItemRow{Slot: 8, Code: "stone_enhance", Count: 1, Hidden: []store.ItemLine{{Stat: "hp", Value: 1}}}},
+		{"unknown line stat", store.ItemRow{Slot: 9, Code: "eq10_boots", Count: 1, Lines: []store.ItemLine{{Stat: "mp", Value: 3}}}},
+		{"unknown hidden stat", store.ItemRow{Slot: 9, Code: "eq10_boots", Count: 1, Hidden: []store.ItemLine{{Stat: "accuracy", Value: 3}}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var buf lockedBuf
+			w, err := New(Config{StartMap: "m1", AOICellSize: 10}, testMaps(t), testMonsters, nopSaver{},
+				slog.New(slog.NewTextHandler(&buf, nil)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ch := char(1, "m1", 3.5, 4.5)
+			ch.Level, ch.Items = 10, append(goodItemRows(), c.row)
+			got := w.knownItems(ch)
+			if want := goodInventory(); !reflect.DeepEqual(got, want) {
+				t.Fatalf("inventory\n%+v\nwant\n%+v", got, want)
+			}
+			if n := strings.Count(buf.String(), "dropped stored item"); n != 1 {
+				t.Fatalf("%d warnings, want 1:\n%s", n, buf.String())
+			}
+		})
+	}
+}
+
+// Enter hands the zone the stored Xu and items: they come back in
+// EnterWorldResp, and the worn sword counts in the stats.
+func TestEnterCarriesItemsAndXu(t *testing.T) {
+	w := newTestWorld(t, 10)
+	c := char(1, "m1", 3.5, 4.5)
+	c.Level, c.Xu, c.Items = 10, 4321, goodItemRows()
+	out := newRecOut()
+	if _, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out}); err != nil {
+		t.Fatal(err)
+	}
+	r := out.enterResp(t)
+	if r.Stats.Xu != 4321 {
+		t.Fatalf("xu %d, want 4321", r.Stats.Xu)
+	}
+	inv := r.Inventory
+	if inv.GetBagSize() != 60 || len(inv.Bag) != 2 || len(inv.Equipped) != 2 ||
+		inv.Bag[1].Item.Count != 999 || inv.Equipped[0].Item.Element != pb.CharClass_CHAR_CLASS_THUY || inv.Equipped[1].Slot != 8 {
+		t.Fatalf("inventory %v", inv)
+	}
+	gear := combat.Bonus{PhysAttack: 25 + 5, HP: 43, MagicDefense: 3}
+	if want := combat.Compute(false, 10, combat.Points{}, gear, combat.Passive{}); r.Stats.PhysAttack != int32(want.PhysAttack) ||
+		r.Stats.MaxHp != int32(want.MaxHP) || r.Stats.MagicDefense != int32(want.MagicDefense) {
+		t.Fatalf("stats %v, want %+v from the sword alone", r.Stats, want)
 	}
 }

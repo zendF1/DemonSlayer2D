@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -45,8 +47,9 @@ type World struct {
 	cfg   Config
 	maps  map[string]*mapdata.Map
 	areas map[string]zone.Area // per map, shared by its zones
-	// skills is skills.json by id, shared and read-only.
+	// skills is skills.json by id and items is items.json, shared and read-only.
 	skills map[string]gamedata.Skill
+	items  *gamedata.Items
 	saver  zone.Saver
 	log    *slog.Logger
 	start  mapdata.Point
@@ -78,6 +81,9 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 	if monsters == nil {
 		return nil, errors.New("world: no monster data")
 	}
+	if monsters.Items == nil {
+		return nil, errors.New("world: no item data")
+	}
 	// Monsters look for players only in the 3x3 AOI cells around them.
 	for _, k := range monsters.Kinds {
 		if float64(cfg.AOICellSize) < k.DetectRange {
@@ -89,7 +95,7 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 		areas[id] = areaOf(mp, monsters)
 	}
 	return &World{
-		cfg: cfg, maps: maps, areas: areas, skills: monsters.Skills, saver: saver, log: log,
+		cfg: cfg, maps: maps, areas: areas, skills: monsters.Skills, items: monsters.Items, saver: saver, log: log,
 		start:    m.Spawns["default"],
 		zones:    make(map[string][]*slot),
 		online:   make(map[int64]Session),
@@ -98,10 +104,10 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 }
 
 // areaOf converts a map's collision and triggers, the monster data its
-// regions use, the EXP table and the skills into the zone's view of the map.
-// Region tiles are computed here once.
+// regions use, the EXP table, the skills and the item data into the zone's
+// view of the map. Region tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
-	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills}
+	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items}
 	sp := m.Spawns["default"]
 	a.Respawn = zone.Vec2{X: sp.X, Y: sp.Y}
 	for _, r := range m.SafeZones {
@@ -252,6 +258,8 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		MP:          req.Char.MP,
 		SkillPoints: req.Char.SkillPoints,
 		Skills:      w.knownSkills(req.Char),
+		Xu:          req.Char.Xu,
+		Inventory:   w.knownItems(req.Char),
 		RespSeq:     req.RespSeq,
 	}
 	for attempt := 0; attempt < 10; attempt++ {
@@ -285,6 +293,79 @@ func (w *World) knownSkills(c store.Character) map[string]int {
 			continue
 		}
 		out[id] = lv
+	}
+	return out
+}
+
+// knownItems is c's stored items as an inventory, without the rows that
+// break the phase 3a spec 3 rules, with one warning per dropped row: an
+// unknown code; a bag slot outside the bag; a worn slot outside 0-9 or not
+// the piece's slot (stackables are never worn); a slot already taken by an
+// earlier row; a count outside 1..stack_max, or not 1 for equipment; a
+// stackable with a quality, element, enhance level or lines; equipment with
+// a line of an unknown stat. A worn piece c may not wear (level, class) is
+// kept and simply adds nothing.
+func (w *World) knownItems(c store.Character) *items.Inventory {
+	inv := items.NewInventory(w.items.BagSize)
+	for _, r := range c.Items {
+		if reason := w.badItem(inv, r); reason != "" {
+			w.log.Warn("dropped stored item", "char", c.ID, "equipped", r.Equipped, "slot", r.Slot,
+				"code", r.Code, "count", r.Count, "reason", reason)
+			continue
+		}
+		it := &items.Item{Code: r.Code, Count: r.Count, Quality: r.Quality, Element: r.Element, Enhance: r.Enhance,
+			Lines: itemLines(r.Lines), Hidden: itemLines(r.Hidden)}
+		if r.Equipped {
+			inv.Worn[r.Slot] = it
+		} else {
+			inv.Bag[r.Slot] = it
+		}
+	}
+	return inv
+}
+
+// badItem is why r cannot go into inv, or "" if it can.
+func (w *World) badItem(inv *items.Inventory, r store.ItemRow) string {
+	e, isEquip := w.items.Equipment[r.Code]
+	_, isStack := w.items.Stackables[r.Code]
+	switch {
+	case !isEquip && !isStack:
+		return "unknown code"
+	case r.Equipped && (!isEquip || r.Slot != e.SlotIndex):
+		return "not this piece's worn slot"
+	case !r.Equipped && (r.Slot < 0 || r.Slot >= len(inv.Bag)):
+		return "bag slot out of range"
+	case r.Equipped && inv.Worn[r.Slot] != nil, !r.Equipped && inv.Bag[r.Slot] != nil:
+		return "slot taken"
+	case isEquip && r.Count != 1:
+		return "equipment count not 1"
+	case isStack && (r.Count < 1 || r.Count > w.items.StackMax):
+		return "stack count out of range"
+	case isStack && (r.Quality != 0 || r.Element != "" || r.Enhance != 0 || len(r.Lines) > 0 || len(r.Hidden) > 0):
+		return "stackable with equipment fields"
+	case isEquip && (!knownStats(w.items, r.Lines) || !knownStats(w.items, r.Hidden)):
+		return "unknown line stat"
+	}
+	return ""
+}
+
+func knownStats(d *gamedata.Items, ls []store.ItemLine) bool {
+	for _, l := range ls {
+		if !slices.Contains(d.LineStats, l.Stat) {
+			return false
+		}
+	}
+	return true
+}
+
+// itemLines converts stored lines; none is nil, as a fresh roll has.
+func itemLines(ls []store.ItemLine) []items.Line {
+	if len(ls) == 0 {
+		return nil
+	}
+	out := make([]items.Line, len(ls))
+	for i, l := range ls {
+		out[i] = items.Line{Stat: l.Stat, Value: l.Value}
 	}
 	return out
 }

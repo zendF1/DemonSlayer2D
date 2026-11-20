@@ -32,8 +32,8 @@ type Region struct {
 }
 
 // Area is everything the zone knows about its map: collision, map triggers,
-// the monsters that live there, the EXP table and the skills. Levels, Exp and
-// Skills are shared between zones and read-only.
+// the monsters that live there, the EXP table, the skills and the item data.
+// Levels, Exp, Skills and Items are shared between zones and read-only.
 type Area struct {
 	Grid    Grid
 	Safe    []Rect
@@ -43,6 +43,7 @@ type Area struct {
 	Levels  map[int]gamedata.Level
 	Exp     combat.ExpTable
 	Skills  map[string]gamedata.Skill
+	Items   *gamedata.Items
 }
 
 // InSafe reports whether the tile containing p is in a safe zone.

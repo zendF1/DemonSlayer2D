@@ -15,7 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 )
@@ -67,7 +69,11 @@ type PlayerInfo struct {
 	// player's class and in Area.Skills, to their level. Join copies Skills.
 	SkillPoints int
 	Skills      map[string]int
-	RespSeq     uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
+	// Xu is the wallet. Inventory is the bag and worn items, already checked
+	// against Area.Items; Join clones it, and nil means an empty bag.
+	Xu        int64
+	Inventory *items.Inventory
+	RespSeq   uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
 }
 
 var (
@@ -93,6 +99,9 @@ type player struct {
 	// skillPoints are unspent; skills maps a learned skill id to its level.
 	skillPoints int
 	skills      map[string]int
+	// xu is the wallet; inv is never nil.
+	xu  int64
+	inv *items.Inventory
 
 	deadUntil     uint32     // tick at which a dead player respawns by itself
 	restTicks     uint32     // consecutive ticks standing still, alive, on a rest point
@@ -449,9 +458,15 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
 		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{},
+		xu: info.Xu,
 	}
 	if p.skills == nil {
 		p.skills = map[string]int{}
+	}
+	if info.Inventory != nil {
+		p.inv = info.Inventory.Clone()
+	} else {
+		p.inv = items.NewInventory(z.bagSize())
 	}
 	z.recompute(p)
 	p.hp, p.mp = info.HP, info.MP // -1 = full
@@ -480,6 +495,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		TickRate:     uint32(z.cfg.TickRate),
 		Stats:        z.selfStats(p),
 		Skills:       skillLevels(p),
+		Inventory:    z.inventory(p),
 	}}})
 	return nil
 }
@@ -530,10 +546,105 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 // state is what gets saved, all from the player's live state; a full player
 // saves its real HP and MP rather than -1.
 func (z *Zone) state(p *player) store.CharState {
-	// The saver runs on another goroutine, so it gets its own skill map.
+	// The saver runs on another goroutine, so it gets its own skill map and
+	// item rows that share nothing with p (phase 3a spec 3).
 	return store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
 		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
-		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills)}
+		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv)}
+}
+
+// itemRows is inv as store rows, bag first, then worn, each by slot. The
+// rows share no slices with inv.
+func itemRows(inv *items.Inventory) []store.ItemRow {
+	var rows []store.ItemRow
+	add := func(equipped bool, slot int, it *items.Item) {
+		if it == nil {
+			return
+		}
+		rows = append(rows, store.ItemRow{Equipped: equipped, Slot: slot, Code: it.Code, Count: it.Count,
+			Quality: it.Quality, Element: it.Element, Enhance: it.Enhance,
+			Lines: storeLines(it.Lines), Hidden: storeLines(it.Hidden)})
+	}
+	for i, it := range inv.Bag {
+		add(false, i, it)
+	}
+	for i, it := range inv.Worn {
+		add(true, i, it)
+	}
+	return rows
+}
+
+func storeLines(ls []items.Line) []store.ItemLine {
+	out := make([]store.ItemLine, len(ls))
+	for i, l := range ls {
+		out[i] = store.ItemLine{Stat: l.Stat, Value: l.Value}
+	}
+	return out
+}
+
+// bagSize is the bag size of the area's item data; an area without item
+// data (some tests) has no bag.
+func (z *Zone) bagSize() int {
+	if z.area.Items == nil {
+		return 0
+	}
+	return z.area.Items.BagSize
+}
+
+// itemInfo is it on the wire (phase 3a spec 5).
+func itemInfo(it *items.Item) *pb.ItemInfo {
+	return &pb.ItemInfo{Code: it.Code, Count: int32(it.Count), Quality: int32(it.Quality),
+		Element: classes.ToPB(it.Element), Enhance: int32(it.Enhance), Lines: pbLines(it.Lines), Hidden: pbLines(it.Hidden)}
+}
+
+func pbLines(ls []items.Line) []*pb.ItemLine {
+	if len(ls) == 0 {
+		return nil
+	}
+	out := make([]*pb.ItemLine, len(ls))
+	for i, l := range ls {
+		out[i] = &pb.ItemLine{Stat: l.Stat, Value: int32(l.Value)}
+	}
+	return out
+}
+
+// itemSlot is slot on the wire; an empty slot has no item.
+func itemSlot(slot int, it *items.Item) *pb.ItemSlot {
+	s := &pb.ItemSlot{Slot: int32(slot)}
+	if it != nil {
+		s.Item = itemInfo(it)
+	}
+	return s
+}
+
+// inventory is p's whole bag and worn items for EnterWorldResp: the bag
+// size and the occupied slots only.
+func (z *Zone) inventory(p *player) *pb.Inventory {
+	out := &pb.Inventory{BagSize: int32(len(p.inv.Bag))}
+	for i, it := range p.inv.Bag {
+		if it != nil {
+			out.Bag = append(out.Bag, itemSlot(i, it))
+		}
+	}
+	for i, it := range p.inv.Worn {
+		if it != nil {
+			out.Equipped = append(out.Equipped, itemSlot(i, it))
+		}
+	}
+	return out
+}
+
+// inventoryUpdate lists the given bag and worn slots of inv as they are now;
+// an empty slot goes without an item.
+func inventoryUpdate(inv *items.Inventory, bag, equip []int) *pb.InventoryUpdate {
+	out := &pb.InventoryUpdate{}
+	for _, i := range bag {
+		out.Bag = append(out.Bag, itemSlot(i, inv.Bag[i]))
+	}
+	for _, i := range equip {
+		out.Equipped = append(out.Equipped, itemSlot(i, inv.Worn[i]))
+	}
+	return out
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick, with

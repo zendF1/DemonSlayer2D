@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"reflect"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -217,8 +218,8 @@ func TestMigrationBackfillsSkillPoints(t *testing.T) {
 		}
 	}
 
-	// Down removes both again, and Up comes back cleanly.
-	if _, err := p.Down(ctx); err != nil {
+	// Down to version 2 removes both again, and Up comes back cleanly.
+	if _, err := p.DownTo(ctx, 2); err != nil {
 		t.Fatal(err)
 	}
 	var cols, tables int
@@ -302,6 +303,145 @@ func TestSaveAndLoadSkills(t *testing.T) {
 	if err := st.SaveCharacterState(ctx, store.CharState{ID: other.ID, MapID: "kumotori_1", Level: 1,
 		Skills: map[string]int{"viem_1": 2}}); err != nil {
 		t.Fatalf("saving a deleted character with skills must be a no-op, got %v", err)
+	}
+}
+
+// ______________________TEST ITEMS STORE_____________________
+
+// The items migration gives existing characters 0 Xu and no items, and its
+// Down removes the column and the table again.
+func TestMigrationAddsXuAndItems(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	db := stdlib.OpenDB(*schemaConfig(t, url, schema))
+	defer db.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	var acc, char int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO accounts (username, password_hash) VALUES ('old', 'h') RETURNING id`).Scan(&acc); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `INSERT INTO characters (account_id, slot, name, name_key, class, level, map_id, pos_x, pos_y)
+		VALUES ($1, 1, 'old', 'old', 'viem', 7, 'kumotori_1', 5.5, 5.5) RETURNING id`, acc).Scan(&char); err != nil {
+		t.Fatal(err)
+	}
+
+	st := openMigrated(t, url, schema)
+	c, err := st.GetCharacter(ctx, acc, char)
+	if err != nil || c.Xu != 0 || c.Items == nil || len(c.Items) != 0 {
+		t.Fatalf("migrated character %+v, %v, want 0 Xu and an empty, non-nil item list", c, err)
+	}
+
+	if _, err := p.DownTo(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	var cols, tables int
+	if err := db.QueryRowContext(ctx, `SELECT
+		(SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'characters' AND column_name = 'xu'),
+		(SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'character_items')`,
+		schema).Scan(&cols, &tables); err != nil || cols != 0 || tables != 0 {
+		t.Fatalf("after down: %d xu columns, %d character_items tables, %v", cols, tables, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// testItems has a worn Vàng weapon with an element, lines and hidden lines,
+// two Xanh pieces (one line each, so a decoder reusing the previous row's
+// slice would show) and a stone stack in the bag.
+func testItems() []store.ItemRow {
+	return []store.ItemRow{
+		{Equipped: false, Slot: 0, Code: "eq10_boots", Count: 1, Quality: 1,
+			Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{}},
+		{Equipped: false, Slot: 2, Code: "eq10_bracers", Count: 1, Quality: 1,
+			Lines: []store.ItemLine{{Stat: "phys_defense", Value: 2}}, Hidden: []store.ItemLine{}},
+		{Equipped: false, Slot: 7, Code: "stone_enhance", Count: 250, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
+			Lines:  []store.ItemLine{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
+			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}}},
+	}
+}
+
+func TestSaveAndLoadItems(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	st := openMigrated(t, url, schema)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Xu != 0 || c.Items == nil || len(c.Items) != 0 {
+		t.Fatalf("new character %+v, want 0 Xu and an empty, non-nil item list", c)
+	}
+	other, _ := st.CreateCharacter(ctx, newChar(acc, 2, "Zenitsu"))
+	otherItems := []store.ItemRow{{Slot: 3, Code: "stone_refine", Count: 9, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: other.ID, MapID: "kumotori_1", Level: 1, HP: -1, MP: -1,
+		Xu: 7, Items: otherItems}); err != nil {
+		t.Fatal(err)
+	}
+
+	state := store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 12, HP: -1, MP: -1, Xu: 123456789012, Items: testItems()}
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || got.Xu != state.Xu || !reflect.DeepEqual(got.Items, state.Items) {
+		t.Fatalf("after save: xu %d items %+v, %v\nwant xu %d items %+v", got.Xu, got.Items, err, state.Xu, state.Items)
+	}
+
+	// Saving replaces the rows; the list also loads them per character.
+	state.Xu, state.Items = 5, state.Items[3:]
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	list, err := st.ListCharacters(ctx, acc)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("list %+v, %v", list, err)
+	}
+	if list[0].Xu != 5 || !reflect.DeepEqual(list[0].Items, state.Items) {
+		t.Fatalf("listed %+v, want 5 Xu and only the worn weapon", list[0])
+	}
+	if list[1].Xu != 7 || !reflect.DeepEqual(list[1].Items, otherItems) {
+		t.Fatalf("other character %+v, want its own Xu and items untouched", list[1])
+	}
+
+	// Nil lines save as empty lists; an empty item list deletes every row.
+	state.Items = []store.ItemRow{{Slot: 1, Code: "stone_enhance", Count: 1}}
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.GetCharacter(ctx, acc, c.ID)
+	want := []store.ItemRow{{Slot: 1, Code: "stone_enhance", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}}
+	if err != nil || !reflect.DeepEqual(got.Items, want) {
+		t.Fatalf("after saving nil lines: %+v, %v", got.Items, err)
+	}
+	state.Items = nil
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.GetCharacter(ctx, acc, c.ID); err != nil || got.Items == nil || len(got.Items) != 0 {
+		t.Fatalf("after saving no items: %+v, %v", got.Items, err)
+	}
+
+	// Deleting a character takes its items with it.
+	if err := st.DeleteCharacter(ctx, acc, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := pgx.ConnectConfig(ctx, schemaConfig(t, url, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close(ctx)
+	var n int
+	if err := raw.QueryRow(ctx, `SELECT count(*) FROM character_items WHERE character_id = $1`, other.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("%d item rows left after delete, %v", n, err)
 	}
 }
 

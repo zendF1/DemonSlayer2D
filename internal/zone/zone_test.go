@@ -10,14 +10,18 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 )
@@ -1055,5 +1059,141 @@ func TestLearnPassiveRaisesHP(t *testing.T) {
 		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(wantHP) || cs[0].MaxHp != int32(after.MaxHP) {
 			t.Fatalf("%s HpChanges %v, want %d/%d for 1", name, cs, wantHP, after.MaxHP)
 		}
+	}
+}
+
+// ______________________TEST ITEMS ZONE_____________________
+
+// testItemData is the real item data, data/items.json.
+var testItemData = func() *gamedata.Items {
+	b, err := os.ReadFile("../../data/items.json")
+	if err != nil {
+		panic(err)
+	}
+	it, err := gamedata.ParseItems(b)
+	if err != nil {
+		panic(err)
+	}
+	return it
+}()
+
+// gearInventory has the white Lữ Hành sword worn, a Vàng boots piece with
+// lines and hidden lines in bag slot 0 and 12 stones in bag slot 3.
+func gearInventory() *items.Inventory {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1}
+	inv.Bag[0] = &items.Item{Code: "eq10_boots", Count: 1, Quality: 2, Element: "thuy",
+		Lines:  []items.Line{{Stat: "hp", Value: 43}, {Stat: "phys_defense", Value: 3}, {Stat: "magic_attack", Value: 4}},
+		Hidden: []items.Line{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}}}
+	inv.Bag[3] = &items.Item{Code: "stone_enhance", Count: 12}
+	return inv
+}
+
+// gearZone joins a level-10 Viêm with 60 STR and 30 VIT, 77 Xu and inv as
+// player 1 into a zone with the real item data, and returns its
+// EnterWorldResp.
+func gearZone(t *testing.T, inv *items.Inventory) (*Zone, *player, *pb.EnterWorldResp, *fakeSaver) {
+	t.Helper()
+	sv := &fakeSaver{}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.Points = pb.CharClass_CHAR_CLASS_VIEM, 10, combat.Points{Str: 60, Vit: 30}
+	in.Xu, in.Inventory = 77, inv
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	envs := out.take()
+	if len(envs) == 0 || envs[0].GetEnterWorldResp() == nil {
+		t.Fatalf("first message %v, want EnterWorldResp", envs)
+	}
+	return z, z.players[1], envs[0].GetEnterWorldResp(), sv
+}
+
+// The worn sword counts in the stats from the join on (spec 4.2 example:
+// 185 + 25 = 210 physical attack, 1,640 HP), and EnterWorldResp carries the
+// inventory and the Xu.
+func TestJoinWithItems(t *testing.T) {
+	inv := gearInventory()
+	_, p, r, _ := gearZone(t, inv)
+	if r.Stats.PhysAttack != 210 || r.Stats.MaxHp != 1640 || p.stats.PhysAttack != 210 || r.Stats.Xu != 77 {
+		t.Fatalf("stats %v, want 210 physical attack, 1640 HP and 77 Xu", r.Stats)
+	}
+	got := r.Inventory
+	want := &pb.Inventory{BagSize: 60,
+		Bag: []*pb.ItemSlot{
+			{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_boots", Count: 1, Quality: 2, Element: pb.CharClass_CHAR_CLASS_THUY,
+				Lines:  []*pb.ItemLine{{Stat: "hp", Value: 43}, {Stat: "phys_defense", Value: 3}, {Stat: "magic_attack", Value: 4}},
+				Hidden: []*pb.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}}}},
+			{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 12}},
+		},
+		Equipped: []*pb.ItemSlot{{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_weapon_viem", Count: 1}}},
+	}
+	if !proto.Equal(got, want) {
+		t.Fatalf("inventory\n%v\nwant\n%v", got, want)
+	}
+	// Join cloned the inventory: the caller's copy is not the player's.
+	inv.Worn[0].Code, inv.Bag[0].Lines[0].Value = "eq10_weapon_thuy", 1
+	if p.inv.Worn[0].Code != "eq10_weapon_viem" || p.inv.Bag[0].Lines[0].Value != 43 {
+		t.Fatal("the player shares items with PlayerInfo.Inventory")
+	}
+}
+
+// Without the sword the same character has 185 physical attack.
+func TestJoinWithoutItems(t *testing.T) {
+	_, p, r, _ := gearZone(t, nil)
+	if r.Stats.PhysAttack != 185 || len(p.inv.Bag) != 60 || r.Inventory.BagSize != 60 ||
+		len(r.Inventory.Bag) != 0 || len(r.Inventory.Equipped) != 0 {
+		t.Fatalf("stats %v, inventory %v, want 185 and an empty 60-slot bag", r.Stats, r.Inventory)
+	}
+}
+
+// state saves Xu and the items as rows that share nothing with the player.
+func TestStateSavesItemsAndXu(t *testing.T) {
+	z, p, _, _ := gearZone(t, gearInventory())
+	p.xu = 1234
+	st := z.state(p)
+	want := []store.ItemRow{
+		{Slot: 0, Code: "eq10_boots", Count: 1, Quality: 2, Element: "thuy",
+			Lines:  []store.ItemLine{{Stat: "hp", Value: 43}, {Stat: "phys_defense", Value: 3}, {Stat: "magic_attack", Value: 4}},
+			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}}},
+		{Slot: 3, Code: "stone_enhance", Count: 12, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+	}
+	if st.Xu != 1234 || !reflect.DeepEqual(st.Items, want) {
+		t.Fatalf("saved xu %d items %+v\nwant %+v", st.Xu, st.Items, want)
+	}
+	// Changing the saved copy leaves the player alone, and the other way round.
+	st.Items[0].Lines[0].Value, st.Items[0].Hidden[1].Stat = 1, "mp"
+	if p.inv.Bag[0].Lines[0].Value != 43 || p.inv.Bag[0].Hidden[1].Stat != "phys_attack" {
+		t.Fatal("the saved rows share lines with the player")
+	}
+	st = z.state(p)
+	p.inv.Bag[0].Lines[1].Value, p.inv.Bag[3].Count = 9, 13
+	if st.Items[0].Lines[1].Value != 3 || st.Items[1].Count != 12 {
+		t.Fatal("the player shares lines or items with the saved rows")
+	}
+}
+
+// inventoryUpdate lists the asked slots as they are; an empty one has no item.
+func TestInventoryUpdate(t *testing.T) {
+	inv := gearInventory()
+	got := inventoryUpdate(inv, []int{3, 1}, []int{0, 9})
+	want := &pb.InventoryUpdate{
+		Bag:      []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 12}}, {Slot: 1}},
+		Equipped: []*pb.ItemSlot{{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_weapon_viem", Count: 1}}, {Slot: 9}},
+	}
+	if !proto.Equal(got, want) {
+		t.Fatalf("update %v, want %v", got, want)
+	}
+}
+
+// Gear stays in the stats when they are recomputed on a level-up.
+func TestLevelUpKeepsGear(t *testing.T) {
+	z, p, _, _ := gearZone(t, gearInventory())
+	z.gainExp(p, z.area.Exp.ToNext(p.level))
+	want := combat.Compute(false, 11, combat.Points{Str: 60, Vit: 30}, combat.Bonus{PhysAttack: 25}, combat.Passive{})
+	if p.level != 11 || p.stats != want {
+		t.Fatalf("level %d stats %+v, want %+v", p.level, p.stats, want)
 	}
 }
