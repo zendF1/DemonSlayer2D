@@ -2473,7 +2473,7 @@ func TestEnterWorldRespHasStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.take()[0].GetEnterWorldResp().GetStats()
-	s := combat.Compute(true, 3, in.Points, combat.Passive{})
+	s := combat.Compute(true, 3, in.Points, combat.Bonus{}, combat.Passive{})
 	want := &pb.SelfStats{Level: 3, Exp: 50, ExpNext: testExp.ToNext(3), FreePoints: 4,
 		Strength: 1, Agility: 2, Vitality: 3, Intellect: 4, Hp: 200, MaxHp: int32(s.MaxHP), Mp: int32(s.MaxMP), MaxMp: int32(s.MaxMP),
 		PhysAttack: int32(s.PhysAttack), MagicAttack: int32(s.MagicAttack), PhysDefense: int32(s.PhysDefense), MagicDefense: int32(s.MagicDefense),
@@ -2539,7 +2539,7 @@ func TestPassiveInStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	pas := combat.Passive{MaxHPPct: 10, PhysDefPct: 10}
-	with, without := combat.Compute(false, 30, combat.Points{}, pas), combat.Compute(false, 30, combat.Points{}, combat.Passive{})
+	with, without := combat.Compute(false, 30, combat.Points{}, combat.Bonus{}, pas), combat.Compute(false, 30, combat.Points{}, combat.Bonus{}, combat.Passive{})
 	if with.MaxHP <= without.MaxHP {
 		t.Fatalf("passive max HP %d, base %d", with.MaxHP, without.MaxHP)
 	}
@@ -2557,12 +2557,12 @@ func TestPassiveInStats(t *testing.T) {
 
 	p := z.players[1]
 	z.gainExp(p, testExp.ToNext(30))
-	if lv := combat.Compute(false, 31, combat.Points{}, pas); p.level != 31 || p.skillPoints != 3 || p.maxHP != lv.MaxHP || p.hp != lv.MaxHP {
+	if lv := combat.Compute(false, 31, combat.Points{}, combat.Bonus{}, pas); p.level != 31 || p.skillPoints != 3 || p.maxHP != lv.MaxHP || p.hp != lv.MaxHP {
 		t.Fatalf("after level-up: level %d skill points %d hp %d/%d, want 31, 3, %d", p.level, p.skillPoints, p.hp, p.maxHP, lv.MaxHP)
 	}
 
 	allocateNow(t, z, 1, 4, combat.Points{Vit: 3})
-	lv := combat.Compute(false, 31, combat.Points{Vit: 3}, pas)
+	lv := combat.Compute(false, 31, combat.Points{Vit: 3}, combat.Bonus{}, pas)
 	if p.maxHP != lv.MaxHP || p.hp != lv.MaxHP {
 		t.Fatalf("after allocate: hp %d/%d, want %d", p.hp, p.maxHP, lv.MaxHP)
 	}

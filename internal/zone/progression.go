@@ -10,10 +10,10 @@ import (
 	"demonslayer2d/internal/pb"
 )
 
-// recompute derives p's stats from its class, level, points and learned
-// passives (phase 2 spec 3.2) and sets the max HP that goes with them.
-// Current HP and MP are the caller's business. Every stat change in the zone
-// goes through here.
+// recompute derives p's stats from its class, level, points, worn gear and
+// learned passives (phase 2 spec 3.2, phase 3a spec 4.2) and sets the max HP
+// that goes with them. Current HP and MP are the caller's business. Every
+// stat change in the zone goes through here.
 func (z *Zone) recompute(p *player) {
 	var pas combat.Passive
 	for id, lv := range p.skills {
@@ -21,7 +21,9 @@ func (z *Zone) recompute(p *player) {
 			pas = pas.Add(s.PassiveAt(lv))
 		}
 	}
-	p.stats = combat.Compute(classes.IsMagic(p.class), p.level, p.points, pas)
+	// Players carry no items yet, so the worn-gear bonus is zero.
+	var gear combat.Bonus
+	p.stats = combat.Compute(classes.IsMagic(p.class), p.level, p.points, gear, pas)
 	p.maxHP = p.stats.MaxHP
 }
 

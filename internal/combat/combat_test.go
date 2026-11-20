@@ -8,14 +8,14 @@ import (
 // ______________________TEST STATS_____________________
 
 func TestComputeViemLevel10(t *testing.T) {
-	s := Compute(false, 10, Points{Str: 60, Vit: 30}, Passive{})
+	s := Compute(false, 10, Points{Str: 60, Vit: 30}, Bonus{}, Passive{})
 	if s.PhysAttack != 185 || s.MaxHP != 1640 || s.PhysDefense != 88 || s.MaxMP != 280 {
 		t.Fatalf("got %+v", s)
 	}
 }
 
 func TestComputeThuyLevel10(t *testing.T) {
-	s := Compute(true, 10, Points{Int: 60, Vit: 30}, Passive{})
+	s := Compute(true, 10, Points{Int: 60, Vit: 30}, Bonus{}, Passive{})
 	if s.MagicAttack != 185 || s.MaxHP != 1430 || s.MaxMP != 580 {
 		t.Fatalf("got %+v", s)
 	}
@@ -24,14 +24,14 @@ func TestComputeThuyLevel10(t *testing.T) {
 func TestComputeLevel1Base(t *testing.T) {
 	want := Stats{MaxHP: 500, MaxMP: 100, PhysAttack: 20, MagicAttack: 20,
 		PhysDefense: 10, MagicDefense: 10, Accuracy: 100, Evasion: 50, CritRateBP: 500}
-	if got := Compute(false, 1, Points{}, Passive{}); got != want {
+	if got := Compute(false, 1, Points{}, Bonus{}, Passive{}); got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 
 func TestComputeAgi(t *testing.T) {
-	base := Compute(false, 1, Points{}, Passive{})
-	s := Compute(false, 1, Points{Agi: 100}, Passive{})
+	base := Compute(false, 1, Points{}, Bonus{}, Passive{})
+	s := Compute(false, 1, Points{Agi: 100}, Bonus{}, Passive{})
 	if s.Accuracy-base.Accuracy != 300 || s.Evasion-base.Evasion != 200 || s.CritRateBP-base.CritRateBP != 200 {
 		t.Fatalf("got %+v", s)
 	}
@@ -207,7 +207,7 @@ func TestComputeZeroPassiveKeepsPhase1Stats(t *testing.T) {
 					Accuracy: 100 + 5*l + 3*pts.Agi, Evasion: 50 + 5*l + 2*pts.Agi,
 					CritRateBP: 500 + 2*pts.Agi,
 				}
-				if got := Compute(magic, level, pts, Passive{}); got != want {
+				if got := Compute(magic, level, pts, Bonus{}, Passive{}); got != want {
 					t.Fatalf("magic=%v level=%d pts=%+v: got %+v, want %+v", magic, level, pts, got, want)
 				}
 			}
@@ -217,8 +217,8 @@ func TestComputeZeroPassiveKeepsPhase1Stats(t *testing.T) {
 
 func TestComputeNhamPassive(t *testing.T) {
 	pts := Points{Str: 60, Vit: 30}
-	base := Compute(false, 10, pts, Passive{})
-	s := Compute(false, 10, pts, Passive{MaxHPPct: 20, PhysDefPct: 20})
+	base := Compute(false, 10, pts, Bonus{}, Passive{})
+	s := Compute(false, 10, pts, Bonus{}, Passive{MaxHPPct: 20, PhysDefPct: 20})
 	if base.MaxHP != 1640 || base.PhysDefense != 88 {
 		t.Fatalf("base %+v", base)
 	}
@@ -232,19 +232,19 @@ func TestComputeNhamPassive(t *testing.T) {
 
 func TestComputePassiveFloors(t *testing.T) {
 	// Evasion 50 + 5*l + 2*agi = 57 with l=1, agi=1.
-	s := Compute(false, 2, Points{Agi: 1}, Passive{})
+	s := Compute(false, 2, Points{Agi: 1}, Bonus{}, Passive{})
 	if s.Evasion != 57 {
 		t.Fatalf("setup: evasion %d", s.Evasion)
 	}
-	if got := Compute(false, 2, Points{Agi: 1}, Passive{EvasionPct: 3}).Evasion; got != 58 {
+	if got := Compute(false, 2, Points{Agi: 1}, Bonus{}, Passive{EvasionPct: 3}).Evasion; got != 58 {
 		t.Fatalf("57 with 3%% = %d, want 58", got)
 	}
 }
 
 func TestComputePassiveAllFields(t *testing.T) {
 	pts := Points{Int: 40, Agi: 10, Vit: 10}
-	b := Compute(true, 20, pts, Passive{})
-	s := Compute(true, 20, pts, Passive{MagicDefPct: 10, AccuracyPct: 10, MagicAttackPct: 10, EvasionPct: 10})
+	b := Compute(true, 20, pts, Bonus{}, Passive{})
+	s := Compute(true, 20, pts, Bonus{}, Passive{MagicDefPct: 10, AccuracyPct: 10, MagicAttackPct: 10, EvasionPct: 10})
 	if s.MagicDefense != b.MagicDefense+b.MagicDefense*10/100 ||
 		s.Accuracy != b.Accuracy+b.Accuracy*10/100 ||
 		s.MagicAttack != b.MagicAttack+b.MagicAttack*10/100 ||
@@ -257,8 +257,8 @@ func TestComputePassiveAllFields(t *testing.T) {
 }
 
 func TestComputePassiveCritBP(t *testing.T) {
-	base := Compute(false, 5, Points{Agi: 3}, Passive{})
-	s := Compute(false, 5, Points{Agi: 3}, Passive{CritBP: 1000})
+	base := Compute(false, 5, Points{Agi: 3}, Bonus{}, Passive{})
+	s := Compute(false, 5, Points{Agi: 3}, Bonus{}, Passive{CritBP: 1000})
 	if s.CritRateBP != base.CritRateBP+1000 {
 		t.Fatalf("got %d, base %d", s.CritRateBP, base.CritRateBP)
 	}
@@ -282,5 +282,90 @@ func TestSkillBase(t *testing.T) {
 	}
 	if got := SkillBase(s, true, 150); got != 180 {
 		t.Fatalf("magic = %d, want 180", got)
+	}
+}
+
+// ______________________TEST GEAR BONUS_____________________
+
+// phase2Stats is Compute as it was before gear: the base block, then the
+// passives (phase 2 spec 3.2).
+func phase2Stats(magic bool, level int, p Points, pas Passive) Stats {
+	l := level - 1
+	hpA, hpB := 60, 20
+	if magic {
+		hpA, hpB = 50, 16
+	}
+	def := 10 + 2*l + 2*p.Vit
+	hp, matk := 500+hpA*l+hpB*p.Vit, 20+5*l+2*p.Int
+	acc, eva := 100+5*l+3*p.Agi, 50+5*l+2*p.Agi
+	return Stats{
+		MaxHP: hp + hp*pas.MaxHPPct/100, MaxMP: 100 + 20*l + 5*p.Int,
+		PhysAttack: 20 + 5*l + 2*p.Str, MagicAttack: matk + matk*pas.MagicAttackPct/100,
+		PhysDefense: def + def*pas.PhysDefPct/100, MagicDefense: def + def*pas.MagicDefPct/100,
+		Accuracy: acc + acc*pas.AccuracyPct/100, Evasion: eva + eva*pas.EvasionPct/100,
+		CritRateBP: 500 + 2*p.Agi + pas.CritBP,
+	}
+}
+
+func TestComputeZeroGearKeepsStats(t *testing.T) {
+	passives := []Passive{{}, {MaxHPPct: 20, PhysDefPct: 20}, {MagicDefPct: 7, AccuracyPct: 3, MagicAttackPct: 15, EvasionPct: 9, CritBP: 250}}
+	for _, magic := range []bool{false, true} {
+		for _, level := range []int{1, 10, 31, 90} {
+			for _, pts := range []Points{{}, {Str: 60, Vit: 30}, {Int: 45, Agi: 20}, {Str: 5, Agi: 7, Vit: 9, Int: 11}} {
+				for _, pas := range passives {
+					want := phase2Stats(magic, level, pts, pas)
+					if got := Compute(magic, level, pts, Bonus{}, pas); got != want {
+						t.Fatalf("magic=%v level=%d pts=%+v pas=%+v: got %+v, want %+v", magic, level, pts, pas, got, want)
+					}
+				}
+			}
+		}
+	}
+}
+
+// Phase 3a spec 4.2: Viêm level 10, 60 STR/30 VIT with the Lữ Hành sword.
+func TestComputeGearViemSword(t *testing.T) {
+	s := Compute(false, 10, Points{Str: 60, Vit: 30}, Bonus{PhysAttack: 25}, Passive{})
+	if s.PhysAttack != 210 || s.MaxHP != 1640 {
+		t.Fatalf("got attack %d hp %d, want 210 1640", s.PhysAttack, s.MaxHP)
+	}
+}
+
+// Each gear field lands on its own stat and nothing else.
+func TestComputeGearFields(t *testing.T) {
+	pts := Points{Str: 5, Agi: 7, Vit: 9, Int: 11}
+	base := Compute(true, 20, pts, Bonus{}, Passive{})
+	s := Compute(true, 20, pts, Bonus{HP: 1, PhysAttack: 20, MagicAttack: 300, PhysDefense: 4000, MagicDefense: 50000}, Passive{})
+	want := base
+	want.MaxHP += 1
+	want.PhysAttack += 20
+	want.MagicAttack += 300
+	want.PhysDefense += 4000
+	want.MagicDefense += 50000
+	if s != want {
+		t.Fatalf("got %+v, want %+v", s, want)
+	}
+}
+
+// Passives apply to the gear too (phase 3a spec 4.2): Nham's 20% HP passive
+// with +200 HP of gear gives 240 more HP than without the gear.
+func TestComputeGearBeforePassives(t *testing.T) {
+	pts := Points{Str: 60, Vit: 30}
+	pas := Passive{MaxHPPct: 20, PhysDefPct: 20, MagicDefPct: 10, MagicAttackPct: 10}
+	without := Compute(false, 10, pts, Bonus{}, pas)
+	with := Compute(false, 10, pts, Bonus{HP: 200, PhysDefense: 10, MagicDefense: 10, MagicAttack: 10}, pas)
+	if with.MaxHP != (1640+200)*120/100 || with.MaxHP-without.MaxHP != 240 {
+		t.Fatalf("max hp %d (without gear %d), want %d, 240 more", with.MaxHP, without.MaxHP, (1640+200)*120/100)
+	}
+	if with.PhysDefense != (88+10)*120/100 || with.MagicDefense != (88+10)*110/100 || with.MagicAttack != (65+10)*110/100 {
+		t.Fatalf("got %+v", with)
+	}
+}
+
+func TestBonusAdd(t *testing.T) {
+	a := Bonus{HP: 1, PhysAttack: 2, MagicAttack: 3, PhysDefense: 4, MagicDefense: 5}
+	b := Bonus{HP: 10, PhysAttack: 20, MagicAttack: 30, PhysDefense: 40, MagicDefense: 50}
+	if got := a.Add(b); got != (Bonus{HP: 11, PhysAttack: 22, MagicAttack: 33, PhysDefense: 44, MagicDefense: 55}) {
+		t.Fatalf("got %+v", got)
 	}
 }

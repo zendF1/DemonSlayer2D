@@ -31,11 +31,28 @@ type Stats struct {
 	CritRateBP                int // basis points (1/10000)
 }
 
+// Bonus is the summed stats of worn gear (phase 3a spec 4.2).
+type Bonus struct {
+	HP, PhysAttack, MagicAttack, PhysDefense, MagicDefense int
+}
+
+// Add returns the field-wise sum of two bonuses.
+func (b Bonus) Add(c Bonus) Bonus {
+	return Bonus{
+		HP:           b.HP + c.HP,
+		PhysAttack:   b.PhysAttack + c.PhysAttack,
+		MagicAttack:  b.MagicAttack + c.MagicAttack,
+		PhysDefense:  b.PhysDefense + c.PhysDefense,
+		MagicDefense: b.MagicDefense + c.MagicDefense,
+	}
+}
+
 // Compute derives stats from level and spent points (game-design 2.2, spec 3.1).
 // magic selects the magic-class HP growth (a = 50, b = 16) instead of the
-// physical one (a = 60, b = 20). Passive bonuses apply after the base stats
-// (phase 2 spec 3.2).
-func Compute(magic bool, level int, p Points, pas Passive) Stats {
+// physical one (a = 60, b = 20). The gear bonus is added flat to the base
+// stats, then passive bonuses apply to that sum (phase 2 spec 3.2, phase 3a
+// spec 4.2).
+func Compute(magic bool, level int, p Points, gear Bonus, pas Passive) Stats {
 	l := level - 1
 	hpA, hpB := 60, 20
 	if magic {
@@ -53,6 +70,11 @@ func Compute(magic bool, level int, p Points, pas Passive) Stats {
 		Evasion:      50 + 5*l + 2*p.Agi,
 		CritRateBP:   500 + 2*p.Agi,
 	}
+	st.MaxHP += gear.HP
+	st.PhysAttack += gear.PhysAttack
+	st.MagicAttack += gear.MagicAttack
+	st.PhysDefense += gear.PhysDefense
+	st.MagicDefense += gear.MagicDefense
 	st.MaxHP += st.MaxHP * pas.MaxHPPct / 100
 	st.MagicAttack += st.MagicAttack * pas.MagicAttackPct / 100
 	st.PhysDefense += st.PhysDefense * pas.PhysDefPct / 100

@@ -1037,8 +1037,8 @@ func TestLearnPassiveRaisesHP(t *testing.T) {
 	z.advance(time.Now())
 	out.take()
 	v.take()
-	before := combat.Compute(false, 31, combat.Points{}, combat.Passive{MaxHPPct: 2, PhysDefPct: 2})
-	after := combat.Compute(false, 31, combat.Points{}, combat.Passive{MaxHPPct: 4, PhysDefPct: 4})
+	before := combat.Compute(false, 31, combat.Points{}, combat.Bonus{}, combat.Passive{MaxHPPct: 2, PhysDefPct: 2})
+	after := combat.Compute(false, 31, combat.Points{}, combat.Bonus{}, combat.Passive{MaxHPPct: 4, PhysDefPct: 4})
 	if p.maxHP != before.MaxHP || after.MaxHP <= before.MaxHP {
 		t.Fatalf("setup: max HP %d, want %d below %d", p.maxHP, before.MaxHP, after.MaxHP)
 	}

@@ -222,7 +222,7 @@ func TestEnterDropsUnknownSkills(t *testing.T) {
 		t.Fatalf("skills %v, skill points %d, want viem_1:3 viem_3:2 and 2", got, r.Stats.SkillPoints)
 	}
 	// viem_3 (phys_def_pct 4 at level 2) counts in the stats.
-	if want := combat.Compute(false, 30, combat.Points{}, combat.Passive{PhysDefPct: 4}); r.Stats.PhysDefense != int32(want.PhysDefense) {
+	if want := combat.Compute(false, 30, combat.Points{}, combat.Bonus{}, combat.Passive{PhysDefPct: 4}); r.Stats.PhysDefense != int32(want.PhysDefense) {
 		t.Fatalf("phys defense %d, want %d with the passive", r.Stats.PhysDefense, want.PhysDefense)
 	}
 	logs := buf.String()
@@ -261,7 +261,7 @@ func TestEnterDropsSkillsAboveLevel(t *testing.T) {
 	if !slices.Equal(got, []string{"viem_1:3"}) {
 		t.Fatalf("skills %v, want viem_1:3", got)
 	}
-	if want := combat.Compute(false, 29, combat.Points{}, combat.Passive{}); r.Stats.PhysDefense != int32(want.PhysDefense) {
+	if want := combat.Compute(false, 29, combat.Points{}, combat.Bonus{}, combat.Passive{}); r.Stats.PhysDefense != int32(want.PhysDefense) {
 		t.Fatalf("phys defense %d, want %d without the passive", r.Stats.PhysDefense, want.PhysDefense)
 	}
 	logs := buf.String()
