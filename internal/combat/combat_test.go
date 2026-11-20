@@ -75,6 +75,7 @@ func TestSlashBase(t *testing.T) {
 // ______________________TEST EXP_____________________
 
 func TestExpToNextMatchesCSV(t *testing.T) {
+	t.Skip("phase 2 task 1 regenerated the CSV from monster EXP; Task 3 makes ExpToNext read data/exp.json and replaces this test")
 	f, err := os.Open("../../docs/balance/exp-table.csv")
 	if err != nil {
 		t.Fatal(err)

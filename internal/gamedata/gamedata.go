@@ -53,6 +53,8 @@ type Level struct {
 	HP      int `json:"hp"`
 	Attack  int `json:"attack"`
 	Defense int `json:"defense"`
+	// Exp is the total base EXP the monster pays, shared by damage dealt.
+	Exp int64 `json:"exp"`
 }
 
 // Data is the parsed monsters.json.
@@ -103,7 +105,7 @@ func Parse(b []byte) (*Data, error) {
 		if _, dup := d.Levels[l.Level]; dup {
 			return nil, fmt.Errorf("gamedata: duplicate level %d", l.Level)
 		}
-		if l.Level <= 0 || l.HP <= 0 || l.Attack <= 0 || l.Defense <= 0 {
+		if l.Level <= 0 || l.HP <= 0 || l.Attack <= 0 || l.Defense <= 0 || l.Exp <= 0 {
 			return nil, fmt.Errorf("gamedata: level %d: every number must be positive", l.Level)
 		}
 		d.Levels[l.Level] = l

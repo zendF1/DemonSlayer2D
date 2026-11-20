@@ -40,31 +40,631 @@
       "level": 1,
       "hp": 56,
       "attack": 30,
-      "defense": 8
+      "defense": 8,
+      "exp": 6
     },
     {
       "level": 2,
       "hp": 104,
       "attack": 39,
-      "defense": 16
+      "defense": 16,
+      "exp": 11
     },
     {
       "level": 3,
       "hp": 160,
       "attack": 45,
-      "defense": 24
+      "defense": 24,
+      "exp": 19
     },
     {
       "level": 4,
       "hp": 212,
       "attack": 52,
-      "defense": 32
+      "defense": 32,
+      "exp": 28
     },
     {
       "level": 5,
       "hp": 260,
       "attack": 60,
-      "defense": 40
+      "defense": 40,
+      "exp": 36
+    },
+    {
+      "level": 6,
+      "hp": 316,
+      "attack": 67,
+      "defense": 48,
+      "exp": 47
+    },
+    {
+      "level": 7,
+      "hp": 368,
+      "attack": 73,
+      "defense": 56,
+      "exp": 59
+    },
+    {
+      "level": 8,
+      "hp": 420,
+      "attack": 82,
+      "defense": 64,
+      "exp": 71
+    },
+    {
+      "level": 9,
+      "hp": 472,
+      "attack": 88,
+      "defense": 72,
+      "exp": 85
+    },
+    {
+      "level": 10,
+      "hp": 658,
+      "attack": 95,
+      "defense": 80,
+      "exp": 125
+    },
+    {
+      "level": 11,
+      "hp": 762,
+      "attack": 103,
+      "defense": 88,
+      "exp": 152
+    },
+    {
+      "level": 12,
+      "hp": 880,
+      "attack": 110,
+      "defense": 96,
+      "exp": 185
+    },
+    {
+      "level": 13,
+      "hp": 1010,
+      "attack": 117,
+      "defense": 104,
+      "exp": 222
+    },
+    {
+      "level": 14,
+      "hp": 1136,
+      "attack": 125,
+      "defense": 112,
+      "exp": 261
+    },
+    {
+      "level": 15,
+      "hp": 1280,
+      "attack": 132,
+      "defense": 120,
+      "exp": 307
+    },
+    {
+      "level": 16,
+      "hp": 1430,
+      "attack": 138,
+      "defense": 128,
+      "exp": 358
+    },
+    {
+      "level": 17,
+      "hp": 1578,
+      "attack": 147,
+      "defense": 136,
+      "exp": 410
+    },
+    {
+      "level": 18,
+      "hp": 1746,
+      "attack": 154,
+      "defense": 144,
+      "exp": 471
+    },
+    {
+      "level": 19,
+      "hp": 1924,
+      "attack": 160,
+      "defense": 152,
+      "exp": 539
+    },
+    {
+      "level": 20,
+      "hp": 2016,
+      "attack": 169,
+      "defense": 160,
+      "exp": 585
+    },
+    {
+      "level": 21,
+      "hp": 2120,
+      "attack": 175,
+      "defense": 168,
+      "exp": 636
+    },
+    {
+      "level": 22,
+      "hp": 2226,
+      "attack": 182,
+      "defense": 176,
+      "exp": 690
+    },
+    {
+      "level": 23,
+      "hp": 2318,
+      "attack": 190,
+      "defense": 184,
+      "exp": 742
+    },
+    {
+      "level": 24,
+      "hp": 2424,
+      "attack": 197,
+      "defense": 192,
+      "exp": 800
+    },
+    {
+      "level": 25,
+      "hp": 2528,
+      "attack": 204,
+      "defense": 200,
+      "exp": 860
+    },
+    {
+      "level": 26,
+      "hp": 2620,
+      "attack": 212,
+      "defense": 208,
+      "exp": 917
+    },
+    {
+      "level": 27,
+      "hp": 2726,
+      "attack": 219,
+      "defense": 216,
+      "exp": 981
+    },
+    {
+      "level": 28,
+      "hp": 2828,
+      "attack": 226,
+      "defense": 224,
+      "exp": 1046
+    },
+    {
+      "level": 29,
+      "hp": 2924,
+      "attack": 234,
+      "defense": 232,
+      "exp": 1111
+    },
+    {
+      "level": 30,
+      "hp": 3028,
+      "attack": 241,
+      "defense": 240,
+      "exp": 1181
+    },
+    {
+      "level": 31,
+      "hp": 3134,
+      "attack": 247,
+      "defense": 248,
+      "exp": 1254
+    },
+    {
+      "level": 32,
+      "hp": 3226,
+      "attack": 256,
+      "defense": 256,
+      "exp": 1323
+    },
+    {
+      "level": 33,
+      "hp": 3330,
+      "attack": 262,
+      "defense": 264,
+      "exp": 1399
+    },
+    {
+      "level": 34,
+      "hp": 3436,
+      "attack": 269,
+      "defense": 272,
+      "exp": 1477
+    },
+    {
+      "level": 35,
+      "hp": 3528,
+      "attack": 278,
+      "defense": 280,
+      "exp": 1552
+    },
+    {
+      "level": 36,
+      "hp": 3634,
+      "attack": 284,
+      "defense": 288,
+      "exp": 1635
+    },
+    {
+      "level": 37,
+      "hp": 3738,
+      "attack": 291,
+      "defense": 296,
+      "exp": 1719
+    },
+    {
+      "level": 38,
+      "hp": 3830,
+      "attack": 299,
+      "defense": 304,
+      "exp": 1800
+    },
+    {
+      "level": 39,
+      "hp": 3936,
+      "attack": 306,
+      "defense": 312,
+      "exp": 1889
+    },
+    {
+      "level": 40,
+      "hp": 4040,
+      "attack": 313,
+      "defense": 320,
+      "exp": 1980
+    },
+    {
+      "level": 41,
+      "hp": 4134,
+      "attack": 321,
+      "defense": 328,
+      "exp": 2067
+    },
+    {
+      "level": 42,
+      "hp": 4238,
+      "attack": 328,
+      "defense": 336,
+      "exp": 2161
+    },
+    {
+      "level": 43,
+      "hp": 4342,
+      "attack": 335,
+      "defense": 344,
+      "exp": 2258
+    },
+    {
+      "level": 44,
+      "hp": 4436,
+      "attack": 343,
+      "defense": 352,
+      "exp": 2351
+    },
+    {
+      "level": 45,
+      "hp": 4542,
+      "attack": 350,
+      "defense": 360,
+      "exp": 2453
+    },
+    {
+      "level": 46,
+      "hp": 4646,
+      "attack": 356,
+      "defense": 368,
+      "exp": 2555
+    },
+    {
+      "level": 47,
+      "hp": 4738,
+      "attack": 365,
+      "defense": 376,
+      "exp": 2653
+    },
+    {
+      "level": 48,
+      "hp": 4842,
+      "attack": 371,
+      "defense": 384,
+      "exp": 2760
+    },
+    {
+      "level": 49,
+      "hp": 4948,
+      "attack": 378,
+      "defense": 392,
+      "exp": 2870
+    },
+    {
+      "level": 50,
+      "hp": 5042,
+      "attack": 386,
+      "defense": 400,
+      "exp": 2975
+    },
+    {
+      "level": 51,
+      "hp": 5146,
+      "attack": 393,
+      "defense": 408,
+      "exp": 3088
+    },
+    {
+      "level": 52,
+      "hp": 5250,
+      "attack": 400,
+      "defense": 416,
+      "exp": 3203
+    },
+    {
+      "level": 53,
+      "hp": 5344,
+      "attack": 408,
+      "defense": 424,
+      "exp": 3313
+    },
+    {
+      "level": 54,
+      "hp": 5448,
+      "attack": 415,
+      "defense": 432,
+      "exp": 3432
+    },
+    {
+      "level": 55,
+      "hp": 5552,
+      "attack": 422,
+      "defense": 440,
+      "exp": 3553
+    },
+    {
+      "level": 56,
+      "hp": 5646,
+      "attack": 430,
+      "defense": 448,
+      "exp": 3670
+    },
+    {
+      "level": 57,
+      "hp": 5752,
+      "attack": 437,
+      "defense": 456,
+      "exp": 3796
+    },
+    {
+      "level": 58,
+      "hp": 5854,
+      "attack": 443,
+      "defense": 464,
+      "exp": 3922
+    },
+    {
+      "level": 59,
+      "hp": 5948,
+      "attack": 452,
+      "defense": 472,
+      "exp": 4045
+    },
+    {
+      "level": 60,
+      "hp": 6052,
+      "attack": 459,
+      "defense": 480,
+      "exp": 4176
+    },
+    {
+      "level": 61,
+      "hp": 6160,
+      "attack": 465,
+      "defense": 488,
+      "exp": 4312
+    },
+    {
+      "level": 62,
+      "hp": 6252,
+      "attack": 474,
+      "defense": 496,
+      "exp": 4439
+    },
+    {
+      "level": 63,
+      "hp": 6354,
+      "attack": 480,
+      "defense": 504,
+      "exp": 4575
+    },
+    {
+      "level": 64,
+      "hp": 6460,
+      "attack": 487,
+      "defense": 512,
+      "exp": 4716
+    },
+    {
+      "level": 65,
+      "hp": 6554,
+      "attack": 495,
+      "defense": 520,
+      "exp": 4850
+    },
+    {
+      "level": 66,
+      "hp": 6660,
+      "attack": 502,
+      "defense": 528,
+      "exp": 4995
+    },
+    {
+      "level": 67,
+      "hp": 6762,
+      "attack": 509,
+      "defense": 536,
+      "exp": 5139
+    },
+    {
+      "level": 68,
+      "hp": 6854,
+      "attack": 517,
+      "defense": 544,
+      "exp": 5278
+    },
+    {
+      "level": 69,
+      "hp": 6962,
+      "attack": 524,
+      "defense": 552,
+      "exp": 5430
+    },
+    {
+      "level": 70,
+      "hp": 7064,
+      "attack": 531,
+      "defense": 560,
+      "exp": 5581
+    },
+    {
+      "level": 71,
+      "hp": 7160,
+      "attack": 539,
+      "defense": 568,
+      "exp": 5728
+    },
+    {
+      "level": 72,
+      "hp": 7262,
+      "attack": 546,
+      "defense": 576,
+      "exp": 5882
+    },
+    {
+      "level": 73,
+      "hp": 7368,
+      "attack": 552,
+      "defense": 584,
+      "exp": 6042
+    },
+    {
+      "level": 74,
+      "hp": 7462,
+      "attack": 561,
+      "defense": 592,
+      "exp": 6193
+    },
+    {
+      "level": 75,
+      "hp": 7564,
+      "attack": 567,
+      "defense": 600,
+      "exp": 6354
+    },
+    {
+      "level": 76,
+      "hp": 7670,
+      "attack": 574,
+      "defense": 608,
+      "exp": 6520
+    },
+    {
+      "level": 77,
+      "hp": 7764,
+      "attack": 583,
+      "defense": 616,
+      "exp": 6677
+    },
+    {
+      "level": 78,
+      "hp": 7868,
+      "attack": 589,
+      "defense": 624,
+      "exp": 6845
+    },
+    {
+      "level": 79,
+      "hp": 7972,
+      "attack": 596,
+      "defense": 632,
+      "exp": 7015
+    },
+    {
+      "level": 80,
+      "hp": 8064,
+      "attack": 604,
+      "defense": 640,
+      "exp": 7177
+    },
+    {
+      "level": 81,
+      "hp": 8172,
+      "attack": 611,
+      "defense": 648,
+      "exp": 7355
+    },
+    {
+      "level": 82,
+      "hp": 8276,
+      "attack": 618,
+      "defense": 656,
+      "exp": 7531
+    },
+    {
+      "level": 83,
+      "hp": 8368,
+      "attack": 626,
+      "defense": 664,
+      "exp": 7699
+    },
+    {
+      "level": 84,
+      "hp": 8472,
+      "attack": 633,
+      "defense": 672,
+      "exp": 7879
+    },
+    {
+      "level": 85,
+      "hp": 8578,
+      "attack": 640,
+      "defense": 680,
+      "exp": 8063
+    },
+    {
+      "level": 86,
+      "hp": 8672,
+      "attack": 648,
+      "defense": 688,
+      "exp": 8238
+    },
+    {
+      "level": 87,
+      "hp": 8776,
+      "attack": 655,
+      "defense": 696,
+      "exp": 8425
+    },
+    {
+      "level": 88,
+      "hp": 8880,
+      "attack": 661,
+      "defense": 704,
+      "exp": 8614
+    },
+    {
+      "level": 89,
+      "hp": 8974,
+      "attack": 670,
+      "defense": 712,
+      "exp": 8795
+    },
+    {
+      "level": 90,
+      "hp": 9078,
+      "attack": 676,
+      "defense": 720,
+      "exp": 8987
     }
   ]
 }

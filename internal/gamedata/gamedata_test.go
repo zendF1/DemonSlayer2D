@@ -12,7 +12,7 @@ import (
 
 const validJSON = `{
   "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8}],
-  "levels": [{"level":1,"hp":56,"attack":30,"defense":8},{"level":2,"hp":104,"attack":39,"defense":16}]
+  "levels": [{"level":1,"hp":56,"attack":30,"defense":8,"exp":6},{"level":2,"hp":104,"attack":39,"defense":16,"exp":11}]
 }`
 
 // ______________________TEST PARSE_____________________
@@ -25,7 +25,7 @@ func TestParseOK(t *testing.T) {
 	if k := d.Kinds["a"]; k.Name != "A" || k.Speed != 0.8 || k.RespawnSec != 8 {
 		t.Fatalf("kind: %+v", k)
 	}
-	if l := d.Levels[2]; l != (Level{Level: 2, HP: 104, Attack: 39, Defense: 16}) {
+	if l := d.Levels[2]; l != (Level{Level: 2, HP: 104, Attack: 39, Defense: 16, Exp: 11}) {
 		t.Fatalf("level: %+v", l)
 	}
 }
@@ -53,7 +53,7 @@ func kindWith(field, value string) string {
 		parts = append(parts, `"`+k+`":`+v)
 	}
 	return `{"kinds":[{"id":"a","name":"A",` + strings.Join(parts, ",") +
-		`}],"levels":[{"level":1,"hp":56,"attack":30,"defense":8}]}`
+		`}],"levels":[{"level":1,"hp":56,"attack":30,"defense":8,"exp":6}]}`
 }
 
 func TestParseKindFieldValues(t *testing.T) {
@@ -105,14 +105,16 @@ func TestParseErrors(t *testing.T) {
 		return `{"id":"` + id + `","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":` + speed +
 			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8}`
 	}
-	lvl := `{"level":1,"hp":56,"attack":30,"defense":8}`
+	lvl := `{"level":1,"hp":56,"attack":30,"defense":8,"exp":6}`
 	doc := func(kinds, levels string) string { return `{"kinds":[` + kinds + `],"levels":[` + levels + `]}` }
 	tests := []struct{ name, in string }{
 		{"duplicate kind", doc(kind("a", "0.8")+","+kind("a", "0.8"), lvl)},
 		{"zero speed", doc(kind("a", "0"), lvl)},
 		{"empty kind id", doc(kind("", "0.8"), lvl)},
 		{"duplicate level", doc(kind("a", "0.8"), lvl+","+lvl)},
-		{"zero hp", doc(kind("a", "0.8"), `{"level":1,"hp":0,"attack":30,"defense":8}`)},
+		{"zero hp", doc(kind("a", "0.8"), `{"level":1,"hp":0,"attack":30,"defense":8,"exp":6}`)},
+		{"zero exp", doc(kind("a", "0.8"), `{"level":1,"hp":56,"attack":30,"defense":8,"exp":0}`)},
+		{"missing exp", doc(kind("a", "0.8"), `{"level":1,"hp":56,"attack":30,"defense":8}`)},
 		{"bad json", `{"kinds":`},
 		{"unknown field", `{"kinds":[],"levels":[],"extra":1}`},
 	}
@@ -152,21 +154,46 @@ func TestValidateRegions(t *testing.T) {
 	}
 }
 
-func TestRepoDataMatchesScript(t *testing.T) {
+// ______________________TEST GENERATED DATA_____________________
+
+func TestRepoDataMatchesScripts(t *testing.T) {
 	py, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 not installed")
 	}
-	got, err := exec.Command(py, "../../docs/balance/monster_stats.py", "--print-json").Output()
+	for _, tt := range []struct{ script, file string }{
+		{"monster_stats.py", "monsters.json"},
+		{"skill_stats.py", "skills.json"},
+		{"exp_table.py", "exp.json"},
+	} {
+		t.Run(tt.file, func(t *testing.T) {
+			got, err := exec.Command(py, "../../docs/balance/"+tt.script, "--print-json").Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.ReadFile("../../data/" + tt.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("data/%s differs from %s output; run it with --write-json", tt.file, tt.script)
+			}
+		})
+	}
+}
+
+func TestRepoMonstersCoverLevels1To90(t *testing.T) {
+	d, err := Load("../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := os.ReadFile("../../data/monsters.json")
-	if err != nil {
-		t.Fatal(err)
+	for lvl := 1; lvl <= 90; lvl++ {
+		if l, ok := d.Levels[lvl]; !ok || l.Exp <= 0 {
+			t.Fatalf("level %d: %+v", lvl, l)
+		}
 	}
-	if !bytes.Equal(got, want) {
-		t.Fatal("data/monsters.json differs from monster_stats.py output; run it with --write-json")
+	if len(d.Levels) != 90 {
+		t.Fatalf("levels: %d", len(d.Levels))
 	}
 }
 
