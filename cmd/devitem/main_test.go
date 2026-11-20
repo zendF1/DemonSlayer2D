@@ -38,6 +38,9 @@ func TestRunRefusesBadFlags(t *testing.T) {
 		{"negative quality", []string{"-u", "a", "-code", "eq10_armor", "-quality", "-1"}, "-quality"},
 		{"quality on a stack", []string{"-u", "a", "-code", "stone_enhance", "-quality", "1"}, "-quality"},
 		{"count on equipment", []string{"-u", "a", "-code", "eq10_armor", "-count", "2"}, "-count"},
+		{"enhance too high", []string{"-u", "a", "-code", "eq10_armor", "-enhance", "16"}, "-enhance"},
+		{"negative enhance", []string{"-u", "a", "-code", "eq10_armor", "-enhance", "-1"}, "-enhance"},
+		{"enhance on a stack", []string{"-u", "a", "-code", "charm_protect", "-enhance", "1"}, "-enhance"},
 		{"no database", []string{"-u", "a", "-xu", "5"}, "DATABASE_URL"},
 	}
 	for _, c := range cases {
@@ -140,11 +143,25 @@ func TestRunGivesItemsAndXu(t *testing.T) {
 		t.Fatalf("items %+v, want the sword and 12 stones in slot 1", items)
 	}
 
+	// -enhance 9 stores a +9 piece; the protection charm is a stack.
+	if out, err = give("-code", "eq10_armor", "-enhance", "9"); err != nil || !strings.Contains(out, "+9") ||
+		!strings.Contains(out, "bag slot 2") {
+		t.Fatalf("enhance: %q, %v", out, err)
+	}
+	if out, err = give("-code", "charm_protect", "-count", "3"); err != nil || !strings.Contains(out, "bag slot 3") {
+		t.Fatalf("charm: %q, %v", out, err)
+	}
+	items = load().Items
+	if len(items) != 4 || items[2].Code != "eq10_armor" || items[2].Enhance != 9 || items[2].Slot != 2 ||
+		items[3].Code != "charm_protect" || items[3].Count != 3 || items[3].Enhance != 0 {
+		t.Fatalf("items %+v, want a +9 armour in slot 2 and 3 charms in slot 3", items)
+	}
+
 	// -xu alone adds Xu and leaves the items alone.
 	if out, err = give("-xu", "500"); err != nil || !strings.Contains(out, "500 Xu") {
 		t.Fatalf("xu: %q, %v", out, err)
 	}
-	if got := load(); got.Xu != 500 || len(got.Items) != 2 {
+	if got := load(); got.Xu != 500 || len(got.Items) != 4 {
 		t.Fatalf("after -xu: xu %d, items %+v", got.Xu, got.Items)
 	}
 

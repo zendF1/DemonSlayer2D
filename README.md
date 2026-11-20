@@ -113,13 +113,18 @@ development only. It reads `DATABASE_URL` and `DATA_DIR` (default `./data`):
 ```bash
 export DATABASE_URL='postgres://ds:ds@localhost:5433/ds?sslmode=disable'
 go run ./cmd/devitem -u tanjiro -code eq50_armor -quality 2   # a Vàng Áo Xích Cương
+go run ./cmd/devitem -u tanjiro -code eq10_weapon_viem -enhance 9   # a +9 sword
 go run ./cmd/devitem -u tanjiro -code stone_enhance -count 100
+go run ./cmd/devitem -u tanjiro -code charm_protect -count 20      # protection charms
 go run ./cmd/devitem -u tanjiro -xu 100000
 ```
 
 An equipment code adds one piece into the first empty bag slot, with quality
-`-quality` (0 Trắng, 1 Xanh Dương, 2 Vàng, 3 Cam, 4 Đỏ; default 0) and lines and
-element rolled at random. A stackable code adds `-count` (default 1), topping
+`-quality` (0 Trắng, 1 Xanh Dương, 2 Vàng, 3 Cam, 4 Đỏ; default 0), enhance
+level `-enhance` (0 to 15, default 0; equipment only) and lines and element
+rolled at random. Stackable codes are the stones (`stone_enhance`,
+`stone_refine`) and the protection charm `charm_protect`, which only the
+general store will sell from phase 4. A stackable code adds `-count` (default 1), topping
 up existing stacks first (999 per stack). `-xu` adds Xu and can be used alone
 or with `-code`. An unknown code or a full bag is an error, and nothing is
 written. It prints the character's name, the item added and its bag slots,

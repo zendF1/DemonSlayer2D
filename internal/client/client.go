@@ -334,6 +334,22 @@ func (c *Client) SortBag(ctx context.Context) (*pb.SortBagResp, error) {
 	return r, nil
 }
 
+// Enhance makes up to times attempts (0 means 1) at enhancing the item ref
+// points to, with a protection charm per attempt when protect is set, and
+// returns the outcome, the changed slots and the new stats.
+func (c *Client) Enhance(ctx context.Context, ref *pb.ItemRef, protect bool, times int) (*pb.EnhanceResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_EnhanceReq{EnhanceReq: &pb.EnhanceReq{
+		Item: ref, Protect: protect, Times: int32(times)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetEnhanceResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to EnhanceReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Move sends a direction (no response). It returns the input seq used.
 func (c *Client) Move(ctx context.Context, dx, dy float32) (uint32, error) {
 	seq := c.inputSeq.Add(1)

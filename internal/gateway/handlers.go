@@ -10,6 +10,7 @@ import (
 	"demonslayer2d/internal/auth"
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/world"
@@ -130,6 +131,15 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.zoneBusyIfDropped(seq, c.member.SortBag(seq))
+	case *pb.Envelope_EnhanceReq:
+		// Only the packet limit: one request holds up to max_times attempts
+		// (phase 3b spec 1.2). The zone checks the slot and times.
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.EnhanceReq
+		ref := items.Ref{Equipped: r.GetItem().GetEquipped(), Slot: int(r.GetItem().GetSlot())}
+		c.zoneBusyIfDropped(seq, c.member.Enhance(seq, ref, r.Protect, int(r.Times)))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}

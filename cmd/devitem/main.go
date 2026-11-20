@@ -1,12 +1,14 @@
 // Command devitem gives an account's first character an item or Xu, for
 // development only (phase 3a spec 7):
 //
-//	go run ./cmd/devitem -u USER [-code CODE] [-count N] [-quality Q] [-xu N]
+//	go run ./cmd/devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-xu N]
 //
 // It reads the database from DATABASE_URL and the item data from DATA_DIR
 // (default ./data). An equipment code adds one piece of quality -quality
-// (0 Trắng to 4 Đỏ, default 0) with its lines and element rolled from a
-// random seed into the first empty bag slot; a stackable code adds -count
+// (0 Trắng to 4 Đỏ, default 0) at enhance level -enhance (0 to 15, default
+// 0, phase 3b spec 7) with its lines and element rolled from a random seed
+// into the first empty bag slot; a stackable code (stones, charm_protect)
+// adds -count
 // (default 1) by the bag rules, topping up existing stacks first. A full bag
 // is an error and nothing is written. -xu adds Xu and may be used alone.
 //
@@ -31,7 +33,7 @@ import (
 	"demonslayer2d/internal/store"
 )
 
-const usage = "usage: devitem -u USER [-code CODE] [-count N] [-quality Q] [-xu N]"
+const usage = "usage: devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-xu N]"
 
 func main() {
 	if err := run(os.Args[1:], os.Getenv, os.Stdout); err != nil {
@@ -47,6 +49,7 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 	code := fs.String("code", "", "item code from items.json")
 	count := fs.Int("count", 1, "how many of a stackable to add")
 	quality := fs.Int("quality", 0, "quality of a piece of equipment, 0 (Trắng) to 4 (Đỏ)")
+	enhance := fs.Int("enhance", 0, "enhance level of a piece of equipment, 0 to 15")
 	xu := fs.Int64("xu", 0, "Xu to add")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
@@ -75,7 +78,7 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if item, err = newItem(d, *code, *count, *quality); err != nil {
+		if item, err = newItem(d, *code, *count, *quality, *enhance); err != nil {
 			return err
 		}
 		return give(getenv, out, *user, d, item, *xu)
@@ -84,17 +87,21 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 }
 
 // newItem checks the flags against the item data and makes the item: a
-// freshly rolled piece of equipment or a stack.
-func newItem(d *gamedata.Items, code string, count, quality int) (*items.Item, error) {
+// freshly rolled piece of equipment at the given enhance level, or a stack.
+func newItem(d *gamedata.Items, code string, count, quality, enhance int) (*items.Item, error) {
 	if d.IsEquipment(code) {
 		if quality < 0 || quality >= len(d.Qualities) {
 			return nil, fmt.Errorf("-quality %d is outside 0-%d", quality, len(d.Qualities)-1)
+		}
+		if enhance < 0 || enhance > items.MaxEnhance {
+			return nil, fmt.Errorf("-enhance %d is outside 0-%d", enhance, items.MaxEnhance)
 		}
 		if count != 1 {
 			return nil, fmt.Errorf("-count %d: equipment is added one piece at a time", count)
 		}
 		rng := rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), rand.Uint64()))
 		it := items.NewEquipment(rng, d, code, quality)
+		it.Enhance = enhance
 		return &it, nil
 	}
 	if _, ok := d.Stackables[code]; !ok {
@@ -102,6 +109,9 @@ func newItem(d *gamedata.Items, code string, count, quality int) (*items.Item, e
 	}
 	if quality != 0 {
 		return nil, fmt.Errorf("-quality %d: %s is not equipment", quality, code)
+	}
+	if enhance != 0 {
+		return nil, fmt.Errorf("-enhance %d: %s is not equipment", enhance, code)
 	}
 	return &items.Item{Code: code, Count: count}, nil
 }
@@ -191,11 +201,16 @@ func storeLines(ls []items.Line) []store.ItemLine {
 	return out
 }
 
-// describe names it for the summary: "Kiếm Lữ Hành (eq10_weapon_viem), Vàng,
-// lines hp+43 phys_attack+12" or "5 × Đá cường hóa (stone_enhance)".
+// describe names it for the summary: "Kiếm Lữ Hành +9 (eq10_weapon_viem),
+// Vàng, lines hp+43 phys_attack+12" (no "+0") or "5 × Đá cường hóa
+// (stone_enhance)".
 func describe(d *gamedata.Items, it *items.Item) string {
 	if e, ok := d.Equipment[it.Code]; ok {
-		s := fmt.Sprintf("%s (%s), %s", e.Name, it.Code, d.Qualities[it.Quality].Name)
+		name := e.Name
+		if it.Enhance > 0 {
+			name = fmt.Sprintf("%s +%d", name, it.Enhance)
+		}
+		s := fmt.Sprintf("%s (%s), %s", name, it.Code, d.Qualities[it.Quality].Name)
 		if it.Element != "" {
 			s += ", element " + it.Element
 		}

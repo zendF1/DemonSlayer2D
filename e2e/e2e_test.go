@@ -1008,3 +1008,102 @@ func TestItemsOverWebSocket(t *testing.T) {
 		t.Fatalf("re-entered wearing %v, want %v in slot %d", inv.GetEquipped(), piece.Item, equipSlot)
 	}
 }
+
+// ______________________TEST ENHANCE_____________________
+
+// Phase 3b spec 8: a level 10 Viêm given a Lữ Hành sword, 20 stones and
+// 10,000 Xu wears the sword at the camp (a safe zone) and enhances it to +4
+// with four requests (+1 to +4 always succeed): its attack rises each time,
+// 700 Xu are spent and its own glow level follows. Outside the camp the
+// request is refused with NOT_IN_SAFE_ZONE; after leaving and re-entering
+// the sword is still +4.
+func TestEnhanceOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	p := newPlayer(t, s, "kai01", "Kai", pb.CharClass_CHAR_CLASS_VIEM)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetLevel(ctx, "kai01", 10); err != nil {
+		t.Fatal(err)
+	}
+	give := func([]store.ItemRow) ([]store.ItemRow, error) {
+		return []store.ItemRow{
+			{Slot: 0, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+			{Slot: 1, Code: "stone_enhance", Count: 20, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		}, nil
+	}
+	if _, err := s.store.DevGiveItem(ctx, "kai01", give, 10000); err != nil {
+		t.Fatal(err)
+	}
+	for drained := false; !drained; {
+		select {
+		case <-p.c.Pushes():
+		default:
+			drained = true
+		}
+	}
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	self := ew.SelfEntityId
+	er, err := p.c.Equip(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weapon := &pb.ItemRef{Equipped: true, Slot: er.Update.GetEquipped()[0].GetSlot()}
+	attack := er.Stats.GetPhysAttack()
+	for want := int32(1); want <= 4; want++ {
+		r, err := p.c.Enhance(ctx, weapon, false, 1)
+		if err != nil {
+			t.Fatalf("enhance to +%d: %v", want, err)
+		}
+		if r.Attempts != 1 || !r.Success || r.Level != want || r.Stats.GetPhysAttack() <= attack {
+			t.Fatalf("enhance to +%d: %v, want one success and attack above %d", want, r, attack)
+		}
+		attack = r.Stats.GetPhysAttack()
+		if want == 4 && (r.Stats.GetXu() != 10000-700 || r.Update.GetEquipped()[0].GetItem().GetEnhance() != 4 ||
+			r.Update.GetBag()[0].GetItem().GetCount() != 16) {
+			t.Fatalf("after +4: %v, want 9,300 Xu, the sword at +4 and 16 stones", r)
+		}
+	}
+	waitFor(t, p.c, 3*time.Second, func(e *pb.Envelope) bool {
+		for _, l := range e.GetWorldTick().GetLooks() {
+			if l.Id == self && l.WeaponEnhance == 4 {
+				return true
+			}
+		}
+		return false
+	})
+
+	// Walk right out of the camp (tiles x 1-10) and try again.
+	if _, err := p.c.Move(ctx, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, p.c, 5*time.Second, func(e *pb.Envelope) bool {
+		for _, m := range e.GetWorldTick().GetMoves() {
+			if m.Id == self && m.X >= 12 {
+				return true
+			}
+		}
+		return false
+	})
+	if _, err := p.c.Move(ctx, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.c.Enhance(ctx, weapon, false, 1); client.Code(err) != pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE {
+		t.Fatalf("enhance outside the camp: %v, want NOT_IN_SAFE_ZONE", err)
+	}
+
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if eq := again.Inventory.GetEquipped(); len(eq) != 1 || eq[0].Item.GetEnhance() != 4 || again.Stats.GetXu() != 9300 {
+		t.Fatalf("re-entered wearing %v with %d Xu, want the +4 sword and 9,300 Xu", eq, again.Stats.GetXu())
+	}
+}

@@ -588,8 +588,10 @@ func TestDevGiveItem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	worn := store.ItemRow{Equipped: true, Slot: 4, Code: "eq10_armor", Count: 1, Quality: 2, Element: "thuy",
-		Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{{Stat: "hp", Value: 50}, {Stat: "hp", Value: 50}}}
+	// An enhanced piece keeps its level and pity through place (phase 3b spec 7).
+	worn := store.ItemRow{Equipped: true, Slot: 4, Code: "eq10_armor", Count: 1, Quality: 2, Element: "thuy", Enhance: 9,
+		Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{{Stat: "hp", Value: 50}, {Stat: "hp", Value: 50}},
+		Pity: []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0}}
 	stones := store.ItemRow{Slot: 0, Code: "stone_enhance", Count: 7, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
 	if err := st.SaveCharacterState(ctx, store.CharState{ID: first.ID, MapID: "kumotori_1", Level: 1, HP: -1, MP: -1,
 		Xu: 100, Items: []store.ItemRow{stones, worn}}); err != nil {
