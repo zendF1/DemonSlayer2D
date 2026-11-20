@@ -2187,3 +2187,254 @@ func TestGlowOnLevelUp(t *testing.T) {
 		t.Fatalf("level %d LookChanges %v, want 10 and one with 8", p.level, ls)
 	}
 }
+
+// ______________________TEST FORGE ZONE_____________________
+
+// socketInventory is forgeInventory (the white sword and armour worn, the
+// Vàng boots in bag slot 0, 12 stones in slot 3, a +15 helmet in slot 8 and a
+// +7 one in slot 9) with two holes in the worn armour (an empty one, then an
+// HP gem), three empty holes in the +15 helmet, three level-1 HP gems in bag
+// slot 4 and a level-2 attack gem in slot 5.
+func socketInventory() *items.Inventory {
+	inv := forgeInventory()
+	inv.Worn[testItemData.Equipment["eq10_armor"].SlotIndex].Gems = []string{"", "gem_hp_1"}
+	inv.Bag[8].Gems = []string{"", "", ""}
+	inv.Bag[4] = &items.Item{Code: "gem_hp_1", Count: 3}
+	inv.Bag[5] = &items.Item{Code: "gem_attack_2", Count: 1}
+	return inv
+}
+
+// forgeCase is one rejected forge command: the setup, whether the player is
+// dead or outside the safe zone, and the code it must get.
+type forgeCase struct {
+	name          string
+	dead, outside bool
+	setup         func(*player)
+	send          func(z *Zone) bool
+	code          pb.ErrorCode
+}
+
+// runForgeErrors runs each case on socketInventory: the reply is only the
+// error, and nothing changes or is saved.
+func runForgeErrors(t *testing.T, cases []forgeCase) {
+	t.Helper()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := forgeZone(t, socketInventory(), c.outside)
+			out := p.out.(*fakeOut)
+			if c.setup != nil {
+				c.setup(p)
+			}
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			out.take()
+			before, stats, hp, xu, saves := p.inv.Clone(), p.stats, p.hp, p.xu, len(sv.all())
+			itemNow(t, z, c.send(z))
+			envs := out.take()
+			if er := errorFor(envs, 9); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if n := len(slices.DeleteFunc(slices.Clone(envs), func(e *pb.Envelope) bool { return e.Seq != 9 })); n != 1 {
+				t.Fatalf("%d replies to seq 9, want only the error", n)
+			}
+			if !reflect.DeepEqual(p.inv, before) || p.stats != stats || p.hp != hp || p.xu != xu {
+				t.Fatal("a rejected forge command changed the inventory, stats or Xu")
+			}
+			if n := len(sv.all()); n != saves {
+				t.Fatalf("%d saves, want %d", n, saves)
+			}
+		})
+	}
+}
+
+const (
+	codeDead     = pb.ErrorCode_ERROR_CODE_DEAD
+	codeNotSafe  = pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE
+	codeBad      = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	codeNotFound = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+	codeNoXu     = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+	codeBagFull  = pb.ErrorCode_ERROR_CODE_BAG_FULL
+)
+
+func bagRef(slot int) items.Ref  { return items.Ref{Slot: slot} }
+func wornRef(slot int) items.Ref { return items.Ref{Equipped: true, Slot: slot} }
+
+// Each punch check of spec 4.2 in order; every case also breaks the checks
+// after its own where it can.
+func TestPunchErrors(t *testing.T) {
+	armour := testItemData.Equipment["eq10_armor"].SlotIndex
+	broke := func(p *player) { p.xu = 0 }
+	punch := func(r items.Ref) func(*Zone) bool { return func(z *Zone) bool { return z.Punch(1, 9, r) } }
+	runForgeErrors(t, []forgeCase{
+		{"dead outside the safe zone, bad slot", true, true, broke, punch(bagRef(60)), codeDead},
+		{"outside the safe zone, bad slot", false, true, broke, punch(bagRef(60)), codeNotSafe},
+		{"bag slot 60", false, false, broke, punch(bagRef(60)), codeBad},
+		{"worn slot 10", false, false, broke, punch(wornRef(10)), codeBad},
+		{"empty bag slot", false, false, broke, punch(bagRef(7)), codeNotFound},
+		{"stones", false, false, broke, punch(bagRef(3)), codeBad},
+		{"three holes", false, false, broke, punch(bagRef(8)), pb.ErrorCode_ERROR_CODE_HOLES_MAXED},
+		// The third hole costs 400 x tier 10.
+		{"1 Xu short", false, false, func(p *player) { p.xu = 3999 }, punch(wornRef(armour)), codeNoXu},
+	})
+}
+
+// Each socket check of spec 4.3 in order.
+func TestSocketErrors(t *testing.T) {
+	armour := testItemData.Equipment["eq10_armor"].SlotIndex
+	socket := func(r items.Ref, hole, gemSlot int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.Socket(1, 9, r, hole, gemSlot) }
+	}
+	runForgeErrors(t, []forgeCase{
+		{"dead outside the safe zone, bad slot", true, true, nil, socket(bagRef(60), 9, 60), codeDead},
+		{"outside the safe zone, bad slot", false, true, nil, socket(bagRef(60), 9, 60), codeNotSafe},
+		{"bag slot 60", false, false, nil, socket(bagRef(60), 0, 4), codeBad},
+		{"gem slot 60", false, false, nil, socket(wornRef(armour), 0, 60), codeBad},
+		{"gem slot -1", false, false, nil, socket(wornRef(armour), 0, -1), codeBad},
+		{"empty item slot", false, false, nil, socket(bagRef(7), 0, 4), codeNotFound},
+		{"empty gem slot", false, false, nil, socket(wornRef(armour), 9, 7), codeNotFound},
+		{"stones as the item", false, false, nil, socket(bagRef(3), 0, 4), codeBad},
+		{"stones as the gem", false, false, nil, socket(wornRef(armour), 0, 3), codeBad},
+		{"hole 2 of 2", false, false, nil, socket(wornRef(armour), 2, 4), codeBad},
+		{"hole -1", false, false, nil, socket(wornRef(armour), -1, 4), codeBad},
+		{"filled hole", false, false, nil, socket(wornRef(armour), 1, 5), codeBad},
+		{"level-2 gem in a tier-10 piece", false, false, nil, socket(wornRef(armour), 0, 5), pb.ErrorCode_ERROR_CODE_GEM_TOO_HIGH},
+	})
+}
+
+// Each unsocket check of spec 4.4 in order.
+func TestUnsocketErrors(t *testing.T) {
+	armour := testItemData.Equipment["eq10_armor"].SlotIndex
+	broke := func(p *player) { p.xu = 0 }
+	// fullBag leaves no stack the gem can join and no empty slot.
+	fullBag := func(p *player) {
+		p.xu, p.inv.Bag[4] = 0, nil
+		for i, it := range p.inv.Bag {
+			if it == nil {
+				p.inv.Bag[i] = &items.Item{Code: "eq10_boots", Count: 1}
+			}
+		}
+	}
+	unsocket := func(r items.Ref, hole int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.Unsocket(1, 9, r, hole) }
+	}
+	runForgeErrors(t, []forgeCase{
+		{"dead outside the safe zone, bad slot", true, true, broke, unsocket(bagRef(60), 9), codeDead},
+		{"outside the safe zone, bad slot", false, true, broke, unsocket(bagRef(60), 9), codeNotSafe},
+		{"bag slot 60", false, false, broke, unsocket(bagRef(60), 1), codeBad},
+		{"empty bag slot", false, false, broke, unsocket(bagRef(7), 1), codeNotFound},
+		{"stones", false, false, broke, unsocket(bagRef(3), 0), codeBad},
+		{"hole 2 of 2", false, false, broke, unsocket(wornRef(armour), 2), codeBad},
+		{"hole -1", false, false, broke, unsocket(wornRef(armour), -1), codeBad},
+		{"empty hole", false, false, broke, unsocket(wornRef(armour), 0), codeBad},
+		{"bag full", false, false, fullBag, unsocket(wornRef(armour), 1), codeBagFull},
+		// A level-1 gem costs 500.
+		{"1 Xu short", false, false, func(p *player) { p.xu = 499 }, unsocket(wornRef(armour), 1), codeNoXu},
+	})
+}
+
+// Socketing an HP gem into the worn armour raises max HP by the gem's value
+// with the HP share kept, shows the new bar, replies with the gem's slot and
+// the armour, and saves at once; it costs no Xu.
+func TestSocketWornArmour(t *testing.T) {
+	z, p, sv := forgeZone(t, socketInventory(), false)
+	out := p.out.(*fakeOut)
+	z.advance(time.Now())
+	out.take()
+	slot := testItemData.Equipment["eq10_armor"].SlotIndex
+	p.hp = p.maxHP / 2
+	hp, oldMax := p.hp, p.maxHP
+	itemNow(t, z, z.Socket(1, 9, wornRef(slot), 0, 4))
+	envs := out.take()
+	resp := respFor(envs, 9, (*pb.Envelope).GetSocketResp)
+	if resp == nil || !slices.Equal(p.inv.Worn[slot].Gems, []string{"gem_hp_1", "gem_hp_1"}) {
+		t.Fatalf("SocketResp %v gems %v, want the gem in hole 0", resp, p.inv.Worn[slot].Gems)
+	}
+	gem := testItemData.Stackables["gem_hp_1"].Gem.Stats["hp"]
+	if wantMax := oldMax + gem; p.maxHP != wantMax || p.hp != keepHPRatio(hp, oldMax, wantMax) || p.xu != 100000 {
+		t.Fatalf("hp %d/%d xu %d, want %d/%d and no Xu spent", p.hp, p.maxHP, p.xu, keepHPRatio(hp, oldMax, wantMax), wantMax)
+	}
+	want := &pb.InventoryUpdate{
+		Bag:      []*pb.ItemSlot{{Slot: 4, Item: &pb.ItemInfo{Code: "gem_hp_1", Count: 2}}},
+		Equipped: []*pb.ItemSlot{itemSlot(slot, p.inv.Worn[slot])},
+	}
+	if !proto.Equal(resp.Update, want) || resp.Update.Equipped[0].Item.Holes != 2 || !proto.Equal(resp.Stats, z.selfStats(p)) {
+		t.Fatalf("update %v stats %v, want %v and the new stats", resp.Update, resp.Stats, want)
+	}
+	if all := sv.all(); len(all) != 1 || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+		t.Fatalf("saves %+v, want one with the gem socketed", all)
+	}
+	z.advance(time.Now())
+	if cs := hpChangesIn(append(envs, out.take()...)); len(cs) != 1 || cs[0].MaxHp != int32(p.maxHP) {
+		t.Fatalf("HpChanges %v, want one to %d", cs, p.maxHP)
+	}
+}
+
+// Punching a bag piece pays 100 x tier and adds an empty hole without
+// touching the stats; unsocketing from the worn armour pays 500, returns the
+// gem onto its stack and lowers max HP again.
+func TestPunchAndUnsocket(t *testing.T) {
+	z, p, sv := forgeZone(t, socketInventory(), false)
+	out := p.out.(*fakeOut)
+	z.advance(time.Now())
+	out.take()
+	stats, maxHP := p.stats, p.maxHP
+	itemNow(t, z, z.Punch(1, 9, bagRef(0)))
+	resp := respFor(out.take(), 9, (*pb.Envelope).GetPunchResp)
+	if resp == nil || !slices.Equal(p.inv.Bag[0].Gems, []string{""}) || p.xu != 100000-1000 || p.stats != stats ||
+		!proto.Equal(resp.Update, &pb.InventoryUpdate{Bag: []*pb.ItemSlot{itemSlot(0, p.inv.Bag[0])}}) ||
+		resp.Update.Bag[0].Item.Holes != 1 || resp.Stats.Xu != p.xu {
+		t.Fatalf("PunchResp %v gems %v xu %d, want one empty hole for 1000 Xu", resp, p.inv.Bag[0].Gems, p.xu)
+	}
+
+	slot := testItemData.Equipment["eq10_armor"].SlotIndex
+	itemNow(t, z, z.Unsocket(1, 10, wornRef(slot), 1))
+	un := respFor(out.take(), 10, (*pb.Envelope).GetUnsocketResp)
+	gem := testItemData.Stackables["gem_hp_1"].Gem.Stats["hp"]
+	if un == nil || !slices.Equal(p.inv.Worn[slot].Gems, []string{"", ""}) || p.inv.Bag[4].Count != 4 ||
+		p.xu != 100000-1000-500 || p.maxHP != maxHP-gem {
+		t.Fatalf("UnsocketResp %v gems %v xu %d max HP %d, want the hole emptied, 4 gems, %d Xu, %d HP",
+			un, p.inv.Worn[slot].Gems, p.xu, p.maxHP, 100000-1500, maxHP-gem)
+	}
+	want := &pb.InventoryUpdate{
+		Bag:      []*pb.ItemSlot{{Slot: 4, Item: &pb.ItemInfo{Code: "gem_hp_1", Count: 4}}},
+		Equipped: []*pb.ItemSlot{itemSlot(slot, p.inv.Worn[slot])},
+	}
+	if !proto.Equal(un.Update, want) || !proto.Equal(un.Stats, z.selfStats(p)) {
+		t.Fatalf("update %v, want %v", un.Update, want)
+	}
+	if all := sv.all(); len(all) != 2 || !reflect.DeepEqual(all[1].Items, itemRows(p.inv)) || all[1].Xu != p.xu {
+		t.Fatalf("saves %+v, want one per command", all)
+	}
+}
+
+// Wearing a Phong helmet lights line 1 of the worn Viêm sword's hidden lines
+// (spec 4.1): the stats rise by that line on top of the helmet's own; a Nham
+// helmet does not light it, and taking the helmet off removes it.
+func TestResonanceInZone(t *testing.T) {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "viem",
+		Hidden: []items.Line{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}}}
+	inv.Bag[0] = &items.Item{Code: "eq10_helmet", Count: 1, Element: "phong"}
+	inv.Bag[1] = &items.Item{Code: "eq10_helmet", Count: 1, Element: "nham"}
+	z, p, _ := forgeZone(t, inv, false)
+	out := p.out.(*fakeOut)
+	base := p.maxHP
+	helmet := testItemData.Equipment["eq10_helmet"].SlotIndex
+
+	itemNow(t, z, z.Equip(1, 9, 1))
+	nham := p.maxHP
+	itemNow(t, z, z.Equip(1, 10, 0)) // swaps the Nham helmet back into slot 0
+	phong := p.maxHP
+	if p.inv.Worn[helmet].Element != "phong" || phong-nham != 86 || nham <= base {
+		t.Fatalf("max HP %d without the helmet, %d with Nham, %d with Phong; want Phong 86 above Nham", base, nham, phong)
+	}
+	itemNow(t, z, z.Unequip(1, 11, helmet))
+	if p.maxHP != base {
+		t.Fatalf("max HP %d after taking the helmet off, want %d", p.maxHP, base)
+	}
+	if es := out.take(); errorFor(es, 9) != nil || errorFor(es, 10) != nil || errorFor(es, 11) != nil {
+		t.Fatalf("errors in %v", es)
+	}
+}

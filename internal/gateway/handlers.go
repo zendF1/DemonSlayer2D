@@ -138,11 +138,34 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		r := p.EnhanceReq
-		ref := items.Ref{Equipped: r.GetItem().GetEquipped(), Slot: int(r.GetItem().GetSlot())}
-		c.zoneBusyIfDropped(seq, c.member.Enhance(seq, ref, r.Protect, int(r.Times)))
+		c.zoneBusyIfDropped(seq, c.member.Enhance(seq, itemRef(r.GetItem()), r.Protect, int(r.Times)))
+	case *pb.Envelope_PunchReq:
+		// The forge requests have only the packet limit, like enhancement;
+		// the zone checks the slots and holes (phase 3c spec 4.2-4.4).
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Punch(seq, itemRef(p.PunchReq.GetItem())))
+	case *pb.Envelope_SocketReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.SocketReq
+		c.zoneBusyIfDropped(seq, c.member.Socket(seq, itemRef(r.GetItem()), int(r.Hole), int(r.GemSlot)))
+	case *pb.Envelope_UnsocketReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.UnsocketReq
+		c.zoneBusyIfDropped(seq, c.member.Unsocket(seq, itemRef(r.GetItem()), int(r.Hole)))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}
+}
+
+// itemRef is r as an items.Ref; a missing ref is bag slot 0.
+func itemRef(r *pb.ItemRef) items.Ref {
+	return items.Ref{Equipped: r.GetEquipped(), Slot: int(r.GetSlot())}
 }
 
 // inWorld answers NOT_IN_WORLD and returns false when the connection has no character in the world.

@@ -271,6 +271,26 @@ func (m *Membership) Enhance(seq uint32, ref items.Ref, protect bool, times int)
 	return m.z.Enhance(m.EntityID, seq, ref, protect, times)
 }
 
+// Punch queues punching a hole in the item ref points to; the zone answers
+// seq on the outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Punch(seq uint32, ref items.Ref) bool {
+	return m.z.Punch(m.EntityID, seq, ref)
+}
+
+// Socket queues socketing the gem in bag slot gemSlot into hole of the item
+// ref points to; the zone answers seq on the outbox. It reports false if the
+// zone's inbox is full.
+func (m *Membership) Socket(seq uint32, ref items.Ref, hole, gemSlot int) bool {
+	return m.z.Socket(m.EntityID, seq, ref, hole, gemSlot)
+}
+
+// Unsocket queues taking the gem in hole of the item ref points to back
+// into the bag; the zone answers seq on the outbox. It reports false if the
+// zone's inbox is full.
+func (m *Membership) Unsocket(seq uint32, ref items.Ref, hole int) bool {
+	return m.z.Unsocket(m.EntityID, seq, ref, hole)
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

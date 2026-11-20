@@ -210,7 +210,7 @@ func (z *Zone) sortBag(c sortBagCmd) {
 }
 
 // itemErrorCode maps an items error to the code the client gets (phase 3a
-// spec 4.7, phase 3b spec 4.1).
+// spec 4.7, phase 3b spec 4.1, phase 3c spec 4.2-4.5).
 func itemErrorCode(err error) pb.ErrorCode {
 	switch {
 	case errors.Is(err, items.ErrBagFull):
@@ -221,7 +221,8 @@ func itemErrorCode(err error) pb.ErrorCode {
 		return pb.ErrorCode_ERROR_CODE_WRONG_CLASS
 	case errors.Is(err, items.ErrLevelTooLow):
 		return pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
-	case errors.Is(err, items.ErrBadSlot), errors.Is(err, items.ErrNotEquipment), errors.Is(err, items.ErrBadCount):
+	case errors.Is(err, items.ErrBadSlot), errors.Is(err, items.ErrNotEquipment), errors.Is(err, items.ErrBadCount),
+		errors.Is(err, items.ErrBadRequest):
 		return pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 	case errors.Is(err, items.ErrMaxed):
 		return pb.ErrorCode_ERROR_CODE_ENHANCE_MAXED
@@ -229,6 +230,10 @@ func itemErrorCode(err error) pb.ErrorCode {
 		return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_MATERIALS
 	case errors.Is(err, items.ErrNoXu):
 		return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+	case errors.Is(err, items.ErrHolesMaxed):
+		return pb.ErrorCode_ERROR_CODE_HOLES_MAXED
+	case errors.Is(err, items.ErrGemTooHigh):
+		return pb.ErrorCode_ERROR_CODE_GEM_TOO_HIGH
 	}
 	return pb.ErrorCode_ERROR_CODE_INTERNAL
 }

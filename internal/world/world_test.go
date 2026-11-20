@@ -727,6 +727,9 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 		{"allocate", func(m *Membership) bool { return m.Allocate(5, combat.Points{}) }, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
 		{"respawn", func(m *Membership) bool { return m.Respawn(5) }, pb.ErrorCode_ERROR_CODE_NOT_DEAD},
 		{"enhance", func(m *Membership) bool { return m.Enhance(5, items.Ref{Slot: 0}, false, 1) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
+		{"punch", func(m *Membership) bool { return m.Punch(5, items.Ref{Slot: 0}) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
+		{"socket", func(m *Membership) bool { return m.Socket(5, items.Ref{Slot: 0}, 0, 1) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
+		{"unsocket", func(m *Membership) bool { return m.Unsocket(5, items.Ref{Slot: 0}, 0) }, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := newTestWorld(t, 10)

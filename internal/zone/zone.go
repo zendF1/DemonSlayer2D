@@ -460,6 +460,12 @@ func (z *Zone) handle(c any) {
 		z.sortBag(c)
 	case enhanceCmd:
 		z.enhance(c)
+	case punchCmd:
+		z.punch(c)
+	case socketCmd:
+		z.socket(c)
+	case unsocketCmd:
+		z.unsocket(c)
 	}
 }
 

@@ -350,6 +350,48 @@ func (c *Client) Enhance(ctx context.Context, ref *pb.ItemRef, protect bool, tim
 	return r, nil
 }
 
+// Punch punches one more hole in the item ref points to.
+func (c *Client) Punch(ctx context.Context, ref *pb.ItemRef) (*pb.PunchResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_PunchReq{PunchReq: &pb.PunchReq{Item: ref}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetPunchResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to PunchReq: %v", resp)
+	}
+	return r, nil
+}
+
+// Socket sockets the gem in bag slot gemSlot into hole of the item ref
+// points to.
+func (c *Client) Socket(ctx context.Context, ref *pb.ItemRef, hole, gemSlot int) (*pb.SocketResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_SocketReq{SocketReq: &pb.SocketReq{
+		Item: ref, Hole: int32(hole), GemSlot: int32(gemSlot)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetSocketResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to SocketReq: %v", resp)
+	}
+	return r, nil
+}
+
+// Unsocket takes the gem in hole of the item ref points to back into the bag.
+func (c *Client) Unsocket(ctx context.Context, ref *pb.ItemRef, hole int) (*pb.UnsocketResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_UnsocketReq{UnsocketReq: &pb.UnsocketReq{
+		Item: ref, Hole: int32(hole)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetUnsocketResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to UnsocketReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Move sends a direction (no response). It returns the input seq used.
 func (c *Client) Move(ctx context.Context, dx, dy float32) (uint32, error) {
 	seq := c.inputSeq.Add(1)
