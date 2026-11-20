@@ -2,6 +2,8 @@ package mapdata
 
 import (
 	"encoding/json"
+	"maps"
+	"os/exec"
 	"slices"
 	"strings"
 	"testing"
@@ -70,7 +72,7 @@ func TestParseErrors(t *testing.T) {
 				{"id": "default", "x": 1.5, "y": 1.5}, {"id": "default", "x": 2.5, "y": 1.5},
 			}
 		},
-		"unknown field": func(m map[string]any) { m["portals"] = []string{} },
+		"unknown field": func(m map[string]any) { m["teleports"] = []string{} },
 	}
 	for want, mutate := range cases {
 		_, err := Parse(mapJSON(t, mutate))
@@ -225,8 +227,9 @@ func TestKumotoriLoads(t *testing.T) {
 	if m == nil {
 		t.Fatal("kumotori_1 not loaded")
 	}
-	if len(m.SafeZones) != 1 || len(m.RestPoints) != 1 {
-		t.Fatalf("kumotori_1 has %d safe zones, %d rest points", len(m.SafeZones), len(m.RestPoints))
+	// The camp and, from phase 4a, the safe zone at the east portal.
+	if len(m.SafeZones) != 2 || m.SafeZones[0].ID != "camp" || m.SafeZones[1].ID != "gate_east" || len(m.RestPoints) != 1 {
+		t.Fatalf("kumotori_1 has safe zones %+v, %d rest points", m.SafeZones, len(m.RestPoints))
 	}
 	if !m.InSafeZone(m.Spawns["default"]) {
 		t.Error("default spawn is not in the safe zone")
@@ -377,5 +380,30 @@ func TestParseRegionErrors(t *testing.T) {
 func TestParseRegionCountAtLimit(t *testing.T) {
 	if _, err := Parse(regionJSON(t, func(r, m map[string]any) { r["count"] = 20 })); err != nil {
 		t.Fatalf("count equal to the tile count must be accepted: %v", err)
+	}
+}
+
+// ______________________TEST REAL MAPS_____________________
+
+// The committed maps are what tools/mapgen.py writes (phase 4a spec 2.2).
+func TestRepoMapsMatchGenerator(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	out, err := exec.Command(py, "../../tools/mapgen.py", "--check").CombinedOutput()
+	if err != nil {
+		t.Fatalf("mapgen.py --check: %v\n%s", err, out)
+	}
+}
+
+func TestRepoMapsLoad(t *testing.T) {
+	loaded, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"fujikasane_1", "kumotori_1", "sagiri_1", "sagiri_2", "ubuyashiki"}
+	if got := slices.Sorted(maps.Keys(loaded)); !slices.Equal(got, want) {
+		t.Fatalf("maps %v, want %v", got, want)
 	}
 }

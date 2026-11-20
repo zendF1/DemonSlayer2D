@@ -69,22 +69,35 @@ type Region struct {
 var validTypes = map[string]bool{"town": true, "training": true, "battle": true, "instance": true}
 
 type spawnFile struct {
-	ID string  `json:"id"`
-	X  float32 `json:"x"`
-	Y  float32 `json:"y"`
+	ID      string  `json:"id"`
+	X       float32 `json:"x"`
+	Y       float32 `json:"y"`
+	Respawn bool    `json:"respawn"`
+}
+
+type portalFile struct {
+	ID      string `json:"id"`
+	X       int    `json:"x"`
+	Y       int    `json:"y"`
+	W       int    `json:"w"`
+	H       int    `json:"h"`
+	ToMap   string `json:"to_map"`
+	ToSpawn string `json:"to_spawn"`
 }
 
 type mapFile struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Type        string      `json:"type"`
-	Width       int         `json:"width"`
-	Height      int         `json:"height"`
-	Collision   []string    `json:"collision"`
-	SpawnPoints []spawnFile `json:"spawn_points"`
-	SafeZones   []Rect      `json:"safe_zones"`
-	RestPoints  []RestPoint `json:"rest_points"`
-	Regions     []Region    `json:"regions"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Type        string       `json:"type"`
+	Width       int          `json:"width"`
+	Height      int          `json:"height"`
+	MinZones    int          `json:"min_zones"`
+	Collision   []string     `json:"collision"`
+	SpawnPoints []spawnFile  `json:"spawn_points"`
+	SafeZones   []Rect       `json:"safe_zones"`
+	RestPoints  []RestPoint  `json:"rest_points"`
+	Regions     []Region     `json:"regions"`
+	Portals     []portalFile `json:"portals"`
 }
 
 // Parse decodes and validates one map file.

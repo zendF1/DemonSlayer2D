@@ -1,0 +1,495 @@
+"""Generate the map files (maps/*.json) from rectangle declarations.
+
+Run from any directory:
+  python3 tools/mapgen.py            print a summary of every map
+  python3 tools/mapgen.py --write    write maps/*.json
+  python3 tools/mapgen.py --check    compare with maps/*.json, print the maps
+                                     that differ and exit 1 (a Go test runs it)
+
+Rules (phase 4a spec 2.1-2.3): each map is declared with its size, wall
+rectangles (inside the border wall), safe zones, rest points, spawn points,
+portals, monster regions and min_zones. A portal is a 1 x 4 tile rectangle in
+column 1 (west) or width - 2 (east), rows height/2 - 2 .. height/2 + 1, named
+to_<target map>; its arrival in the target map is the spawn point
+from_<source map>, 3 tiles inside from the target map's reverse portal, on its
+middle row. Before writing, the script checks every rule of spec 2.1 that it
+can see, that every portal has a reverse, that every map is reachable from
+kumotori_1 and that every region has enough region tiles (mirroring
+mapdata.RegionTiles). Never edit maps/*.json by hand; edit this script.
+"""
+
+import argparse
+import json
+import math
+import sys
+from collections import deque
+from pathlib import Path
+
+MAPS_DIR = Path(__file__).resolve().parents[1] / "maps"
+START_MAP = "kumotori_1"
+TYPES = ("town", "training", "battle", "instance")
+ARRIVAL_MIN_DISTANCE = 2  # tiles from every portal of the arrival's map
+
+
+# ______________________DECLARATION HELPERS_____________________
+
+def wall(x, y, w, h):
+    """Wall tiles x..x+w-1 by y..y+h-1 (the border wall is always there)."""
+    return ("wall", (x, y, w, h))
+
+
+def safe(zone_id, x, y, w, h):
+    return ("safe", {"id": zone_id, "x": x, "y": y, "w": w, "h": h})
+
+
+def gate_safe(side):
+    """The 6 x 8 safe zone gate_<side> around the arrival of a portal (spec 2.3)."""
+    return ("gate", side)
+
+
+def rest(rest_id, x, y, radius=1.5):
+    return ("rest", {"id": rest_id, "x": float(x), "y": float(y), "radius": float(radius)})
+
+
+def spawn(spawn_id, x, y, respawn=False):
+    sp = {"id": spawn_id, "x": float(x), "y": float(y)}
+    if respawn:
+        sp["respawn"] = True
+    return ("spawn", sp)
+
+
+def portal(side, to_map):
+    """Portal to_<to_map> on the west or east wall; its rect and to_spawn are computed."""
+    return ("portal", {"side": side, "to_map": to_map})
+
+
+def region(region_id, monster, lo, hi, count, rects, nest):
+    return ("region", {
+        "id": region_id, "monster": monster, "min_level": lo, "max_level": hi, "count": count,
+        "rects": [{"x": x, "y": y, "w": w, "h": h} for x, y, w, h in rects],
+        "nest": {"x": float(nest[0]), "y": float(nest[1])},
+    })
+
+
+def quarters(monsters, levels, counts, nests, walls=()):
+    """The four regions of a new training map (spec 2.3): north-middle,
+    south-middle, north-east, south-east, levels rising in that order (the
+    middle is nearer the camp). monsters is (middle kind, east kind)."""
+    rects = [(1, 1, 31, 23), (1, 24, 31, 23), (32, 1, 31, 23), (32, 24, 31, 23)]
+    out = [wall(*w) for w in walls]
+    for i in range(4):
+        lo, hi = levels[i]
+        out.append(region(f"r{i + 1}", monsters[i // 2], lo, hi, counts[i], [rects[i]], nests[i]))
+    return out
+
+
+def camp_west():
+    """The camp of a new training map (spec 2.3): a 10 x 10 safe zone against
+    the west wall at mid height, holding the west portal and its arrival, the
+    default (respawn) spawn point in its middle and a bonfire."""
+    return [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True)]
+
+
+# ______________________MAPS_____________________
+
+MAPS = [
+    {
+        "id": "ubuyashiki", "name": "Tổng hành dinh Ubuyashiki", "type": "town",
+        "width": 40, "height": 32, "min_zones": 1,
+        "parts": [
+            safe("town", 1, 1, 38, 30),
+            # Houses north and south of the road (rows 12-20 stay open).
+            wall(5, 3, 6, 5), wall(15, 2, 10, 6), wall(29, 3, 6, 5),
+            wall(5, 24, 6, 5), wall(15, 25, 10, 4), wall(29, 24, 6, 5),
+            rest("bonfire", 20.5, 12.5),
+            spawn("default", 20.5, 16.5, respawn=True),
+            portal("west", "kumotori_1"),
+            portal("east", "sagiri_1"),
+        ],
+    },
+    {
+        # The phase 1 layout, kept tile for tile so saved positions stay valid.
+        "id": "kumotori_1", "name": "Kumotori – Đường núi tuyết", "type": "training",
+        "width": 64, "height": 48, "min_zones": 2,
+        "parts": [
+            wall(10, 20, 15, 1), wall(28, 20, 13, 1), wall(45, 30, 4, 4),
+            safe("camp", 1, 1, 10, 10),
+            rest("bonfire", 3.5, 3.5),
+            spawn("default", 5.5, 5.5, respawn=True),
+            portal("east", "ubuyashiki"),
+            gate_safe("east"),
+            region("r1", "wanderer", 1, 2, 8, [(12, 1, 20, 19), (1, 12, 11, 8)], (22.5, 10.5)),
+            region("r2", "wanderer", 2, 3, 7, [(32, 1, 31, 19)], (47.5, 9.5)),
+            region("r3", "snow_ghoul", 3, 4, 7, [(1, 21, 31, 26)], (15.5, 34.5)),
+            region("r4", "snow_ghoul", 4, 5, 8, [(32, 21, 31, 26)], (52.5, 40.5)),
+        ],
+    },
+    {
+        "id": "sagiri_1", "name": "Sagiri – Chân núi, đường đến ngôi đền", "type": "training",
+        "width": 64, "height": 48, "min_zones": 2,
+        "parts": camp_west() + [
+            portal("west", "ubuyashiki"),
+            portal("east", "sagiri_2"),
+            gate_safe("east"),
+        ] + quarters(
+            ("mountain_demon", "ambusher"), [(6, 7), (7, 8), (8, 9), (9, 10)], [8, 7, 7, 8],
+            [(16.5, 10.5), (16.5, 36.5), (47.5, 10.5), (47.5, 36.5)],
+            # Rocks at the foot of the mountain.
+            walls=[(20, 6, 5, 3), (26, 15, 3, 4), (38, 5, 4, 6), (52, 12, 5, 3),
+                   (22, 30, 4, 5), (36, 38, 6, 3), (50, 30, 3, 5), (12, 40, 5, 2)],
+        ),
+    },
+    {
+        "id": "sagiri_2", "name": "Sagiri – Rừng sương mù", "type": "training",
+        "width": 64, "height": 48, "min_zones": 2,
+        "parts": camp_west() + [
+            portal("west", "sagiri_1"),
+            portal("east", "fujikasane_1"),
+            gate_safe("east"),
+        ] + quarters(
+            ("mist_lurker", "long_claw"), [(11, 12), (12, 13), (13, 14), (14, 15)], [8, 7, 7, 8],
+            [(17.5, 8.5), (17.5, 37.5), (46.5, 8.5), (46.5, 37.5)],
+            # Trees in rows north and south of the path (rows 20-27 stay open).
+            walls=[(x, y, 2, 2) for y in (4, 11, 33, 40) for x in (14, 21, 28, 35, 42, 49)],
+        ),
+    },
+    {
+        "id": "fujikasane_1", "name": "Fujikasane – Rừng tuyển chọn", "type": "training",
+        "width": 64, "height": 48, "min_zones": 2,
+        "parts": camp_west() + [
+            portal("west", "sagiri_2"),
+        ] + quarters(
+            ("forest_demon", "captive_demon"), [(16, 17), (17, 18), (18, 19), (19, 20)], [8, 7, 7, 8],
+            [(18.5, 8.5), (18.5, 39.5), (45.5, 8.5), (45.5, 39.5)],
+            # Wisteria hedges.
+            walls=[(14, 14, 12, 1), (38, 14, 12, 1), (14, 33, 12, 1), (38, 33, 12, 1),
+                   (31, 3, 2, 8), (31, 37, 2, 8)],
+        ),
+    },
+]
+
+
+# ______________________BUILD_____________________
+
+def portal_rect(side, width, height):
+    x = 1 if side == "west" else width - 2
+    return {"x": x, "y": height // 2 - 2, "w": 1, "h": 4}
+
+
+def arrival(side, width, height):
+    """The arrival point 3 tiles inside from a portal, on its middle row."""
+    x = 4.5 if side == "west" else width - 4.5
+    return float(x), float(height // 2)
+
+
+def gate_rect(side, width, height):
+    """6 x 8 tiles around the arrival of the portal on side, the portal included."""
+    x = 1 if side == "west" else width - 7
+    return {"x": x, "y": height // 2 - 4, "w": 6, "h": 8}
+
+
+def build_map(spec, specs):
+    """The JSON object of one map (spec 2.1 key order) and its collision grid."""
+    width, height = spec["width"], spec["height"]
+    if height % 2 or width < 8 or height < 8:
+        raise SystemExit(f"mapgen {spec['id']}: size {width} x {height} must be even in height and at least 8")
+    grid = [["#" if x in (0, width - 1) or y in (0, height - 1) else "." for x in range(width)]
+            for y in range(height)]
+    safe_zones, rest_points, spawns, portals, regions = [], [], [], [], []
+    for kind, value in spec["parts"]:
+        if kind == "wall":
+            x, y, w, h = value
+            for ty in range(y, y + h):
+                for tx in range(x, x + w):
+                    grid[ty][tx] = "#"
+        elif kind == "safe":
+            safe_zones.append(value)
+        elif kind == "gate":
+            safe_zones.append({"id": f"gate_{value}", **gate_rect(value, width, height)})
+        elif kind == "rest":
+            rest_points.append(value)
+        elif kind == "spawn":
+            spawns.append(value)
+        elif kind == "portal":
+            portals.append({"id": "to_" + value["to_map"], **portal_rect(value["side"], width, height),
+                            "to_map": value["to_map"], "to_spawn": "from_" + spec["id"]})
+        elif kind == "region":
+            regions.append(value)
+        else:
+            raise AssertionError(kind)
+    # Arrivals: from_<other> beside this map's portal back to <other>.
+    for kind, value in spec["parts"]:
+        if kind == "portal":
+            if value["to_map"] not in specs:
+                raise SystemExit(f"mapgen {spec['id']}: portal to unknown map {value['to_map']}")
+            x, y = arrival(value["side"], width, height)
+            spawns.append({"id": "from_" + value["to_map"], "x": x, "y": y})
+    out = {
+        "id": spec["id"], "name": spec["name"], "type": spec["type"],
+        "width": width, "height": height, "min_zones": spec["min_zones"],
+        "collision": ["".join(row) for row in grid],
+        "safe_zones": safe_zones, "rest_points": rest_points, "spawn_points": spawns,
+        "portals": portals, "regions": regions,
+    }
+    return out
+
+
+def dump(m):
+    """Fixed formatting: 2-space indent, one collision row or one object per line."""
+    def compact(v):
+        return json.dumps(v, ensure_ascii=False, separators=(", ", ": "))
+    lines = ["{"]
+    items = list(m.items())
+    for i, (key, value) in enumerate(items):
+        comma = "," if i < len(items) - 1 else ""
+        if isinstance(value, list) and value:
+            lines.append(f"  {json.dumps(key)}: [")
+            for j, entry in enumerate(value):
+                lines.append("    " + compact(entry) + ("," if j < len(value) - 1 else ""))
+            lines.append("  ]" + comma)
+        else:
+            lines.append(f"  {json.dumps(key)}: {compact(value)}{comma}")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+# ______________________CHECKS_____________________
+
+class Grid:
+    """The view of one built map that mapdata.Parse has."""
+
+    def __init__(self, m):
+        self.m = m
+        self.width, self.height = m["width"], m["height"]
+        self.rows = m["collision"]
+
+    def blocked(self, tx, ty):
+        if tx < 0 or ty < 0 or tx >= self.width or ty >= self.height:
+            return True
+        return self.rows[ty][tx] == "#"
+
+    def safe_tile(self, tx, ty):
+        return any(in_rect(z, tx, ty) for z in self.m["safe_zones"])
+
+    def near_safe(self, tx, ty):
+        return any(z["x"] - 1 <= tx < z["x"] + z["w"] + 1 and z["y"] - 1 <= ty < z["y"] + z["h"] + 1
+                   for z in self.m["safe_zones"])
+
+    def region_tiles(self, r):
+        """mapdata.RegionTiles: walkable tiles in a rect, outside the safe zones grown by 1."""
+        return [(tx, ty) for ty in range(self.height) for tx in range(self.width)
+                if not self.blocked(tx, ty) and not self.near_safe(tx, ty)
+                and any(in_rect(rc, tx, ty) for rc in r["rects"])]
+
+    def rest_in_safe(self, r):
+        """mapdata restInSafeZones: every tile the circle reaches is in a safe zone."""
+        x, y, rad = r["x"], r["y"], r["radius"]
+        for tx in range(math.floor(x - rad), math.floor(x + rad) + 1):
+            for ty in range(math.floor(y - rad), math.floor(y + rad) + 1):
+                nx = min(max(x, tx), tx + 1)
+                ny = min(max(y, ty), ty + 1)
+                if math.hypot(nx - x, ny - y) <= rad and not self.safe_tile(tx, ty):
+                    return False
+        return True
+
+    def reachable(self, start):
+        """Tiles reachable from start, four directions over walkable tiles."""
+        seen = {start}
+        queue = deque([start])
+        while queue:
+            tx, ty = queue.popleft()
+            for nx, ny in ((tx + 1, ty), (tx - 1, ty), (tx, ty + 1), (tx, ty - 1)):
+                if (nx, ny) not in seen and not self.blocked(nx, ny):
+                    seen.add((nx, ny))
+                    queue.append((nx, ny))
+        return seen
+
+
+def in_rect(r, tx, ty):
+    return r["x"] <= tx < r["x"] + r["w"] and r["y"] <= ty < r["y"] + r["h"]
+
+
+def tile(p):
+    return math.floor(p["x"]), math.floor(p["y"])
+
+
+def rect_tiles(r):
+    return [(tx, ty) for ty in range(r["y"], r["y"] + r["h"]) for tx in range(r["x"], r["x"] + r["w"])]
+
+
+def rect_distance(x, y, r):
+    """Distance from (x, y) to the nearest point of [X, X+W] x [Y, Y+H]; 0 inside."""
+    dx = max(r["x"] - x, 0, x - (r["x"] + r["w"]))
+    dy = max(r["y"] - y, 0, y - (r["y"] + r["h"]))
+    return math.hypot(dx, dy)
+
+
+def check_map(m):
+    """The per-map rules of spec 2.1 (mapdata.Parse); returns error strings."""
+    g, mid, errs = Grid(m), m["id"], []
+
+    def err(msg):
+        errs.append(f"{mid}: {msg}")
+
+    if m["type"] not in TYPES:
+        err(f"invalid type {m['type']}")
+    if not 1 <= m["min_zones"] <= 10:
+        err(f"min_zones {m['min_zones']} not in 1-10")
+    for z in m["safe_zones"]:
+        if z["x"] < 0 or z["y"] < 0 or z["x"] + z["w"] > g.width or z["y"] + z["h"] > g.height:
+            err(f"safe zone {z['id']} is outside the map")
+    if not m["safe_zones"]:
+        err("no safe zone")
+    spawns = {}
+    for sp in m["spawn_points"]:
+        if sp["id"] in spawns:
+            err(f"duplicate spawn point {sp['id']}")
+        spawns[sp["id"]] = sp
+        if g.blocked(*tile(sp)):
+            err(f"spawn point {sp['id']} is not walkable")
+    if "default" not in spawns:
+        err("no default spawn point")
+        return errs
+    if not g.safe_tile(*tile(spawns["default"])):
+        err("default spawn point is outside the safe zones")
+    respawns = [sp for sp in m["spawn_points"] if sp.get("respawn")]
+    if not respawns:
+        err("no respawn point")
+    for sp in respawns:
+        if not g.safe_tile(*tile(sp)):
+            err(f"respawn point {sp['id']} is outside the safe zones")
+    for r in m["rest_points"]:
+        if not g.rest_in_safe(r):
+            err(f"rest point {r['id']} reaches outside the safe zones")
+    if m["type"] == "town":
+        if m["regions"]:
+            err("a town has monster regions")
+        for ty in range(g.height):
+            for tx in range(g.width):
+                if not g.blocked(tx, ty) and not g.safe_tile(tx, ty):
+                    err(f"walkable tile ({tx},{ty}) of a town is outside the safe zones")
+                    break
+    portal_tiles = {}
+    for p in m["portals"]:
+        if p["to_map"] == mid:
+            err(f"portal {p['id']} leads to its own map")
+        for t in rect_tiles(p):
+            if g.blocked(*t):
+                err(f"portal {p['id']} tile {t} is not walkable")
+            if t in portal_tiles:
+                err(f"portals {portal_tiles[t]} and {p['id']} share tile {t}")
+            portal_tiles[t] = p["id"]
+    if len({p["id"] for p in m["portals"]}) != len(m["portals"]):
+        err("duplicate portal id")
+    owner = {}
+    for r in m["regions"]:
+        tiles = g.region_tiles(r)
+        if len(tiles) < r["count"]:
+            err(f"region {r['id']} has {len(tiles)} region tiles, want at least {r['count']}")
+        for t in tiles:
+            if t in owner:
+                err(f"regions {owner[t]} and {r['id']} share tile {t}")
+                break
+            owner[t] = r["id"]
+        if tile(r["nest"]) not in tiles:
+            err(f"region {r['id']}: nest is not on a region tile")
+    # Reachability from the default tile.
+    reach = g.reachable(tile(spawns["default"]))
+    for sp in m["spawn_points"]:
+        if tile(sp) not in reach:
+            err(f"spawn point {sp['id']} is unreachable from default")
+    for p in m["portals"]:
+        if not any(t in reach for t in rect_tiles(p)):
+            err(f"portal {p['id']} is unreachable from default")
+    for r in m["regions"]:
+        if tile(r["nest"]) not in reach:
+            err(f"region {r['id']}: nest is unreachable from default")
+    for r in m["rest_points"]:
+        if tile(r) not in reach:
+            err(f"rest point {r['id']} is unreachable from default")
+    return errs
+
+
+def check_world(built):
+    """The cross-map rules: targets, arrivals, reverse portals, connectivity."""
+    errs = []
+    for mid, m in built.items():
+        for p in m["portals"]:
+            target = built.get(p["to_map"])
+            if target is None:
+                errs.append(f"{mid}: portal {p['id']} leads to unknown map {p['to_map']}")
+                continue
+            arrival_point = next((sp for sp in target["spawn_points"] if sp["id"] == p["to_spawn"]), None)
+            if arrival_point is None:
+                errs.append(f"{mid}: portal {p['id']}: {p['to_map']} has no spawn point {p['to_spawn']}")
+                continue
+            for q in target["portals"]:
+                d = rect_distance(arrival_point["x"], arrival_point["y"], q)
+                if d < ARRIVAL_MIN_DISTANCE:
+                    errs.append(f"{p['to_map']}: arrival {p['to_spawn']} is {d:.2f} tiles from portal {q['id']}")
+            if not any(q["to_map"] == mid for q in target["portals"]):
+                errs.append(f"{mid}: portal {p['id']} has no reverse portal in {p['to_map']}")
+    seen, queue = {START_MAP}, deque([START_MAP])
+    while queue:
+        for p in built[queue.popleft()]["portals"]:
+            if p["to_map"] in built and p["to_map"] not in seen:
+                seen.add(p["to_map"])
+                queue.append(p["to_map"])
+    for mid in built:
+        if mid not in seen:
+            errs.append(f"{mid}: unreachable from {START_MAP} through portals")
+    return errs
+
+
+def build():
+    """Every map, built and checked: {id: JSON object}."""
+    specs = {s["id"]: s for s in MAPS}
+    if len(specs) != len(MAPS) or START_MAP not in specs:
+        raise SystemExit(f"mapgen: duplicate map ids or no {START_MAP}")
+    built = {mid: build_map(s, specs) for mid, s in specs.items()}
+    errs = [e for m in built.values() for e in check_map(m)] + check_world(built)
+    if errs:
+        raise SystemExit("mapgen: checks failed:\n  " + "\n  ".join(errs))
+    return built
+
+
+def summary(m):
+    walkable = sum(row.count(".") for row in m["collision"])
+    monsters = sum(r["count"] for r in m["regions"])
+    portals = ", ".join(f"{p['id']} ({p['x']},{p['y']})" for p in m["portals"])
+    return (f"{m['id']}: {m['width']} x {m['height']} {m['type']}, min_zones {m['min_zones']}, "
+            f"{walkable} walkable tiles, {monsters} monsters, portals: {portals}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--write", action="store_true", help="write maps/*.json")
+    mode.add_argument("--check", action="store_true", help="compare with maps/*.json, exit 1 on a difference")
+    args = parser.parse_args()
+    built = build()
+    texts = {mid: dump(m).encode("utf-8") for mid, m in built.items()}
+    if args.write:
+        MAPS_DIR.mkdir(exist_ok=True)
+        for mid, text in texts.items():
+            (MAPS_DIR / f"{mid}.json").write_bytes(text)
+            print(f"wrote maps/{mid}.json")
+        return
+    if args.check:
+        bad = []
+        for mid, text in texts.items():
+            path = MAPS_DIR / f"{mid}.json"
+            if not path.exists() or path.read_bytes() != text:
+                bad.append(mid)
+        bad += [p.stem + " (not generated)" for p in sorted(MAPS_DIR.glob("*.json")) if p.stem not in texts]
+        if bad:
+            print("maps differ from tools/mapgen.py: " + ", ".join(bad) + "; run it with --write")
+            sys.exit(1)
+        print(f"maps match tools/mapgen.py ({len(texts)} maps)")
+        return
+    for m in built.values():
+        print(summary(m))
+
+
+if __name__ == "__main__":
+    main()

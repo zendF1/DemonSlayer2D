@@ -2,6 +2,7 @@ package gamedata
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -226,6 +227,59 @@ func TestRepoMonstersCoverLevels1To90(t *testing.T) {
 	}
 	if len(d.Levels) != 90 {
 		t.Fatalf("levels: %d", len(d.Levels))
+	}
+}
+
+// Phase 4a spec 2.4: six new normal kinds behave exactly like wanderer, and
+// the levels table is the one before they were added.
+func TestRepoMonsterKinds(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{
+		"wanderer": "Quỷ lang thang", "snow_ghoul": "Quỷ đói trong tuyết",
+		"mountain_demon": "Quỷ rừng núi", "ambusher": "Quỷ phục kích",
+		"mist_lurker": "Quỷ ẩn sương", "long_claw": "Quỷ vuốt dài",
+		"forest_demon": "Quỷ Rừng", "captive_demon": "Quỷ bị giam trên núi",
+	}
+	if len(d.Kinds) != len(names) {
+		t.Fatalf("%d kinds, want %d", len(d.Kinds), len(names))
+	}
+	base := d.Kinds["wanderer"]
+	for id, name := range names {
+		k, ok := d.Kinds[id]
+		if !ok {
+			t.Errorf("kind %s missing", id)
+			continue
+		}
+		if k.Name != name {
+			t.Errorf("kind %s: name %q, want %q", id, k.Name, name)
+		}
+		k.ID, k.Name = base.ID, base.Name
+		if k != base {
+			t.Errorf("kind %s behaves differently from wanderer: %+v", id, k)
+		}
+	}
+
+	raw, err := os.ReadFile("../../data/monsters.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Levels json.RawMessage `json:"levels"`
+	}
+	if err := json.Unmarshal(raw, &f); err != nil {
+		t.Fatal(err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, f.Levels); err != nil {
+		t.Fatal(err)
+	}
+	// The levels of data/monsters.json before phase 4a, compacted.
+	const want = "f59103d11b74d8e8a849a0e37d54becd7e4a5f3b8c9ba67e0493c5c4901590c3"
+	if got := fmt.Sprintf("%x", sha256.Sum256(compact.Bytes())); got != want {
+		t.Fatalf("levels sha256 %s, want %s: the levels table changed", got, want)
 	}
 }
 

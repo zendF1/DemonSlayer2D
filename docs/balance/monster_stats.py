@@ -53,6 +53,18 @@ KINDS = [
      "melee_windup_ms": MELEE_WINDUP_MS, "shot_speed": SHOT_SPEED},
 ]
 
+# Phase 4a spec 2.4: two normal kinds per new training map, behaving exactly
+# like wanderer (the levels table gives their stats).
+NEW_KINDS = [
+    ("mountain_demon", "Quỷ rừng núi"),  # sagiri_1
+    ("ambusher", "Quỷ phục kích"),  # sagiri_1
+    ("mist_lurker", "Quỷ ẩn sương"),  # sagiri_2
+    ("long_claw", "Quỷ vuốt dài"),  # sagiri_2
+    ("forest_demon", "Quỷ Rừng"),  # fujikasane_1
+    ("captive_demon", "Quỷ bị giam trên núi"),  # fujikasane_1
+]
+KINDS += [{**KINDS[0], "id": kind_id, "name": name} for kind_id, name in NEW_KINDS]
+
 
 def damage(base, defense, attacker_level):
     """max(1, floor(base * (1 - def / (def + 20 * level))))."""
@@ -152,12 +164,16 @@ def main():
         assert (entry["hp"], entry["attack"], entry["defense"]) == want, (level, entry)
     assert (monster(10)[0]["hp"], monster(10)[0]["exp"]) == (750, 143), monster(10)
     assert all(gear(level) == (0, 0, 0) for level in range(1, 10)), "no gear before level 10"
+    assert len({k["id"] for k in KINDS}) == len(KINDS) == 8, [k["id"] for k in KINDS]
+    for kind in KINDS:
+        assert {**kind, "id": "wanderer", "name": KINDS[0]["name"]} == KINDS[0], kind
     if args.print_json:
         sys.stdout.write(to_json(levels))
         return
     for level, entry, hp_ref, hit in rows:
         print(f"L{level}: hp {entry['hp']} exp {entry['exp']} atk {entry['attack']} def {entry['defense']} "
               f"hit {hit}/{hp_ref} ({100 * hit / hp_ref:.1f}%)")
+    print("kinds: " + ", ".join(f"{k['id']} ({k['name']})" for k in KINDS))
     if args.write_json:
         path = Path(__file__).resolve().parents[2] / "data" / "monsters.json"
         path.parent.mkdir(exist_ok=True)

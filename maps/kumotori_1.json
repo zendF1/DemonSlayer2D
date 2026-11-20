@@ -4,6 +4,7 @@
   "type": "training",
   "width": 64,
   "height": 48,
+  "min_zones": 2,
   "collision": [
     "################################################################",
     "#..............................................................#",
@@ -55,30 +56,23 @@
     "################################################################"
   ],
   "safe_zones": [
-    { "id": "camp", "x": 1, "y": 1, "w": 10, "h": 10 }
+    {"id": "camp", "x": 1, "y": 1, "w": 10, "h": 10},
+    {"id": "gate_east", "x": 57, "y": 20, "w": 6, "h": 8}
   ],
   "rest_points": [
-    { "id": "bonfire", "x": 3.5, "y": 3.5, "radius": 1.5 }
-  ],
-  "regions": [
-    { "id": "r1", "monster": "wanderer",   "min_level": 1, "max_level": 2, "count": 8,
-      "rects": [{ "x": 12, "y": 1, "w": 20, "h": 19 }, { "x": 1, "y": 12, "w": 11, "h": 8 }],
-      "nest": { "x": 22.5, "y": 10.5 } },
-    { "id": "r2", "monster": "wanderer",   "min_level": 2, "max_level": 3, "count": 7,
-      "rects": [{ "x": 32, "y": 1, "w": 31, "h": 19 }],
-      "nest": { "x": 47.5, "y": 9.5 } },
-    { "id": "r3", "monster": "snow_ghoul", "min_level": 3, "max_level": 4, "count": 7,
-      "rects": [{ "x": 1, "y": 21, "w": 31, "h": 26 }],
-      "nest": { "x": 15.5, "y": 34.5 } },
-    { "id": "r4", "monster": "snow_ghoul", "min_level": 4, "max_level": 5, "count": 8,
-      "rects": [{ "x": 32, "y": 21, "w": 31, "h": 26 }],
-      "nest": { "x": 52.5, "y": 40.5 } }
+    {"id": "bonfire", "x": 3.5, "y": 3.5, "radius": 1.5}
   ],
   "spawn_points": [
-    {
-      "id": "default",
-      "x": 5.5,
-      "y": 5.5
-    }
+    {"id": "default", "x": 5.5, "y": 5.5, "respawn": true},
+    {"id": "from_ubuyashiki", "x": 59.5, "y": 24.0}
+  ],
+  "portals": [
+    {"id": "to_ubuyashiki", "x": 62, "y": 22, "w": 1, "h": 4, "to_map": "ubuyashiki", "to_spawn": "from_kumotori_1"}
+  ],
+  "regions": [
+    {"id": "r1", "monster": "wanderer", "min_level": 1, "max_level": 2, "count": 8, "rects": [{"x": 12, "y": 1, "w": 20, "h": 19}, {"x": 1, "y": 12, "w": 11, "h": 8}], "nest": {"x": 22.5, "y": 10.5}},
+    {"id": "r2", "monster": "wanderer", "min_level": 2, "max_level": 3, "count": 7, "rects": [{"x": 32, "y": 1, "w": 31, "h": 19}], "nest": {"x": 47.5, "y": 9.5}},
+    {"id": "r3", "monster": "snow_ghoul", "min_level": 3, "max_level": 4, "count": 7, "rects": [{"x": 1, "y": 21, "w": 31, "h": 26}], "nest": {"x": 15.5, "y": 34.5}},
+    {"id": "r4", "monster": "snow_ghoul", "min_level": 4, "max_level": 5, "count": 8, "rects": [{"x": 32, "y": 21, "w": 31, "h": 26}], "nest": {"x": 52.5, "y": 40.5}}
   ]
 }
