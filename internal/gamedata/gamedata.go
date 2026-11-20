@@ -61,6 +61,12 @@ type Level struct {
 type Data struct {
 	Kinds  map[string]Kind
 	Levels map[int]Level
+	// Skills is skills.json by id. ClassSkills lists each class's five
+	// skills ordered by slot 1-4, then the passive (slot 0) last.
+	Skills      map[string]Skill
+	ClassSkills map[string][]Skill
+	// Exp is the EXP needed to leave each level, index 0 = level 1.
+	Exp []int64
 }
 
 type file struct {
@@ -113,13 +119,37 @@ func Parse(b []byte) (*Data, error) {
 	return d, nil
 }
 
-// Load reads dir/monsters.json.
+// Load reads dir/monsters.json, skills.json and exp.json.
 func Load(dir string) (*Data, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "monsters.json"))
-	if err != nil {
-		return nil, fmt.Errorf("gamedata: %w", err)
+	read := func(name string) ([]byte, error) {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, fmt.Errorf("gamedata: %w", err)
+		}
+		return b, nil
 	}
-	return Parse(b)
+	b, err := read("monsters.json")
+	if err != nil {
+		return nil, err
+	}
+	d, err := Parse(b)
+	if err != nil {
+		return nil, err
+	}
+	if b, err = read("skills.json"); err != nil {
+		return nil, err
+	}
+	if d.Skills, err = ParseSkills(b); err != nil {
+		return nil, err
+	}
+	d.ClassSkills = classSkills(d.Skills)
+	if b, err = read("exp.json"); err != nil {
+		return nil, err
+	}
+	if d.Exp, err = ParseExp(b); err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
 // Validate checks every region of every map: its monster kind exists

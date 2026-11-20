@@ -2,6 +2,7 @@ package gamedata
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
@@ -208,5 +209,168 @@ func TestRepoDataValidatesAgainstMaps(t *testing.T) {
 	}
 	if err := d.Validate(maps); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// ______________________TEST SKILLS DATA_____________________
+
+type obj = map[string]any
+
+func ten(v int) []int {
+	a := make([]int, SkillLevels)
+	for i := range a {
+		a[i] = v + i
+	}
+	return a
+}
+
+// validSkills is a minimal valid skills.json for the class viem: four
+// actives (single, cone, circle_target, circle_self) and a passive.
+func validSkills() []obj {
+	active := func(id string, slot, learn int, shape string, extra obj) obj {
+		s := obj{"id": id, "class": "viem", "name": id, "form": "I", "learn_level": learn, "slot": slot,
+			"damage": "phys", "shape": shape, "coef_pct": ten(100), "mp": ten(10), "cooldown_ms": ten(1000)}
+		for k, v := range extra {
+			s[k] = v
+		}
+		return s
+	}
+	return []obj{
+		active("viem_1", 1, 10, "single", obj{"cast_range": 4, "dash": true}),
+		active("viem_2", 2, 20, "cone", obj{"cone_deg": 120, "reach": 2, "max_targets": ten(2)}),
+		obj{"id": "viem_3", "class": "viem", "name": "p", "form": "III", "learn_level": 30, "slot": 0,
+			"passive": obj{"phys_def_pct": ten(2)}},
+		active("viem_4", 3, 40, "circle_target", obj{"cast_range": 5, "radius": 1.5, "max_targets": ten(2)}),
+		active("viem_5", 4, 50, "circle_self", obj{"radius": 2, "max_targets": ten(2)}),
+	}
+}
+
+func skillsJSON(t *testing.T, skills []obj) []byte {
+	t.Helper()
+	b, err := json.Marshal(obj{"skills": skills})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestParseSkillsValid(t *testing.T) {
+	m, err := ParseSkills(skillsJSON(t, validSkills()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 5 || !m["viem_1"].Dash || !m["viem_1"].Active() || m["viem_3"].Active() {
+		t.Fatalf("parsed: %+v", m)
+	}
+}
+
+func TestParseSkillsRejects(t *testing.T) {
+	// idx: viem_1 single=0, viem_2 cone=1, viem_3 passive=2, viem_4 circle_target=3, viem_5 circle_self=4.
+	set := func(i int, k string, v any) func([]obj) []obj {
+		return func(s []obj) []obj { s[i][k] = v; return s }
+	}
+	del := func(i int, k string) func([]obj) []obj {
+		return func(s []obj) []obj { delete(s[i], k); return s }
+	}
+	tests := []struct {
+		name   string
+		mutate func([]obj) []obj
+		want   string
+	}{
+		{"unknown field", set(0, "bogus", 1), "bogus"},
+		{"duplicate id", set(1, "id", "viem_1"), "duplicate"},
+		{"bad class", set(0, "class", "ghost"), "class"},
+		{"missing radius", del(4, "radius"), "radius"},
+		{"reach on single", set(0, "reach", 2), "reach"},
+		{"array of 9", set(0, "mp", ten(10)[:9]), "mp"},
+		{"zero in mp", set(0, "mp", append([]int{0}, ten(10)[1:]...)), "mp"},
+		{"dash on cone", set(1, "dash", true), "dash"},
+		{"max_targets on single", set(0, "max_targets", ten(2)), "max_targets"},
+		{"missing max_targets on cone", del(1, "max_targets"), "max_targets"},
+		{"passive at level 20", set(2, "learn_level", 20), "learn_level"},
+		{"passive with shape", set(2, "shape", "single"), "active fields"},
+		{"unknown passive key", set(2, "passive", obj{"speed_pct": ten(1)}), "speed_pct"},
+		{"empty passive", set(2, "passive", obj{}), "passive"},
+		{"negative passive", set(2, "passive", obj{"phys_def_pct": append([]int{-1}, ten(1)[1:]...)}), "negative"},
+		{"passive array of 9", set(2, "passive", obj{"phys_def_pct": ten(1)[:9]}), "phys_def_pct"},
+		{"two slot 2 skills", func(s []obj) []obj { s[3]["slot"], s[3]["learn_level"] = 2, 20; return s }, "slot 2"},
+		{"missing slot 4", func(s []obj) []obj { return s[:4] }, "slot 4"},
+		{"cone_deg 0", set(1, "cone_deg", 0), "cone_deg"},
+		{"cone_deg 400", set(1, "cone_deg", 400), "cone_deg"},
+		{"bad damage", set(0, "damage", "fire"), "damage"},
+		{"bad shape", set(0, "shape", "ring"), "shape"},
+		{"active with passive", set(0, "passive", obj{"phys_def_pct": ten(1)}), "passive"},
+		{"wrong learn level", set(0, "learn_level", 11), "learn_level"},
+		{"bad slot", set(0, "slot", 5), "slot"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseSkills(skillsJSON(t, tt.mutate(validSkills())))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+	if _, err := ParseSkills([]byte(`{"skills":[]}`)); err == nil {
+		t.Fatal("empty skills accepted")
+	}
+}
+
+func TestRepoSkills(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Skills) != 25 || len(d.ClassSkills) != 5 {
+		t.Fatalf("skills %d, classes %d", len(d.Skills), len(d.ClassSkills))
+	}
+	for class, list := range d.ClassSkills {
+		if len(list) != 5 {
+			t.Fatalf("%s: %d skills", class, len(list))
+		}
+		for i, learn := range []int{10, 20, 40, 50} {
+			if s := list[i]; s.Class != class || s.Slot != i+1 || s.LearnLevel != learn || !s.Active() {
+				t.Fatalf("%s index %d: %+v", class, i, s)
+			}
+		}
+		if p := list[4]; p.Slot != 0 || p.LearnLevel != 30 || p.Active() || len(p.Passive) == 0 {
+			t.Fatalf("%s passive: %+v", class, p)
+		}
+	}
+	if s := d.Skills["viem_1"]; s.Shape != ShapeSingle || !s.Dash || s.CoefPct[0] != 150 {
+		t.Fatalf("viem_1: %+v", s)
+	}
+}
+
+func TestParseExp(t *testing.T) {
+	exp := func(n int, mutate func([]int64)) []byte {
+		a := make([]int64, n)
+		for i := range a {
+			a[i] = int64(i+1) * 10
+		}
+		if mutate != nil {
+			mutate(a)
+		}
+		b, _ := json.Marshal(obj{"exp_to_next": a})
+		return b
+	}
+	got, err := ParseExp(exp(89, nil))
+	if err != nil || len(got) != 89 || got[0] != 10 {
+		t.Fatalf("valid: %v %v", len(got), err)
+	}
+	for name, b := range map[string][]byte{
+		"88 values":      exp(88, nil),
+		"90 values":      exp(90, nil),
+		"non-increasing": exp(89, func(a []int64) { a[5] = a[4] }),
+		"zero":           exp(89, func(a []int64) { a[0] = 0 }),
+		"unknown field":  []byte(`{"exp_to_next":[],"x":1}`),
+	} {
+		if _, err := ParseExp(b); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	d, err := Load("../../data")
+	if err != nil || len(d.Exp) != 89 || d.Exp[0] != 80 {
+		t.Fatalf("repo exp: %v", err)
 	}
 }
