@@ -273,7 +273,7 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
 - `SkillLevel { string skill_id = 1; int32 level = 2; }`.
 - `EnterWorldResp.skills = 10` (`repeated SkillLevel`): toàn bộ chiêu đã học.
 - `SelfStats.skill_points = 20`.
-- `Cast { uint64 caster_id = 1; string skill_id = 2; uint64 target_id = 3; float dir_x = 4; float dir_y = 5; }`; `WorldTick.casts = 8`. Gửi cho người thấy người dùng chiêu và chính người đó.
+- `Cast { uint64 caster_id = 1; string skill_id = 2; uint64 target_id = 3; float dir_x = 4; float dir_y = 5; int32 level = 6; }` (`level` là cấp chiêu đã dùng, để client vẽ đúng tầm; thêm sau đánh giá cuối, không đổi `ProtocolVersion`); `WorldTick.casts = 8`. Gửi cho người thấy người dùng chiêu và chính người đó.
 - `Hit.skill_id = 6`: rỗng là chém mặc định hoặc đòn của quái.
 - Thứ tự client áp một `WorldTick`: `moves`, `casts`, `hits`, `deaths`, `hp_changes`, `level_ups`. Ghi chú của `WorldTick` trong proto cập nhật theo.
 - `ErrorCode`: `SKILL_NOT_LEARNED = 23`, `NOT_ENOUGH_MP = 24`, `SKILL_MAXED = 25`, `LEVEL_TOO_LOW = 26`.
@@ -290,7 +290,8 @@ Gateway giới hạn `CastReq` bằng một `rate.Limiter` riêng, cùng cách v
   - Có mục tiêu đang khóa mà nó ở xa hơn tầm của chiêu thì tự chạy lại gần (như `attack_loop`), vào tầm thì gửi; áp dụng cho mọi shape.
   - `cone`/`line`/`circle_self` không khóa mục tiêu thì gửi ngay tại chỗ, theo hướng nhân vật đang nhìn.
   - Trước khi gửi, tự kiểm tra hồi chiêu và MP; thiếu thì không gửi chiêu (chém thay như trên); lần bấm đầu tiên báo "Chưa hồi chiêu" hoặc "Không đủ MP".
-  - Đang chạy lại gần mà người chơi tự di chuyển, đổi mục tiêu, chọn ô khác hoặc thả nút Đánh thì hủy.
+  - Đang chạy lại gần mà người chơi tự di chuyển, chọn ô khác hoặc thả nút Đánh thì hủy; đổi mục tiêu thì chạy sang mục tiêu mới (như `attack_loop`).
+  - Giữ nút Đánh trong khu an toàn thì không gửi chiêu, nhưng vẫn giữ trạng thái giữ nút: ra khỏi khu an toàn là tiếp tục.
   - `OUT_OF_RANGE` thì chạy thẳng tới mục tiêu và thử lại, như `attack_loop`.
 - **`core/entity_table.gd`**: `casts` phát tín hiệu vẽ hiệu ứng; `Hit` có `skill_id` chỉ hiện số sát thương.
 - **`core/predictor.gd`**: `EntityMove` của chính mình có `snap` thì đặt vị trí dự đoán bằng vị trí server và giữ lại các input chưa được xác nhận để phát lại từ điểm mới.
