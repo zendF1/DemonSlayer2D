@@ -49,7 +49,7 @@ func (z *Zone) gainExp(p *player, gain int64) {
 		return
 	}
 	p.freePoints += combat.PointsPerLevel * gained
-	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points))
+	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points, combat.Passive{}))
 	p.hp, p.mp = p.maxHP, p.stats.MaxMP
 	z.events.levelUps = append(z.events.levelUps, &pb.LevelUp{Id: p.id, Level: int32(p.level)})
 	z.hpChanged(&p.entity)
@@ -86,7 +86,7 @@ func (z *Zone) allocate(c allocateCmd) {
 	p.points.Int += a.Int
 	p.freePoints -= a.Total()
 	oldHP, oldMP := p.maxHP, p.stats.MaxMP
-	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points))
+	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points, combat.Passive{}))
 	p.hp += p.maxHP - oldHP
 	p.mp += p.stats.MaxMP - oldMP
 	if p.maxHP != oldHP {

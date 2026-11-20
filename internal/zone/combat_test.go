@@ -2326,7 +2326,7 @@ func TestEnterWorldRespHasStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.take()[0].GetEnterWorldResp().GetStats()
-	s := combat.Compute(true, 3, in.Points)
+	s := combat.Compute(true, 3, in.Points, combat.Passive{})
 	want := &pb.SelfStats{Level: 3, Exp: 50, ExpNext: testExp.ToNext(3), FreePoints: 4,
 		Strength: 1, Agility: 2, Vitality: 3, Intellect: 4, Hp: 200, MaxHp: int32(s.MaxHP), Mp: int32(s.MaxMP), MaxMp: int32(s.MaxMP),
 		PhysAttack: int32(s.PhysAttack), MagicAttack: int32(s.MagicAttack), PhysDefense: int32(s.PhysDefense), MagicDefense: int32(s.MagicDefense),

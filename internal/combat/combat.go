@@ -32,15 +32,16 @@ type Stats struct {
 
 // Compute derives stats from level and spent points (game-design 2.2, spec 3.1).
 // magic selects the magic-class HP growth (a = 50, b = 16) instead of the
-// physical one (a = 60, b = 20).
-func Compute(magic bool, level int, p Points) Stats {
+// physical one (a = 60, b = 20). Passive bonuses apply after the base stats
+// (phase 2 spec 3.2).
+func Compute(magic bool, level int, p Points, pas Passive) Stats {
 	l := level - 1
 	hpA, hpB := 60, 20
 	if magic {
 		hpA, hpB = 50, 16
 	}
 	def := 10 + 2*l + 2*p.Vit
-	return Stats{
+	st := Stats{
 		MaxHP:        500 + hpA*l + hpB*p.Vit,
 		MaxMP:        100 + 20*l + 5*p.Int,
 		PhysAttack:   20 + 5*l + 2*p.Str,
@@ -51,6 +52,14 @@ func Compute(magic bool, level int, p Points) Stats {
 		Evasion:      50 + 5*l + 2*p.Agi,
 		CritRateBP:   500 + 2*p.Agi,
 	}
+	st.MaxHP += st.MaxHP * pas.MaxHPPct / 100
+	st.MagicAttack += st.MagicAttack * pas.MagicAttackPct / 100
+	st.PhysDefense += st.PhysDefense * pas.PhysDefPct / 100
+	st.MagicDefense += st.MagicDefense * pas.MagicDefPct / 100
+	st.Accuracy += st.Accuracy * pas.AccuracyPct / 100
+	st.Evasion += st.Evasion * pas.EvasionPct / 100
+	st.CritRateBP += pas.CritBP
+	return st
 }
 
 // Damage is max(1, floor(base * (1 - def / (def + 20 * attackerLevel))))
@@ -76,6 +85,37 @@ func MonsterRangedDamage(base, defense, attackerLevel int) int {
 		return 1
 	}
 	return got
+}
+
+// Passive is the summed effect of learned passive skills (phase 2 spec 3.2).
+// Percent fields raise their stat by floor(stat * pct / 100); CritBP is added
+// to the crit rate in basis points.
+type Passive struct {
+	PhysDefPct, MagicDefPct, MaxHPPct, EvasionPct, AccuracyPct, MagicAttackPct int
+	CritBP                                                                     int
+}
+
+// Add returns the field-wise sum of two passives.
+func (p Passive) Add(q Passive) Passive {
+	return Passive{
+		PhysDefPct:     p.PhysDefPct + q.PhysDefPct,
+		MagicDefPct:    p.MagicDefPct + q.MagicDefPct,
+		MaxHPPct:       p.MaxHPPct + q.MaxHPPct,
+		EvasionPct:     p.EvasionPct + q.EvasionPct,
+		AccuracyPct:    p.AccuracyPct + q.AccuracyPct,
+		MagicAttackPct: p.MagicAttackPct + q.MagicAttackPct,
+		CritBP:         p.CritBP + q.CritBP,
+	}
+}
+
+// SkillBase is floor(attack * coefPct / 100), using magic attack for magic
+// skills and physical attack otherwise (phase 2 spec 3.2).
+func SkillBase(s Stats, magic bool, coefPct int) int {
+	atk := s.PhysAttack
+	if magic {
+		atk = s.MagicAttack
+	}
+	return atk * coefPct / 100
 }
 
 // SlashBase is the base damage of the default slash: the higher attack stat

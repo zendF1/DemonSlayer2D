@@ -8,14 +8,14 @@ import (
 // ______________________TEST STATS_____________________
 
 func TestComputeViemLevel10(t *testing.T) {
-	s := Compute(false, 10, Points{Str: 60, Vit: 30})
+	s := Compute(false, 10, Points{Str: 60, Vit: 30}, Passive{})
 	if s.PhysAttack != 185 || s.MaxHP != 1640 || s.PhysDefense != 88 || s.MaxMP != 280 {
 		t.Fatalf("got %+v", s)
 	}
 }
 
 func TestComputeThuyLevel10(t *testing.T) {
-	s := Compute(true, 10, Points{Int: 60, Vit: 30})
+	s := Compute(true, 10, Points{Int: 60, Vit: 30}, Passive{})
 	if s.MagicAttack != 185 || s.MaxHP != 1430 || s.MaxMP != 580 {
 		t.Fatalf("got %+v", s)
 	}
@@ -24,14 +24,14 @@ func TestComputeThuyLevel10(t *testing.T) {
 func TestComputeLevel1Base(t *testing.T) {
 	want := Stats{MaxHP: 500, MaxMP: 100, PhysAttack: 20, MagicAttack: 20,
 		PhysDefense: 10, MagicDefense: 10, Accuracy: 100, Evasion: 50, CritRateBP: 500}
-	if got := Compute(false, 1, Points{}); got != want {
+	if got := Compute(false, 1, Points{}, Passive{}); got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 
 func TestComputeAgi(t *testing.T) {
-	base := Compute(false, 1, Points{})
-	s := Compute(false, 1, Points{Agi: 100})
+	base := Compute(false, 1, Points{}, Passive{})
+	s := Compute(false, 1, Points{Agi: 100}, Passive{})
 	if s.Accuracy-base.Accuracy != 300 || s.Evasion-base.Evasion != 200 || s.CritRateBP-base.CritRateBP != 200 {
 		t.Fatalf("got %+v", s)
 	}
@@ -185,5 +185,102 @@ func TestMonsterRangedDamage(t *testing.T) {
 		if got := MonsterRangedDamage(c.base, c.def, c.lvl); got != c.want {
 			t.Errorf("MonsterRangedDamage(%d, %d, %d) = %d, want %d", c.base, c.def, c.lvl, got, c.want)
 		}
+	}
+}
+
+// ______________________TEST PASSIVE_____________________
+
+func TestComputeZeroPassiveKeepsPhase1Stats(t *testing.T) {
+	for _, magic := range []bool{false, true} {
+		for _, level := range []int{1, 10, 50, 90} {
+			for _, pts := range []Points{{}, {Str: 60, Vit: 30}, {Int: 45, Agi: 20}, {Str: 5, Agi: 7, Vit: 9, Int: 11}} {
+				l := level - 1
+				hpA, hpB := 60, 20
+				if magic {
+					hpA, hpB = 50, 16
+				}
+				def := 10 + 2*l + 2*pts.Vit
+				want := Stats{
+					MaxHP: 500 + hpA*l + hpB*pts.Vit, MaxMP: 100 + 20*l + 5*pts.Int,
+					PhysAttack: 20 + 5*l + 2*pts.Str, MagicAttack: 20 + 5*l + 2*pts.Int,
+					PhysDefense: def, MagicDefense: def,
+					Accuracy: 100 + 5*l + 3*pts.Agi, Evasion: 50 + 5*l + 2*pts.Agi,
+					CritRateBP: 500 + 2*pts.Agi,
+				}
+				if got := Compute(magic, level, pts, Passive{}); got != want {
+					t.Fatalf("magic=%v level=%d pts=%+v: got %+v, want %+v", magic, level, pts, got, want)
+				}
+			}
+		}
+	}
+}
+
+func TestComputeNhamPassive(t *testing.T) {
+	pts := Points{Str: 60, Vit: 30}
+	base := Compute(false, 10, pts, Passive{})
+	s := Compute(false, 10, pts, Passive{MaxHPPct: 20, PhysDefPct: 20})
+	if base.MaxHP != 1640 || base.PhysDefense != 88 {
+		t.Fatalf("base %+v", base)
+	}
+	if s.MaxHP != 1640+328 || s.PhysDefense != 88+17 {
+		t.Fatalf("got hp %d def %d", s.MaxHP, s.PhysDefense)
+	}
+	if s.MagicDefense != base.MagicDefense || s.PhysAttack != base.PhysAttack || s.MaxMP != base.MaxMP {
+		t.Fatalf("other stats changed: %+v", s)
+	}
+}
+
+func TestComputePassiveFloors(t *testing.T) {
+	// Evasion 50 + 5*l + 2*agi = 57 with l=1, agi=1.
+	s := Compute(false, 2, Points{Agi: 1}, Passive{})
+	if s.Evasion != 57 {
+		t.Fatalf("setup: evasion %d", s.Evasion)
+	}
+	if got := Compute(false, 2, Points{Agi: 1}, Passive{EvasionPct: 3}).Evasion; got != 58 {
+		t.Fatalf("57 with 3%% = %d, want 58", got)
+	}
+}
+
+func TestComputePassiveAllFields(t *testing.T) {
+	pts := Points{Int: 40, Agi: 10, Vit: 10}
+	b := Compute(true, 20, pts, Passive{})
+	s := Compute(true, 20, pts, Passive{MagicDefPct: 10, AccuracyPct: 10, MagicAttackPct: 10, EvasionPct: 10})
+	if s.MagicDefense != b.MagicDefense+b.MagicDefense*10/100 ||
+		s.Accuracy != b.Accuracy+b.Accuracy*10/100 ||
+		s.MagicAttack != b.MagicAttack+b.MagicAttack*10/100 ||
+		s.Evasion != b.Evasion+b.Evasion*10/100 {
+		t.Fatalf("got %+v from %+v", s, b)
+	}
+	if s.PhysDefense != b.PhysDefense || s.MaxHP != b.MaxHP || s.PhysAttack != b.PhysAttack {
+		t.Fatalf("untargeted stats changed: %+v", s)
+	}
+}
+
+func TestComputePassiveCritBP(t *testing.T) {
+	base := Compute(false, 5, Points{Agi: 3}, Passive{})
+	s := Compute(false, 5, Points{Agi: 3}, Passive{CritBP: 1000})
+	if s.CritRateBP != base.CritRateBP+1000 {
+		t.Fatalf("got %d, base %d", s.CritRateBP, base.CritRateBP)
+	}
+}
+
+func TestPassiveAdd(t *testing.T) {
+	a := Passive{MaxHPPct: 5, CritBP: 100, PhysDefPct: 1}
+	b := Passive{MaxHPPct: 15, CritBP: 400, MagicDefPct: 2, EvasionPct: 3, AccuracyPct: 4, MagicAttackPct: 6}
+	want := Passive{PhysDefPct: 1, MagicDefPct: 2, MaxHPPct: 20, EvasionPct: 3, AccuracyPct: 4, MagicAttackPct: 6, CritBP: 500}
+	if got := a.Add(b); got != want {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
+// ______________________TEST SKILL BASE_____________________
+
+func TestSkillBase(t *testing.T) {
+	s := Stats{PhysAttack: 285, MagicAttack: 120}
+	if got := SkillBase(s, false, 150); got != 427 {
+		t.Fatalf("phys = %d, want 427", got)
+	}
+	if got := SkillBase(s, true, 150); got != 180 {
+		t.Fatalf("magic = %d, want 180", got)
 	}
 }

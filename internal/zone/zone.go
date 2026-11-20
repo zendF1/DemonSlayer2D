@@ -412,7 +412,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
 	}
-	setStats(p, combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points))
+	setStats(p, combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points, combat.Passive{}))
 	p.hp, p.mp = info.HP, info.MP // -1 = full
 	// HP 0: logged out dead, so back at the respawn point with full HP/MP (spec 3.6).
 	if p.hp == 0 {
