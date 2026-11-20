@@ -446,6 +446,7 @@ Mũi tên A → B nghĩa là món hệ A kích hoạt dòng ẩn của món hệ
 | Phong | Thủy |
 
 - Dòng hiện có hiệu lực khi mặc trang bị.
+- Dòng ẩn chỉ sáng khi cả món nhận và món ở ô kích hoạt đều đang mặc, đủ điều kiện mặc (cấp, class của vũ khí) và có hệ. Món Trắng và Xanh Dương không có hệ nên không nhận cũng không kích hoạt. Server tính dòng sáng mỗi lần tính lại chỉ số; client tự tính lại từ cùng bảng trong `items.json` để hiển thị dòng sáng, dòng tắt và ô/hệ còn thiếu.
 - Mỗi món thuộc cơ chế này có hai dòng ẩn, tương ứng hai ô kích hoạt cố định. Mỗi ô đúng hệ mở một dòng; đủ hai ô mở cả hai.
 - Hệ trang bị độc lập với class và loại sát thương. Ví dụ vũ khí hệ Thủy có thể mang công vật lý và được class Viêm sử dụng.
 - Tương sinh chỉ mở dòng ẩn, không tự tạo quan hệ khắc chế sát thương giữa các class.
@@ -453,6 +454,23 @@ Mũi tên A → B nghĩa là món hệ A kích hoạt dòng ẩn của món hệ
 Ví dụ kiếm hệ Viêm có hai ô kích hoạt là Mũ và Áo: Mũ Phong mở dòng 1, Áo Phong mở dòng 2. Chỉ có một ô đúng hệ vẫn mở được dòng tương ứng.
 
 **Không thể mở đủ 20 dòng ẩn cùng lúc, đây là chủ đích.** Bảng ô kích hoạt có vòng ba món, ví dụ Vũ khí ← Mũ ← Dây chuyền ← Vũ khí, trong khi chu kỳ tương sinh dài năm hệ. Cách gán hệ tốt nhất mở được tối đa **13/20 dòng**. Người chơi tự chọn dòng nào cần kích hoạt theo chiến thuật và build đồ.
+
+Duyệt toàn bộ 5^10 cách gán hệ cho 10 ô (mọi món đều có hệ) cho đúng 10 bộ đạt 13 dòng: năm phép xoay vòng hệ của một bộ, nhân hai. Một bộ đạt 13 dòng:
+
+| Ô | Hệ | Dòng 1 (ô kích hoạt) | Dòng 2 (ô kích hoạt) |
+| --- | --- | --- | --- |
+| Vũ khí | Minh | Sáng (Mũ Nham) | Sáng (Áo Nham) |
+| Mũ | Nham | Sáng (Dây chuyền Viêm) | Tắt (Nhẫn trái Thủy) |
+| Áo | Nham | Sáng (Dây chuyền Viêm) | Sáng (Nhẫn phải Viêm) |
+| Quần | Minh | Sáng (Áo Nham) | Tắt (Ngọc bội Minh) |
+| Hộ uyển | Phong | Tắt (Vũ khí Minh) | Sáng (Nhẫn trái Thủy) |
+| Giày | Thủy | Sáng (Quần Minh) | Sáng (Ngọc bội Minh) |
+| Dây chuyền | Viêm | Tắt (Vũ khí Minh) | Sáng (Hộ uyển Phong) |
+| Ngọc bội | Minh | Sáng (Mũ Nham) | Tắt (Giày Thủy) |
+| Nhẫn trái | Thủy | Sáng (Quần Minh) | Tắt (Nhẫn phải Viêm) |
+| Nhẫn phải | Viêm | Tắt (Giày Thủy) | Sáng (Hộ uyển Phong) |
+
+Tổng cộng 13 dòng sáng, 7 dòng tắt.
 
 | Món nhận dòng ẩn | Ô kích hoạt dòng 1 | Ô kích hoạt dòng 2 |
 | --- | --- | --- |
@@ -474,8 +492,8 @@ Giá trị mỗi dòng ẩn so với một dòng phụ cùng loại/cùng bậc:
 | Tính năng | Thiết kế hiện tại |
 | --- | --- |
 | Cường hóa | +1 đến +15, tiêu hao đá và Xu theo bảng chi phí dưới đây; +1 đến +4 thành công 100%; từ +5 tỷ lệ giảm, thất bại có thể tụt cấp; bùa bảo vệ chống tụt cấp; mỗi lần thất bại cộng ẩn +1% tỷ lệ cho lần sau; mốc +7/+10/+12/+15 kích hoạt hồi HP/MP theo mục 2.7 |
-| Khảm ngọc | Đục tối đa ba lỗ để khảm ngọc công, HP, xuyên giáp, kháng choáng… |
-| Tẩy luyện | Dùng đá tẩy và Xu để làm mới dòng phụ trên đồ Vàng/Cam/Đỏ |
+| Khảm ngọc | Đục tối đa ba lỗ trên mọi trang bị bằng Xu, khảm ngọc công, sinh lực hoặc hộ thể vào lỗ trống, tháo ngọc ra bằng Xu; ngọc xuyên giáp, kháng choáng có sau khi các chỉ số này có công thức (mục 10) |
+| Tẩy luyện | Dùng đá tẩy và Xu để làm mới dòng phụ trên đồ Vàng/Cam/Đỏ, khóa được dòng muốn giữ, xem kết quả rồi chọn giữ bộ cũ hoặc nhận bộ mới |
 
 Vũ khí phát sáng ở +7/+10/+12/+15, lần lượt Xanh/Vàng/Tím/Đỏ, có hiệu ứng hạt/tia lửa. Chỉ số công/thủ và HP cường hóa dùng [bảng dữ liệu đã duyệt](equipment-stats-proposal.md): công/thủ theo thang tăng dần đến khoảng 4,3 lần ở +15; HP theo bảng riêng, có thể bổ sung HP cho món +0 không có HP. Không nhân dòng phụ, dòng ẩn hoặc ngọc theo thang này.
 
@@ -613,7 +631,36 @@ Bùa bảo vệ chống tụt cấp, không tăng tỷ lệ thành công. Thất
 - Số đá, Xu và bùa tiêu hao mỗi lần không đổi.
 - Giao diện vẫn hiển thị **tỷ lệ gốc** theo bảng trên; phần cộng ẩn không hiển thị.
 
-Tẩy luyện làm mới loại và giá trị dòng phụ. Có thể khóa từng dòng muốn giữ; càng khóa nhiều càng tốn đá tẩy và Xu. Xem kết quả rồi chọn giữ bộ cũ hoặc nhận bộ mới, đá tẩy và Xu vẫn tiêu hao. Không đổi hệ, phẩm chất, chỉ số cơ bản, cường hóa, ngọc hoặc dòng ẩn.
+#### Khảm ngọc
+
+Bộ số bản đầu, sinh bằng `docs/balance/item_stats.py`. Khảm, tháo ngọc và tẩy luyện làm ở bất cứ đâu trong khu an toàn, như cường hóa, cho tới khi có NPC thợ rèn (Giai đoạn 4).
+
+- **Đục lỗ:** mọi phẩm chất, tối đa **3 lỗ**, đục lần lượt. Lỗ thứ 1/2/3 tốn **100/200/400 × bậc** Xu (đồ Lữ Hành bậc 10: 1.000/2.000/4.000 Xu; Xích Cương bậc 50: 5.000/10.000/20.000 Xu). Lỗ đã đục không mất.
+- **Khảm:** không tốn Xu, tốn một viên ngọc; lỗ phải trống.
+- **Tháo ngọc:** trả ngọc về hành trang, tốn **500 × cấp ngọc** Xu; lỗ vẫn còn, thành lỗ trống. Hành trang phải còn chỗ nhận viên ngọc.
+- **Cấp ngọc theo bậc:** ngọc cấp g chỉ khảm được vào đồ bậc từ 10g (cấp ngọc ≤ bậc / 10). Ví dụ ngọc cấp 3 vào được đồ Tinh Cương bậc 30 trở lên.
+- Ngọc có tác dụng khi món đang mặc và đủ điều kiện mặc, như dòng phụ. Giá trị ngọc không nhân theo cường hóa.
+- Ngọc là vật phẩm chồng. Nguồn ngọc là phần thưởng sự kiện và nhiệm vụ (Giai đoạn 6, 7+; mục 6.3); bảng rơi ở mục 5.12 không có ngọc.
+
+Ba loại ngọc, mỗi loại 5 cấp. Ngọc cấp g có giá trị bằng dòng phụ chuẩn của bậc 10g:
+
+| Cấp ngọc | Đồ từ bậc | Ngọc Công: công vật lý và công phép | Ngọc Sinh Lực: HP | Ngọc Hộ Thể: thủ vật lý và thủ phép |
+| --- | --- | --- | --- | --- |
+| 1 | 10 | 4 | 86 | 1 |
+| 2 | 20 | 8 | 156 | 1 |
+| 3 | 30 | 14 | 220 | 2 |
+| 4 | 40 | 22 | 320 | 3 |
+| 5 | 50 | 32 | 469 | 5 |
+
+#### Tẩy luyện
+
+Tẩy luyện làm mới loại và giá trị dòng phụ của đồ **Vàng, Cam, Đỏ**. Số dòng giữ nguyên. Có thể khóa từng dòng muốn giữ, nhưng phải còn ít nhất một dòng không khóa; dòng khóa giữ nguyên loại, giá trị và vị trí. Mỗi dòng không khóa lấy ngẫu nhiên một loại chưa có trên món (không trùng dòng khóa và các dòng mới khác), giá trị lấy như khi rơi đồ.
+
+- **Chi phí một lần:** 1 đá tẩy luyện (`stone_refine`) + 20 × bậc Xu; **mỗi dòng khóa** thêm 1 đá và 20 × bậc Xu. Ví dụ đồ Xích Cương bậc 50 khóa hai dòng tốn 3 đá và 3.000 Xu.
+- **Xem rồi chọn:** kết quả mới là **kết quả chờ**, mỗi người chơi một kết quả; dòng của món chưa đổi cho tới khi chọn. Người chơi chọn **giữ bộ cũ** hoặc **nhận bộ mới**; đá tẩy và Xu đã tiêu từ lúc tẩy dù chọn bên nào. Tẩy lần nữa thì kết quả mới thay kết quả chờ cũ.
+- **Kết quả chờ mất** (giữ dòng cũ) khi thoát game hoặc rời map, hoặc khi dùng bất kỳ lệnh đồ nào khác (mặc, tháo, vứt, xếp, cường hóa, khảm…) trừ nhặt đồ. Kết quả chờ không được lưu.
+- Không đổi hệ, phẩm chất, chỉ số cơ bản, cường hóa, ngọc hoặc dòng ẩn.
+- Đá tẩy luyện rơi từ tinh anh và thủ lĩnh (mục 5.12).
 
 ## 4. NPC và nhiệm vụ
 

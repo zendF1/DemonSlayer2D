@@ -1,6 +1,6 @@
 # Giai đoạn 3c — Tương sinh, khảm ngọc và tẩy luyện
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Server đã triển khai (kế hoạch 3c, Task 1–10); client chờ triển khai.
 
 Phần cuối của Giai đoạn 3 (xem bảng chia ở [spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 3.2 (tương sinh) và 3.3 (khảm ngọc, tẩy luyện); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như spec 3a và [spec 3b](2026-11-20-giai-doan-3b-cuong-hoa-design.md). 3c chạy sau khi 3b đã triển khai.
 

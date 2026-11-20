@@ -5,7 +5,7 @@ Go game server for DemonSlayer2D. The Godot client lives in a separate repositor
 The protocol version is 8 (`gateway.ProtocolVersion`). A login with any other
 version fails with `ERROR_CODE_VERSION_MISMATCH`, so bump it together with the client.
 
-Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md).
+Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md).
 
 ## Requirements
 
@@ -132,7 +132,9 @@ N 1 to 5; a level N gem fits tier 10N or higher gear), which events and quests
 will hand out from phase 6. A stackable code adds `-count` (default 1), topping
 up existing stacks first (999 per stack). `-xu` adds Xu and can be used alone
 or with `-code`. An unknown code or a full bag is an error, and nothing is
-written. It prints the character's name, the item added and its bag slots,
+written. To try the client's Khảm ngọc and Tẩy luyện tabs, give a Vàng or
+better piece, some gems that fit its tier, `stone_refine` and Xu: punching,
+socketing, unsocketing and refining work only in a safe zone, like enhancing. It prints the character's name, the item added and its bag slots,
 and the Xu it now has. Like `devchar`, it needs the character offline.
 
 ## Game data
@@ -146,7 +148,7 @@ never the JSON:
 | [`data/monsters.json`](data/monsters.json) | [`monster_stats.py`](docs/balance/monster_stats.py) | Monster kinds and stats for levels 1–90, including base EXP (`HP × r(L)`) |
 | [`data/skills.json`](data/skills.json) | [`skill_stats.py`](docs/balance/skill_stats.py) | The 25 class skills: shape, range, coefficients, MP, cooldowns, passives |
 | [`data/exp.json`](data/exp.json) | [`exp_table.py`](docs/balance/exp_table.py) | EXP to the next level for levels 1–89 (also writes `docs/balance/exp-table.csv`) |
-| [`data/items.json`](data/items.json) | [`item_stats.py`](docs/balance/item_stats.py) | Bag size, equipment slots, qualities, line rules, the 70 equipment pieces, stackables, drop tables per monster rank, the enhancement table (rates, stones, Xu) and the regen milestones |
+| [`data/items.json`](data/items.json) | [`item_stats.py`](docs/balance/item_stats.py) | Bag size, equipment slots, qualities, line rules, the 70 equipment pieces, stackables, drop tables per monster rank, the enhancement table (rates, stones, Xu), the regen milestones, the resonance table, the socket and refine costs and the 15 gems |
 
 ```bash
 python3 docs/balance/monster_stats.py --write-json
