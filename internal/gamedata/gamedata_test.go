@@ -3,6 +3,7 @@ package gamedata
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -224,25 +225,31 @@ func ten(v int) []int {
 	return a
 }
 
-// validSkills is a minimal valid skills.json for the class viem: four
-// actives (single, cone, circle_target, circle_self) and a passive.
+// validSkills is a minimal valid skills.json: for each of the five classes
+// four actives (single, cone, circle_target, circle_self) and a passive, in
+// that order of index 5c+0..4 (c = class number).
 func validSkills() []obj {
-	active := func(id string, slot, learn int, shape string, extra obj) obj {
-		s := obj{"id": id, "class": "viem", "name": id, "form": "I", "learn_level": learn, "slot": slot,
-			"damage": "phys", "shape": shape, "coef_pct": ten(100), "mp": ten(10), "cooldown_ms": ten(1000)}
-		for k, v := range extra {
-			s[k] = v
+	var out []obj
+	for _, class := range []string{"viem", "thuy", "minh", "nham", "phong"} {
+		active := func(n, slot, learn int, shape string, extra obj) obj {
+			s := obj{"id": fmt.Sprintf("%s_%d", class, n), "class": class, "name": class, "form": "I",
+				"learn_level": learn, "slot": slot, "damage": "phys", "shape": shape,
+				"coef_pct": ten(100), "mp": ten(10), "cooldown_ms": ten(1000)}
+			for k, v := range extra {
+				s[k] = v
+			}
+			return s
 		}
-		return s
+		out = append(out,
+			active(1, 1, 10, "single", obj{"cast_range": 4, "dash": true}),
+			active(2, 2, 20, "cone", obj{"cone_deg": 120, "reach": 2, "max_targets": ten(2)}),
+			obj{"id": class + "_3", "class": class, "name": "p", "form": "III", "learn_level": 30, "slot": 0,
+				"passive": obj{"phys_def_pct": ten(2)}},
+			active(4, 3, 40, "circle_target", obj{"cast_range": 5, "radius": 1.5, "max_targets": ten(2)}),
+			active(5, 4, 50, "circle_self", obj{"radius": 2, "max_targets": ten(2)}),
+		)
 	}
-	return []obj{
-		active("viem_1", 1, 10, "single", obj{"cast_range": 4, "dash": true}),
-		active("viem_2", 2, 20, "cone", obj{"cone_deg": 120, "reach": 2, "max_targets": ten(2)}),
-		obj{"id": "viem_3", "class": "viem", "name": "p", "form": "III", "learn_level": 30, "slot": 0,
-			"passive": obj{"phys_def_pct": ten(2)}},
-		active("viem_4", 3, 40, "circle_target", obj{"cast_range": 5, "radius": 1.5, "max_targets": ten(2)}),
-		active("viem_5", 4, 50, "circle_self", obj{"radius": 2, "max_targets": ten(2)}),
-	}
+	return out
 }
 
 func skillsJSON(t *testing.T, skills []obj) []byte {
@@ -259,18 +266,29 @@ func TestParseSkillsValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m) != 5 || !m["viem_1"].Dash || !m["viem_1"].Active() || m["viem_3"].Active() {
+	if len(m) != 25 || !m["viem_1"].Dash || !m["viem_1"].Active() || m["viem_3"].Active() {
 		t.Fatalf("parsed: %+v", m)
 	}
 }
 
 func TestParseSkillsRejects(t *testing.T) {
-	// idx: viem_1 single=0, viem_2 cone=1, viem_3 passive=2, viem_4 circle_target=3, viem_5 circle_self=4.
+	// idx within viem: single=0, cone=1, passive=2, circle_target=3, circle_self=4.
 	set := func(i int, k string, v any) func([]obj) []obj {
 		return func(s []obj) []obj { s[i][k] = v; return s }
 	}
 	del := func(i int, k string) func([]obj) []obj {
 		return func(s []obj) []obj { delete(s[i], k); return s }
+	}
+	// asLine turns viem's circle_target (index 3) into a line skill, then applies mutate.
+	asLine := func(mutate func(obj)) func([]obj) []obj {
+		return func(s []obj) []obj {
+			x := s[3]
+			delete(x, "cast_range")
+			delete(x, "radius")
+			x["shape"], x["length"], x["width"] = "line", 6, 1.5
+			mutate(x)
+			return s
+		}
 	}
 	tests := []struct {
 		name   string
@@ -278,30 +296,38 @@ func TestParseSkillsRejects(t *testing.T) {
 		want   string
 	}{
 		{"unknown field", set(0, "bogus", 1), "bogus"},
-		{"duplicate id", set(1, "id", "viem_1"), "duplicate"},
-		{"bad class", set(0, "class", "ghost"), "class"},
-		{"missing radius", del(4, "radius"), "radius"},
-		{"reach on single", set(0, "reach", 2), "reach"},
-		{"array of 9", set(0, "mp", ten(10)[:9]), "mp"},
-		{"zero in mp", set(0, "mp", append([]int{0}, ten(10)[1:]...)), "mp"},
-		{"dash on cone", set(1, "dash", true), "dash"},
-		{"max_targets on single", set(0, "max_targets", ten(2)), "max_targets"},
-		{"missing max_targets on cone", del(1, "max_targets"), "max_targets"},
-		{"passive at level 20", set(2, "learn_level", 20), "learn_level"},
-		{"passive with shape", set(2, "shape", "single"), "active fields"},
-		{"unknown passive key", set(2, "passive", obj{"speed_pct": ten(1)}), "speed_pct"},
-		{"empty passive", set(2, "passive", obj{}), "passive"},
-		{"negative passive", set(2, "passive", obj{"phys_def_pct": append([]int{-1}, ten(1)[1:]...)}), "negative"},
-		{"passive array of 9", set(2, "passive", obj{"phys_def_pct": ten(1)[:9]}), "phys_def_pct"},
-		{"two slot 2 skills", func(s []obj) []obj { s[3]["slot"], s[3]["learn_level"] = 2, 20; return s }, "slot 2"},
-		{"missing slot 4", func(s []obj) []obj { return s[:4] }, "slot 4"},
-		{"cone_deg 0", set(1, "cone_deg", 0), "cone_deg"},
-		{"cone_deg 400", set(1, "cone_deg", 400), "cone_deg"},
-		{"bad damage", set(0, "damage", "fire"), "damage"},
-		{"bad shape", set(0, "shape", "ring"), "shape"},
-		{"active with passive", set(0, "passive", obj{"phys_def_pct": ten(1)}), "passive"},
-		{"wrong learn level", set(0, "learn_level", 11), "learn_level"},
-		{"bad slot", set(0, "slot", 5), "slot"},
+		{"duplicate id", set(1, "id", "viem_1"), "duplicate skill"},
+		{"bad class", set(0, "class", "ghost"), `class "ghost" is not valid`},
+		{"missing class", func(s []obj) []obj { return s[:20] }, `class "phong" has no skill`},
+		{"missing radius", del(4, "radius"), "radius must be positive"},
+		{"reach on single", set(0, "reach", 2), "reach is not allowed"},
+		{"array of 9", set(0, "mp", ten(10)[:9]), "mp has 9 entries"},
+		{"zero in mp", set(0, "mp", append([]int{0}, ten(10)[1:]...)), "mp must be positive"},
+		{"dash on cone", set(1, "dash", true), "dash needs shape single"},
+		{"max_targets on single", set(0, "max_targets", ten(2)), "max_targets is not allowed"},
+		{"null max_targets on single", set(0, "max_targets", nil), "max_targets is not allowed"},
+		{"empty max_targets on single", set(0, "max_targets", []int{}), "max_targets is not allowed"},
+		{"missing max_targets on cone", del(1, "max_targets"), "max_targets has 0 entries"},
+		{"line missing max_targets", asLine(func(x obj) { delete(x, "max_targets") }), "max_targets has 0 entries"},
+		{"line missing length", asLine(func(x obj) { delete(x, "length") }), "length must be positive"},
+		{"line missing width", asLine(func(x obj) { delete(x, "width") }), "width must be positive"},
+		{"passive at level 20", set(2, "learn_level", 20), "learn_level 20 must be 30"},
+		{"passive with shape", set(2, "shape", "single"), "passive must not have active fields"},
+		{"passive with null shape", set(2, "shape", nil), "passive must not have active fields"},
+		{"unknown passive key", set(2, "passive", obj{"speed_pct": ten(1)}), `passive key "speed_pct"`},
+		{"empty passive", set(2, "passive", obj{}), "at least one key"},
+		{"negative passive", set(2, "passive", obj{"phys_def_pct": append([]int{-1}, ten(1)[1:]...)}), "must not be negative"},
+		{"passive array of 9", set(2, "passive", obj{"phys_def_pct": ten(1)[:9]}), "passive.phys_def_pct has 9"},
+		{"two slot 2 skills", func(s []obj) []obj { s[3]["slot"], s[3]["learn_level"] = 2, 20; return s }, "two skills in slot 2"},
+		{"missing slot 4", func(s []obj) []obj { return append(s[:4:4], s[5:]...) }, `class "viem" has no skill in slot 4`},
+		{"cone_deg 0", set(1, "cone_deg", 0), "cone_deg must be positive"},
+		{"cone_deg 400", set(1, "cone_deg", 400), "cone_deg 400 must be in (0, 360]"},
+		{"bad damage", set(0, "damage", "fire"), `damage "fire"`},
+		{"bad shape", set(0, "shape", "ring"), `shape "ring" is not valid`},
+		{"active with passive", set(0, "passive", obj{"phys_def_pct": ten(1)}), "active skill must not have passive"},
+		{"active with empty passive", set(0, "passive", obj{}), "active skill must not have passive"},
+		{"wrong learn level", set(0, "learn_level", 11), "learn_level 11 must be 10"},
+		{"bad slot", set(0, "slot", 5), "slot 5 must be 0-4"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -314,9 +340,13 @@ func TestParseSkillsRejects(t *testing.T) {
 	if _, err := ParseSkills([]byte(`{"skills":[]}`)); err == nil {
 		t.Fatal("empty skills accepted")
 	}
+	if _, err := ParseSkills(append(skillsJSON(t, validSkills()), []byte(` {"skills":[]}`)...)); err == nil ||
+		!strings.Contains(err.Error(), "after the JSON value") {
+		t.Fatalf("trailing data: %v", err)
+	}
 }
 
-func TestRepoSkills(t *testing.T) {
+func TestRepoData(t *testing.T) {
 	d, err := Load("../../data")
 	if err != nil {
 		t.Fatal(err)
@@ -340,6 +370,9 @@ func TestRepoSkills(t *testing.T) {
 	if s := d.Skills["viem_1"]; s.Shape != ShapeSingle || !s.Dash || s.CoefPct[0] != 150 {
 		t.Fatalf("viem_1: %+v", s)
 	}
+	if len(d.Exp) != 89 || d.Exp[0] != 80 {
+		t.Fatalf("exp: %d values, first %v", len(d.Exp), d.Exp[:1])
+	}
 }
 
 func TestParseExp(t *testing.T) {
@@ -358,19 +391,22 @@ func TestParseExp(t *testing.T) {
 	if err != nil || len(got) != 89 || got[0] != 10 {
 		t.Fatalf("valid: %v %v", len(got), err)
 	}
-	for name, b := range map[string][]byte{
-		"88 values":      exp(88, nil),
-		"90 values":      exp(90, nil),
-		"non-increasing": exp(89, func(a []int64) { a[5] = a[4] }),
-		"zero":           exp(89, func(a []int64) { a[0] = 0 }),
-		"unknown field":  []byte(`{"exp_to_next":[],"x":1}`),
+	valid := exp(89, nil)
+	withExtra := append(append([]byte{}, valid[:len(valid)-1]...), []byte(`,"x":1}`)...)
+	for _, tt := range []struct {
+		name string
+		b    []byte
+		want string
+	}{
+		{"88 values", exp(88, nil), "88 values, want 89"},
+		{"90 values", exp(90, nil), "90 values, want 89"},
+		{"non-increasing", exp(89, func(a []int64) { a[5] = a[4] }), "level 6: value must be greater"},
+		{"zero", exp(89, func(a []int64) { a[0] = 0 }), "level 1: value must be positive"},
+		{"unknown field", withExtra, `unknown field "x"`},
+		{"trailing data", append(append([]byte{}, valid...), []byte(" 1")...), "after the JSON value"},
 	} {
-		if _, err := ParseExp(b); err == nil {
-			t.Errorf("%s: accepted", name)
+		if _, err := ParseExp(tt.b); err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("%s: want error containing %q, got %v", tt.name, tt.want, err)
 		}
-	}
-	d, err := Load("../../data")
-	if err != nil || len(d.Exp) != 89 || d.Exp[0] != 80 {
-		t.Fatalf("repo exp: %v", err)
 	}
 }

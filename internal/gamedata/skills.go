@@ -3,7 +3,9 @@ package gamedata
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 
 	"demonslayer2d/internal/combat"
 )
@@ -40,9 +42,24 @@ const (
 const SkillLevels = 10
 
 // Fixed skill layout of a class: slot to learn level. Slot 0 is the passive.
+const (
+	activeSlots    = 4
+	skillsPerClass = activeSlots + 1
+	// passiveIndex is the passive's place in a ClassSkills list.
+	passiveIndex = activeSlots
+)
+
 var slotLearnLevel = map[int]int{1: 10, 2: 20, 3: 40, 4: 50, 0: 30}
 
-var classes = map[string]bool{"viem": true, "thuy": true, "minh": true, "nham": true, "phong": true}
+var classList = []string{"viem", "thuy", "minh", "nham", "phong"}
+
+var classes = func() map[string]bool {
+	m := map[string]bool{}
+	for _, c := range classList {
+		m[c] = true
+	}
+	return m
+}()
 
 var passiveKeys = map[string]bool{
 	PassivePhysDefPct: true, PassiveMagicDefPct: true, PassiveMaxHPPct: true, PassiveEvasionPct: true,
@@ -86,7 +103,13 @@ type skillsFile struct {
 func decodeStrict(b []byte, v any) error {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
-	return dec.Decode(v)
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return errors.New("unexpected data after the JSON value")
+	}
+	return nil
 }
 
 // ParseSkills decodes and validates skills.json, returning skills by id.
@@ -95,10 +118,17 @@ func ParseSkills(b []byte) (map[string]Skill, error) {
 	if err := decodeStrict(b, &f); err != nil {
 		return nil, fmt.Errorf("gamedata: skills: decode: %w", err)
 	}
+	// A second pass tells absent fields from present-but-empty ones.
+	var raw struct {
+		Skills []map[string]json.RawMessage `json:"skills"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil || len(raw.Skills) != len(f.Skills) {
+		return nil, fmt.Errorf("gamedata: skills: decode: %v", err)
+	}
 	out := make(map[string]Skill, len(f.Skills))
 	slots := map[string]map[int]bool{}
-	for _, s := range f.Skills {
-		if err := validateSkill(s); err != nil {
+	for i, s := range f.Skills {
+		if err := validateSkill(s, raw.Skills[i]); err != nil {
 			return nil, err
 		}
 		if _, dup := out[s.ID]; dup {
@@ -116,7 +146,8 @@ func ParseSkills(b []byte) (map[string]Skill, error) {
 	if len(out) == 0 {
 		return nil, fmt.Errorf("gamedata: skills: no skills")
 	}
-	for c, got := range slots {
+	for _, c := range classList {
+		got := slots[c]
 		for slot := range slotLearnLevel {
 			if !got[slot] {
 				return nil, fmt.Errorf("gamedata: class %q has no skill in slot %d", c, slot)
@@ -126,7 +157,7 @@ func ParseSkills(b []byte) (map[string]Skill, error) {
 	return out, nil
 }
 
-func validateSkill(s Skill) error {
+func validateSkill(s Skill, present map[string]json.RawMessage) error {
 	bad := func(format string, args ...any) error {
 		return fmt.Errorf("gamedata: skill %q: %s", s.ID, fmt.Sprintf(format, args...))
 	}
@@ -144,18 +175,20 @@ func validateSkill(s Skill) error {
 		return bad("learn_level %d must be %d for slot %d", s.LearnLevel, want, s.Slot)
 	}
 	if s.Slot == 0 {
-		return validatePassive(s, bad)
+		return validatePassive(s, present, bad)
 	}
-	return validateActive(s, bad)
+	return validateActive(s, present, bad)
 }
 
-func validatePassive(s Skill, bad func(string, ...any) error) error {
+func validatePassive(s Skill, present map[string]json.RawMessage, bad func(string, ...any) error) error {
 	if len(s.Passive) == 0 {
 		return bad("passive needs at least one key in passive")
 	}
 	if s.Damage != "" || s.Shape != "" || s.CastRange != 0 || s.Radius != 0 || s.ConeDeg != 0 ||
 		s.Reach != 0 || s.Length != 0 || s.Width != 0 || s.Dash ||
-		s.CoefPct != nil || s.MP != nil || s.CooldownMS != nil || s.MaxTargets != nil {
+		s.CoefPct != nil || s.MP != nil || s.CooldownMS != nil || s.MaxTargets != nil ||
+		hasAny(present, "damage", "shape", "cast_range", "radius", "cone_deg", "reach", "length", "width",
+			"dash", "coef_pct", "mp", "cooldown_ms", "max_targets") {
 		return bad("passive must not have active fields")
 	}
 	for k, v := range s.Passive {
@@ -174,8 +207,8 @@ func validatePassive(s Skill, bad func(string, ...any) error) error {
 	return nil
 }
 
-func validateActive(s Skill, bad func(string, ...any) error) error {
-	if len(s.Passive) != 0 {
+func validateActive(s Skill, present map[string]json.RawMessage, bad func(string, ...any) error) error {
+	if _, ok := present["passive"]; ok {
 		return bad("active skill must not have passive")
 	}
 	if s.Damage != DamagePhys && s.Damage != DamageMagic {
@@ -225,13 +258,22 @@ func validateActive(s Skill, bad func(string, ...any) error) error {
 		}
 	}
 	if s.Shape == ShapeSingle {
-		if s.MaxTargets != nil {
+		if _, ok := present["max_targets"]; ok {
 			return bad("max_targets is not allowed for shape single")
 		}
 	} else if err := positiveArray("max_targets", s.MaxTargets, bad); err != nil {
 		return err
 	}
 	return nil
+}
+
+func hasAny(m map[string]json.RawMessage, keys ...string) bool {
+	for _, k := range keys {
+		if _, ok := m[k]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func positiveArray(name string, a []int, bad func(string, ...any) error) error {
@@ -253,11 +295,11 @@ func classSkills(skills map[string]Skill) map[string][]Skill {
 	for _, s := range skills {
 		l := out[s.Class]
 		if l == nil {
-			l = make([]Skill, 5)
+			l = make([]Skill, skillsPerClass)
 		}
 		i := s.Slot - 1
 		if s.Slot == 0 {
-			i = 4
+			i = passiveIndex
 		}
 		l[i] = s
 		out[s.Class] = l
