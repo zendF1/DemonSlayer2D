@@ -109,12 +109,30 @@ func (c *Client) readLoop() {
 	}
 }
 
+// writeTimeout bounds one write. A write that takes longer means the
+// connection is stuck, and the websocket library closes it.
+const writeTimeout = 10 * time.Second
+
 func (c *Client) write(ctx context.Context, env *pb.Envelope) error {
 	data, err := proto.Marshal(env)
 	if err != nil {
 		return err
 	}
-	return c.ws.Write(ctx, websocket.MessageBinary, data)
+	return c.writeData(ctx, data)
+}
+
+// writeData writes data as one binary message unless ctx is already done.
+// The websocket library closes the connection when the context of a write
+// ends before the write does (or is done when it starts), so the write
+// itself runs under writeTimeout instead of ctx: cancelling one request must
+// not end the connection.
+func (c *Client) writeData(ctx context.Context, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), writeTimeout)
+	defer cancel()
+	return c.ws.Write(wctx, websocket.MessageBinary, data)
 }
 
 // Request sends env with a fresh seq and waits for its response. Error envelopes become *ServerError.
@@ -481,5 +499,5 @@ func (c *Client) Ping(ctx context.Context) (time.Duration, error) {
 
 // SendRaw writes arbitrary bytes as one binary message (for protocol tests).
 func (c *Client) SendRaw(ctx context.Context, data []byte) error {
-	return c.ws.Write(ctx, websocket.MessageBinary, data)
+	return c.writeData(ctx, data)
 }

@@ -67,6 +67,13 @@ type attackResult struct {
 func (f *Fighter) Fight(ctx context.Context, n int, onKill func(Kill)) error {
 	results := make(chan attackResult, 1)
 	inFlight := false
+	// Return only once the attack goroutine is done with the client, so the
+	// caller owns the connection again (Attack returns as soon as ctx ends).
+	defer func() {
+		if inFlight {
+			<-results
+		}
+	}()
 	nextAttack := time.Now()
 	retry := time.NewTimer(0)
 	defer retry.Stop()
