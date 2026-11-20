@@ -20,7 +20,10 @@ Rules (phase 3a spec 2.1):
   the normal range;
 - enhancement (phase 3b spec 2.1): success rates and level drops follow
   game-design 3.3, stones and Xu per attempt are the spec's table; regen
-  milestones and each slot's regen kind follow game-design 2.7.
+  milestones and each slot's regen kind follow game-design 2.7;
+- resonance, sockets and refining (phase 3c spec 2.1): the activator cycle
+  and activating slots follow game-design 3.2; gem g of each kind is worth
+  the line standard of tier 10 g, placed after the charm by kind then level.
 The script checks every equipment value against equipment-stats-proposal.csv.
 Without --print-json it also prints the mean enhancement costs from a seeded
 simulation and checks the +15 mean attempts without charms (game-design 3.3:
@@ -66,6 +69,27 @@ STACKABLES = [
 ]
 STONE = "stone_enhance"
 CHARM = "charm_protect"
+STONE_REFINE = "stone_refine"
+# Phase 3c spec 2.1. activator[e] lights the hidden lines of a piece of
+# element e: the cycle Thuy -> Phong -> Viem -> Nham -> Minh -> Thuy.
+ACTIVATOR = {"viem": "phong", "nham": "viem", "minh": "nham", "thuy": "minh", "phong": "thuy"}
+# Slot -> the slots that light its hidden lines 1 and 2 (game-design 3.2).
+RESONANCE_SLOTS = {
+    "weapon": ["helmet", "armor"], "helmet": ["necklace", "ring_left"],
+    "armor": ["necklace", "ring_right"], "pants": ["armor", "pendant"],
+    "bracers": ["weapon", "ring_left"], "boots": ["pants", "pendant"],
+    "necklace": ["weapon", "bracers"], "pendant": ["helmet", "boots"],
+    "ring_left": ["pants", "ring_right"], "ring_right": ["boots", "bracers"],
+}
+SOCKETS = {"max": 3, "punch_xu_per_tier": [100, 200, 400], "unsocket_xu_per_level": 500}
+REFINE = {"min_quality": 2, "stones": 1, "stones_per_lock": 1, "xu_per_tier": 20, "xu_per_tier_per_lock": 20}
+# Gem kind, name, the line stats it raises.
+GEM_KINDS = [
+    ("attack", "Ngọc Công", ["phys_attack", "magic_attack"]),
+    ("hp", "Ngọc Sinh Lực", ["hp"]),
+    ("defense", "Ngọc Hộ Thể", ["phys_defense", "magic_defense"]),
+]
+GEM_LEVELS = range(1, 6)
 PITY_PCT = 1
 MAX_TIMES = 100
 # Phase 3b spec 2.1: target level, success %, drops a level on an unprotected
@@ -152,6 +176,15 @@ def piece(items, tier_index, slot, class_id):
     return entry
 
 
+def gems(tiers):
+    """The 15 gems: level g is worth tier 10 g's line standard."""
+    standard = {t["tier"]: t["line_standard"] for t in tiers}
+    return [{"code": f"gem_{kind}_{level}", "name": f"{name} cấp {level}",
+             "gem": {"kind": kind, "level": level,
+                     "stats": {stat: standard[10 * level][stat] for stat in stats}}}
+            for kind, name, stats in GEM_KINDS for level in GEM_LEVELS]
+
+
 def build():
     items = eb.generate()
     tiers, equipment = [], []
@@ -173,7 +206,7 @@ def build():
         "line_roll_min_pct": LINE_ROLL_MIN_PCT,
         "tiers": tiers,
         "equipment": equipment,
-        "stackables": STACKABLES,
+        "stackables": STACKABLES + gems(tiers),
         "drops": DROPS,
         "enhance": {
             "pity_pct": PITY_PCT,
@@ -182,6 +215,9 @@ def build():
                        for lv, pct, drop, stones, xu in ENHANCE_TABLE],
         },
         "regen": [{"enhance": n, "hp_bp": hp, "mp": mp} for n, hp, mp in REGEN],
+        "resonance": {"activator": ACTIVATOR, "slots": RESONANCE_SLOTS},
+        "sockets": SOCKETS,
+        "refine": REFINE,
     }
 
 
@@ -217,6 +253,47 @@ def check(data):
     codes = [e["code"] for e in data["equipment"]] + [s["code"] for s in data["stackables"]]
     assert len(codes) == len(set(codes)), codes
     check_enhance(data)
+    check_forge(data)
+
+
+def check_forge(data):
+    """The load checks of phase 3c spec 2.1, as the Go server makes them, and
+    the spec's gem table."""
+    act = data["resonance"]["activator"]
+    assert sorted(act) == sorted(CLASS_IDS) and sorted(act.values()) == sorted(CLASS_IDS), act
+    e, steps = CLASS_IDS[0], 0
+    while True:
+        assert act[e] != e, e
+        e, steps = act[e], steps + 1
+        if e == CLASS_IDS[0]:
+            break
+    assert steps == 5, act
+    slots = data["resonance"]["slots"]
+    assert sorted(slots) == sorted(SLOT_IDS), slots
+    for sid, on in slots.items():
+        assert len(on) == 2 and on[0] != on[1] and sid not in on and all(o in SLOT_IDS for o in on), (sid, on)
+    sock = data["sockets"]
+    assert sock["max"] == len(sock["punch_xu_per_tier"]) >= 1, sock
+    assert all(v > 0 for v in sock["punch_xu_per_tier"]) and sock["unsocket_xu_per_level"] > 0, sock
+    ref = data["refine"]
+    assert 1 <= ref["min_quality"] <= 4 and ref["stones"] >= 1, ref
+    assert min(ref["stones_per_lock"], ref["xu_per_tier"], ref["xu_per_tier_per_lock"]) >= 0, ref
+    codes = [s["code"] for s in data["stackables"]]
+    assert STONE_REFINE in codes, codes
+    seen = set()
+    for s in data["stackables"]:
+        g = s.get("gem")
+        if g is None:
+            continue
+        key = (g["kind"], g["level"])
+        assert key not in seen and 1 <= g["level"] <= 5 and g["stats"], s
+        assert all(k in LINE_STATS and v > 0 for k, v in g["stats"].items()), s
+        seen.add(key)
+        hp, attack, defense = WANT_STANDARD[10 * g["level"]]
+        want = {"attack": {"phys_attack": attack, "magic_attack": attack}, "hp": {"hp": hp},
+                "defense": {"phys_defense": defense, "magic_defense": defense}}[g["kind"]]
+        assert g["stats"] == want, s
+    assert seen == {(k, lv) for k, _, _ in GEM_KINDS for lv in GEM_LEVELS}, seen
 
 
 def check_enhance(data):

@@ -700,8 +700,8 @@ func itemsWithTiers(tiers ...int) obj {
 		"line_roll_min_pct": 50,
 		"tiers":             tierList,
 		"equipment":         equipment,
-		"stackables": []any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"},
-			obj{"code": "charm_protect", "name": "Bùa bảo vệ"}},
+		"stackables": append([]any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"},
+			obj{"code": "charm_protect", "name": "Bùa bảo vệ"}}, gemList()...),
 		"drops": obj{
 			RankNormal: drop(3, 5, 500, 1, []int{8000, 1700, 300, 0, 0}, stack("stone_enhance", 2000, 1)),
 			RankElite:  drop(18, 30, 10000, 1, []int{0, 7500, 2500, 0, 0}, stack("stone_enhance", 10000, 3), stack("stone_refine", 1000, 1)),
@@ -710,7 +710,51 @@ func itemsWithTiers(tiers ...int) obj {
 		"enhance": obj{"pity_pct": 1, "max_times": 100, "levels": enhanceLevels()},
 		"regen": []any{obj{"enhance": 7, "hp_bp": 5, "mp": 1}, obj{"enhance": 10, "hp_bp": 10, "mp": 2},
 			obj{"enhance": 12, "hp_bp": 20, "mp": 3}, obj{"enhance": 15, "hp_bp": 30, "mp": 5}},
+		"resonance": obj{"activator": specActivator(), "slots": specSlots()},
+		"sockets":   obj{"max": 3, "punch_xu_per_tier": []int{100, 200, 400}, "unsocket_xu_per_level": 500},
+		"refine":    obj{"min_quality": 2, "stones": 1, "stones_per_lock": 1, "xu_per_tier": 20, "xu_per_tier_per_lock": 20},
 	}
+}
+
+// specActivator is the phase 3c spec 2.1 activator table: the cycle
+// Thủy → Phong → Viêm → Nham → Minh → Thủy.
+func specActivator() obj {
+	return obj{"viem": "phong", "nham": "viem", "minh": "nham", "thuy": "minh", "phong": "thuy"}
+}
+
+// specSlots is the phase 3c spec 2.1 activating-slot table (game-design 3.2).
+func specSlots() obj {
+	return obj{
+		SlotWeapon: []any{SlotHelmet, SlotArmor}, SlotHelmet: []any{SlotNecklace, SlotRingLeft},
+		SlotArmor: []any{SlotNecklace, SlotRingRight}, SlotPants: []any{SlotArmor, SlotPendant},
+		SlotBracers: []any{SlotWeapon, SlotRingLeft}, SlotBoots: []any{SlotPants, SlotPendant},
+		SlotNecklace: []any{SlotWeapon, SlotBracers}, SlotPendant: []any{SlotHelmet, SlotBoots},
+		SlotRingLeft: []any{SlotPants, SlotRingRight}, SlotRingRight: []any{SlotBoots, SlotBracers},
+	}
+}
+
+// gemKinds lists each gem kind with the stats it raises.
+var gemKinds = []struct {
+	kind  string
+	stats []string
+}{{GemAttack, []string{StatPhysAttack, StatMagicAttack}}, {GemHP, []string{StatHP}},
+	{GemDefense, []string{StatPhysDefense, StatMagicDefense}}}
+
+// gemList is 15 valid gems (three kinds, levels 1-5), each stat worth its
+// level; stackables[3+5k+g-1] is kind k at level g.
+func gemList() []any {
+	var out []any
+	for _, k := range gemKinds {
+		for lv := 1; lv <= MaxGemLevel; lv++ {
+			stats := obj{}
+			for _, s := range k.stats {
+				stats[s] = lv
+			}
+			out = append(out, obj{"code": fmt.Sprintf("gem_%s_%d", k.kind, lv), "name": fmt.Sprintf("Ngọc %s %d", k.kind, lv),
+				"gem": obj{"kind": k.kind, "level": lv, "stats": stats}})
+		}
+	}
+	return out
 }
 
 // enhanceLevels is the phase 3b spec 2.1 table: entry i is target +i+1.
@@ -766,7 +810,8 @@ func TestParseItemsValid(t *testing.T) {
 	if !it.IsEquipment("eq10_ring_left") || it.IsEquipment("stone_enhance") {
 		t.Fatal("IsEquipment")
 	}
-	if !slices.Equal(it.StackOrder, []string{"stone_enhance", "stone_refine", "charm_protect"}) || it.Stackables["stone_refine"].Name != "Đá tẩy luyện" {
+	if !slices.Equal(it.StackOrder[:4], []string{"stone_enhance", "stone_refine", "charm_protect", "gem_attack_1"}) || len(it.StackOrder) != 18 ||
+		it.Stackables["stone_refine"].Name != "Đá tẩy luyện" {
 		t.Fatalf("stackables: %v %+v", it.StackOrder, it.Stackables)
 	}
 	b := it.Drops[RankBoss]
@@ -942,7 +987,7 @@ func TestRepoItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	it := d.Items
-	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 3 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
+	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 18 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
 		t.Fatalf("items: %d equipment, %d stackables, %d drops", len(it.Equipment), len(it.Stackables), len(it.Drops))
 	}
 	perTier := map[int]int{}
@@ -1060,7 +1105,7 @@ func TestParseEnhanceRejects(t *testing.T) {
 
 		{"slot without regen", func(d obj) { delete(d["slots"].([]any)[4].(obj), "regen") }, `slot "helmet": regen "" must be "hp" or "mp"`},
 		{"slot with bad regen", func(d obj) { d["slots"].([]any)[0].(obj)["regen"] = "sp" }, `slot "weapon": regen "sp" must be "hp" or "mp"`},
-		{"missing charm", func(d obj) { d["stackables"] = d["stackables"].([]any)[:2] }, `stackables has no "charm_protect"`},
+		{"missing charm", func(d obj) { d["stackables"] = slices.Delete(d["stackables"].([]any), 2, 3) }, `stackables has no "charm_protect"`},
 		{"missing stone", func(d obj) {
 			d["stackables"] = d["stackables"].([]any)[1:]
 			d["drops"] = obj{RankNormal: dropNoStacks(d, RankNormal), RankElite: dropNoStacks(d, RankElite), RankBoss: dropNoStacks(d, RankBoss)}
@@ -1116,5 +1161,182 @@ func TestRepoEnhanceData(t *testing.T) {
 	}
 	if it.Stackables[CharmProtect].Name != "Bùa bảo vệ" || it.StackOrder[2] != CharmProtect || it.StackOrder[0] != StoneEnhance {
 		t.Fatalf("stackables: %v", it.StackOrder)
+	}
+}
+
+// ______________________TEST FORGE DATA_____________________
+
+// slotIdx is the index of each slot id.
+func slotIdx(id string) int { return slices.Index(SlotIDs[:], id) }
+
+func TestParseForgeData(t *testing.T) {
+	it, err := ParseItems(itemsJSON(t, validItems()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := it.Resonance
+	if r.Activator["viem"] != "phong" || r.Activator["phong"] != "thuy" || len(r.Activator) != 5 {
+		t.Fatalf("activator: %v", r.Activator)
+	}
+	if r.Slots[slotIdx(SlotWeapon)] != [2]int{slotIdx(SlotHelmet), slotIdx(SlotArmor)} {
+		t.Fatalf("weapon slots: %v", r.Slots[0])
+	}
+	if r.Slots[slotIdx(SlotRingRight)] != [2]int{slotIdx(SlotBoots), slotIdx(SlotBracers)} {
+		t.Fatalf("ring_right slots: %v", r.Slots[9])
+	}
+	if it.Sockets.Max != 3 || !slices.Equal(it.Sockets.PunchXuPerTier, []int{100, 200, 400}) || it.Sockets.UnsocketXuPerLevel != 500 {
+		t.Fatalf("sockets: %+v", it.Sockets)
+	}
+	if it.Refine != (Refine{MinQuality: 2, Stones: 1, StonesPerLock: 1, XuPerTier: 20, XuPerTierPerLock: 20}) {
+		t.Fatalf("refine: %+v", it.Refine)
+	}
+	if !it.IsGem("gem_hp_5") || it.IsGem("stone_refine") || it.IsGem("eq10_armor") || it.IsGem("nope") {
+		t.Fatal("IsGem")
+	}
+	g := it.Stackables["gem_attack_4"].Gem
+	if g == nil || g.Kind != GemAttack || g.Level != 4 || !maps.Equal(g.Stats, map[string]int{StatPhysAttack: 4, StatMagicAttack: 4}) {
+		t.Fatalf("gem_attack_4: %+v", g)
+	}
+	if it.Stackables[StoneRefine].Gem != nil {
+		t.Fatal("stone has a gem block")
+	}
+}
+
+func TestParseForgeRejects(t *testing.T) {
+	res := func(f func(obj)) func(obj) {
+		return func(d obj) { f(d["resonance"].(obj)) }
+	}
+	act := func(f func(obj)) func(obj) {
+		return res(func(r obj) { f(r["activator"].(obj)) })
+	}
+	slot := func(id string, v any) func(obj) {
+		return res(func(r obj) { r["slots"].(obj)[id] = v })
+	}
+	sock := func(f string, v any) func(obj) {
+		return func(d obj) { d["sockets"].(obj)[f] = v }
+	}
+	ref := func(f string, v any) func(obj) {
+		return func(d obj) { d["refine"].(obj)[f] = v }
+	}
+	// gem sets field f of the gem block of stackables[3+i] (gem_attack_1 is 0).
+	gem := func(i int, f string, v any) func(obj) {
+		return func(d obj) { d["stackables"].([]any)[3+i].(obj)["gem"].(obj)[f] = v }
+	}
+	tests := []struct {
+		name   string
+		mutate func(obj)
+		want   string
+	}{
+		{"element activating itself", act(func(a obj) { a["viem"] = "viem" }), `resonance activator: "viem" activates itself`},
+		{"two cycles", act(func(a obj) {
+			// viem <-> phong, nham -> minh -> thuy -> nham.
+			a["viem"], a["phong"], a["nham"], a["minh"], a["thuy"] = "phong", "viem", "thuy", "nham", "minh"
+		}), "resonance activator must be one cycle through all five elements"},
+		{"not a permutation", act(func(a obj) { a["viem"] = "thuy" }), `resonance activator: "thuy" activates more than one element`},
+		{"missing element", act(func(a obj) { delete(a, "minh") }), `resonance activator has no "minh"`},
+		{"unknown element key", act(func(a obj) { a["lua"] = "viem" }), `resonance activator: "lua" is not an element`},
+		{"unknown activator", act(func(a obj) { a["viem"] = "lua" }), `resonance activator: "viem" is activated by "lua", not an element`},
+		{"slot activating itself", slot(SlotArmor, []any{SlotNecklace, SlotArmor}), `resonance slots "armor": activated by itself`},
+		{"slot activated twice by one slot", slot(SlotArmor, []any{SlotNecklace, SlotNecklace}), `resonance slots "armor": both lines activated by "necklace"`},
+		{"unknown activating slot", slot(SlotArmor, []any{SlotNecklace, "cape"}), `resonance slots "armor": "cape" is not a slot`},
+		{"three activating slots", slot(SlotArmor, []any{SlotNecklace, SlotRingLeft, SlotRingRight}), `resonance slots "armor": 3 slots, want 2`},
+		{"missing slot", res(func(r obj) { delete(r["slots"].(obj), SlotPendant) }), `resonance slots has no "pendant"`},
+		{"unknown slot", slot("cape", []any{SlotNecklace, SlotRingLeft}), `resonance slots "cape" is not a slot`},
+		{"no resonance", func(d obj) { delete(d, "resonance") }, "resonance activator has no"},
+
+		{"max 3 with two prices", sock("punch_xu_per_tier", []int{100, 200}), "sockets max 3 needs 3 punch_xu_per_tier entries, got 2"},
+		{"max 0", func(d obj) { sock("max", 0)(d); sock("punch_xu_per_tier", []int{})(d) }, "sockets max 0 must be at least 1"},
+		{"punch price 0", sock("punch_xu_per_tier", []int{100, 0, 400}), "sockets punch_xu_per_tier[1] 0 must be positive"},
+		{"unsocket 0", sock("unsocket_xu_per_level", 0), "sockets unsocket_xu_per_level 0 must be positive"},
+
+		{"min_quality 0", ref("min_quality", 0), "refine min_quality 0 must be in 1-4"},
+		{"min_quality 5", ref("min_quality", 5), "refine min_quality 5 must be in 1-4"},
+		{"stones 0", ref("stones", 0), "refine stones 0 must be at least 1"},
+		{"negative stones_per_lock", ref("stones_per_lock", -1), "refine stones_per_lock -1 must not be negative"},
+		{"negative xu_per_tier", ref("xu_per_tier", -1), "refine xu_per_tier -1 must not be negative"},
+		{"negative xu_per_tier_per_lock", ref("xu_per_tier_per_lock", -1), "refine xu_per_tier_per_lock -1 must not be negative"},
+		{"missing refine stone", func(d obj) {
+			d["stackables"] = slices.Delete(d["stackables"].([]any), 1, 2)
+			for _, r := range []string{RankElite, RankBoss} {
+				x := d["drops"].(obj)[r].(obj)
+				x["stacks"] = x["stacks"].([]any)[:1]
+			}
+		}, `stackables has no "stone_refine"`},
+
+		{"duplicate gem kind and level", gem(1, "level", 1), `gem "gem_attack_2": attack level 1 is already "gem_attack_1"`},
+		{"missing gem", func(d obj) { d["stackables"] = slices.Delete(d["stackables"].([]any), 3+14, 3+15) }, `no defense gem of level 5`},
+		{"gem stat mp", gem(5, "stats", obj{"mp": 10}), `gem "gem_hp_1": stat "mp" is not a line stat`},
+		{"gem stat 0", gem(5, "stats", obj{StatHP: 0}), `gem "gem_hp_1": stat "hp" 0 must be positive`},
+		{"gem without stats", gem(5, "stats", obj{}), `gem "gem_hp_1": stats is empty`},
+		{"gem kind", gem(0, "kind", "pierce"), `gem "gem_attack_1": kind "pierce" is unknown`},
+		{"gem level 6", gem(4, "level", 6), `gem "gem_attack_5": level 6 must be in 1-5`},
+		{"gem level 0", gem(0, "level", 0), `gem "gem_attack_1": level 0 must be in 1-5`},
+		{"unknown gem field", gem(0, "bogus", 1), `unknown field "bogus"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := validItems()
+			tt.mutate(d)
+			_, err := ParseItems(itemsJSON(t, d))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+// The committed resonance, socket, refine and gem data is the phase 3c spec
+// 2.1 tables.
+func TestRepoForgeData(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := d.Items
+	if g := it.Stackables["gem_hp_5"].Gem; g == nil || !maps.Equal(g.Stats, map[string]int{StatHP: 469}) {
+		t.Fatalf("gem_hp_5: %+v", g)
+	}
+	for id, v := range specSlots() {
+		a := v.([]any)
+		if got, want := it.Resonance.Slots[slotIdx(id)], [2]int{slotIdx(a[0].(string)), slotIdx(a[1].(string))}; got != want {
+			t.Errorf("slots %s: %v, want %v", id, got, want)
+		}
+	}
+	for e, a := range specActivator() {
+		if it.Resonance.Activator[e] != a {
+			t.Errorf("activator %s: %q, want %q", e, it.Resonance.Activator[e], a)
+		}
+	}
+	if it.Sockets.Max != 3 || !slices.Equal(it.Sockets.PunchXuPerTier, []int{100, 200, 400}) || it.Sockets.UnsocketXuPerLevel != 500 {
+		t.Fatalf("sockets: %+v", it.Sockets)
+	}
+	if it.Refine != (Refine{MinQuality: 2, Stones: 1, StonesPerLock: 1, XuPerTier: 20, XuPerTierPerLock: 20}) {
+		t.Fatalf("refine: %+v", it.Refine)
+	}
+	// Spec 2.1 table: level -> attack, HP, defense.
+	want := map[int][3]int{1: {4, 86, 1}, 2: {8, 156, 1}, 3: {14, 220, 2}, 4: {22, 320, 3}, 5: {32, 469, 5}}
+	for lv, v := range want {
+		for _, c := range []struct {
+			kind  string
+			stats map[string]int
+		}{
+			{GemAttack, map[string]int{StatPhysAttack: v[0], StatMagicAttack: v[0]}},
+			{GemHP, map[string]int{StatHP: v[1]}},
+			{GemDefense, map[string]int{StatPhysDefense: v[2], StatMagicDefense: v[2]}},
+		} {
+			code := fmt.Sprintf("gem_%s_%d", c.kind, lv)
+			s := it.Stackables[code]
+			if s.Gem == nil || s.Gem.Kind != c.kind || s.Gem.Level != lv || !maps.Equal(s.Gem.Stats, c.stats) || s.Name == "" {
+				t.Errorf("%s: %+v", code, s)
+			}
+		}
+	}
+	// The gems follow the charm, attack then HP then defense, by level.
+	if got := it.StackOrder[3:]; len(got) != 15 || got[0] != "gem_attack_1" || got[5] != "gem_hp_1" || got[14] != "gem_defense_5" {
+		t.Fatalf("gem order: %v", got)
+	}
+	if it.Stackables["gem_attack_1"].Name != "Ngọc Công cấp 1" || it.Stackables["gem_hp_2"].Name != "Ngọc Sinh Lực cấp 2" ||
+		it.Stackables["gem_defense_3"].Name != "Ngọc Hộ Thể cấp 3" {
+		t.Fatal("gem names")
 	}
 }

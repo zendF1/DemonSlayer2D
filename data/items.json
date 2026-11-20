@@ -7050,6 +7050,181 @@
     {
       "code": "charm_protect",
       "name": "Bùa bảo vệ"
+    },
+    {
+      "code": "gem_attack_1",
+      "name": "Ngọc Công cấp 1",
+      "gem": {
+        "kind": "attack",
+        "level": 1,
+        "stats": {
+          "phys_attack": 4,
+          "magic_attack": 4
+        }
+      }
+    },
+    {
+      "code": "gem_attack_2",
+      "name": "Ngọc Công cấp 2",
+      "gem": {
+        "kind": "attack",
+        "level": 2,
+        "stats": {
+          "phys_attack": 8,
+          "magic_attack": 8
+        }
+      }
+    },
+    {
+      "code": "gem_attack_3",
+      "name": "Ngọc Công cấp 3",
+      "gem": {
+        "kind": "attack",
+        "level": 3,
+        "stats": {
+          "phys_attack": 14,
+          "magic_attack": 14
+        }
+      }
+    },
+    {
+      "code": "gem_attack_4",
+      "name": "Ngọc Công cấp 4",
+      "gem": {
+        "kind": "attack",
+        "level": 4,
+        "stats": {
+          "phys_attack": 22,
+          "magic_attack": 22
+        }
+      }
+    },
+    {
+      "code": "gem_attack_5",
+      "name": "Ngọc Công cấp 5",
+      "gem": {
+        "kind": "attack",
+        "level": 5,
+        "stats": {
+          "phys_attack": 32,
+          "magic_attack": 32
+        }
+      }
+    },
+    {
+      "code": "gem_hp_1",
+      "name": "Ngọc Sinh Lực cấp 1",
+      "gem": {
+        "kind": "hp",
+        "level": 1,
+        "stats": {
+          "hp": 86
+        }
+      }
+    },
+    {
+      "code": "gem_hp_2",
+      "name": "Ngọc Sinh Lực cấp 2",
+      "gem": {
+        "kind": "hp",
+        "level": 2,
+        "stats": {
+          "hp": 156
+        }
+      }
+    },
+    {
+      "code": "gem_hp_3",
+      "name": "Ngọc Sinh Lực cấp 3",
+      "gem": {
+        "kind": "hp",
+        "level": 3,
+        "stats": {
+          "hp": 220
+        }
+      }
+    },
+    {
+      "code": "gem_hp_4",
+      "name": "Ngọc Sinh Lực cấp 4",
+      "gem": {
+        "kind": "hp",
+        "level": 4,
+        "stats": {
+          "hp": 320
+        }
+      }
+    },
+    {
+      "code": "gem_hp_5",
+      "name": "Ngọc Sinh Lực cấp 5",
+      "gem": {
+        "kind": "hp",
+        "level": 5,
+        "stats": {
+          "hp": 469
+        }
+      }
+    },
+    {
+      "code": "gem_defense_1",
+      "name": "Ngọc Hộ Thể cấp 1",
+      "gem": {
+        "kind": "defense",
+        "level": 1,
+        "stats": {
+          "phys_defense": 1,
+          "magic_defense": 1
+        }
+      }
+    },
+    {
+      "code": "gem_defense_2",
+      "name": "Ngọc Hộ Thể cấp 2",
+      "gem": {
+        "kind": "defense",
+        "level": 2,
+        "stats": {
+          "phys_defense": 1,
+          "magic_defense": 1
+        }
+      }
+    },
+    {
+      "code": "gem_defense_3",
+      "name": "Ngọc Hộ Thể cấp 3",
+      "gem": {
+        "kind": "defense",
+        "level": 3,
+        "stats": {
+          "phys_defense": 2,
+          "magic_defense": 2
+        }
+      }
+    },
+    {
+      "code": "gem_defense_4",
+      "name": "Ngọc Hộ Thể cấp 4",
+      "gem": {
+        "kind": "defense",
+        "level": 4,
+        "stats": {
+          "phys_defense": 3,
+          "magic_defense": 3
+        }
+      }
+    },
+    {
+      "code": "gem_defense_5",
+      "name": "Ngọc Hộ Thể cấp 5",
+      "gem": {
+        "kind": "defense",
+        "level": 5,
+        "stats": {
+          "phys_defense": 5,
+          "magic_defense": 5
+        }
+      }
     }
   ],
   "drops": {
@@ -7268,5 +7443,72 @@
       "hp_bp": 30,
       "mp": 5
     }
-  ]
+  ],
+  "resonance": {
+    "activator": {
+      "viem": "phong",
+      "nham": "viem",
+      "minh": "nham",
+      "thuy": "minh",
+      "phong": "thuy"
+    },
+    "slots": {
+      "weapon": [
+        "helmet",
+        "armor"
+      ],
+      "helmet": [
+        "necklace",
+        "ring_left"
+      ],
+      "armor": [
+        "necklace",
+        "ring_right"
+      ],
+      "pants": [
+        "armor",
+        "pendant"
+      ],
+      "bracers": [
+        "weapon",
+        "ring_left"
+      ],
+      "boots": [
+        "pants",
+        "pendant"
+      ],
+      "necklace": [
+        "weapon",
+        "bracers"
+      ],
+      "pendant": [
+        "helmet",
+        "boots"
+      ],
+      "ring_left": [
+        "pants",
+        "ring_right"
+      ],
+      "ring_right": [
+        "boots",
+        "bracers"
+      ]
+    }
+  },
+  "sockets": {
+    "max": 3,
+    "punch_xu_per_tier": [
+      100,
+      200,
+      400
+    ],
+    "unsocket_xu_per_level": 500
+  },
+  "refine": {
+    "min_quality": 2,
+    "stones": 1,
+    "stones_per_lock": 1,
+    "xu_per_tier": 20,
+    "xu_per_tier_per_lock": 20
+  }
 }

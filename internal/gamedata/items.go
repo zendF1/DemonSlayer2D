@@ -52,11 +52,24 @@ var rankList = []string{RankNormal, RankElite, RankBoss}
 // has; every equipment stat array has exactly this many entries.
 const EnhanceLevels = 16
 
-// Stackable codes the enhancement rules use (phase 3b spec 2.1).
+// Stackable codes the enhancement rules (phase 3b spec 2.1) and refining
+// (phase 3c spec 2.1) use.
 const (
 	StoneEnhance = "stone_enhance"
 	CharmProtect = "charm_protect"
+	StoneRefine  = "stone_refine"
 )
+
+// Gem kinds (phase 3c spec 2.1). A gem of level g fits equipment of tier
+// 10g or more, so MaxGemLevel is the highest tier's.
+const (
+	GemAttack   = "attack"
+	GemHP       = "hp"
+	GemDefense  = "defense"
+	MaxGemLevel = MaxTier / TierStep
+)
+
+var gemKindList = []string{GemAttack, GemHP, GemDefense}
 
 // Slot regen kinds: worn pieces at an enhance milestone regenerate HP
 // (armour) or MP (weapon and jewellery) every second (game-design 2.7).
@@ -73,6 +86,10 @@ const (
 	MaxTier  = 50
 	TierStep = 10
 )
+
+// HiddenLineCount is how many hidden lines a piece with an element has, and
+// so how many activating slots each slot has.
+const HiddenLineCount = 2
 
 const (
 	qualityCount = 5
@@ -159,10 +176,49 @@ type Equipment struct {
 	SlotIndex int `json:"-"`
 }
 
-// Stackable is an item that stacks in the bag (stones).
+// Stackable is an item that stacks in the bag (stones, charms, gems). Gem
+// is set on gems only.
 type Stackable struct {
 	Code string `json:"code"`
 	Name string `json:"name"`
+	Gem  *Gem   `json:"gem,omitempty"`
+}
+
+// Gem is what a socketed gem adds (phase 3c spec 2.1): Stats by line stat
+// key. Level is 1-MaxGemLevel.
+type Gem struct {
+	Kind  string         `json:"kind"`
+	Level int            `json:"level"`
+	Stats map[string]int `json:"stats"`
+}
+
+// Resonance is the hidden-line table (phase 3c spec 2.1): Activator[e] is
+// the element whose worn piece lights the hidden lines of a piece of
+// element e; Slots[s][j] is the slot index whose piece lights hidden line
+// j+1 of the piece in slot index s.
+type Resonance struct {
+	Activator map[string]string
+	Slots     [10][2]int
+}
+
+// Sockets is the socket rules: at most Max holes; punching hole n+1 costs
+// PunchXuPerTier[n] times the item tier in Xu; unsocketing a gem costs
+// UnsocketXuPerLevel times its level.
+type Sockets struct {
+	Max                int   `json:"max"`
+	PunchXuPerTier     []int `json:"punch_xu_per_tier"`
+	UnsocketXuPerLevel int   `json:"unsocket_xu_per_level"`
+}
+
+// Refine is the refining rules: items of quality MinQuality or more; a roll
+// costs Stones refine stones and XuPerTier times the tier in Xu, plus
+// StonesPerLock and XuPerTierPerLock times the tier per locked line.
+type Refine struct {
+	MinQuality       int `json:"min_quality"`
+	Stones           int `json:"stones"`
+	StonesPerLock    int `json:"stones_per_lock"`
+	XuPerTier        int `json:"xu_per_tier"`
+	XuPerTierPerLock int `json:"xu_per_tier_per_lock"`
 }
 
 // Drop is the drop table of one monster rank (phase 3a spec 4.3). Xu is
@@ -207,6 +263,10 @@ type Items struct {
 	// Enhance is the enhancement table; Regen the milestones, ascending.
 	Enhance EnhanceTable
 	Regen   []RegenStep
+	// Resonance, Sockets and Refine are the phase 3c forge rules.
+	Resonance Resonance
+	Sockets   Sockets
+	Refine    Refine
 
 	pieces map[pieceKey]string
 }
@@ -232,6 +292,14 @@ type itemsFile struct {
 	Drops          map[string]dropFile `json:"drops"`
 	Enhance        EnhanceTable        `json:"enhance"`
 	Regen          []RegenStep         `json:"regen"`
+	Resonance      resonanceFile       `json:"resonance"`
+	Sockets        Sockets             `json:"sockets"`
+	Refine         Refine              `json:"refine"`
+}
+
+type resonanceFile struct {
+	Activator map[string]string   `json:"activator"`
+	Slots     map[string][]string `json:"slots"`
 }
 
 // qualityFile and dropFile take pairs as slices so a wrong length is an
@@ -255,6 +323,11 @@ func (it *Items) IsEquipment(code string) bool {
 	return ok
 }
 
+// IsGem reports whether code is a gem.
+func (it *Items) IsGem(code string) bool {
+	return it.Stackables[code].Gem != nil
+}
+
 // Weapon is the code of the tier's weapon for a class, or "" if none.
 func (it *Items) Weapon(tier int, class string) string {
 	return it.pieces[pieceKey{tier: tier, slot: 0, class: class}]
@@ -270,17 +343,18 @@ func (it *Items) Piece(tier, slotIndex int) string {
 }
 
 // ParseItems decodes and validates items.json (phase 3a spec 2.1, phase 3b
-// spec 2.1).
+// spec 2.1, phase 3c spec 2.1).
 func ParseItems(b []byte) (*Items, error) {
 	var f itemsFile
 	if err := decodeStrict(b, &f); err != nil {
 		return nil, fmt.Errorf("gamedata: items: decode: %w", err)
 	}
 	it := &Items{BagSize: f.BagSize, StackMax: f.StackMax, GroundSec: f.GroundSec, Slots: f.Slots,
-		LineStats: f.LineStats, LineRollMinPct: f.LineRollMinPct, Enhance: f.Enhance, Regen: f.Regen}
+		LineStats: f.LineStats, LineRollMinPct: f.LineRollMinPct, Enhance: f.Enhance, Regen: f.Regen,
+		Sockets: f.Sockets, Refine: f.Refine}
 	for _, step := range []func(*Items, *itemsFile) error{
 		parseScalars, parseSlots, parseLineStats, parseQualities, parseTiers, parseEquipment, parseStackables, parseDrops,
-		parseEnhance, parseRegen,
+		parseEnhance, parseRegen, parseResonance, parseSockets, parseRefine,
 	} {
 		if err := step(it, &f); err != nil {
 			return nil, fmt.Errorf("gamedata: items: %w", err)
@@ -526,6 +600,53 @@ func parseStackables(it *Items, f *itemsFile) error {
 		it.Stackables[s.Code] = s
 		it.StackOrder = append(it.StackOrder, s.Code)
 	}
+	return parseGems(it)
+}
+
+// parseGems checks the gem blocks (phase 3c spec 2.1): a known kind, level
+// 1-MaxGemLevel, at least one stat, every stat a line stat with a positive
+// value, and exactly one gem of each kind and level.
+func parseGems(it *Items) error {
+	type kindLevel struct {
+		kind  string
+		level int
+	}
+	seen := map[kindLevel]string{}
+	for _, code := range it.StackOrder {
+		g := it.Stackables[code].Gem
+		if g == nil {
+			continue
+		}
+		if !slices.Contains(gemKindList, g.Kind) {
+			return fmt.Errorf("gem %q: kind %q is unknown", code, g.Kind)
+		}
+		if g.Level < 1 || g.Level > MaxGemLevel {
+			return fmt.Errorf("gem %q: level %d must be in 1-%d", code, g.Level, MaxGemLevel)
+		}
+		if len(g.Stats) == 0 {
+			return fmt.Errorf("gem %q: stats is empty", code)
+		}
+		for _, k := range slices.Sorted(maps.Keys(g.Stats)) {
+			if !slices.Contains(it.LineStats, k) {
+				return fmt.Errorf("gem %q: stat %q is not a line stat", code, k)
+			}
+			if v := g.Stats[k]; v <= 0 {
+				return fmt.Errorf("gem %q: stat %q %d must be positive", code, k, v)
+			}
+		}
+		key := kindLevel{g.Kind, g.Level}
+		if other, dup := seen[key]; dup {
+			return fmt.Errorf("gem %q: %s level %d is already %q", code, g.Kind, g.Level, other)
+		}
+		seen[key] = code
+	}
+	for _, k := range gemKindList {
+		for lv := 1; lv <= MaxGemLevel; lv++ {
+			if _, ok := seen[kindLevel{k, lv}]; !ok {
+				return fmt.Errorf("stackables has no %s gem of level %d", k, lv)
+			}
+		}
+	}
 	return nil
 }
 
@@ -668,6 +789,124 @@ func parseRegen(it *Items, _ *itemsFile) error {
 				return fmt.Errorf("regen[%d]: enhance %d, hp_bp %d and mp %d must each be above the step before", i, r.Enhance, r.HPBP, r.MP)
 			}
 		}
+	}
+	return nil
+}
+
+// parseResonance checks the resonance table (phase 3c spec 2.1): the
+// activator maps each of the five elements to another, as one cycle through
+// all five; every slot has two different activating slots, neither itself.
+func parseResonance(it *Items, f *itemsFile) error {
+	a := f.Resonance.Activator
+	for _, e := range slices.Sorted(maps.Keys(a)) {
+		if !classes[e] {
+			return fmt.Errorf("resonance activator: %q is not an element", e)
+		}
+	}
+	by := map[string]string{} // activator -> the element it activates
+	for _, e := range classList {
+		v, ok := a[e]
+		if !ok {
+			return fmt.Errorf("resonance activator has no %q", e)
+		}
+		if !classes[v] {
+			return fmt.Errorf("resonance activator: %q is activated by %q, not an element", e, v)
+		}
+		if v == e {
+			return fmt.Errorf("resonance activator: %q activates itself", e)
+		}
+		if _, dup := by[v]; dup {
+			return fmt.Errorf("resonance activator: %q activates more than one element", v)
+		}
+		by[v] = e
+	}
+	// A permutation without fixed points of five elements is one 5-cycle or a
+	// 2-cycle and a 3-cycle; walk from the first element to tell them apart.
+	e, steps := classList[0], 0
+	for {
+		e, steps = a[e], steps+1
+		if e == classList[0] {
+			break
+		}
+	}
+	if steps != len(classList) {
+		return fmt.Errorf("resonance activator must be one cycle through all five elements")
+	}
+	it.Resonance.Activator = maps.Clone(a)
+
+	slots := f.Resonance.Slots
+	for _, id := range slices.Sorted(maps.Keys(slots)) {
+		if !slices.Contains(SlotIDs[:], id) {
+			return fmt.Errorf("resonance slots %q is not a slot", id)
+		}
+	}
+	for s, id := range SlotIDs {
+		on, ok := slots[id]
+		if !ok {
+			return fmt.Errorf("resonance slots has no %q", id)
+		}
+		if len(on) != HiddenLineCount {
+			return fmt.Errorf("resonance slots %q: %d slots, want %d", id, len(on), HiddenLineCount)
+		}
+		for j, o := range on {
+			idx := slices.Index(SlotIDs[:], o)
+			if idx < 0 {
+				return fmt.Errorf("resonance slots %q: %q is not a slot", id, o)
+			}
+			if idx == s {
+				return fmt.Errorf("resonance slots %q: activated by itself", id)
+			}
+			it.Resonance.Slots[s][j] = idx
+		}
+		if on[0] == on[1] {
+			return fmt.Errorf("resonance slots %q: both lines activated by %q", id, on[0])
+		}
+	}
+	return nil
+}
+
+// parseSockets checks the socket rules: at least one hole, one positive
+// punch price per hole and a positive unsocket price.
+func parseSockets(it *Items, _ *itemsFile) error {
+	s := it.Sockets
+	if s.Max < 1 {
+		return fmt.Errorf("sockets max %d must be at least 1", s.Max)
+	}
+	if len(s.PunchXuPerTier) != s.Max {
+		return fmt.Errorf("sockets max %d needs %d punch_xu_per_tier entries, got %d", s.Max, s.Max, len(s.PunchXuPerTier))
+	}
+	for i, v := range s.PunchXuPerTier {
+		if v <= 0 {
+			return fmt.Errorf("sockets punch_xu_per_tier[%d] %d must be positive", i, v)
+		}
+	}
+	if s.UnsocketXuPerLevel <= 0 {
+		return fmt.Errorf("sockets unsocket_xu_per_level %d must be positive", s.UnsocketXuPerLevel)
+	}
+	return nil
+}
+
+// parseRefine checks the refining rules: min_quality is a quality above the
+// lowest, at least one stone per roll, the rest not negative; and the
+// refine stone exists.
+func parseRefine(it *Items, _ *itemsFile) error {
+	r := it.Refine
+	if r.MinQuality < 1 || r.MinQuality > qualityCount-1 {
+		return fmt.Errorf("refine min_quality %d must be in 1-%d", r.MinQuality, qualityCount-1)
+	}
+	if r.Stones < 1 {
+		return fmt.Errorf("refine stones %d must be at least 1", r.Stones)
+	}
+	for _, v := range []struct {
+		name string
+		v    int
+	}{{"stones_per_lock", r.StonesPerLock}, {"xu_per_tier", r.XuPerTier}, {"xu_per_tier_per_lock", r.XuPerTierPerLock}} {
+		if v.v < 0 {
+			return fmt.Errorf("refine %s %d must not be negative", v.name, v.v)
+		}
+	}
+	if _, ok := it.Stackables[StoneRefine]; !ok {
+		return fmt.Errorf("stackables has no %q", StoneRefine)
 	}
 	return nil
 }
