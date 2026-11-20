@@ -209,16 +209,18 @@ func (z *Zone) damageTo(m *monster, base, level int) int {
 	return combat.Damage(base, z.area.Levels[m.level].Defense, level)
 }
 
-// killMonster makes m a corpse and schedules its region's respawn. Its EXP has
-// already been paid hit by hit; drops, when they come, go to the killer
-// (game-design 5.8).
-func (z *Zone) killMonster(m *monster) {
+// killMonster makes m a corpse, gives killer its Xu and drops (game-design
+// 5.8, phase 3a spec 4.3) and schedules its region's respawn. killer is the
+// player whose impact brought m to 0 HP, nil if it has left the zone. Its EXP
+// has already been paid hit by hit.
+func (z *Zone) killMonster(m *monster, killer *player) {
 	m.dead, m.diedAt = true, z.tickNo
 	z.stopMonster(m)
 	m.target = 0
 	clear(m.attackers)
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: m.id})
 	m.region.pending = append(m.region.pending, m.diedAt+z.ticks(m.region.Kind.RespawnSec))
+	z.loot(m, killer)
 }
 
 // replyError answers seq with an ErrorResp carrying code.

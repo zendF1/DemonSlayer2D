@@ -96,7 +96,7 @@ func (z *Zone) applyToMonster(im impact) {
 		}
 	}
 	if m.hp == 0 {
-		z.killMonster(m)
+		z.killMonster(m, z.players[im.attacker])
 	}
 }
 

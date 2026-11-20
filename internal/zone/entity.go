@@ -27,8 +27,9 @@ type entity struct {
 	dead      bool
 }
 
-func enterEnv(e *entity) *pb.Envelope {
-	return &pb.Envelope{Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
+// enterEnv is the EntityEnter for e; a ground item carries its item.
+func (z *Zone) enterEnv(e *entity) *pb.Envelope {
+	en := &pb.EntityEnter{
 		Id:        e.id,
 		Kind:      e.kind,
 		Name:      e.name,
@@ -41,7 +42,11 @@ func enterEnv(e *entity) *pb.Envelope {
 		Hp:        int32(e.hp),
 		MaxHp:     int32(e.maxHP),
 		Dead:      e.dead,
-	}}}
+	}
+	if g := z.ground[e.id]; g != nil && e.kind == pb.EntityKind_ENTITY_KIND_ITEM {
+		en.Item = itemInfo(&g.item)
+	}
+	return &pb.Envelope{Payload: &pb.Envelope_EntityEnter{EntityEnter: en}}
 }
 
 func (z *Zone) cellOf(pos Vec2) cellKey {

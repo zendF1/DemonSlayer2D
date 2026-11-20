@@ -173,6 +173,7 @@ type Zone struct {
 	players  map[uint64]*player
 	monsters map[uint64]*monster
 	regions  []*regionState
+	ground   map[uint64]*groundItem // dropped items by entity id
 	cells    map[cellKey]map[uint64]*entity
 	departed map[uint64]chan error // evicted players whose Leave has not arrived yet
 	lastSave time.Time
@@ -202,6 +203,7 @@ func New(cfg Config, area Area, saver Saver, log *slog.Logger) *Zone {
 		done:     make(chan struct{}),
 		players:  make(map[uint64]*player),
 		monsters: make(map[uint64]*monster),
+		ground:   make(map[uint64]*groundItem),
 		cells:    make(map[cellKey]map[uint64]*entity),
 		departed: make(map[uint64]chan error),
 	}
@@ -360,7 +362,8 @@ func (z *Zone) safeAdvance(now time.Time) {
 
 // advance runs one tick in the order of spec 6.2 and attack phases spec 3.2:
 // apply commands, land the impacts now due, resolve attacks, move players,
-// run monsters, run timers, then send each player its view.
+// run monsters, run timers (ground items after spawns, phase 3a spec 4.9),
+// then send each player its view.
 func (z *Zone) advance(now time.Time) {
 	z.tickNo++
 	z.events = tickEvents{}
@@ -370,6 +373,7 @@ func (z *Zone) advance(now time.Time) {
 	z.movePlayers()
 	z.thinkMonsters()
 	z.runSpawnTimers()
+	z.runGroundTimers()
 	z.runPlayerTimers()
 
 	var slow []*player
@@ -671,8 +675,11 @@ func (z *Zone) syncView(p *player) bool {
 			if e.dead && e.kind == pb.EntityKind_ENTITY_KIND_MONSTER {
 				continue // corpses are only shown to those who saw the monster alive
 			}
+			if e.kind == pb.EntityKind_ENTITY_KIND_ITEM && !z.seesGround(p, id) {
+				continue // ground items are only shown to their owner (phase 3a spec 4.5)
+			}
 			p.visible[id] = struct{}{}
-			send(enterEnv(e))
+			send(z.enterEnv(e))
 			continue
 		}
 		if e.changed {

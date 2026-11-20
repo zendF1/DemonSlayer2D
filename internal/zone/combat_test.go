@@ -10,9 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 )
@@ -3465,7 +3468,7 @@ func TestCastSkipsDeadMonsterInArea(t *testing.T) {
 			alive = o
 		}
 	}
-	z.killMonster(m)
+	z.killMonster(m, nil)
 	castLand(t, z, 1, 1, "thuy_4", m.id, Vec2{})
 	envs := a.take()
 	if castRespAt(envs, 1) < 0 {
@@ -4433,7 +4436,7 @@ func TestMonsterShotLandsAnyway(t *testing.T) {
 			z, m, a, _ := shotInFlight(t)
 			if c == "monster dies" {
 				m.hp = 0
-				z.killMonster(m)
+				z.killMonster(m, nil)
 			} else {
 				teleport(z, 1, Vec2{5.5, 5.5})
 				if !z.area.InSafe(z.players[1].pos) {
@@ -4447,5 +4450,261 @@ func TestMonsterShotLandsAnyway(t *testing.T) {
 				t.Fatalf("hits %v hp %d, want %v", hs, z.players[1].hp, hit)
 			}
 		})
+	}
+}
+
+// ______________________TEST LOOT_____________________
+
+// sureDrops is the real item data with the normal rank dropping one
+// equipment piece and every stack on every kill.
+var sureDrops = func() *gamedata.Items {
+	d := *testItemData
+	d.Drops = maps.Clone(d.Drops)
+	n := d.Drops["normal"]
+	n.Equipment.ChanceBP = 10000
+	n.Stacks = slices.Clone(n.Stacks)
+	for i := range n.Stacks {
+		n.Stacks[i].ChanceBP = 10000
+	}
+	d.Drops["normal"] = n
+	return &d
+}()
+
+// lootZone is newFightZone with item data d and a level-1 normal monster at
+// (30.5, 30.5) that one slash kills and that never chases or respawns.
+func lootZone(t *testing.T, d *gamedata.Items) (*Zone, *monster) {
+	t.Helper()
+	k := testKind
+	k.Rank, k.DetectRange = "normal", 0.5
+	z, m := newFightZoneOf(t, k, 1, Vec2{30.5, 30.5})
+	z.area.Items = d
+	m.hp = 10
+	return z, m
+}
+
+// joinViem joins a level-1 Viêm, so that weapon drops have a class.
+func joinViem(t *testing.T, z *Zone, id uint64, x, y float32) *fakeOut {
+	t.Helper()
+	in := info(id, x, y)
+	in.Class = pb.CharClass_CHAR_CLASS_VIEM
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// groundOf is the zone's ground items by id.
+func groundOf(z *Zone) []*groundItem {
+	var gs []*groundItem
+	for _, id := range slices.Sorted(maps.Keys(z.ground)) {
+		gs = append(gs, z.ground[id])
+	}
+	return gs
+}
+
+// itemEnters are the EntityEnter messages of ITEM entities in envs by id.
+func itemEnters(envs []*pb.Envelope) map[uint64]*pb.EntityEnter {
+	got := map[uint64]*pb.EntityEnter{}
+	for _, e := range envs {
+		if en := e.GetEntityEnter(); en != nil && en.Kind == pb.EntityKind_ENTITY_KIND_ITEM {
+			got[en.Id] = en
+		}
+	}
+	return got
+}
+
+// The slash that kills pays the killer Xu in [3L, 5L] at once, and the
+// next SelfStats carries it.
+func TestKillPaysXu(t *testing.T) {
+	z, m := lootZone(t, testItemData)
+	a := joinViem(t, z, 1, 31.5, 30.5)
+	attackLand(t, z, 1, 1, m.id)
+	p := z.players[1]
+	if !m.dead || p.xu < 3 || p.xu > 5 {
+		t.Fatalf("dead %v xu %d, want a kill paying 3-5 Xu", m.dead, p.xu)
+	}
+	if ss := selfStatsIn(a.take()); len(ss) == 0 || ss[len(ss)-1].Xu != p.xu {
+		t.Fatalf("SelfStats %v, want the last one carrying %d Xu", ss, p.xu)
+	}
+	// Each kill sets statsDirty and pays within the monster level's range.
+	for _, lv := range []int{15, 90} {
+		for range 200 {
+			before := p.xu
+			p.statsDirty = false
+			z.loot(&monster{entity: entity{level: lv, pos: m.pos}, region: m.region}, p)
+			if gain := p.xu - before; gain < int64(3*lv) || gain > int64(5*lv) || !p.statsDirty {
+				t.Fatalf("level %d: gain %d dirty %v, want %d-%d Xu and statsDirty", lv, gain, p.statsDirty, 3*lv, 5*lv)
+			}
+		}
+	}
+}
+
+// With sure drops a kill leaves one equipment piece and one stone stack
+// 0.6 tiles from the corpse. Only the killer gets their EntityEnter, with
+// the item filled; a player next to the corpse never does.
+func TestDropsOnlyForTheKiller(t *testing.T) {
+	z, m := lootZone(t, sureDrops)
+	a := joinViem(t, z, 1, 31.5, 30.5)
+	b := joinViem(t, z, 2, 29.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	a.take()
+	b.take()
+	settle(z)
+	gs := groundOf(z)
+	if !m.dead || len(gs) != 2 || !sureDrops.IsEquipment(gs[0].item.Code) || !reflect.DeepEqual(gs[1].item, items.Item{Code: "stone_enhance", Count: 1}) {
+		t.Fatalf("dead %v ground %+v, want an equipment piece and one stone", m.dead, gs)
+	}
+	enA := itemEnters(a.take())
+	for _, g := range gs {
+		if g.kind != pb.EntityKind_ENTITY_KIND_ITEM || g.owner != 100 || g.level != 0 || g.hp != 0 ||
+			math.Abs(dist(g.pos, m.pos)-0.6) > 1e-4 || g.expires != z.tickNo+z.ticks(60) {
+			t.Fatalf("ground item %+v, want an ITEM of character 100, 0.6 from the corpse, gone in 60 s", g)
+		}
+		en := enA[g.id]
+		if en == nil || en.Name != itemName(sureDrops, g.item.Code) || en.X != g.pos.X || en.Y != g.pos.Y ||
+			!proto.Equal(en.Item, itemInfo(&g.item)) {
+			t.Fatalf("killer's EntityEnter %v for %+v, want it with the item", en, g)
+		}
+	}
+	if en := itemEnters(b.take()); len(en) != 0 {
+		t.Fatalf("bystander got %v, want no item entities", en)
+	}
+	for range 5 {
+		z.advance(time.Now())
+	}
+	if en := itemEnters(b.take()); len(en) != 0 || len(itemEnters(a.take())) != 0 {
+		t.Fatalf("bystander got %v later, want nothing (and the killer no repeat)", en)
+	}
+}
+
+// The killer is whoever lands the killing blow, not the first or the
+// biggest attacker; the others get no Xu and no items.
+func TestKillerIsTheFinishingBlow(t *testing.T) {
+	z, m := lootZone(t, sureDrops)
+	m.hp = 20
+	joinViem(t, z, 1, 31.5, 30.5)
+	joinViem(t, z, 2, 29.5, 30.5)
+	attackLand(t, z, 2, 1, m.id) // 14 of 20
+	attackLand(t, z, 1, 1, m.id) // the last 6
+	p1, p2 := z.players[1], z.players[2]
+	if !m.dead || p1.xu == 0 || p2.xu != 0 {
+		t.Fatalf("dead %v xu %d/%d, want only player 1 paid", m.dead, p1.xu, p2.xu)
+	}
+	gs := groundOf(z)
+	if len(gs) != 2 || gs[0].owner != 100 || gs[1].owner != 100 {
+		t.Fatalf("ground %+v, want two items of character 100", gs)
+	}
+}
+
+// A killer who has left before the killing impact lands gets nothing, and
+// nothing is dropped.
+func TestKillerGoneGetsNothing(t *testing.T) {
+	z, m := lootZone(t, sureDrops)
+	joinViem(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	settle(z)
+	if !m.dead || len(z.ground) != 0 {
+		t.Fatalf("dead %v ground %d, want the kill with no drop", m.dead, len(z.ground))
+	}
+}
+
+// A killer who died before the killing impact lands still gets the Xu and
+// the drop.
+func TestDeadKillerGetsLoot(t *testing.T) {
+	z, m := lootZone(t, sureDrops)
+	joinViem(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	p := z.players[1]
+	z.damagePlayer(p, 0, 10000, false)
+	settle(z)
+	if gs := groundOf(z); !p.dead || !m.dead || p.xu < 3 || p.xu > 5 || len(gs) != 2 || gs[0].owner != 100 {
+		t.Fatalf("dead %v/%v xu %d ground %+v, want the dead killer paid and two drops", p.dead, m.dead, p.xu, gs)
+	}
+}
+
+// Ground items last exactly z.ticks(60) ticks; then the owner gets
+// EntityLeave for them.
+func TestGroundItemsExpire(t *testing.T) {
+	z, m := lootZone(t, sureDrops)
+	a := joinViem(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	settle(z)
+	z.regions[0].pending = nil // no respawn to fight meanwhile
+	gs := groundOf(z)
+	if len(gs) != 2 {
+		t.Fatalf("ground %d, want 2", len(gs))
+	}
+	end := z.tickNo + z.ticks(60)
+	a.take()
+	for z.tickNo < end-1 {
+		z.advance(time.Now())
+	}
+	if l := leaves(a.take()); len(z.ground) != 2 || slices.Contains(l, gs[0].id) || slices.Contains(l, gs[1].id) {
+		t.Fatalf("ground %d leaves %v one tick early, want both items still there", len(z.ground), l)
+	}
+	z.advance(time.Now())
+	l := leaves(a.take())
+	if len(z.ground) != 0 || !slices.Contains(l, gs[0].id) || !slices.Contains(l, gs[1].id) {
+		t.Fatalf("ground %d leaves %v at 60 s, want both gone with EntityLeave", len(z.ground), l)
+	}
+	if c := z.cells[gs[0].cell]; c[gs[0].id] != nil || c[gs[1].id] != nil {
+		t.Fatal("expired items are still in the AOI grid")
+	}
+}
+
+// Ownership is by character: the owner who leaves and comes back as a new
+// entity within 60 s sees the items again.
+func TestOwnerSeesItemsAfterRejoin(t *testing.T) {
+	z, m := lootZone(t, sureDrops)
+	joinViem(t, z, 1, 31.5, 30.5)
+	attackLand(t, z, 1, 1, m.id)
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	in := info(5, 31.5, 30.5)
+	in.CharID = 100
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	z.advance(time.Now())
+	en := itemEnters(a.take())
+	for _, g := range groundOf(z) {
+		if en[g.id] == nil {
+			t.Fatalf("enters %v, want item %d shown to its owner's new entity", en, g.id)
+		}
+	}
+	if len(en) != 2 {
+		t.Fatalf("enters %v, want two items", en)
+	}
+}
+
+// n items go 0.6 tiles from the corpse at angles 2πi/n; one item, or one
+// whose spot is a wall, goes on the corpse.
+func TestDropAt(t *testing.T) {
+	z, _ := lootZone(t, sureDrops)
+	pos := Vec2{30.5, 30.5}
+	near := func(a, b Vec2) bool { return dist(a, b) < 1e-4 }
+	if got := z.dropAt(pos, 0, 1); got != pos {
+		t.Fatalf("one item at %v, want the corpse %v", got, pos)
+	}
+	for _, c := range []struct {
+		i, n int
+		want Vec2
+	}{{0, 2, Vec2{31.1, 30.5}}, {1, 2, Vec2{29.9, 30.5}}, {1, 4, Vec2{30.5, 31.1}}, {3, 4, Vec2{30.5, 29.9}}} {
+		if got := z.dropAt(pos, c.i, c.n); !near(got, c.want) {
+			t.Fatalf("item %d of %d at %v, want %v", c.i, c.n, got, c.want)
+		}
+	}
+	wallAt(z, 31, 30)
+	if got := z.dropAt(pos, 0, 2); got != pos {
+		t.Fatalf("item on a wall at %v, want the corpse %v", got, pos)
+	}
+	if got := z.dropAt(pos, 1, 2); !near(got, Vec2{29.9, 30.5}) {
+		t.Fatalf("item off the wall at %v, want (29.9, 30.5)", got)
 	}
 }

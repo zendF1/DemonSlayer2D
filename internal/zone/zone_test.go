@@ -853,7 +853,7 @@ func TestRespawnAtNest(t *testing.T) {
 	}
 	r := m.region
 	m.dmgBy[1], m.expPaid[1] = 20, 3
-	z.killMonster(m)
+	z.killMonster(m, nil)
 	diedAt := z.tickNo
 	due := diedAt + z.ticks(testKind.RespawnSec)
 	now := time.Now()
