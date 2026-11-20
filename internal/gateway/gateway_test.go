@@ -213,7 +213,11 @@ func TestLearnSkillNotInWorld(t *testing.T) {
 // The item requests need a character in the world (phase 3a spec 4.6, 4.7).
 func TestItemRequestsNotInWorld(t *testing.T) {
 	for name, env := range map[string]*pb.Envelope{
-		"pickup": {Payload: &pb.Envelope_PickupReq{PickupReq: &pb.PickupReq{ItemId: 5}}},
+		"pickup":   {Payload: &pb.Envelope_PickupReq{PickupReq: &pb.PickupReq{ItemId: 5}}},
+		"equip":    {Payload: &pb.Envelope_EquipReq{EquipReq: &pb.EquipReq{BagSlot: 1}}},
+		"unequip":  {Payload: &pb.Envelope_UnequipReq{UnequipReq: &pb.UnequipReq{EquipSlot: 1}}},
+		"discard":  {Payload: &pb.Envelope_DiscardReq{DiscardReq: &pb.DiscardReq{BagSlot: 1, Count: 1}}},
+		"sort bag": {Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})

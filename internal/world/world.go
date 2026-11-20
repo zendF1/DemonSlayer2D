@@ -243,6 +243,27 @@ func (m *Membership) Pickup(seq uint32, itemID uint64) bool {
 	return m.z.Pickup(m.EntityID, seq, itemID)
 }
 
+// Equip queues wearing the piece in bagSlot; the zone answers seq on the
+// outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Equip(seq uint32, bagSlot int) bool { return m.z.Equip(m.EntityID, seq, bagSlot) }
+
+// Unequip queues taking off the piece worn in equipSlot; the zone answers seq
+// on the outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Unequip(seq uint32, equipSlot int) bool {
+	return m.z.Unequip(m.EntityID, seq, equipSlot)
+}
+
+// Discard queues destroying count of the item in bagSlot (0: all of it); the
+// zone answers seq on the outbox. It reports false if the zone's inbox is
+// full.
+func (m *Membership) Discard(seq uint32, bagSlot, count int) bool {
+	return m.z.Discard(m.EntityID, seq, bagSlot, count)
+}
+
+// SortBag queues sorting the bag; the zone answers seq on the outbox. It
+// reports false if the zone's inbox is full.
+func (m *Membership) SortBag(seq uint32) bool { return m.z.SortBag(m.EntityID, seq) }
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

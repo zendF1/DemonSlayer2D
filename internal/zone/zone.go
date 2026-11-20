@@ -446,6 +446,14 @@ func (z *Zone) handle(c any) {
 		z.queueCast(c)
 	case pickupCmd:
 		z.pickup(c)
+	case equipCmd:
+		z.equip(c)
+	case unequipCmd:
+		z.unequip(c)
+	case discardCmd:
+		z.discard(c)
+	case sortBagCmd:
+		z.sortBag(c)
 	}
 }
 

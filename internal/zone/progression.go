@@ -31,6 +31,31 @@ func (z *Zone) recompute(p *player) {
 	p.maxHP = p.stats.MaxHP
 }
 
+// gearChanged recomputes p's stats after its worn gear changed (phase 3a
+// spec 4.7): HP keeps its share of max HP (keepHPRatio), so taking gear off
+// and on never heals; MP is left alone, as gear has none. Viewers see the
+// new bar when max HP changed.
+func (z *Zone) gearChanged(p *player) {
+	old := p.maxHP
+	z.recompute(p)
+	p.hp = keepHPRatio(p.hp, old, p.maxHP)
+	if p.maxHP != old {
+		z.hpChanged(&p.entity)
+	}
+	p.statsDirty = true
+}
+
+// keepHPRatio is the HP that keeps hp's share of oldMax at newMax: full stays
+// full, anything else is rounded down but at least 1. The formula alone keeps
+// full HP full; the first branch also caps an HP above oldMax and guards the
+// division.
+func keepHPRatio(hp, oldMax, newMax int) int {
+	if hp >= oldMax || oldMax <= 0 {
+		return newMax
+	}
+	return max(1, int(int64(hp)*int64(newMax)/int64(oldMax)))
+}
+
 // skillLevels lists p's learned skills sorted by id.
 func skillLevels(p *player) []*pb.SkillLevel {
 	out := make([]*pb.SkillLevel, 0, len(p.skills))

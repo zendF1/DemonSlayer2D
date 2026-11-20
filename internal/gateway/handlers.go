@@ -109,6 +109,27 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.zoneBusyIfDropped(seq, c.member.Pickup(seq, p.PickupReq.ItemId))
+	case *pb.Envelope_EquipReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Equip(seq, int(p.EquipReq.BagSlot)))
+	case *pb.Envelope_UnequipReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.Unequip(seq, int(p.UnequipReq.EquipSlot)))
+	case *pb.Envelope_DiscardReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.DiscardReq
+		c.zoneBusyIfDropped(seq, c.member.Discard(seq, int(r.BagSlot), int(r.Count)))
+	case *pb.Envelope_SortBagReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.SortBag(seq))
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}

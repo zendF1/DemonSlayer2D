@@ -1094,10 +1094,16 @@ func gearInventory() *items.Inventory {
 // EnterWorldResp.
 func gearZone(t *testing.T, inv *items.Inventory) (*Zone, *player, *pb.EnterWorldResp, *fakeSaver) {
 	t.Helper()
+	return gearZoneAt(t, 10, inv)
+}
+
+// gearZoneAt is gearZone with a player of the given level.
+func gearZoneAt(t *testing.T, level int, inv *items.Inventory) (*Zone, *player, *pb.EnterWorldResp, *fakeSaver) {
+	t.Helper()
 	sv := &fakeSaver{}
 	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData}, sv, quietLog())
 	in := info(1, 5.5, 5.5)
-	in.Class, in.Level, in.Points = pb.CharClass_CHAR_CLASS_VIEM, 10, combat.Points{Str: 60, Vit: 30}
+	in.Class, in.Level, in.Points = pb.CharClass_CHAR_CLASS_VIEM, level, combat.Points{Str: 60, Vit: 30}
 	in.Xu, in.Inventory = 77, inv
 	out := &fakeOut{}
 	if err := z.join(in, out); err != nil {
@@ -1361,5 +1367,314 @@ func TestPickupMergesStack(t *testing.T) {
 	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 17}}}}
 	if r == nil || !proto.Equal(r.Update, want) || p.inv.Bag[3].Count != 17 || p.inv.Bag[1] != nil {
 		t.Fatalf("PickupResp %v, want %v", r, want)
+	}
+}
+
+// ______________________TEST EQUIP_____________________
+
+// itemNow runs one tick after an item command was queued.
+func itemNow(t *testing.T, z *Zone, queued bool) {
+	t.Helper()
+	if !queued {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+// respFor is the reply to seq that get finds in envs, or nil.
+func respFor[T any](envs []*pb.Envelope, seq uint32, get func(*pb.Envelope) *T) *T {
+	for _, e := range envs {
+		if r := get(e); r != nil && e.Seq == seq {
+			return r
+		}
+	}
+	return nil
+}
+
+// errorInventory is gearInventory with a level-20 Thủy weapon in bag slot 5
+// and a level-10 one in slot 6.
+func errorInventory() *items.Inventory {
+	inv := gearInventory()
+	inv.Bag[5] = &items.Item{Code: "eq20_weapon_thuy", Count: 1}
+	inv.Bag[6] = &items.Item{Code: "eq10_weapon_thuy", Count: 1}
+	return inv
+}
+
+// Each check of spec 4.7 in order, for every item command, on a level-10
+// Viêm wearing the Lữ Hành sword (errorInventory: level-11 boots in slot 0,
+// 12 stones in slot 3, Thủy weapons in 5 and 6). Every case also breaks
+// the checks after its own where it can.
+func TestItemCommandErrors(t *testing.T) {
+	equip := func(slot int) func(*Zone) bool { return func(z *Zone) bool { return z.Equip(1, 9, slot) } }
+	unequip := func(slot int) func(*Zone) bool { return func(z *Zone) bool { return z.Unequip(1, 9, slot) } }
+	discard := func(slot, n int) func(*Zone) bool { return func(z *Zone) bool { return z.Discard(1, 9, slot, n) } }
+	sortBag := func(z *Zone) bool { return z.SortBag(1, 9) }
+	const (
+		dead       = pb.ErrorCode_ERROR_CODE_DEAD
+		bad        = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		notFound   = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+		wrongClass = pb.ErrorCode_ERROR_CODE_WRONG_CLASS
+		tooLow     = pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
+		bagFull    = pb.ErrorCode_ERROR_CODE_BAG_FULL
+	)
+	for _, c := range []struct {
+		name string
+		dead bool
+		full bool
+		cmd  func(*Zone) bool
+		code pb.ErrorCode
+	}{
+		{"equip dead, bad slot", true, false, equip(60), dead},
+		{"equip dead, other class", true, false, equip(6), dead},
+		{"equip slot -1", false, false, equip(-1), bad},
+		{"equip slot 60", false, false, equip(60), bad},
+		{"equip empty slot", false, false, equip(7), notFound},
+		{"equip stones", false, false, equip(3), bad},
+		{"equip other class and level", false, false, equip(5), wrongClass},
+		{"equip other class", false, false, equip(6), wrongClass},
+		{"equip level too low", false, false, equip(0), tooLow},
+		{"unequip dead, bad slot", true, true, unequip(10), dead},
+		{"unequip slot -1", false, true, unequip(-1), bad},
+		{"unequip slot 10", false, true, unequip(10), bad},
+		{"unequip empty slot", false, true, unequip(9), notFound},
+		{"unequip into a full bag", false, true, unequip(0), bagFull},
+		{"discard dead, bad slot", true, false, discard(60, -1), dead},
+		{"discard slot -1", false, false, discard(-1, -1), bad},
+		{"discard slot 60", false, false, discard(60, 0), bad},
+		{"discard empty slot", false, false, discard(7, -1), notFound},
+		{"discard count -1", false, false, discard(3, -1), bad},
+		{"discard more than there is", false, false, discard(3, 13), bad},
+		{"sort dead", true, false, sortBag, dead},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, _, sv := gearZone(t, errorInventory())
+			out := p.out.(*fakeOut)
+			if c.full {
+				fillBag(p.inv)
+			}
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			out.take()
+			before, stats, hp, saves := p.inv.Clone(), p.stats, p.hp, len(sv.all())
+			itemNow(t, z, c.cmd(z))
+			envs := out.take()
+			if er := errorFor(envs, 9); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v", er, c.code)
+			}
+			if n := len(slices.DeleteFunc(slices.Clone(envs), func(e *pb.Envelope) bool { return e.Seq != 9 })); n != 1 {
+				t.Fatalf("%d replies to seq 9, want only the error", n)
+			}
+			if !reflect.DeepEqual(p.inv, before) || p.stats != stats || p.hp != hp {
+				t.Fatal("a rejected command changed the inventory or stats")
+			}
+			if n := len(sv.all()); n != saves {
+				t.Fatalf("%d saves, want %d", n, saves)
+			}
+		})
+	}
+}
+
+// swapInventory has the white Lữ Hành sword worn, the Vàng boots of
+// gearInventory in bag slot 0 and a Xanh sword with +5 physical attack in
+// bag slot 1.
+func swapInventory() *items.Inventory {
+	inv := gearInventory()
+	inv.Bag[1] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Quality: 1, Lines: []items.Line{{Stat: "phys_attack", Value: 5}}}
+	return inv
+}
+
+// Equipping into an occupied slot swaps the two pieces, the stats include
+// the new piece, the reply lists both slots with the new stats, and the
+// inventory is saved at once.
+func TestEquipSwaps(t *testing.T) {
+	z, p, r, sv := gearZoneAt(t, 19, swapInventory())
+	out := p.out.(*fakeOut)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	white, blue := *p.inv.Worn[0], *p.inv.Bag[1]
+	itemNow(t, z, z.Equip(1, 9, 1))
+	envs := out.take()
+	resp := respFor(envs, 9, (*pb.Envelope).GetEquipResp)
+	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{itemSlot(1, &white)}, Equipped: []*pb.ItemSlot{itemSlot(0, &blue)}}
+	if resp == nil || !proto.Equal(resp.Update, want) {
+		t.Fatalf("EquipResp %v, want update %v", resp, want)
+	}
+	if !reflect.DeepEqual(*p.inv.Worn[0], blue) || !reflect.DeepEqual(*p.inv.Bag[1], white) {
+		t.Fatalf("worn %+v bag %+v, want the pieces swapped", p.inv.Worn[0], p.inv.Bag[1])
+	}
+	if p.stats.PhysAttack != int(r.Stats.PhysAttack)+5 || !proto.Equal(resp.Stats, z.selfStats(p)) {
+		t.Fatalf("stats %v, want 5 more physical attack than %d", resp.Stats, r.Stats.PhysAttack)
+	}
+	all := sv.all()
+	if len(all) != 1 || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+		t.Fatalf("saves %+v, want one with the swapped pieces", all)
+	}
+	// No max HP change, so no HpChange.
+	if cs := hpChangesIn(append(envs, v.take()...)); len(cs) != 0 {
+		t.Fatalf("HpChanges %v, want none", cs)
+	}
+}
+
+// Equipping into an empty slot empties the bag slot; full HP stays full at
+// the new max, MP is unchanged, and viewers see the new bar.
+func TestEquipRaisesMaxHP(t *testing.T) {
+	z, p, r, _ := gearZoneAt(t, 19, swapInventory())
+	out := p.out.(*fakeOut)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	boots := testItemData.Equipment["eq10_boots"]
+	mp := p.mp
+	itemNow(t, z, z.Equip(1, 9, 0))
+	envs := out.take()
+	resp := respFor(envs, 9, (*pb.Envelope).GetEquipResp)
+	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 0}}, Equipped: []*pb.ItemSlot{itemSlot(boots.SlotIndex, p.inv.Worn[boots.SlotIndex])}}
+	if resp == nil || !proto.Equal(resp.Update, want) || p.inv.Bag[0] != nil {
+		t.Fatalf("EquipResp %v, want update %v", resp, want)
+	}
+	wantMax := int(r.Stats.MaxHp) + boots.HP[0] + 43
+	if p.maxHP != wantMax || p.hp != wantMax || p.mp != mp || resp.Stats.Hp != int32(wantMax) || resp.Stats.MaxHp != int32(wantMax) {
+		t.Fatalf("hp %d/%d mp %d, want full at %d and mp %d", p.hp, p.maxHP, p.mp, wantMax, mp)
+	}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(wantMax) || cs[0].MaxHp != int32(wantMax) {
+			t.Fatalf("%s HpChanges %v, want %d/%d for 1", name, cs, wantMax, wantMax)
+		}
+	}
+}
+
+// The HP rule of spec 4.7: full stays full, otherwise HP keeps its share of
+// max HP, rounded down, and never drops below 1.
+func TestKeepHPRatio(t *testing.T) {
+	for _, c := range []struct{ hp, oldMax, newMax, want int }{
+		{1000, 1000, 1500, 1500},
+		{1500, 1500, 1000, 1000},
+		{500, 1000, 1500, 750},
+		{999, 1000, 1500, 1498},
+		{750, 1500, 1000, 500},
+		{1, 1000, 500, 1},
+		{2, 1000, 500, 1},
+	} {
+		if got := keepHPRatio(c.hp, c.oldMax, c.newMax); got != c.want {
+			t.Fatalf("keepHPRatio(%d, %d, %d) = %d, want %d", c.hp, c.oldMax, c.newMax, got, c.want)
+		}
+	}
+}
+
+// Taking off and wearing again the boots, at any HP, keeps the HP share and
+// never ends above the HP it started at; at full HP it stays full.
+func TestGearSwapNeverHeals(t *testing.T) {
+	z, p, _, _ := gearZoneAt(t, 19, swapInventory())
+	out := p.out.(*fakeOut)
+	slot := testItemData.Equipment["eq10_boots"].SlotIndex
+	itemNow(t, z, z.Equip(1, 1, 0))
+	high := p.maxHP
+	itemNow(t, z, z.Unequip(1, 2, slot))
+	low := p.maxHP
+	if p.hp != low || high <= low {
+		t.Fatalf("hp %d/%d after taking off at full, want full below %d", p.hp, low, high)
+	}
+	itemNow(t, z, z.Equip(1, 3, 0))
+	if p.hp != high {
+		t.Fatalf("hp %d/%d after wearing again at full, want full", p.hp, p.maxHP)
+	}
+	for _, start := range []int{1, 2, high / 3, high / 2, high - 1} {
+		p.hp = start
+		itemNow(t, z, z.Unequip(1, 4, slot))
+		if want := max(1, start*low/high); p.hp != want {
+			t.Fatalf("from %d/%d: hp %d after taking off, want %d", start, high, p.hp, want)
+		}
+		mid := p.hp
+		itemNow(t, z, z.Equip(1, 5, 0))
+		if want := max(1, mid*high/low); p.hp != want || p.hp > start {
+			t.Fatalf("from %d/%d: hp %d after wearing again, want %d and at most %d", start, high, p.hp, want, start)
+		}
+		if r := respFor(out.take(), 5, (*pb.Envelope).GetEquipResp); r == nil || r.Stats.Hp != int32(p.hp) {
+			t.Fatalf("EquipResp %v, want hp %d", r, p.hp)
+		}
+	}
+}
+
+// Taking off moves the piece to the first empty bag slot, drops its stats,
+// replies with both slots and the stats, and saves at once.
+func TestUnequip(t *testing.T) {
+	z, p, r, sv := gearZoneAt(t, 19, swapInventory())
+	out := p.out.(*fakeOut)
+	sword := *p.inv.Worn[0]
+	itemNow(t, z, z.Unequip(1, 9, 0))
+	resp := respFor(out.take(), 9, (*pb.Envelope).GetUnequipResp)
+	want := &pb.InventoryUpdate{Bag: []*pb.ItemSlot{itemSlot(2, &sword)}, Equipped: []*pb.ItemSlot{{Slot: 0}}}
+	if resp == nil || !proto.Equal(resp.Update, want) || p.inv.Worn[0] != nil {
+		t.Fatalf("UnequipResp %v, want update %v", resp, want)
+	}
+	if p.stats.PhysAttack != int(r.Stats.PhysAttack)-25 || !proto.Equal(resp.Stats, z.selfStats(p)) {
+		t.Fatalf("stats %v, want 25 less physical attack than %d", resp.Stats, r.Stats.PhysAttack)
+	}
+	if all := sv.all(); len(all) != 1 || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+		t.Fatalf("saves %+v, want one with the sword in the bag", all)
+	}
+}
+
+// Discarding part of a stack leaves the rest; count 0, or the whole count,
+// empties the slot. Each discard replies with the slot and saves at once.
+func TestDiscard(t *testing.T) {
+	z, p, _, sv := gearZone(t, gearInventory())
+	out := p.out.(*fakeOut)
+	for i, c := range []struct {
+		slot, count int
+		want        *pb.ItemSlot
+	}{
+		{3, 5, &pb.ItemSlot{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 7}}},
+		{0, 0, &pb.ItemSlot{Slot: 0}},
+		{3, 7, &pb.ItemSlot{Slot: 3}},
+	} {
+		seq := uint32(10 + i)
+		itemNow(t, z, z.Discard(1, seq, c.slot, c.count))
+		resp := respFor(out.take(), seq, (*pb.Envelope).GetDiscardResp)
+		if resp == nil || !proto.Equal(resp.Update, &pb.InventoryUpdate{Bag: []*pb.ItemSlot{c.want}}) {
+			t.Fatalf("discard %d of slot %d: %v, want %v", c.count, c.slot, resp, c.want)
+		}
+		if all := sv.all(); len(all) != i+1 || !reflect.DeepEqual(all[i].Items, itemRows(p.inv)) {
+			t.Fatalf("discard %d: %d saves, want one more with the new bag", i, len(all))
+		}
+	}
+	if p.inv.Bag[0] != nil || p.inv.Bag[3] != nil || p.inv.Worn[0] == nil {
+		t.Fatalf("bag %v, want slots 0 and 3 empty and the sword still worn", p.inv.Bag[:4])
+	}
+}
+
+// Sorting merges the stacks and lays the bag out as items.Sort does; the
+// reply lists every bag slot and the bag is saved at once.
+func TestSortBag(t *testing.T) {
+	inv := gearInventory()
+	inv.Bag[0], inv.Bag[3] = nil, nil
+	inv.Bag[10] = &items.Item{Code: "stone_enhance", Count: 500}
+	inv.Bag[20] = &items.Item{Code: "stone_enhance", Count: 600}
+	inv.Bag[5] = &items.Item{Code: "eq10_helmet", Count: 1}
+	inv.Bag[30] = &items.Item{Code: "eq20_boots", Count: 1, Quality: 3}
+	z, p, _, sv := gearZone(t, inv)
+	out := p.out.(*fakeOut)
+	sorted := inv.Clone()
+	sorted.Sort(testItemData)
+	itemNow(t, z, z.SortBag(1, 9))
+	resp := respFor(out.take(), 9, (*pb.Envelope).GetSortBagResp)
+	if resp == nil || len(resp.Update.Bag) != 60 || len(resp.Update.Equipped) != 0 {
+		t.Fatalf("SortBagResp %v, want all 60 bag slots", resp)
+	}
+	for i, s := range resp.Update.Bag {
+		if !proto.Equal(s, itemSlot(i, sorted.Bag[i])) {
+			t.Fatalf("slot %d: %v, want %v", i, s, itemSlot(i, sorted.Bag[i]))
+		}
+	}
+	if !reflect.DeepEqual(p.inv, sorted) || p.inv.Bag[0].Code != "eq20_boots" || p.inv.Bag[2].Count != 999 || p.inv.Bag[3].Count != 101 {
+		t.Fatalf("bag %v, want boots first, then 999 and 101 stones after the helmet", p.inv.Bag[:5])
+	}
+	if all := sv.all(); len(all) != 1 || !reflect.DeepEqual(all[0].Items, itemRows(p.inv)) {
+		t.Fatalf("saves %+v, want one with the sorted bag", all)
 	}
 }

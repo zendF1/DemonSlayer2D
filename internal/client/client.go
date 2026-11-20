@@ -278,6 +278,62 @@ func (c *Client) Pickup(ctx context.Context, itemID uint64) (*pb.PickupResp, err
 	return r, nil
 }
 
+// Equip wears the piece in bagSlot and returns the changed slots and the new
+// stats.
+func (c *Client) Equip(ctx context.Context, bagSlot int) (*pb.EquipResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_EquipReq{EquipReq: &pb.EquipReq{BagSlot: int32(bagSlot)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetEquipResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to EquipReq: %v", resp)
+	}
+	return r, nil
+}
+
+// Unequip takes off the piece worn in equipSlot and returns the changed
+// slots and the new stats.
+func (c *Client) Unequip(ctx context.Context, equipSlot int) (*pb.UnequipResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_UnequipReq{UnequipReq: &pb.UnequipReq{EquipSlot: int32(equipSlot)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetUnequipResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to UnequipReq: %v", resp)
+	}
+	return r, nil
+}
+
+// Discard destroys count of the item in bagSlot (0: all of it) and returns
+// the changed slot.
+func (c *Client) Discard(ctx context.Context, bagSlot, count int) (*pb.DiscardResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_DiscardReq{DiscardReq: &pb.DiscardReq{
+		BagSlot: int32(bagSlot), Count: int32(count)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetDiscardResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to DiscardReq: %v", resp)
+	}
+	return r, nil
+}
+
+// SortBag sorts the bag and returns every bag slot.
+func (c *Client) SortBag(ctx context.Context) (*pb.SortBagResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetSortBagResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to SortBagReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Move sends a direction (no response). It returns the input seq used.
 func (c *Client) Move(ctx context.Context, dx, dy float32) (uint32, error) {
 	seq := c.inputSeq.Add(1)
