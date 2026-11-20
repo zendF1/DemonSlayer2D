@@ -461,6 +461,9 @@ var testKind = gamedata.Kind{ID: "wanderer", Name: "Quỷ lang thang", AttackRan
 var testLevels = map[int]gamedata.Level{
 	1: {Level: 1, HP: 56, Attack: 30, Defense: 8, Exp: 6},
 	2: {Level: 2, HP: 104, Attack: 39, Defense: 16, Exp: 11},
+	// Copied from data/monsters.json for the EXP level window and the cap.
+	12: {Level: 12, HP: 880, Attack: 110, Defense: 96, Exp: 185},
+	85: {Level: 85, HP: 8578, Attack: 640, Defense: 680, Exp: 8063},
 }
 
 // testExp is the real EXP table, data/exp.json.

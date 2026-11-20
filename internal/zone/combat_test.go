@@ -2183,9 +2183,13 @@ func TestGiveUpKeepsExpTracking(t *testing.T) {
 	}
 }
 
-// A player at the level cap gains nothing and gets no SelfStats push.
+// A player at the level cap gains nothing and gets no SelfStats push, even
+// from a monster close enough in level to pay EXP.
 func TestNoExpAtMaxLevel(t *testing.T) {
-	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	z, m := newFightZone(t, 85, Vec2{30.5, 30.5})
+	if !combat.ExpEligible(combat.MaxLevel, m.level) {
+		t.Fatal("setup: the monster must be inside the EXP window of a level-90 player")
+	}
 	in := info(1, 31.5, 30.5)
 	in.Level = combat.MaxLevel
 	a := &fakeOut{}
@@ -2195,6 +2199,9 @@ func TestNoExpAtMaxLevel(t *testing.T) {
 	a.take()
 	attackNow(t, z, 1, 1, m.id)
 	p := z.players[1]
+	if _, counted := m.dmgBy[1]; !counted || m.hp == m.maxHP {
+		t.Fatalf("dmgBy %v hp %d/%d, want the slash landed and counted", m.dmgBy, m.hp, m.maxHP)
+	}
 	if p.level != combat.MaxLevel || p.exp != 0 {
 		t.Fatalf("level %d exp %d, want the cap with 0 EXP", p.level, p.exp)
 	}
@@ -2206,15 +2213,16 @@ func TestNoExpAtMaxLevel(t *testing.T) {
 	}
 }
 
-// Only a player within ExpLevelWindow levels of the monster earns EXP from a
-// hit. A hit outside the window still lands but pays nothing and is not
-// counted towards the monster's EXP shares (phase 2 spec 2.4).
+// Only a player within ExpLevelWindow levels of the monster, above or below
+// it, earns EXP from a hit. A hit outside the window still lands but pays
+// nothing and is not counted towards the monster's EXP shares (phase 2
+// spec 2.4).
 func TestExpOnlyWithinLevelWindow(t *testing.T) {
 	for _, c := range []struct {
-		level int
-		want  int64
-	}{{12, 0}, {11, testLevels[1].Exp}} {
-		z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+		level, monster int
+		want           int64
+	}{{12, 1, 0}, {11, 1, testLevels[1].Exp}, {1, 12, 0}} {
+		z, m := newFightZone(t, c.monster, Vec2{30.5, 30.5})
 		in := info(1, 31.5, 30.5)
 		in.Level = c.level
 		a := &fakeOut{}
@@ -2222,6 +2230,7 @@ func TestExpOnlyWithinLevelWindow(t *testing.T) {
 			t.Fatal(err)
 		}
 		a.take()
+		m.nextAttack = 1 << 30 // keep a stronger monster from hitting back
 		attackNow(t, z, 1, 1, m.id)
 		p := z.players[1]
 		if len(hitsIn(a.take())) != 1 || m.hp == m.maxHP {
@@ -2233,6 +2242,21 @@ func TestExpOnlyWithinLevelWindow(t *testing.T) {
 		if _, counted := m.dmgBy[1]; counted != (c.want > 0) {
 			t.Fatalf("level %d: dmgBy %v, want an entry only when EXP is paid", c.level, m.dmgBy)
 		}
+	}
+}
+
+// A monster pays the EXP of its own level: killing a level-2 monster in one
+// slash pays its whole Levels[2].Exp.
+func TestExpByMonsterLevel(t *testing.T) {
+	z, m := newFightZone(t, 2, Vec2{30.5, 30.5})
+	in := info(1, 31.5, 30.5)
+	in.Points = combat.Points{Str: 200} // one slash kills it
+	if err := z.join(in, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	attackNow(t, z, 1, 1, m.id)
+	if p := z.players[1]; !m.dead || p.level != 1 || p.exp != testLevels[2].Exp || testLevels[2].Exp == testLevels[1].Exp {
+		t.Fatalf("dead %v level %d exp %d, want level 1 with the level-2 monster's %d EXP", m.dead, p.level, p.exp, testLevels[2].Exp)
 	}
 }
 

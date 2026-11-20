@@ -129,9 +129,9 @@ func ExpEligible(playerLevel, monsterLevel int) bool {
 
 // ExpShare is the part of a monster's total EXP (gamedata Level.Exp) that
 // damage of its maxHP earns: floor(total * damage / maxHP), with damage capped
-// at maxHP so a monster never pays more than total (spec 3.4). Integer math only. Paying the share
-// of each attacker's summed damage, less what it was already paid, keeps the
-// fractions that single hits would lose.
+// at maxHP so a monster never pays more than total (spec 3.4). Integer math
+// only. Paying the share of each attacker's summed damage, less what it was
+// already paid, keeps the fractions that single hits would lose.
 func ExpShare(total int64, maxHP, damage int) int64 {
 	if total <= 0 || maxHP <= 0 || damage <= 0 {
 		return 0
