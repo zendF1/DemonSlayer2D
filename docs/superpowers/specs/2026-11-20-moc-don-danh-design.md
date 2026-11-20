@@ -30,7 +30,7 @@ Spec này sửa cách server và client (`../DemonSlayer2DGame`) xử lý thời
 - **Mốc 1, tick t0 server nhận lệnh:** kiểm tra như hiện tại, trừ MP, bắt đầu hồi chiêu, chốt danh sách mục tiêu theo vị trí lúc đó, tính sát thương từng mục tiêu bằng chỉ số người ra đòn lúc đó, tính thời điểm trúng từng mục tiêu, phát `Cast`.
 - **Thời điểm trúng** của một mục tiêu = t0 + `z.ticks(chuẩn bị + bay)`, với `z.ticks` làm tròn lên và ít nhất 1 tick. Vì chuẩn bị luôn > 0, không đòn nào trúng trong tick bấm.
 - **Thời gian bay** = khoảng cách lúc bấm / tốc độ đạn; tốc độ 0 nghĩa là không có đạn (bay = 0).
-- **Mốc 3, tick trúng:** mục tiêu đã chết, đã rời zone, hoặc (với quái) đã chết rồi hồi sinh thì đòn bị bỏ, không có `Hit`. Nếu không, trừ máu và phát `Hit`.
+- **Mốc 3, tick trúng:** mục tiêu đã chết hoặc đã rời zone thì đòn bị bỏ (quái hồi sinh mang id mới, nên không bao giờ trúng nhầm con mới), không có `Hit`. Nếu không, trừ máu và phát `Hit`.
 - **Người ra đòn** chết hoặc rời zone trước khi đòn trúng: đòn vẫn trúng; EXP chỉ trả khi người chơi đó còn trong zone. Quái chết trước khi chưởng của nó tới: chưởng vẫn trúng.
 - **Hồi chiêu và MP** tính từ lúc bấm như hiện tại.
 
@@ -74,9 +74,9 @@ Chưởng của quái có chuẩn bị 0 nhưng bay luôn > 0 khi người chơi
 
 ### 3.1. Hàng đợi đòn đang bay
 
-Zone có một hàng đợi impact. Mỗi impact gồm: tick trúng, thứ tự tạo, người ra đòn (id và là người chơi hay quái), mục tiêu (id; với quái thêm **số lần hồi sinh** lúc bấm), sát thương đã chốt, `skill_id` (rỗng cho đòn cơ bản), cờ `ranged` (chưởng quái), và cấp người ra đòn (cho cửa sổ EXP, lấy lúc trúng từ người chơi nếu còn trong zone).
+Zone có một hàng đợi impact. Mỗi impact gồm: tick trúng, thứ tự tạo, người ra đòn (id và là người chơi hay quái), mục tiêu (id), sát thương đã chốt, `skill_id` (rỗng cho đòn cơ bản), cờ `ranged` (chưởng quái), và cấp người ra đòn (cho cửa sổ EXP, lấy lúc trúng từ người chơi nếu còn trong zone).
 
-Quái có thêm bộ đếm số lần hồi sinh, tăng mỗi lần hồi sinh.
+Quái hồi sinh mang **id mới** (`NewID`), nên một id đã chết không bao giờ sống lại; đòn nhắm vào quái cũ tự bị bỏ.
 
 ### 3.2. Thứ tự tick
 
@@ -89,7 +89,7 @@ drain → runImpacts → resolveAttacks → movePlayers → thinkMonsters → ru
 
 ### 3.3. Áp impact
 
-**Mục tiêu là quái:** bỏ nếu quái không còn, đã chết, hoặc số lần hồi sinh khác lúc bấm. Nếu không:
+**Mục tiêu là quái:** bỏ nếu quái không còn hoặc đã chết. Nếu không:
 
 - sát thương tính EXP = min(sát thương, HP còn lại); trừ máu; phát `Hit{attacker, target, damage, hp_after, skill_id}`;
 - nếu người ra đòn còn trong zone: trả EXP theo phần sát thương (cửa sổ ±10 cấp như hiện tại), ghi vào danh sách người đánh, quái chưa đuổi thì đuổi người đó;
