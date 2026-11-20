@@ -1,6 +1,6 @@
 # Giai đoạn 1 — Chiến đấu PvE cơ bản
 
-Ngày: 2026-11-19. Trạng thái: Đã triển khai (2026-11-20); còn chờ người dùng chơi thử hai cửa sổ (mục 9).
+Ngày: 2026-11-19. Trạng thái: Hoàn tất (2026-11-20): đã triển khai và người dùng đã duyệt (mục 9).
 
 Tài liệu này thiết kế Giai đoạn 1 cho cả server (repo này) lẫn client Godot (`../DemonSlayer2DGame`). Luật chơi lấy từ [game-design.md](../../game-design.md); khi hai tài liệu khác nhau về luật chơi, game-design là chuẩn. Các phần không nhắc tới ở đây giữ nguyên như [spec server Giai đoạn 0](2026-11-18-giai-doan-0-nen-mong-server-design.md) và [spec client Giai đoạn 0](2026-11-19-giai-doan-0-client-design.md).
 
@@ -383,7 +383,7 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
 
 ## 9. Tiêu chí hoàn thành
 
-Đã xong: test server (`go test -race ./...`) qua. Còn chờ người dùng kiểm: bài chơi thử hai cửa sổ bên dưới.
+Đã xong: test server (`go test -race ./...`) qua. Người dùng đã duyệt (2026-11-20).
 
 - Mọi test server (`make test-db`) và client (`tests/run.sh`) qua; smoke in `SMOKE OK`.
 - Hai client mở bằng `tools/run2.sh`, đăng nhập `test1` và `test2`:
