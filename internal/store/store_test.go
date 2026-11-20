@@ -304,3 +304,83 @@ func TestSaveAndLoadSkills(t *testing.T) {
 		t.Fatalf("saving a deleted character with skills must be a no-op, got %v", err)
 	}
 }
+
+// ______________________TEST DEV LEVEL_____________________
+
+func TestDevSetLevel(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	// Slot 2 is created first: the first character is the one in the lowest slot.
+	second, _ := st.CreateCharacter(ctx, newChar(acc, 2, "Zenitsu"))
+	first, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := st.DevSetLevel(ctx, "owner", 90)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != (store.DevResult{Name: "Tanjiro", Level: 90, FreePoints: 890, SkillPoints: 89}) {
+		t.Fatalf("level 90 on a fresh character: %+v", res)
+	}
+	got, err := st.GetCharacter(ctx, acc, first.ID)
+	if err != nil || got.Level != 90 || got.Exp != 0 || got.FreePoints != 890 || got.SkillPoints != 89 || got.HP != -1 || got.MP != -1 {
+		t.Fatalf("stored %+v, %v", got, err)
+	}
+	if other, _ := st.GetCharacter(ctx, acc, second.ID); other.Level != 1 {
+		t.Fatalf("the slot 2 character changed: %+v", other)
+	}
+
+	// Spent potential points are refunded; skills (3 + 2 levels) fit in 19 points and stay.
+	learned := map[string]int{"viem_1": 3, "viem_2": 2}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: first.ID, MapID: "kumotori_1", Level: 30, Exp: 500,
+		Points: combat.Points{Str: 10, Agi: 20, Vit: 30, Int: 40}, FreePoints: 190, HP: 77, MP: 3,
+		SkillPoints: 24, Skills: learned}); err != nil {
+		t.Fatal(err)
+	}
+	res, err = st.DevSetLevel(ctx, "owner", 20)
+	if err != nil || res != (store.DevResult{Name: "Tanjiro", Level: 20, FreePoints: 190, SkillPoints: 14}) {
+		t.Fatalf("level 20 with skills: %+v, %v", res, err)
+	}
+	got, err = st.GetCharacter(ctx, acc, first.ID)
+	if err != nil || got.Level != 20 || got.Exp != 0 || got.Points != (combat.Points{}) || got.FreePoints != 190 ||
+		got.SkillPoints != 14 || !maps.Equal(got.Skills, learned) || got.HP != -1 || got.MP != -1 {
+		t.Fatalf("stored %+v, %v", got, err)
+	}
+
+	// At level 5 the 5 learned levels do not fit in 4 points: every skill goes.
+	res, err = st.DevSetLevel(ctx, "owner", 5)
+	if err != nil || res != (store.DevResult{Name: "Tanjiro", Level: 5, FreePoints: 40, SkillPoints: 4}) {
+		t.Fatalf("level 5 with skills: %+v, %v", res, err)
+	}
+	got, err = st.GetCharacter(ctx, acc, first.ID)
+	if err != nil || got.Level != 5 || got.SkillPoints != 4 || len(got.Skills) != 0 {
+		t.Fatalf("stored %+v, %v", got, err)
+	}
+}
+
+func TestDevSetLevelErrors(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	if _, err := st.DevSetLevel(ctx, "nobody", 10); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing account: %v, want ErrNotFound", err)
+	}
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	if _, err := st.DevSetLevel(ctx, "owner", 10); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("account without a character: %v, want ErrNotFound", err)
+	}
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, level := range []int{0, 91} {
+		if _, err := st.DevSetLevel(ctx, "owner", level); err == nil {
+			t.Errorf("level %d: no error", level)
+		}
+	}
+	if got, err := st.GetCharacter(ctx, acc, c.ID); err != nil || got.Level != 1 {
+		t.Fatalf("after refused levels: %+v, %v", got, err)
+	}
+}

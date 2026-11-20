@@ -19,6 +19,7 @@ import (
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/config"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/store/storetest"
@@ -514,6 +515,150 @@ func TestCombatProgressSurvivesLogout(t *testing.T) {
 	}
 	if got.GetExp() <= 0 {
 		t.Fatalf("re-entered with exp %d, want the EXP earned past level %d", got.GetExp(), seedLevel+1)
+	}
+}
+
+// ______________________TEST SKILLS_____________________
+
+// A character raised to level 20 with DevSetLevel learns its slot 1 and 2
+// skills, walks up to a monster and casts slot 1 on it: the cast is answered,
+// costs MP, lands a Hit carrying its skill id, and a second cast right after
+// is ON_COOLDOWN.
+func TestSkillsOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	p := newPlayer(t, s, "suki01", "Suki", pb.CharClass_CHAR_CLASS_THUY)
+	ctx := ctxT(t)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Drop the first stay's pushes, which all came before the LeaveWorldResp.
+	for drained := false; !drained; {
+		select {
+		case <-p.c.Pushes():
+		default:
+			drained = true
+		}
+	}
+	res, err := s.store.DevSetLevel(ctx, "suki01", 20)
+	if err != nil || res.Level != 20 || res.SkillPoints != 19 {
+		t.Fatalf("DevSetLevel: %+v, %v", res, err)
+	}
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := ew.Stats; st.GetLevel() != 20 || st.GetSkillPoints() != 19 || st.GetFreePoints() != 190 {
+		t.Fatalf("entered with %v, want level 20, 19 skill points and 190 free points", st)
+	}
+
+	const skill = "thuy_1" // slot 1: single target, range 5
+	var stats *pb.SelfStats
+	for _, id := range []string{skill, "thuy_2"} { // slots 1 and 2
+		r, err := p.c.Learn(ctx, id)
+		if err != nil {
+			t.Fatalf("learn %s: %v", id, err)
+		}
+		stats = r.Stats
+	}
+	if stats.GetSkillPoints() != 17 {
+		t.Fatalf("after learning two skills: %v, want 17 skill points", stats)
+	}
+
+	// The fighter walks towards the nest and then the nearest monster; stop
+	// it once the character is out of the safe zone and a live monster is in
+	// cast range but not yet in slash range.
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	world := loaded[ew.MapId]
+	self := ew.SelfEntityId
+	x, y := ew.X, ew.Y
+	type seen struct {
+		x, y float32
+		dead bool
+	}
+	monsters := make(map[uint64]*seen)
+	var target uint64
+	near := func() uint64 {
+		if world.InSafeZone(mapdata.Point{X: x, Y: y}) {
+			return 0
+		}
+		var best uint64
+		bestD := float32(3)
+		for id, m := range monsters {
+			if d := float32(math.Hypot(float64(m.x-x), float64(m.y-y))); !m.dead && d <= bestD && d > combat.SlashRange+0.5 {
+				best, bestD = id, d
+			}
+		}
+		return best
+	}
+	fctx, stop := context.WithTimeout(context.Background(), 60*time.Second)
+	defer stop()
+	f := client.NewFighter(p.c, ew)
+	f.Seek = nestR1
+	f.Observe = func(env *pb.Envelope) {
+		if e := env.GetEntityEnter(); e != nil && e.Kind == pb.EntityKind_ENTITY_KIND_MONSTER {
+			monsters[e.Id] = &seen{x: e.X, y: e.Y, dead: e.Dead}
+		}
+		if l := env.GetEntityLeave(); l != nil {
+			delete(monsters, l.Id)
+		}
+		if st := env.GetSelfStats(); st != nil {
+			stats = st
+		}
+		wt := env.GetWorldTick()
+		for _, m := range wt.GetMoves() {
+			if m.Id == self {
+				x, y = m.X, m.Y
+			} else if s := monsters[m.Id]; s != nil {
+				s.x, s.y = m.X, m.Y
+			}
+		}
+		for _, d := range wt.GetDeaths() {
+			if s := monsters[d.Id]; s != nil {
+				s.dead = true
+			}
+		}
+		if target == 0 {
+			if target = near(); target != 0 {
+				stop()
+			}
+		}
+	}
+	if err := f.Fight(fctx, 1000, nil); target == 0 {
+		t.Fatalf("no monster came within cast range: %v", err)
+	}
+	if _, err := p.c.Move(ctx, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	mpBefore := stats.GetMp()
+	if mpBefore != stats.GetMaxMp() || mpBefore <= 0 {
+		t.Fatalf("stats before the cast %v, want full MP", stats)
+	}
+	if err := p.c.Cast(ctx, skill, target, 0, 0); err != nil {
+		t.Fatalf("cast %s on %d: %v", skill, target, err)
+	}
+	var spent *pb.SelfStats
+	var hit *pb.Hit
+	waitFor(t, p.c, 3*time.Second, func(e *pb.Envelope) bool {
+		if st := e.GetSelfStats(); st != nil && st.GetMp() < mpBefore {
+			spent = st
+		}
+		for _, h := range e.GetWorldTick().GetHits() {
+			if h.AttackerId == self && h.SkillId == skill {
+				hit = h
+			}
+		}
+		return spent != nil && hit != nil
+	})
+	if hit.TargetId != target || hit.Damage <= 0 {
+		t.Fatalf("hit %v, want damage on monster %d", hit, target)
+	}
+
+	if err := p.c.Cast(ctx, skill, target, 0, 0); client.Code(err) != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("second cast: %v, want ON_COOLDOWN", err)
 	}
 }
 

@@ -83,6 +83,25 @@ spreads the sign-ups over 150 s and leaves the rest of the run measuring the
 game loop. Measured on an 8-core dev machine with 1,000 bots in world across 20
 zones: tick p99 ≈ 9 ms, no dropped clients.
 
+## Dev characters
+
+`devchar` puts an account's first character (lowest slot) at a level, for
+development only. It reads `DATABASE_URL` and takes no other settings:
+
+```bash
+DATABASE_URL='postgres://ds:ds@localhost:5433/ds?sslmode=disable' go run ./cmd/devchar -u tanjiro -level 90
+```
+
+It sets the level (1–90) and EXP to 0, refunds every spent potential point
+(free points become 10 × (level − 1)), sets the skill points to (level − 1)
+minus the levels of the learned skills, or drops every skill and sets them to
+level − 1 when that is negative, and fills HP and MP. It prints the
+character's name, level, free potential points and skill points.
+
+The character must be offline. The server does not record who is online, so
+`devchar` cannot check; a running server's next save of the character
+overwrites the change.
+
 ## Game data
 
 Maps live in [`maps/`](maps/) (collision, spawn points, safe zones, rest points and
