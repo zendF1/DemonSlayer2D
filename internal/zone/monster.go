@@ -74,7 +74,7 @@ func (z *Zone) thinkMonsters() {
 		}
 		switch m.state {
 		case idle:
-			if p := z.nearestInAggro(m); p != nil {
+			if p := z.nearestInDetect(m); p != nil {
 				m.target, m.state = p.id, chase
 				z.fight(m)
 			} else {
@@ -108,10 +108,10 @@ func nearer(m *monster, p, best *player) bool {
 	return dp < db || dp == db && p.id < best.id
 }
 
-// nearestInAggro is the nearest valid player within the kind's aggro range.
+// nearestInDetect is the nearest valid player within the kind's detect range.
 // Only the AOI cells around m are searched.
-func (z *Zone) nearestInAggro(m *monster) *player {
-	reach := float32(m.camp.Kind.AggroRange)
+func (z *Zone) nearestInDetect(m *monster) *player {
+	reach := float32(m.camp.Kind.DetectRange)
 	var best *player
 	for dx := -1; dx <= 1; dx++ {
 		for dy := -1; dy <= 1; dy++ {
@@ -129,7 +129,7 @@ func (z *Zone) nearestInAggro(m *monster) *player {
 }
 
 // retarget picks a new target once the old one is lost (spec 4.2): the nearest
-// valid player who has hit m, else the nearest valid player in aggro range.
+// valid player who has hit m, else the nearest valid player in detect range.
 func (z *Zone) retarget(m *monster) *player {
 	var best *player
 	for id := range m.attackers {
@@ -140,11 +140,11 @@ func (z *Zone) retarget(m *monster) *player {
 	if best != nil {
 		return best
 	}
-	return z.nearestInAggro(m)
+	return z.nearestInDetect(m)
 }
 
 // fight runs a monster in chase or attack: it keeps its target while the
-// target stays valid, goes home when lured past the leash range, walks up to
+// target stays valid, goes home when lured past the chase range, walks up to
 // the target and hits it every AttackSec once in range with a clear line, the
 // same line of sight a player's slash needs.
 func (z *Zone) fight(m *monster) {
@@ -157,7 +157,7 @@ func (z *Zone) fight(m *monster) {
 		m.target = t.id
 	}
 	k := &m.camp.Kind
-	if distance(m.pos, m.home) > float32(k.LeashRange) {
+	if distance(m.pos, m.home) > float32(k.ChaseRange) {
 		z.startReturn(m)
 		return
 	}

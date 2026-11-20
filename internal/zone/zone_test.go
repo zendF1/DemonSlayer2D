@@ -453,7 +453,7 @@ func TestJoinHonoursContextBeforeQueueing(t *testing.T) {
 // ______________________TEST MONSTERS_____________________
 
 var testKind = gamedata.Kind{ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8,
-	AggroRange: 4, LeashRange: 10, RespawnSec: 8}
+	DetectRange: 4, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, RespawnSec: 8}
 
 var testLevels = map[int]gamedata.Level{
 	1: {Level: 1, HP: 56, Attack: 30, Defense: 8},
@@ -564,7 +564,7 @@ func TestPlayerEnterHasHP(t *testing.T) {
 
 func TestMonstersWander(t *testing.T) {
 	z, _ := newMonsterZone(t, campTiles...)
-	a := joinNow(t, z, 1, 30.5, 39.5) // in view, beyond aggro range plus the wander radius
+	a := joinNow(t, z, 1, 30.5, 39.5) // in view, beyond detect range plus the wander radius
 	home := map[uint64]Vec2{}
 	for id, m := range z.monsters {
 		home[id] = m.home

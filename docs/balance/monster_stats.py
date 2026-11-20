@@ -27,9 +27,11 @@ LEVELS = range(1, 6)
 
 KINDS = [
     {"id": "wanderer", "name": "Quỷ lang thang", "attack_range": 1.5, "attack_sec": 1.5,
-     "speed": 0.8, "aggro_range": 4, "leash_range": 10, "respawn_sec": 8},
+     "speed": 0.8, "detect_range": 5, "chase_range": 10, "shoot_sec": 2, "shoot_windup_sec": 0.5,
+     "region_margin": 3, "respawn_sec": 8},
     {"id": "snow_ghoul", "name": "Quỷ đói trong tuyết", "attack_range": 1.5, "attack_sec": 1.5,
-     "speed": 0.8, "aggro_range": 4, "leash_range": 10, "respawn_sec": 8},
+     "speed": 0.8, "detect_range": 5, "chase_range": 10, "shoot_sec": 2, "shoot_windup_sec": 0.5,
+     "region_margin": 3, "respawn_sec": 8},
 ]
 
 

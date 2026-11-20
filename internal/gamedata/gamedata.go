@@ -21,9 +21,17 @@ type Kind struct {
 	AttackRange float64 `json:"attack_range"`
 	AttackSec   float64 `json:"attack_sec"`
 	Speed       float64 `json:"speed"`
-	AggroRange  float64 `json:"aggro_range"`
-	LeashRange  float64 `json:"leash_range"`
-	RespawnSec  float64 `json:"respawn_sec"`
+	// DetectRange is how far a monster notices players to shoot at.
+	DetectRange float64 `json:"detect_range"`
+	// ChaseRange is how far a chase may run from where it began.
+	ChaseRange float64 `json:"chase_range"`
+	// ShootSec is the gap between ranged shots; ShootWindupSec delays the first.
+	ShootSec       float64 `json:"shoot_sec"`
+	ShootWindupSec float64 `json:"shoot_windup_sec"`
+	// RegionMargin is how many tiles outside its region a target may be
+	// before the monster gives up the chase.
+	RegionMargin float64 `json:"region_margin"`
+	RespawnSec   float64 `json:"respawn_sec"`
 }
 
 // Level holds the monster stats of one level. Defense serves as both
@@ -64,12 +72,16 @@ func Parse(b []byte) (*Data, error) {
 		}
 		for name, v := range map[string]float64{
 			"attack_range": k.AttackRange, "attack_sec": k.AttackSec, "speed": k.Speed,
-			"aggro_range": k.AggroRange, "leash_range": k.LeashRange, "respawn_sec": k.RespawnSec,
+			"detect_range": k.DetectRange, "chase_range": k.ChaseRange, "shoot_sec": k.ShootSec,
+			"shoot_windup_sec": k.ShootWindupSec, "respawn_sec": k.RespawnSec,
 		} {
 			// The negated comparison also rejects NaN.
 			if !(v > 0) {
 				return nil, fmt.Errorf("gamedata: kind %q: %s must be positive", k.ID, name)
 			}
+		}
+		if !(k.RegionMargin >= 0) {
+			return nil, fmt.Errorf("gamedata: kind %q: region_margin must not be negative", k.ID)
 		}
 		d.Kinds[k.ID] = k
 	}

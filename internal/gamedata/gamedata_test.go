@@ -11,7 +11,7 @@ import (
 )
 
 const validJSON = `{
-  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"aggro_range":4,"leash_range":10,"respawn_sec":8}],
+  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"respawn_sec":8}],
   "levels": [{"level":1,"hp":56,"attack":30,"defense":8},{"level":2,"hp":104,"attack":39,"defense":16}]
 }`
 
@@ -30,10 +30,63 @@ func TestParseOK(t *testing.T) {
 	}
 }
 
+func TestParseKindFields(t *testing.T) {
+	d, err := Parse([]byte(validJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Kind{ID: "a", Name: "A", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8, DetectRange: 5, ChaseRange: 10,
+		ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, RespawnSec: 8}
+	if k := d.Kinds["a"]; k != want {
+		t.Fatalf("kind %+v, want %+v", k, want)
+	}
+}
+
+func kindWith(field, value string) string {
+	fields := map[string]string{"attack_range": "1.5", "attack_sec": "1.5", "speed": "0.8", "detect_range": "5",
+		"chase_range": "10", "shoot_sec": "2", "shoot_windup_sec": "0.5", "region_margin": "3", "respawn_sec": "8"}
+	fields[field] = value
+	var parts []string
+	for k, v := range fields {
+		parts = append(parts, `"`+k+`":`+v)
+	}
+	return `{"kinds":[{"id":"a","name":"A",` + strings.Join(parts, ",") +
+		`}],"levels":[{"level":1,"hp":56,"attack":30,"defense":8}]}`
+}
+
+func TestParseKindFieldValues(t *testing.T) {
+	for _, f := range []string{"attack_range", "attack_sec", "speed", "detect_range", "chase_range", "shoot_sec",
+		"shoot_windup_sec", "respawn_sec"} {
+		for _, v := range []string{"0", "-1"} {
+			_, err := Parse([]byte(kindWith(f, v)))
+			if err == nil || !strings.Contains(err.Error(), f) {
+				t.Errorf("%s = %s: err %v, want one naming the field", f, v, err)
+			}
+		}
+	}
+	for _, v := range []string{"-1"} {
+		if _, err := Parse([]byte(kindWith("region_margin", v))); err == nil || !strings.Contains(err.Error(), "region_margin") {
+			t.Errorf("region_margin = %s: err %v", v, err)
+		}
+	}
+	if _, err := Parse([]byte(kindWith("region_margin", "0"))); err != nil {
+		t.Fatalf("region_margin 0 must be accepted: %v", err)
+	}
+}
+
+func TestParseRejectsOldRangeFields(t *testing.T) {
+	for _, f := range []string{"aggro_range", "leash_range"} {
+		doc := strings.Replace(kindWith("speed", "0.8"), `"speed"`, `"`+f+`":4,"speed"`, 1)
+		if _, err := Parse([]byte(doc)); err == nil {
+			t.Errorf("%s must be rejected as unknown", f)
+		}
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	kind := func(id, speed string) string {
 		return `{"id":"` + id + `","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":` + speed +
-			`,"aggro_range":4,"leash_range":10,"respawn_sec":8}`
+			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"respawn_sec":8}`
 	}
 	lvl := `{"level":1,"hp":56,"attack":30,"defense":8}`
 	doc := func(kinds, levels string) string { return `{"kinds":[` + kinds + `],"levels":[` + levels + `]}` }

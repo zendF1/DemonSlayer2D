@@ -102,7 +102,7 @@ func TestMonsterAggroWithinRange(t *testing.T) {
 			t.Fatalf("player %.1f tiles away: target %d state %v, want chase=%v", c.dx, m.target, m.state, c.chase)
 		}
 		if !c.chase && (m.target != 0 || m.state != idle) {
-			t.Fatalf("player out of aggro range: target %d state %v, want idle with no target", m.target, m.state)
+			t.Fatalf("player out of detect range: target %d state %v, want idle with no target", m.target, m.state)
 		}
 	}
 
@@ -134,7 +134,7 @@ func TestMonsterIgnoresPlayerInSafeZone(t *testing.T) {
 func TestMonsterAttacksOnInterval(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)
-	v := joinNow(t, z, 2, 30.5, 36.5) // in view, out of aggro range
+	v := joinNow(t, z, 2, 30.5, 36.5) // in view, out of detect range
 	now := time.Now()
 	var hitTicks []int
 	for i := 1; i <= 31; i++ {
@@ -201,7 +201,7 @@ func TestMonsterLeashesAndHeals(t *testing.T) {
 		t.Fatalf("returned=%v state %v, want back home and idle", returned, m.state)
 	}
 	if far <= 10 || far > 10+step+1e-3 {
-		t.Fatalf("farthest from home %.3f, want just beyond the leash range 10", far)
+		t.Fatalf("farthest from home %.3f, want just beyond the chase range 10", far)
 	}
 	if m.pos != home || m.hp != 56 || !healed {
 		t.Fatalf("at %v hp %d healed event %v, want home with full HP and an HpChange", m.pos, m.hp, healed)
@@ -230,7 +230,7 @@ func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
 	m.pos, m.hp, m.state = Vec2{35.5, 30.5}, 10, returning
 	m.dmgBy[1], m.expPaid[1] = 46, 8
 	z.updateCell(&m.entity)
-	v := joinNow(t, z, 1, 36.5, 36.5) // in view, out of aggro range of home
+	v := joinNow(t, z, 1, 36.5, 36.5) // in view, out of detect range of home
 	now := time.Now()
 	idleAt := 0
 	var snap *pb.EntityMove
@@ -368,12 +368,12 @@ func TestMonsterSwitchesToAttackerWhenTargetDies(t *testing.T) {
 	for _, c := range []struct {
 		name     string
 		attacker bool // B (3.5 tiles away) has hit the monster
-		near     bool // C (2.1 tiles away) stands within aggro range
+		near     bool // C (2.1 tiles away) stands within detect range
 		target   uint64
 		state    monsterState
 	}{
 		{"attacker before nearer player", true, true, 2, chase},
-		{"nearest in aggro range", false, true, 3, chase},
+		{"nearest in detect range", false, true, 3, chase},
 		{"nobody left", false, false, 0, returning},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -596,7 +596,7 @@ func TestAttackValidation(t *testing.T) {
 func TestAttackHitsAndAggro(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	// Too short-sighted to notice the attacker by itself: only the hit can make it chase.
-	m.camp.Kind.AggroRange = 0.5
+	m.camp.Kind.DetectRange = 0.5
 	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range with the slack, out of its attack range
 	v := joinNow(t, z, 2, 30.5, 36.5) // a viewer
 	a.take()
@@ -954,7 +954,7 @@ func TestLeashHealResetsExpTracking(t *testing.T) {
 	if p.exp != 2 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 {
 		t.Fatalf("exp %d dmgBy %v expPaid %v, want 2, 14, 2", p.exp, m.dmgBy, m.expPaid)
 	}
-	// Drag it past the leash range: it walks home and heals.
+	// Drag it past the chase range: it walks home and heals.
 	m.pos = Vec2{home.X + 11, home.Y}
 	z.updateCell(&m.entity)
 	now := time.Now()

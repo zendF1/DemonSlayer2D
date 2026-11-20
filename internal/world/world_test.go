@@ -76,7 +76,7 @@ func testMaps(t *testing.T) map[string]*mapdata.Map {
 
 var testMonsters = &gamedata.Data{
 	Kinds: map[string]gamedata.Kind{"wanderer": {ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 1.5, AttackSec: 1.5,
-		Speed: 0.8, AggroRange: 4, LeashRange: 10, RespawnSec: 8}},
+		Speed: 0.8, DetectRange: 4, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, RespawnSec: 8}},
 	Levels: map[int]gamedata.Level{1: {Level: 1, HP: 56, Attack: 30, Defense: 8}, 2: {Level: 2, HP: 104, Attack: 39, Defense: 16}},
 }
 
@@ -136,8 +136,8 @@ func TestNewRejectsUnknownStartMap(t *testing.T) {
 }
 
 // Monsters look for players only in the 3x3 AOI cells around them, so a cell
-// must be at least as wide as the largest aggro range (4 in testMonsters).
-func TestNewRejectsAggroBeyondAOICell(t *testing.T) {
+// must be at least as wide as the largest detect range (4 in testMonsters).
+func TestNewRejectsDetectBeyondAOICell(t *testing.T) {
 	for _, c := range []struct {
 		cell int
 		ok   bool
@@ -145,6 +145,9 @@ func TestNewRejectsAggroBeyondAOICell(t *testing.T) {
 		_, err := New(Config{StartMap: "m1", AOICellSize: c.cell}, testMaps(t), testMonsters, nopSaver{}, slog.Default())
 		if (err == nil) != c.ok {
 			t.Fatalf("AOI cell %d: err = %v, want ok=%v", c.cell, err, c.ok)
+		}
+		if err != nil && !strings.Contains(err.Error(), "detect range") {
+			t.Fatalf("AOI cell %d: err %q does not say detect range", c.cell, err)
 		}
 	}
 }
