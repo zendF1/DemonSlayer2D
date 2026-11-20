@@ -44,6 +44,7 @@ Config comes only from environment variables (see `README.md`). The Makefile als
 - Resonance (which hidden lines are lit), gem stats, punching, socketing, unsocketing and the refine roll live only in `internal/items`; the resonance table, the socket and refine costs and the 15 gems come from `item_stats.py`. Holes are stored as `character_items.gems` (one entry per hole, `""` for an empty one). The zone forges only inside a safe zone. A refine result waits in zone memory only (`player.refine`) and is dropped by leaving and by every item command except pickup and the choice itself (`dropsRefine`). The client computes the lit lines from the same table for display only; the server's stats are authoritative.
 - EXP is paid per hit by damage share (`internal/zone/progression.go`), only when player and monster are within 10 levels. Xu and drops go to the killer only: Xu straight into the wallet, items on the ground, seen and picked up only by the killer's character, gone after 60 s.
 - Proto names must stay valid in GDScript (no field named `message` or `class`, no message named `Error`) because the client generates code with godobuf.
+- godobuf's tokenizer misreads a proto comment with two apostrophes on one line (for example "the gem's level is above the item's tier"). The client's `tools/gen_proto.sh` now strips `//` comments before generating, but still avoid such comments.
 
 ## Conventions
 
