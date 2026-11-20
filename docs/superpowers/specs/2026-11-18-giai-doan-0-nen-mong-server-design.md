@@ -23,6 +23,8 @@ Server được làm theo giai đoạn. Mỗi giai đoạn có spec, kế hoạc
 
 Ghi chú: Giai đoạn 3 chia thành 3a, 3b, 3c ([spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) mục 1.1). Xu có từ Giai đoạn 3a (ví, kiếm từ quái, tiêu khi cường hóa ở 3b/3c); Giai đoạn 4 còn cửa hàng và Lượng. Đồ của nhân vật lưu ở bảng `character_items` và cột `characters.xu` (migration `00004_items.sql`), thay cho bảng `items` dự kiến ở mục 3.3; `item_logs` và `currency_logs` vẫn để sau.
 
+Ghi chú: Giai đoạn 4 chia thành 4a (năm map, cổng, đổi khu, điểm hồi sinh theo map), 4b (NPC, cửa hàng Xu, bán đồ, bình thuốc, giấy về thành, xa phu, rèn đồ tại Thợ rèn) và 4c (kho, Lượng, hồi sinh tại chỗ), theo [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) mục 1.1. Map sinh bằng `tools/mapgen.py`; mọi lần chuyển zone đi qua `World.Transfer`.
+
 ### 1.2. Ràng buộc
 
 - **Repo này chỉ chứa server.** Client Godot 4 (GDScript) ở repo khác và làm sau.

@@ -728,6 +728,9 @@ Hình ảnh nền không tự quyết định va chạm. Xếp lớp cần dựa
 - **Tinh anh hồi sinh 5 phút, thủ lĩnh hồi sinh 10 phút tính từ lúc bị tiêu diệt**. Mỗi khu có quái và bộ đếm riêng; không dùng quy tắc này thay luật Boss của sự kiện.
 - Quái thường đứng lại bắn chưởng người đi ngang trong **5 ô**; bị đánh thì đuổi với tốc độ 1,2 lần người chơi và đánh cận chiến trong **2 ô** (bằng tầm chém của người chơi), tối đa **10 ô từ chỗ bắt đầu đuổi** hoặc tới khi mục tiêu ra khỏi vùng quá 3 ô liên tục 2 giây; bỏ đuổi thì về vùng **không hồi máu**. Người trốn vào khu an toàn bị quái chờ ở mép 5 giây. Không đổi mục tiêu chỉ vì có người khác đánh, trừ khi mục tiêu đang trốn trong khu an toàn; mục tiêu bị bỏ thì chuyển sang người gần nhất đã đánh mình trong 5 giây. Quái nhớ người đã đánh nó trong 10 giây: thấy lại là lao vào đuổi ngay, không bắn. Chi tiết ở [spec quái thường](superpowers/specs/2026-11-20-quai-thuong-vung-va-chuong-design.md).
 - Map luyện cấp có nhiều khu như Khu 1/2/3; mốc dự kiến 30–50 người/khu, chưa kiểm chứng năng lực kỹ thuật.
+- **Luôn có ít nhất hai khu ở map luyện cấp** (thành một khu). Khu có số lớn hơn mở khi mọi khu đều đầy và đóng khi trống 5 phút; khu trong số tối thiểu không bao giờ đóng.
+- Bấm tên map trên HUD để xem các khu đang mở và số người. **Đổi khu giữ nguyên vị trí**, được đổi khi đang giao chiến (mục 5.1), không được khi đã chết; **hồi 10 giây giữa hai lần đổi khu**. Đi qua cổng không chịu hồi này.
+- Qua cổng sang map khác thì vào khu cùng số nếu khu đó đang mở và còn chỗ, nếu không thì khu đầu tiên còn chỗ. Nhân vật giữ nguyên HP, MP, đồ, Xu và thời gian hồi còn lại của chém, chiêu và đổi khu.
 - Kênh công cộng khác với phó bản dành riêng cho một nhóm/trận.
 
 ### 5.4. Các địa điểm dịch vụ và khu an toàn
@@ -772,6 +775,16 @@ Cấp và danh sách dưới đây đã chốt cho bản đầu, cân chỉnh ti
 - Quỷ Rắn đặt ở Yoshiwara — Hầm Ngầm, cấp 90, thủ lĩnh hồi sinh 10 phút. Dùng hình ảnh nhân vật làm gameplay, không tạo phó bản hồi ức bắt buộc.
 - Chỉ số, kỹ năng, mật độ và rơi đồ dùng bộ số bản đầu tại các mục 5.9–5.13; không mặc định tái hiện mọi khả năng nguyên tác.
 
+**Map đã làm (Giai đoạn 4a):** năm map, sinh bằng `tools/mapgen.py`, nối thành một chuỗi cổng Kumotori ↔ Ubuyashiki ↔ Sagiri 1 ↔ Sagiri 2 ↔ Fujikasane. Cổng là dải 1 × 4 ô sát tường tây hoặc đông; bước vào là sang map kế bên. Nhân vật mới bắt đầu ở Kumotori. Tinh anh và thủ lĩnh chưa có; các vùng từ cấp 21 làm sau bằng cùng script.
+
+| id | Map | Loại | Cấp quái thường | Quái thường (id) | Số khu tối thiểu |
+| --- | --- | --- | --- | --- | --- |
+| `ubuyashiki` | Tổng hành dinh Ubuyashiki | Thành: toàn bộ là khu an toàn, không quái | — | — | 1 |
+| `kumotori_1` | Kumotori – Đường núi tuyết | Luyện cấp | 1–5 | `wanderer`, `snow_ghoul` | 2 |
+| `sagiri_1` | Sagiri – Chân núi, đường đến ngôi đền | Luyện cấp | 6–10 | `mountain_demon`, `ambusher` | 2 |
+| `sagiri_2` | Sagiri – Rừng sương mù | Luyện cấp | 11–15 | `mist_lurker`, `long_claw` | 2 |
+| `fujikasane_1` | Fujikasane – Rừng tuyển chọn | Luyện cấp | 16–20 | `forest_demon`, `captive_demon` | 2 |
+
 ### 5.6. Phân biệt map thường và bản đồ sự kiện
 
 Map thường cho phép đi lại tự do và quái hồi sinh theo loại. Cùng một nhân vật quỷ có thể được cấu hình riêng cho map thường và sự kiện; cấp, HP và phần thưởng không mặc định giống nhau.
@@ -805,6 +818,7 @@ Khi chết, người chơi chọn một trong hai cách:
 | Hồi sinh tại chỗ | **1 Lượng** | Ngay nơi chết | Đầy HP/MP |
 | Về làng | Miễn phí | Điểm hồi sinh ở khu an toàn gần nhất của map đó (làng, thành hoặc Nhà Hoa Tử Đằng) | Đầy HP/MP |
 
+- Về làng là về **điểm hồi sinh gần chỗ chết nhất trong cùng map**; mỗi map có ít nhất một điểm hồi sinh, luôn nằm trong khu an toàn (trại ở map luyện cấp, giữa thành ở Ubuyashiki). Thoát game khi đã chết thì vào lại ở điểm hồi sinh gần vị trí đã lưu nhất.
 - Nếu không chọn trong **60 giây**, nhân vật tự về làng.
 - Mất EXP do PK (nếu có) tính lúc chết, không phụ thuộc cách hồi sinh. Hồi sinh tại chỗ không hoàn lại EXP đã mất.
 - Không đủ 1 Lượng thì chỉ còn lựa chọn về làng.
