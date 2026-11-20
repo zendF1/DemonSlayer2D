@@ -26,6 +26,7 @@ Quái hiện đứng thành 4 bãi, mỗi bãi 12 con trong bán kính 5 ô, nê
 | Phạm vi đi lại, hồi sinh | Quái chỉ đi trong vùng; chết thì hồi sinh tại ổ quỷ cố định của vùng rồi lang thang ra |
 | Chưởng | Luôn trúng, server tính ngay lúc bắn; client vẽ viên chưởng bay 0,3 giây |
 | Đuổi | Bị đánh thì đuổi và đánh cận chiến, không bắn lúc đuổi; bỏ đuổi thì **không hồi máu** |
+| Chống lách (bổ sung sau review) | Lúc đuổi quái chạy 1,2 lần tốc độ người chơi; mục tiêu trốn vào khu an toàn thì quái chờ ở mép 5 giây rồi mới bỏ |
 | Sức chưởng | 50% sát thương cận chiến, mỗi 2 giây, tầm 5 ô, đứng yên khi bắn |
 | Khai báo vùng | Danh sách hình chữ nhật trong JSON của map |
 
@@ -90,6 +91,8 @@ File vẫn sinh từ `docs/balance/monster_stats.py` (sửa script, không sửa
 | `shoot_sec` | 2 | mới: nhịp bắn chưởng |
 | `shoot_windup_sec` | 0,5 | mới: độ trễ của viên đầu |
 | `region_margin` | 3 | mới: mục tiêu ra khỏi vùng quá số ô này thì quái bỏ đuổi |
+| `chase_speed` | 1,2 | mới: hệ số so với tốc độ người chơi khi đang đuổi |
+| `safe_wait_sec` | 5 | mới: thời gian quái chờ ở mép khi mục tiêu ở trong khu an toàn |
 
 Kiểm tra dữ liệu: các trường thời gian và khoảng cách đều dương; `region_margin ≥ 0`. Bảng HP, công, thủ theo cấp giữ nguyên.
 
@@ -136,12 +139,13 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
 - **Khi vào:** quái bị người chơi đánh trúng thì vào **Đuổi** ngay, dù đang ở trạng thái nào. Mục tiêu là người vừa đánh nó. Quái ghi lại chỗ bắt đầu đuổi.
 - **Khi đã đang đuổi:** người khác đánh thì quái vẫn đuổi mục tiêu cũ.
 - **Danh sách người đã đánh:** quái nhớ thời điểm gần nhất từng người đánh nó. Danh sách này dùng để chọn mục tiêu dự phòng.
-- **Cách đuổi:** quái chạy với `speed` tới khoảng dừng như Giai đoạn 1 (min(1,3; reach − 2·eps)).
+- **Cách đuổi:** quái chạy với `chase_speed` (1,2 lần tốc độ người chơi) tới khoảng dừng như Giai đoạn 1 (min(1,3; reach − 2·eps)). Quái phải nhanh hơn người chơi, vì người chơi với xa hơn (2,0 so với 1,5 ô): bằng tốc độ thì người chơi vừa lùi vừa chém mà quái không bao giờ tới gần.
   - Đánh cận chiến mỗi `attack_sec` khi trong `attack_range` và không bị tường che.
   - Bị tường che thì đi thẳng về phía mục tiêu, trượt quanh góc.
   - Lúc đuổi quái không bắn chưởng.
 - **Bỏ mục tiêu** khi xảy ra bất kỳ điều nào:
-  - mục tiêu chết, rời zone, hoặc vào khu an toàn;
+  - mục tiêu chết hoặc rời zone;
+  - mục tiêu ở trong khu an toàn liên tục quá `safe_wait_sec` (5 giây). Trong lúc chờ, quái giữ mục tiêu, đi sát tới mép (lưới của quái vẫn chặn ô khu an toàn) và đánh ngay khi mục tiêu bước ra trong tầm, khi đã hết hồi chiêu. Bộ đếm đặt lại mỗi khi mục tiêu ra khỏi khu an toàn. Trong lúc mục tiêu ở khu an toàn thì bỏ qua điều kiện biên vùng bên dưới;
   - vị trí mục tiêu nằm ngoài mọi hình chữ nhật của vùng sau khi nới mỗi cạnh thêm `region_margin` ô;
   - quái đã cách chỗ bắt đầu đuổi hơn `chase_range`.
 - **Sau khi bỏ:** nếu có người khác trong danh sách đánh nó trong 5 giây gần nhất và vẫn hợp lệ, quái chuyển sang người gần nhất trong số đó. Chỗ bắt đầu đuổi đặt lại ở vị trí hiện tại. Không có ai thì quái vào **Về vùng**.
@@ -213,7 +217,8 @@ Giữ như Giai đoạn 1. Đòn của người chơi được giải quyết tr
 - `zone`, bỏ đuổi:
   - mục tiêu ra khỏi vùng quá 3 ô thì quái bỏ đuổi; HP giữ nguyên; quái đi về ô của vùng rồi lang thang;
   - quái đã đuổi quá 10 ô thì bỏ;
-  - mục tiêu vào khu an toàn thì bỏ;
+  - mục tiêu vào khu an toàn thì quái chờ ở mép; bước ra trong 5 giây thì bị đánh; ở trong quá 5 giây thì quái bỏ;
+  - lúc đuổi quái chạy 1,2 lần tốc độ người chơi: người chơi chạy lùi không giữ được khoảng cách;
   - sau khi bỏ, quái chuyển sang người đánh nó trong 5 giây gần nhất.
 - `zone`, về vùng:
   - quái đang về vẫn nhận đòn, không trả `INVALID_TARGET`, và vào lại **Đuổi**;

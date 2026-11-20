@@ -352,6 +352,56 @@ Camps stay for now, so the build and the current map keep working. Task 5 remove
 - [ ] Run `make test-db` and the botclient by hand: `go run ./cmd/botclient -fight 3` against your own :8199 server kills 3 monsters.
 - [ ] Commit: `Chase attackers until they leave the region and return without healing`.
 
+### Task 7b: Server — anti-kite (added after the Task 7 review)
+
+The Task 7 review reproduced two zero-risk kills:
+- **Safe-zone poke:** step out, slash, step back into the safe zone in the same tick.
+- **Open-field kite:** the player is faster (4 vs 3.2 tiles/s) and reaches further (2.0 vs 1.5 tiles), and a monster that gives up does not heal.
+
+The user chose to fix both (spec §1.3, §2.3, §4.4).
+
+**Files:**
+- `docs/balance/monster_stats.py` and `data/monsters.json`
+- `internal/gamedata/gamedata.go`
+- `internal/zone/monster.go`
+- tests
+
+**Interface:** `gamedata.Kind` gains two fields, both validated `> 0`:
+- `ChaseSpeed` (json `chase_speed`), 1.2: a factor of the player move speed, used while chasing.
+- `SafeWaitSec` (json `safe_wait_sec`), 5.
+
+**Behaviour:**
+- **Chase speed:** in chase and attack, a monster moves at `ChaseSpeed × cfg.MoveSpeed / TickRate` per tick. Wander and back keep using `Speed` (wander at half of it).
+- **Safe-zone wait:**
+  - A target that is in a safe zone, and otherwise valid (alive, in the zone), is kept while it has been in a safe zone for at most `SafeWaitSec`.
+  - The monster stores the tick the target entered the safe zone, and resets it when the target is outside.
+  - While waiting:
+    - the margin give-up check is skipped, but `ChaseRange` still applies;
+    - the monster walks towards the target with `chaseStep`; the monster grid stops it at the safe-zone edge;
+    - it attacks as soon as the target is outside the safe zone, within `canHit`, and its cooldown is ready.
+  - After `SafeWaitSec` continuously in the safe zone, the target is dropped, then the usual fallback or `back` applies.
+  - The fallback still requires a candidate that is not in a safe zone.
+- `validTarget` keeps its meaning for detection and shooting. The wait logic is separate, for example `chaseTarget(m)`, which returns the target and whether it is hittable.
+
+**TODO / tests:**
+- [ ] `TestChaseOutrunsRetreatingPlayer`:
+  - hit a monster, then hold the player's direction straight away from it at full speed, in an open region with a large margin;
+  - the monster lands a melee hit within 2 s;
+  - the old speed must fail this test.
+- [ ] `TestSafeZonePokeGetsHit`:
+  - put the player one step outside the r1-like safe edge;
+  - alternate step out and slash with step back in, as the review did;
+  - within a few cycles the monster lands a hit;
+  - the old code (immediate give-up) fails.
+- [ ] `TestSafeZoneWaitExpires`:
+  - the target stays in the safe zone;
+  - the monster keeps the target until `SafeWaitSec`, then gives up and goes `back`/wander;
+  - its HP is unchanged.
+- [ ] `TestSafeZoneWaitResets`: stepping out, then back in, restarts the 5 s.
+- [ ] gamedata: `chase_speed` and `safe_wait_sec` must be positive.
+- [ ] Regenerate the data. Run `make test-db` and the botclient live check.
+- [ ] Commit: `Make chasing monsters faster than players and wait at the safe zone edge`.
+
 ### Task 8: Server — docs
 
 **Files:**
