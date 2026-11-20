@@ -195,7 +195,7 @@ func Milestone(d *gamedata.Items, enhance int) (step gamedata.RegenStep, ok bool
 // piece that is not wearable or sits in another piece's slot.
 func Regen(d *gamedata.Items, inv *Inventory, level int, class string) (hpBP, mp int) {
 	for slot, it := range inv.Worn {
-		if it == nil || !Wearable(d, it, level, class) || d.Equipment[it.Code].SlotIndex != slot {
+		if !counts(d, it, slot, level, class) {
 			continue
 		}
 		s, ok := Milestone(d, it.Enhance)

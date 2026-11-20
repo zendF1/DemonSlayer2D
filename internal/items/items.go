@@ -29,7 +29,7 @@ var (
 const EquipSlots = len(gamedata.SlotIDs)
 
 // HiddenLines is how many hidden lines a piece with an element has.
-const HiddenLines = 2
+const HiddenLines = gamedata.HiddenLineCount
 
 // Elements are the five elements a Vàng or better piece can have.
 var Elements = [5]string{"viem", "thuy", "minh", "nham", "phong"}
@@ -46,6 +46,7 @@ const MaxEnhance = gamedata.EnhanceLevels - 1
 // Item is one bag or worn item, or a stack. Count is 1 for equipment;
 // stackables have no quality, element, enhance, lines or pity. Element is ""
 // for none. Lines keep their roll order; Hidden is empty or HiddenLines long.
+// Gems has one entry per punched hole: a gem code, or "" for an empty hole.
 // Pity[k] is the hidden success bonus, in percentage points, of the attempt
 // at target level +k+1 (phase 3b spec 4.1); it is never sent to clients.
 type Item struct {
@@ -55,6 +56,7 @@ type Item struct {
 	Element       string
 	Enhance       int
 	Lines, Hidden []Line
+	Gems          []string
 	Pity          [MaxEnhance]int
 }
 
@@ -62,6 +64,7 @@ type Item struct {
 func (it Item) Clone() Item {
 	it.Lines = slices.Clone(it.Lines)
 	it.Hidden = slices.Clone(it.Hidden)
+	it.Gems = slices.Clone(it.Gems)
 	return it
 }
 
@@ -106,36 +109,33 @@ func Wearable(d *gamedata.Items, it *Item, level int, class string) bool {
 }
 
 // GearBonus sums the stats of the wearable worn items: each piece's base
-// stats at its enhance level plus its lines (spec 4.2). A worn item that is
-// not wearable (level too low after devchar, another class) or sits in
+// stats at its enhance level plus its lines (spec 4.2), its lit hidden lines
+// (HiddenActive) and its socketed gems (phase 3c spec 4.1). A worn item that
+// is not wearable (level too low after devchar, another class) or sits in
 // another piece's slot adds nothing.
 func GearBonus(d *gamedata.Items, inv *Inventory, level int, class string) combat.Bonus {
 	var b combat.Bonus
+	lit := HiddenActive(d, inv, level, class)
 	for slot, it := range inv.Worn {
-		if it == nil || !Wearable(d, it, level, class) {
+		if !counts(d, it, slot, level, class) {
 			continue
 		}
 		e := d.Equipment[it.Code]
-		if e.SlotIndex != slot {
-			continue
-		}
 		n := min(max(it.Enhance, 0), gamedata.EnhanceLevels-1)
 		b = b.Add(combat.Bonus{HP: e.HP[n], PhysAttack: e.PhysAttack[n], MagicAttack: e.MagicAttack[n],
 			PhysDefense: e.PhysDefense[n], MagicDefense: e.MagicDefense[n]})
 		for _, l := range it.Lines {
 			b = b.Add(lineBonus(l))
 		}
-		for _, l := range activeHidden(inv, slot) {
-			b = b.Add(lineBonus(l))
+		for j, on := range lit[slot] {
+			if on {
+				b = b.Add(lineBonus(it.Hidden[j]))
+			}
 		}
+		b = b.Add(gemBonus(d, it.Gems))
 	}
 	return b
 }
-
-// activeHidden returns the hidden lines of the worn item in slot that count
-// towards its stats. Hidden lines are stored from 3a but do nothing until
-// resonance (phase 3c) turns them on here.
-func activeHidden(_ *Inventory, _ int) []Line { return nil }
 
 func lineBonus(l Line) combat.Bonus {
 	switch l.Stat {

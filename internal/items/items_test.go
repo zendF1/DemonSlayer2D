@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
@@ -428,7 +429,7 @@ func sameInventory(a, b *Inventory) bool {
 			return x == y
 		}
 		return x.Code == y.Code && x.Count == y.Count && x.Quality == y.Quality && x.Element == y.Element &&
-			x.Enhance == y.Enhance && x.Pity == y.Pity && slices.Equal(x.Lines, y.Lines) && slices.Equal(x.Hidden, y.Hidden)
+			x.Enhance == y.Enhance && x.Pity == y.Pity && slices.Equal(x.Lines, y.Lines) && slices.Equal(x.Hidden, y.Hidden) && slices.Equal(x.Gems, y.Gems)
 	}
 	if len(a.Bag) != len(b.Bag) {
 		return false
@@ -449,7 +450,7 @@ func sameInventory(a, b *Inventory) bool {
 func TestCloneIsDeep(t *testing.T) {
 	inv := NewInventory(4)
 	inv.Bag[1] = &Item{Code: "eq10_armor", Count: 1, Quality: 2, Element: "thuy",
-		Lines: []Line{{"hp", 50}}, Hidden: []Line{{"hp", 86}, {"phys_attack", 4}}}
+		Lines: []Line{{"hp", 50}}, Hidden: []Line{{"hp", 86}, {"phys_attack", 4}}, Gems: []string{"gem_hp_1", ""}}
 	inv.Worn[5] = &Item{Code: "eq10_armor", Count: 1, Lines: []Line{{"hp", 60}}, Pity: [MaxEnhance]int{7: 3}}
 	c := inv.Clone()
 	if !sameInventory(inv, c) {
@@ -457,10 +458,11 @@ func TestCloneIsDeep(t *testing.T) {
 	}
 	c.Bag[1].Lines[0].Value = 1
 	c.Bag[1].Hidden[1].Value = 1
+	c.Bag[1].Gems[1] = "gem_hp_2"
 	c.Worn[5].Lines[0].Value = 1
 	c.Worn[5].Pity[7] = 9
 	c.Bag[0] = sword()
-	if inv.Bag[1].Lines[0].Value != 50 || inv.Bag[1].Hidden[1].Value != 4 || inv.Worn[5].Lines[0].Value != 60 || inv.Bag[0] != nil ||
+	if inv.Bag[1].Lines[0].Value != 50 || inv.Bag[1].Hidden[1].Value != 4 || inv.Bag[1].Gems[1] != "" || inv.Worn[5].Lines[0].Value != 60 || inv.Bag[0] != nil ||
 		inv.Worn[5].Pity[7] != 3 {
 		t.Fatal("clone shares state with the original")
 	}
@@ -762,7 +764,8 @@ func TestGearBonus(t *testing.T) {
 	if got := GearBonus(d, inv, 59, "viem"); got != (combat.Bonus{HP: ring.HP[0], PhysAttack: ring.PhysAttack[0], MagicAttack: ring.MagicAttack[0]}) {
 		t.Fatalf("tier-50 ring at level 59: %+v", got)
 	}
-	// Lines add their values; hidden lines do nothing in 3a; the enhance level
+	// Lines add their values; hidden lines stay dark without an activating
+	// piece (no Phong helmet or armour here); the enhance level
 	// picks the array entry.
 	inv.Worn[9] = nil
 	inv.Worn[0] = &Item{Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "viem", Enhance: 3,
@@ -1348,5 +1351,252 @@ func TestRegen(t *testing.T) {
 	}
 	if hp, mp := Regen(d, fullSet(d, "viem", 15), 1, "viem"); hp != 0 || mp != 0 {
 		t.Fatalf("level 1: %d bp %d MP", hp, mp)
+	}
+}
+
+// ______________________TEST RESONANCE_____________________
+
+// elemental is a worn-ready Vàng piece of element with two hidden lines of
+// 86 HP and no sub-lines.
+func elemental(code, element string) *Item {
+	return &Item{Code: code, Count: 1, Quality: 2, Element: element, Hidden: []Line{{"hp", 86}, {"hp", 86}}}
+}
+
+func TestHiddenActiveExample(t *testing.T) {
+	d := realData(t)
+	const weapon, helmet, armor = 0, 4, 5
+	inv := NewInventory(d.BagSize)
+	inv.Worn[weapon] = elemental("eq10_weapon_viem", "viem")
+	if got := HiddenActive(d, inv, 15, "viem"); got != ([EquipSlots][HiddenLines]bool{}) {
+		t.Fatalf("sword alone: %v", got)
+	}
+	inv.Worn[helmet] = elemental("eq10_helmet", "phong")
+	var want [EquipSlots][HiddenLines]bool
+	want[weapon][0] = true
+	if got := HiddenActive(d, inv, 15, "viem"); got != want {
+		t.Fatalf("Phong helmet: %v", got)
+	}
+	inv.Worn[armor] = elemental("eq10_armor", "phong")
+	want[weapon][1] = true
+	if got := HiddenActive(d, inv, 15, "viem"); got != want {
+		t.Fatalf("Phong helmet and armour: %v", got)
+	}
+	// Only the armour of the right element: line 2 alone.
+	inv.Worn[helmet].Element = "thuy"
+	want[weapon][0] = false
+	if got := HiddenActive(d, inv, 15, "viem"); got != want {
+		t.Fatalf("Thủy helmet: %v", got)
+	}
+	// A Phong helmet the character is below the level of lights nothing.
+	inv.Worn[helmet] = elemental("eq20_helmet", "phong")
+	if got := HiddenActive(d, inv, 23, "viem"); got != want {
+		t.Fatalf("helmet below its level: %v", got)
+	}
+	// A Xanh helmet has no element and lights nothing.
+	inv.Worn[helmet] = &Item{Code: "eq10_helmet", Count: 1, Quality: 1, Lines: []Line{{"hp", 50}}}
+	if got := HiddenActive(d, inv, 15, "viem"); got != want {
+		t.Fatalf("Xanh helmet: %v", got)
+	}
+	// The receiving piece must be wearable too: a Viêm sword on a Thủy.
+	inv.Worn[helmet] = elemental("eq10_helmet", "phong")
+	if got := HiddenActive(d, inv, 15, "thuy"); got != ([EquipSlots][HiddenLines]bool{}) {
+		t.Fatalf("sword of another class: %v", got)
+	}
+	// A piece in another piece's slot neither receives nor activates.
+	inv.Worn[helmet] = elemental("eq10_boots", "phong")
+	want[weapon][0] = false
+	if got := HiddenActive(d, inv, 15, "viem"); got != want {
+		t.Fatalf("boots in the helmet slot: %v", got)
+	}
+	// Hidden lines without an element (bad data) stay dark, even next to
+	// pieces without one.
+	inv.Worn[helmet] = &Item{Code: "eq10_helmet", Count: 1, Quality: 1}
+	inv.Worn[armor] = &Item{Code: "eq10_armor", Count: 1, Quality: 1}
+	inv.Worn[weapon].Element = ""
+	if got := HiddenActive(d, inv, 15, "viem"); got != ([EquipSlots][HiddenLines]bool{}) {
+		t.Fatalf("no element: %v", got)
+	}
+	inv.Worn[weapon].Element = "viem"
+	inv.Worn[armor] = nil
+	// A bag item activates nothing; a piece without hidden lines receives nothing.
+	inv.Worn[helmet], inv.Bag[0] = nil, elemental("eq10_helmet", "phong")
+	inv.Worn[weapon].Hidden = nil
+	if got := HiddenActive(d, inv, 15, "viem"); got != ([EquipSlots][HiddenLines]bool{}) {
+		t.Fatalf("no hidden lines: %v", got)
+	}
+}
+
+// specSet is the phase 3c spec 4.1 set that lights 13 lines, by slot index.
+var specSet = [EquipSlots]string{"minh", "thuy", "phong", "minh", "nham", "nham", "viem", "minh", "thuy", "viem"}
+
+// elementalSet wears a Vàng tier-10 piece of elements[s] in every slot s,
+// the weapon of class; tier 10 is wearable from level 19.
+func elementalSet(d *gamedata.Items, elements [EquipSlots]string, class string) *Inventory {
+	inv := NewInventory(d.BagSize)
+	for s, e := range elements {
+		code := d.Piece(10, s)
+		if s == 0 {
+			code = d.Weapon(10, class)
+		}
+		inv.Worn[s] = elemental(code, e)
+	}
+	return inv
+}
+
+func litCount(lit [EquipSlots][HiddenLines]bool) int {
+	n := 0
+	for _, l := range lit {
+		for _, on := range l {
+			if on {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func TestHiddenActiveSpecSet(t *testing.T) {
+	d := realData(t)
+	if got := litCount(HiddenActive(d, elementalSet(d, specSet, "viem"), 19, "viem")); got != 13 {
+		t.Fatalf("spec 4.1 set lights %d lines, want 13", got)
+	}
+	if got := litCount(HiddenActive(d, elementalSet(d, specSet, "viem"), 18, "viem")); got >= 13 {
+		t.Fatalf("ring_right below its level still lights %d lines", got)
+	}
+}
+
+// resonancePair is hidden line j of slot s, lit when the piece in slot by
+// has element activator[element of s].
+type resonancePair struct{ s, j, by int }
+
+// TestResonanceMaximum enumerates all 5^10 element assignments with int
+// arrays (phase 3c spec 8): at most 13 of the 20 hidden lines light, the
+// spec 4.1 set is one of the maxima, and HiddenActive agrees with the pair
+// count on random assignments.
+func TestResonanceMaximum(t *testing.T) {
+	d := realData(t)
+	start := time.Now()
+	elemIdx := map[string]int{}
+	for i, e := range Elements {
+		elemIdx[e] = i
+	}
+	var act [len(Elements)]int // act[e] activates e
+	for e, a := range d.Resonance.Activator {
+		act[elemIdx[e]] = elemIdx[a]
+	}
+	// byDepth[k] are the pairs whose later slot is k: they are decided once
+	// slots 0..k have elements.
+	var byDepth [EquipSlots][]resonancePair
+	for s, on := range d.Resonance.Slots {
+		for j, by := range on {
+			byDepth[max(s, by)] = append(byDepth[max(s, by)], resonancePair{s, j, by})
+		}
+	}
+	count := func(el *[EquipSlots]int) int {
+		n := 0
+		for _, ps := range byDepth {
+			for _, p := range ps {
+				if el[p.by] == act[el[p.s]] {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	var el [EquipSlots]int
+	best, ways := 0, 0
+	var walk func(k, lit int)
+	walk = func(k, lit int) {
+		if k == EquipSlots {
+			if lit > best {
+				best, ways = lit, 0
+			}
+			if lit == best {
+				ways++
+			}
+			return
+		}
+		for e := range len(Elements) {
+			el[k] = e
+			n := lit
+			for _, p := range byDepth[k] {
+				if el[p.by] == act[el[p.s]] {
+					n++
+				}
+			}
+			walk(k+1, n)
+		}
+	}
+	walk(0, 0)
+	if best != 13 || ways != 10 {
+		t.Fatalf("maximum %d lit lines in %d assignments, want 13 in 10", best, ways)
+	}
+	var spec [EquipSlots]int
+	for s, e := range specSet {
+		spec[s] = elemIdx[e]
+	}
+	if got := count(&spec); got != 13 {
+		t.Fatalf("spec set: %d", got)
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Fatalf("enumeration took %v, want under 5 s", took)
+	}
+	rng := seeded(31)
+	for range 2000 {
+		var names [EquipSlots]string
+		for s := range el {
+			el[s] = rng.IntN(len(Elements))
+			names[s] = Elements[el[s]]
+		}
+		lit := HiddenActive(d, elementalSet(d, names, "nham"), 19, "nham")
+		for _, ps := range byDepth {
+			for _, p := range ps {
+				if want := el[p.by] == act[el[p.s]]; lit[p.s][p.j] != want {
+					t.Fatalf("%v: slot %d line %d lit %v, want %v", names, p.s, p.j+1, lit[p.s][p.j], want)
+				}
+			}
+		}
+	}
+}
+
+func TestGearBonusHiddenAndGems(t *testing.T) {
+	d := realData(t)
+	const weapon, helmet, armor = 0, 4, 5
+	inv := NewInventory(d.BagSize)
+	// A tier-10 Cam sword: hidden lines are 125 % of S = 86 HP, rounded half up.
+	cam := (86*d.Qualities[3].HiddenPct + 50) / 100
+	inv.Worn[weapon] = &Item{Code: "eq10_weapon_viem", Count: 1, Quality: 3, Element: "viem", Hidden: []Line{{"hp", cam}, {"hp", cam}}}
+	inv.Worn[helmet] = &Item{Code: "eq10_helmet", Count: 1, Quality: 1}
+	inv.Worn[armor] = &Item{Code: "eq10_armor", Count: 1, Quality: 1}
+	dark := GearBonus(d, inv, 15, "viem")
+	inv.Worn[helmet].Element, inv.Worn[armor].Element = "phong", "phong"
+	if got, want := GearBonus(d, inv, 15, "viem"), dark.Add(combat.Bonus{HP: 216}); got != want || cam != 108 {
+		t.Fatalf("two lit HP lines: %+v, want %+v (line %d)", got, want, cam)
+	}
+	// One lit line adds one.
+	inv.Worn[armor].Element = "viem"
+	if got, want := GearBonus(d, inv, 15, "viem"), dark.Add(combat.Bonus{HP: 108}); got != want {
+		t.Fatalf("one lit line: %+v, want %+v", got, want)
+	}
+	inv.Worn[helmet].Element, inv.Worn[armor].Element = "", ""
+
+	// Gems: every socketed gem of a wearable worn piece adds its stats; an
+	// empty hole adds nothing.
+	inv.Worn[weapon].Gems = []string{"gem_attack_1", "", "gem_defense_1"}
+	gems := combat.Bonus{PhysAttack: 4, MagicAttack: 4, PhysDefense: 1, MagicDefense: 1}
+	if got, want := GearBonus(d, inv, 15, "viem"), dark.Add(gems); got != want {
+		t.Fatalf("gems: %+v, want %+v", got, want)
+	}
+	inv.Worn[armor].Gems = []string{"gem_hp_1"}
+	if got, want := GearBonus(d, inv, 15, "viem"), dark.Add(gems).Add(combat.Bonus{HP: 86}); got != want {
+		t.Fatalf("gems on two pieces: %+v, want %+v", got, want)
+	}
+	// Gems of a piece that does not count (a Viêm sword on a Thủy) or of a
+	// bag item add nothing.
+	noSword := inv.Clone()
+	noSword.Worn[weapon] = nil
+	inv.Bag[0] = &Item{Code: "eq10_boots", Count: 1, Gems: []string{"gem_hp_5"}}
+	if got, want := GearBonus(d, inv, 15, "thuy"), GearBonus(d, noSword, 15, "thuy"); got != want {
+		t.Fatalf("sword of another class: %+v, want %+v", got, want)
 	}
 }
