@@ -37,6 +37,8 @@ Kỹ năng riêng của class, MP tiêu hao, tinh anh và thủ lĩnh, kỹ năn
 
 ### 2.1. Map `kumotori_1`
 
+> Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 2.1–2.2 (`camps` đổi thành `regions`).
+
 `maps/kumotori_1.json` thêm ba trường. Cả client lẫn server đọc file này; client bỏ qua `camps`.
 
 ```json
@@ -61,6 +63,8 @@ Kỹ năng riêng của class, MP tiêu hao, tinh anh và thủ lĩnh, kỹ năn
   - `id` không trùng trong từng danh sách.
 
 ### 2.2. `data/monsters.json`
+
+> Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 2.3 (trường của loại quái).
 
 Chỉ server đọc. Thư mục cấu hình bằng biến `DATA_DIR`, mặc định `./data`.
 
@@ -185,6 +189,8 @@ Theo game-design mục 2.5. Client chọn và đổi mục tiêu; server chỉ k
 - Mục tiêu chết: chuyển sang quái hợp lệ gần nhất trong 6 ô, không có thì bỏ. Đang giữ nút đánh thì đánh tiếp con mới.
 
 ### 4.2. Quái
+
+> Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 4 (AI quái thường).
 
 Mỗi quái có điểm sinh (vị trí lúc sinh ra), danh sách người đã đánh nó, và một trong bốn trạng thái:
 

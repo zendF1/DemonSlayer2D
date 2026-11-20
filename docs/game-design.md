@@ -612,10 +612,10 @@ Hình ảnh nền không tự quyết định va chạm. Xếp lớp cần dựa
 
 ### 5.3. Sinh quái và phân kênh
 
-- Bãi quái có tâm và bán kính, số lượng quái và thời gian hồi sinh.
-- Quái thường hồi sinh sau **8 giây từ lúc bị tiêu diệt**, tại vị trí đi được trong bãi.
+- Mỗi map chia thành các vùng quái; mỗi vùng là danh sách hình chữ nhật theo ô, có một loại quái, một khoảng cấp, số lượng quái và một ổ quỷ.
+- Quái thường hồi sinh sau **8 giây từ lúc bị tiêu diệt**, tại ổ quỷ của vùng, rồi lang thang ra khắp vùng.
 - **Tinh anh hồi sinh 5 phút, thủ lĩnh hồi sinh 10 phút tính từ lúc bị tiêu diệt**. Mỗi khu có quái và bộ đếm riêng; không dùng quy tắc này thay luật Boss của sự kiện.
-- Quái phát hiện người trong **4 ô**, truy đuổi tối đa **10 ô từ điểm sinh**; vượt giới hạn thì bỏ mục tiêu, về gốc và hồi đầy HP. Không đổi mục tiêu chỉ vì có người đi ngang; mục tiêu chết/rời map thì ưu tiên người gần nhất đang tấn công mình.
+- Quái thường đứng lại bắn chưởng người đi ngang trong **5 ô**; bị đánh thì đuổi với tốc độ 1,2 lần người chơi, tối đa **10 ô từ chỗ bắt đầu đuổi** hoặc tới khi mục tiêu ra khỏi vùng quá 3 ô; bỏ đuổi thì về vùng **không hồi máu**. Người trốn vào khu an toàn bị quái chờ ở mép 5 giây. Không đổi mục tiêu chỉ vì có người khác đánh; mục tiêu bị bỏ thì chuyển sang người gần nhất đã đánh mình trong 5 giây. Chi tiết ở [spec quái thường](superpowers/specs/2026-11-20-quai-thuong-vung-va-chuong-design.md).
 - Map luyện cấp có nhiều khu như Khu 1/2/3; mốc dự kiến 30–50 người/khu, chưa kiểm chứng năng lực kỹ thuật.
 - Kênh công cộng khác với phó bản dành riêng cho một nhóm/trận.
 

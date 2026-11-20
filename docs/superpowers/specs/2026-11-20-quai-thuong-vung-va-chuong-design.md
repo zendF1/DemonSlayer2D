@@ -1,6 +1,6 @@
 # Quái thường — vùng, lang thang và chưởng
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế, chưa triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã triển khai phần server (2026-11-20); phần client chưa xong. Các điểm làm rõ thêm lúc triển khai đã ghi thẳng vào mục 4.2–4.5.
 
 Tài liệu này sửa phần quái của [spec Giai đoạn 1](2026-11-19-giai-doan-1-chien-dau-pve-design.md) cho cả server (repo này) lẫn client Godot (`../DemonSlayer2DGame`). Nó thay mục 2.1 (bãi quái), 2.2 (trường của loại quái) và 4.2 (AI quái) của spec đó. Mọi phần khác của Giai đoạn 1 giữ nguyên.
 
@@ -124,6 +124,7 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
 ### 4.2. Lang thang
 
 - Quái đứng nghỉ ngẫu nhiên 2–5 giây, rồi chọn một ô ngẫu nhiên của vùng cách vị trí hiện tại không quá 6 ô và đi tới đó với nửa tốc độ.
+- Chỉ chọn ô mà đoạn thẳng từ quái tới tâm ô chỉ đi qua ô của vùng (dùng `lineBlocked` trên lưới coi ô ngoài vùng là bị chặn). Nhờ vậy quái không băng qua dải 1 ô quanh khu an toàn ở góc trong của vùng hình chữ L như `r1`, và không lao vào tường giữa vùng.
 - Tới nơi thì nghỉ tiếp. Nếu bị kẹt (hàm đi trả về "stuck") thì nghỉ rồi chọn ô khác.
 - Mỗi tick, quái tìm người chơi hợp lệ để bắn (mục 3.2). Có người thì chuyển sang **Bắn**.
 
@@ -149,13 +150,17 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
   - vị trí mục tiêu nằm ngoài mọi hình chữ nhật của vùng sau khi nới mỗi cạnh thêm `region_margin` ô;
   - quái đã cách chỗ bắt đầu đuổi hơn `chase_range`.
 - **Sau khi bỏ:** nếu có người khác trong danh sách đánh nó trong 5 giây gần nhất và vẫn hợp lệ, quái chuyển sang người gần nhất trong số đó. Chỗ bắt đầu đuổi đặt lại ở vị trí hiện tại. Không có ai thì quái vào **Về vùng**.
-- **Khi một người chơi chết:** mọi quái đang nhắm người đó bỏ mục tiêu (như Giai đoạn 1).
+  - "Người khác" không gồm mục tiêu vừa bỏ, kể cả khi người đó vừa đánh nó; nếu không, quái bỏ vì quá `chase_range` sẽ lại chọn đúng người ấy và đuổi mãi.
+  - Người dự phòng phải hợp lệ (còn sống, không ở khu an toàn) và đứng trong vùng đã nới `region_margin` ô.
+- **Bộ đếm chờ ở khu an toàn** tính từ tick đầu tiên quái thấy mục tiêu trong khu an toàn; đủ `safe_wait_sec` thì bỏ.
+- **Khi một người chơi chết:** mọi quái đang nhắm người đó bỏ mục tiêu (như Giai đoạn 1), và xoá người đó khỏi danh sách người đã đánh. Người chơi hồi sinh trong vòng 5 giây vì vậy không bị chọn làm mục tiêu dự phòng chỉ vì một đòn trước khi chết.
 
 ### 4.5. Về vùng
 
-- **Đang ở trên ô của vùng:** quái chuyển ngay sang **Lang thang**.
+- **Đang ở trên ô của vùng:** quái chuyển ngay sang **Lang thang**, ngay trong tick bỏ đuổi và tại chỗ đang đứng (không đi về tâm ô).
 - **Ở ngoài vùng:** quái đi với `speed` tới ô gần nhất của vùng.
 - **Máu:** quái **không hồi máu**. Dữ liệu chia EXP giữ nguyên.
+- **Không bắn:** quái đang về không bắn chưởng, kể cả khi có người trong tầm; về tới ô của vùng và vào **Lang thang** thì mới tìm người để bắn.
 - **Bị đánh:** quái đang về vẫn đánh được, bị đánh thì vào lại **Đuổi**. Mã lỗi `INVALID_TARGET` không còn dùng cho quái đang về; mã này vẫn dùng cho mục tiêu không tồn tại hoặc đã chết.
 - **Bị kẹt:** kẹt quá 2 giây thì quái dịch chuyển tới ổ quỷ, gửi `EntityMove` với `snap = true`.
 
