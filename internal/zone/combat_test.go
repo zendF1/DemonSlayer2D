@@ -837,17 +837,56 @@ func TestChaseGivesUpOutsideRegionMargin(t *testing.T) {
 	if !gaveUp {
 		t.Fatal("the player never got beyond the margin")
 	}
-	teleport(z, 1, Vec2{55.5, 50.5}) // out of sight, so it is not shot
+	// The player waits just past the margin, within sight of the monster all
+	// the way back: its grudge must not pull it out again (spec 4.2).
+	teleport(z, 1, Vec2{edge + 0.5, 30.5})
 	z.move(moveCmd{id: 1, seq: 3, dir: Vec2{}})
 	r := m.region
-	for i := 0; i < 60 && m.state != wander; i++ {
-		if m.state != back {
-			t.Fatalf("tick %d: state %v, want back until it reaches the region", i, m.state)
+	home := false
+	for i := 0; i < 100; i++ {
+		z.advance(now)
+		if chasing(m) {
+			t.Fatalf("tick %d: chasing %d again at %v, the player beyond the margin at %v", i, m.target, m.pos, p.pos)
 		}
+		if m.state != back && r.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
+			home = true
+		}
+	}
+	if !home || m.hp != hp {
+		t.Fatalf("state %v at %v hp %d, want it back on the region with %d HP", m.state, m.pos, m.hp, hp)
+	}
+}
+
+// A chase given up for the chase range is not restarted by the grudge: the
+// player who led it stays in sight, and the monster goes back (spec 4.2).
+func TestChaseRangeGiveUpIsNotRestarted(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home) // whole-map rect: only the chase range ends this chase
+	joinNow(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}})
+	now := time.Now()
+	for i := 0; i < 100 && chasing(m); i++ {
 		z.advance(now)
 	}
-	if m.state != wander || !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) || m.hp != hp {
-		t.Fatalf("state %v at %v hp %d, want wandering on the region with %d HP", m.state, m.pos, m.hp, hp)
+	if chasing(m) {
+		t.Fatal("setup: the chase never ended")
+	}
+	z.move(moveCmd{id: 1, seq: 3, dir: Vec2{}}) // stop, within sight
+	p := z.players[1]
+	if d := distance(m.pos, p.pos); d > float32(testKind.DetectRange) {
+		t.Fatalf("setup: player %.2f tiles away, want within sight", d)
+	}
+	far := 0.0
+	for i := 0; i < 100; i++ {
+		z.advance(now)
+		far = max(far, dist(m.pos, home))
+		if chasing(m) {
+			t.Fatalf("tick %d: chasing %d again, %.1f tiles from home", i, m.target, dist(m.pos, home))
+		}
+	}
+	if m.state == back || floor(m.pos.X) != floor(home.X) {
+		t.Fatalf("state %v at %v, want it home", m.state, m.pos)
 	}
 }
 

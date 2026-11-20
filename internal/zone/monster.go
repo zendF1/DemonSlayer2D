@@ -183,21 +183,28 @@ func (z *Zone) startChase(m *monster, id uint64) {
 }
 
 // grudgeTarget is the nearest player m bears a grudge against (spec 4.2,
-// checked in wander, shoot and back): one
-// who hit it within GrudgeSec, is a valid target, and is within the detect
-// range with a clear line. Such a player is chased on sight, not shot.
+// checked in wander, shoot and back): one who hit it within GrudgeSec, is a
+// valid target within the region margin, and is within the detect range with
+// a clear line. Such a player is chased on sight, not shot. The margin keeps
+// a grudge from pulling the monster out after a margin give-up.
 func (z *Zone) grudgeTarget(m *monster) *player {
 	z.forgetOldAttackers(m)
-	reach := float32(m.region.Kind.DetectRange)
+	k := &m.region.Kind
 	var best *player
 	for id := range m.attackers {
 		p := z.validTarget(id)
-		if p != nil && distance(m.pos, p.pos) <= reach && !lineBlocked(z.area.Grid, m.pos, p.pos) && nearer(m, p, best) {
+		if p != nil && m.region.nearMargin(p.pos, float32(k.RegionMargin)) && distance(m.pos, p.pos) <= float32(k.DetectRange) &&
+			!lineBlocked(z.area.Grid, m.pos, p.pos) && nearer(m, p, best) {
 			best = p
 		}
 	}
 	return best
 }
+
+// forgive forgets that player id hit m, so neither the grudge nor the
+// fallback turns m on it again until it hits m again. A monster forgives a
+// target it gave up on for the chase range.
+func (z *Zone) forgive(m *monster, id uint64) { delete(m.attackers, id) }
 
 // forgetOldAttackers drops the players who last hit m more than GrudgeSec ago.
 func (z *Zone) forgetOldAttackers(m *monster) {
@@ -218,7 +225,11 @@ func (z *Zone) forgetOldAttackers(m *monster) {
 func (z *Zone) chaseTarget(m *monster) (*player, bool) {
 	p := z.players[m.target]
 	k := &m.region.Kind
-	if p == nil || p.dead || distance(m.pos, m.chaseFrom) > float32(k.ChaseRange) {
+	if p == nil || p.dead {
+		return nil, false
+	}
+	if distance(m.pos, m.chaseFrom) > float32(k.ChaseRange) {
+		z.forgive(m, p.id)
 		return nil, false
 	}
 	if z.area.InSafe(p.pos) {

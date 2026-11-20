@@ -129,7 +129,9 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
 - Quái đứng nghỉ ngẫu nhiên 2–5 giây, rồi chọn một ô ngẫu nhiên của vùng cách vị trí hiện tại không quá 6 ô và đi tới đó với nửa tốc độ.
 - Chỉ chọn ô mà đoạn thẳng từ quái tới tâm ô chỉ đi qua ô của vùng (dùng `lineBlocked` trên lưới coi ô ngoài vùng là bị chặn). Nhờ vậy quái không băng qua dải 1 ô quanh khu an toàn ở góc trong của vùng hình chữ L như `r1`, và không lao vào tường giữa vùng.
 - Tới nơi thì nghỉ tiếp. Nếu bị kẹt (hàm đi trả về "stuck") thì nghỉ rồi chọn ô khác.
-- **Nhớ thù:** mỗi tick (ở **Lang thang** và **Bắn**), nếu có người đã đánh quái trong `grudge_sec` (10 giây), hợp lệ, trong `detect_range` và không bị tường che, thì quái vào **Đuổi** người gần nhất trong số đó ngay, không bắn và không chờ độ trễ. Điều này áp dụng cả sau khi quái bỏ cuộc vì mục tiêu trốn trong khu an toàn.
+- **Nhớ thù:** mỗi tick (ở **Lang thang** và **Bắn**), nếu có người đã đánh quái trong `grudge_sec` (10 giây), hợp lệ, đứng trong vùng đã nới `region_margin` ô, trong `detect_range` và không bị tường che, thì quái vào **Đuổi** người gần nhất trong số đó ngay, không bắn và không chờ độ trễ. Điều này áp dụng cả sau khi quái bỏ cuộc vì mục tiêu trốn trong khu an toàn (mọi lối ra khỏi khu an toàn đều nằm trong biên vùng).
+  - Điều kiện biên vùng giữ cho quái không bị kéo ra ngoài: người đứng ngoài biên thì quái chỉ bắn, không đuổi lại. Thiếu điều kiện này, quái bỏ đuổi vì biên rồi tick sau lại đuổi đúng người ấy (vẫn trong 5 ô vì quái chạy nhanh hơn), và cứ thế bị dắt sang vùng khác.
+  - Quái **tha** cho người mà nó vừa bỏ đuổi vì quá `chase_range`: người đó bị xoá khỏi danh sách người đã đánh, nên nhớ thù và mục tiêu dự phòng không chọn lại cho tới khi người đó đánh nó lần nữa.
 - Không có ai như vậy thì quái tìm người chơi hợp lệ để bắn (mục 3.2). Có người thì chuyển sang **Bắn**.
 
 ### 4.3. Bắn
@@ -165,7 +167,7 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
 - **Ở ngoài vùng:** quái đi với `speed` tới ô gần nhất của vùng.
 - **Máu:** quái **không hồi máu**. Dữ liệu chia EXP giữ nguyên.
 - **Không bắn:** quái đang về không bắn chưởng, kể cả khi có người trong tầm; về tới ô của vùng và vào **Lang thang** thì mới tìm người để bắn.
-- **Nhớ thù:** mỗi tick, trước khi đi tiếp, quái đang về cũng xét nhớ thù như ở **Lang thang** và **Bắn** (mục 4.2): có người đã đánh nó trong `grudge_sec`, hợp lệ, trong `detect_range` và không bị tường che thì quái vào **Đuổi** người gần nhất ngay, không chờ độ trễ, và đánh luôn trong tick đó nếu đã trong tầm và hết hồi chiêu. Nhờ vậy người chơi không chọc được quái lúc nó vừa bỏ cuộc chờ ở mép khu an toàn và đang đi về.
+- **Nhớ thù:** mỗi tick, trước khi đi tiếp, quái đang về cũng xét nhớ thù như ở **Lang thang** và **Bắn** (mục 4.2): có người đã đánh nó trong `grudge_sec`, hợp lệ, trong biên vùng, trong `detect_range` và không bị tường che thì quái vào **Đuổi** người gần nhất ngay, không chờ độ trễ, và đánh luôn trong tick đó nếu đã trong tầm và hết hồi chiêu. Nhờ vậy người chơi không chọc được quái lúc nó vừa bỏ cuộc chờ ở mép khu an toàn và đang đi về.
 - **Bị đánh:** quái đang về vẫn đánh được, bị đánh thì vào lại **Đuổi**. Mã lỗi `INVALID_TARGET` không còn dùng cho quái đang về; mã này vẫn dùng cho mục tiêu không tồn tại hoặc đã chết.
 - **Bị kẹt:** kẹt quá 2 giây thì quái dịch chuyển tới ổ quỷ, gửi `EntityMove` với `snap = true`.
 
