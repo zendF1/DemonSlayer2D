@@ -2,6 +2,7 @@ package mapdata
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -96,7 +97,7 @@ func TestLoadDirRepoMaps(t *testing.T) {
 // ______________________TEST TRIGGERS_____________________
 
 // triggerJSON is a 10x8 map with one blocked tile at (6,4), a safe zone on
-// tiles 1..3 x 1..3, a rest point and a camp away from the safe zone.
+// tiles 1..3 x 1..3 and a rest point in it.
 func triggerJSON(t *testing.T, mutate func(m map[string]any)) []byte {
 	t.Helper()
 	return mapJSON(t, func(m map[string]any) {
@@ -113,10 +114,6 @@ func triggerJSON(t *testing.T, mutate func(m map[string]any)) []byte {
 		}
 		m["safe_zones"] = []map[string]any{{"id": "camp", "x": 1, "y": 1, "w": 3, "h": 3}}
 		m["rest_points"] = []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.4}}
-		m["camps"] = []map[string]any{{
-			"id": "c1", "monster": "wanderer", "x": 7.0, "y": 5.0, "radius": 2.0,
-			"count": 3, "min_level": 1, "max_level": 2,
-		}}
 		if mutate != nil {
 			mutate(m)
 		}
@@ -134,14 +131,6 @@ func TestParseTriggers(t *testing.T) {
 	if len(m.RestPoints) != 1 || m.RestPoints[0] != (RestPoint{ID: "fire", X: 2.5, Y: 2.5, Radius: 1.4}) {
 		t.Fatalf("rest points = %+v", m.RestPoints)
 	}
-	if len(m.Camps) != 1 {
-		t.Fatalf("camps = %+v", m.Camps)
-	}
-	c := m.Camps[0]
-	if c.ID != "c1" || c.Monster != "wanderer" || c.X != 7 || c.Y != 5 || c.Radius != 2 ||
-		c.Count != 3 || c.MinLevel != 1 || c.MaxLevel != 2 {
-		t.Fatalf("camp = %+v", c)
-	}
 
 	// Safe zone: tiles 1..3 inside, tile 4 (the edge tile just outside) and tile 0 outside.
 	for p, want := range map[Point]bool{
@@ -152,37 +141,6 @@ func TestParseTriggers(t *testing.T) {
 			t.Errorf("InSafeZone(%v) = %v, want %v", p, got, want)
 		}
 	}
-
-	tiles := m.CampTiles(c)
-	if len(tiles) < c.Count {
-		t.Fatalf("only %d camp tiles", len(tiles))
-	}
-	have := map[Point]bool{}
-	for i, p := range tiles {
-		have[p] = true
-		if !m.Walkable(p) {
-			t.Errorf("camp tile %v is not walkable", p)
-		}
-		dx, dy := float64(p.X-c.X), float64(p.Y-c.Y)
-		if dx*dx+dy*dy > float64(c.Radius*c.Radius) {
-			t.Errorf("camp tile %v is beyond the radius", p)
-		}
-		if i > 0 {
-			q := tiles[i-1]
-			if q.Y > p.Y || (q.Y == p.Y && q.X >= p.X) {
-				t.Errorf("camp tiles not sorted by (y, x): %v then %v", q, p)
-			}
-		}
-	}
-	if have[Point{6.5, 4.5}] {
-		t.Error("camp tiles include the blocked tile (6,4)")
-	}
-	if have[Point{3.5, 5.5}] || have[Point{9.5, 5.5}] {
-		t.Error("camp tiles include tiles beyond the radius or in the wall")
-	}
-	if !have[Point{7.5, 4.5}] || !have[Point{7.5, 5.5}] {
-		t.Error("camp tiles miss tiles near the centre")
-	}
 }
 
 func TestParseTriggersOptional(t *testing.T) {
@@ -190,16 +148,12 @@ func TestParseTriggersOptional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.SafeZones)+len(m.RestPoints)+len(m.Camps) != 0 || m.InSafeZone(Point{1.5, 1.5}) {
+	if len(m.SafeZones)+len(m.RestPoints)+len(m.Regions) != 0 || m.InSafeZone(Point{1.5, 1.5}) {
 		t.Fatal("a map without triggers must have none")
 	}
 }
 
 func TestParseTriggerErrors(t *testing.T) {
-	camp := func(m map[string]any, set func(c map[string]any)) {
-		c := m["camps"].([]map[string]any)[0]
-		set(c)
-	}
 	cases := map[string]func(m map[string]any){
 		"safe zone \"camp\" is outside the map": func(m map[string]any) {
 			m["safe_zones"] = []map[string]any{{"id": "camp", "x": 8, "y": 1, "w": 3, "h": 3}}
@@ -220,25 +174,6 @@ func TestParseTriggerErrors(t *testing.T) {
 		},
 		"default spawn point is outside the safe zones": func(m map[string]any) {
 			m["spawn_points"] = []map[string]any{{"id": "default", "x": 6.5, "y": 1.5}}
-		},
-		"camp \"c1\": min_level 3 > max_level 2": func(m map[string]any) {
-			camp(m, func(c map[string]any) { c["min_level"] = 3 })
-		},
-		"camp \"c1\": count must be positive": func(m map[string]any) {
-			camp(m, func(c map[string]any) { c["count"] = 0 })
-		},
-		"camp \"c1\": radius must be positive": func(m map[string]any) {
-			camp(m, func(c map[string]any) { c["radius"] = 0 })
-		},
-		"camp \"c1\" has": func(m map[string]any) {
-			camp(m, func(c map[string]any) { c["count"] = 100 })
-		},
-		"camp \"c1\": tile": func(m map[string]any) {
-			camp(m, func(c map[string]any) { c["x"], c["y"], c["count"] = 3.0, 3.0, 1 })
-		},
-		"duplicate camp \"c1\"": func(m map[string]any) {
-			c := m["camps"].([]map[string]any)[0]
-			m["camps"] = []map[string]any{c, c}
 		},
 	}
 	for want, mutate := range cases {
@@ -290,16 +225,50 @@ func TestKumotoriLoads(t *testing.T) {
 	if m == nil {
 		t.Fatal("kumotori_1 not loaded")
 	}
-	if len(m.SafeZones) != 1 || len(m.RestPoints) != 1 || len(m.Camps) != 4 {
-		t.Fatalf("kumotori_1 has %d safe zones, %d rest points, %d camps", len(m.SafeZones), len(m.RestPoints), len(m.Camps))
+	if len(m.SafeZones) != 1 || len(m.RestPoints) != 1 {
+		t.Fatalf("kumotori_1 has %d safe zones, %d rest points", len(m.SafeZones), len(m.RestPoints))
 	}
 	if !m.InSafeZone(m.Spawns["default"]) {
 		t.Error("default spawn is not in the safe zone")
 	}
-	for _, c := range m.Camps {
-		if n := len(m.CampTiles(c)); n < 12 {
-			t.Errorf("camp %s has %d tiles, want >= 12", c.ID, n)
+}
+
+// kumotori_1 has the four regions of spec 2.2, each nest on one of its tiles.
+func TestKumotoriRegions(t *testing.T) {
+	maps, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := maps["kumotori_1"]
+	type want struct {
+		id, monster        string
+		minLevel, maxLevel int
+		count              int
+		nest               Point
+	}
+	wants := []want{
+		{"r1", "wanderer", 1, 2, 8, Point{22.5, 10.5}},
+		{"r2", "wanderer", 2, 3, 7, Point{47.5, 9.5}},
+		{"r3", "snow_ghoul", 3, 4, 7, Point{15.5, 34.5}},
+		{"r4", "snow_ghoul", 4, 5, 8, Point{52.5, 40.5}},
+	}
+	if len(m.Regions) != len(wants) {
+		t.Fatalf("kumotori_1 has %d regions, want %d", len(m.Regions), len(wants))
+	}
+	total := 0
+	for i, w := range wants {
+		r := m.Regions[i]
+		got := want{r.ID, r.Monster, r.MinLevel, r.MaxLevel, r.Count, r.Nest}
+		if got != w {
+			t.Errorf("region %d = %+v, want %+v", i, got, w)
 		}
+		if !slices.Contains(m.RegionTiles(r), r.Nest) {
+			t.Errorf("region %s: nest %v is not on a region tile", r.ID, r.Nest)
+		}
+		total += r.Count
+	}
+	if total != 30 {
+		t.Errorf("kumotori_1 has %d monsters, want 30", total)
 	}
 }
 

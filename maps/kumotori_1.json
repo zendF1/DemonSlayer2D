@@ -60,11 +60,19 @@
   "rest_points": [
     { "id": "bonfire", "x": 3.5, "y": 3.5, "radius": 1.5 }
   ],
-  "camps": [
-    { "id": "c1", "monster": "wanderer",   "x": 20, "y": 10, "radius": 5, "count": 12, "min_level": 1, "max_level": 2 },
-    { "id": "c2", "monster": "snow_ghoul", "x": 15, "y": 35, "radius": 5, "count": 12, "min_level": 2, "max_level": 3 },
-    { "id": "c3", "monster": "wanderer",   "x": 45, "y": 10, "radius": 5, "count": 12, "min_level": 3, "max_level": 4 },
-    { "id": "c4", "monster": "snow_ghoul", "x": 52, "y": 40, "radius": 5, "count": 12, "min_level": 4, "max_level": 5 }
+  "regions": [
+    { "id": "r1", "monster": "wanderer",   "min_level": 1, "max_level": 2, "count": 8,
+      "rects": [{ "x": 12, "y": 1, "w": 20, "h": 19 }, { "x": 1, "y": 12, "w": 11, "h": 8 }],
+      "nest": { "x": 22.5, "y": 10.5 } },
+    { "id": "r2", "monster": "wanderer",   "min_level": 2, "max_level": 3, "count": 7,
+      "rects": [{ "x": 32, "y": 1, "w": 31, "h": 19 }],
+      "nest": { "x": 47.5, "y": 9.5 } },
+    { "id": "r3", "monster": "snow_ghoul", "min_level": 3, "max_level": 4, "count": 7,
+      "rects": [{ "x": 1, "y": 21, "w": 31, "h": 26 }],
+      "nest": { "x": 15.5, "y": 34.5 } },
+    { "id": "r4", "monster": "snow_ghoul", "min_level": 4, "max_level": 5, "count": 8,
+      "rects": [{ "x": 32, "y": 21, "w": 31, "h": 26 }],
+      "nest": { "x": 52.5, "y": 40.5 } }
   ],
   "spawn_points": [
     {

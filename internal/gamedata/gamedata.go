@@ -106,20 +106,10 @@ func Load(dir string) (*Data, error) {
 	return Parse(b)
 }
 
-// Validate checks every camp and region of every map: its monster kind exists
+// Validate checks every region of every map: its monster kind exists
 // and every level in min_level..max_level has stats.
 func (d *Data) Validate(maps map[string]*mapdata.Map) error {
 	for id, m := range maps {
-		for _, c := range m.Camps {
-			if _, ok := d.Kinds[c.Monster]; !ok {
-				return fmt.Errorf("gamedata: map %q camp %q: unknown monster %q", id, c.ID, c.Monster)
-			}
-			for l := c.MinLevel; l <= c.MaxLevel; l++ {
-				if _, ok := d.Levels[l]; !ok {
-					return fmt.Errorf("gamedata: map %q camp %q: no stats for level %d", id, c.ID, l)
-				}
-			}
-		}
 		for _, r := range m.Regions {
 			if _, ok := d.Kinds[r.Monster]; !ok {
 				return fmt.Errorf("gamedata: map %q region %q: unknown monster %q", id, r.ID, r.Monster)

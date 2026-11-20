@@ -17,11 +17,15 @@ type Circle struct {
 	R float32
 }
 
-// Camp is where a group of monsters of one kind spawns. Tiles are the centres
-// of the walkable tiles in the camp; each spawn picks one at random.
-type Camp struct {
+// Region is where a group of monsters of one kind lives (spec 2.1). Tiles are
+// the centres of its region tiles, which the first monsters spread over;
+// Rects are the map rectangles the tiles come from. Dead monsters come back at
+// Nest.
+type Region struct {
 	ID                        string
 	Tiles                     []Vec2
+	Rects                     []Rect
+	Nest                      Vec2
 	Count, MinLevel, MaxLevel int
 	Kind                      gamedata.Kind
 }
@@ -33,7 +37,7 @@ type Area struct {
 	Safe    []Rect
 	Rests   []Circle
 	Respawn Vec2
-	Camps   []Camp
+	Regions []Region
 	Levels  map[int]gamedata.Level
 }
 

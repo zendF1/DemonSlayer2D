@@ -28,7 +28,7 @@ func newFightZoneOf(t *testing.T, kind gamedata.Kind, level int, home Vec2) (*Zo
 		Grid:    openGrid(60, 60),
 		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
 		Respawn: Vec2{5.5, 5.5},
-		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 1, MinLevel: level, MaxLevel: level, Kind: kind}},
+		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 1, MinLevel: level, MaxLevel: level, Kind: kind}},
 		Levels:  testLevels,
 	}
 	z := New(cfg, area, &fakeSaver{}, quietLog())
@@ -294,7 +294,7 @@ func TestMonsterHitsWithShortAttackRange(t *testing.T) {
 
 // A monster in reach but across a wall corner must not hit; it walks round
 // the corner and hits once it has a clear line, as a player's slash needs.
-// This is the 4x4 block at (45-48, 30-33) on kumotori_1 near camp c4.
+// This is the 4x4 block at (45-48, 30-33) on kumotori_1 in region r4.
 func TestMonsterNeedsLineOfSight(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{52.5, 40.5})
 	rows := make([]string, 60)
@@ -596,7 +596,7 @@ func TestAttackValidation(t *testing.T) {
 func TestAttackHitsAndAggro(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	// Too short-sighted to notice the attacker by itself: only the hit can make it chase.
-	m.camp.Kind.DetectRange = 0.5
+	m.region.Kind.DetectRange = 0.5
 	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range with the slack, out of its attack range
 	v := joinNow(t, z, 2, 30.5, 36.5) // a viewer
 	a.take()
@@ -710,7 +710,7 @@ func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	a := joinNow(t, z, 1, 31.5, 30.5)
 	v := joinNow(t, z, 2, 30.5, 36.5)
-	camp := z.camps[0]
+	reg := z.regions[0]
 	now := time.Now()
 	var diedAt uint32
 	for i := 0; i < 4; i++ {
@@ -747,8 +747,8 @@ func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 			t.Fatalf("dead=%v deaths %v, want the monster dead and a Death for everyone", m.dead, deathsIn(envs))
 		}
 	}
-	if z.camps[0] != camp || camp.present != 1 {
-		t.Fatalf("a corpse still counts as present until removed, present %d", camp.present)
+	if z.regions[0] != reg || reg.present != 1 {
+		t.Fatalf("a corpse still counts as present until removed, present %d", reg.present)
 	}
 	z.advance(now)
 	if ss := selfStatsIn(a.take()); len(ss) != 0 {
@@ -779,8 +779,8 @@ func TestKillPaysExpPerHitAndRespawns(t *testing.T) {
 	if newAt != diedAt+80 || newID == 0 {
 		t.Fatalf("new monster %d at tick %d, want a new id at %d (8 s after death)", newID, newAt, diedAt+80)
 	}
-	if nm := z.monsters[newID]; nm == nil || nm.hp != 56 || nm.dead || camp.present != 1 || len(camp.pending) != 0 {
-		t.Fatalf("respawned monster %+v present %d pending %v, want a full one", nm, camp.present, camp.pending)
+	if nm := z.monsters[newID]; nm == nil || nm.hp != 56 || nm.dead || reg.present != 1 || len(reg.pending) != 0 {
+		t.Fatalf("respawned monster %+v present %d pending %v, want a full one", nm, reg.present, reg.pending)
 	}
 }
 
@@ -845,7 +845,7 @@ func TestLevelUpThenHitSameTick(t *testing.T) {
 	area := Area{
 		Grid:    openGrid(60, 60),
 		Respawn: Vec2{5.5, 5.5},
-		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 2, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
+		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 2, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
 		Levels:  testLevels,
 	}
 	z := New(testConfig(10), area, &fakeSaver{}, quietLog())
@@ -1369,7 +1369,7 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 	area := Area{
 		Grid:    openGrid(60, 60),
 		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside aggro, inside leash
-		Camps:   []Camp{{ID: "c1", Tiles: []Vec2{home}, Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
+		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
 		Levels:  testLevels,
 	}
 	z := New(testConfig(10), area, &fakeSaver{}, quietLog())

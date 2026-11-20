@@ -188,7 +188,7 @@ func (z *Zone) slash(p *player, m *monster) {
 	}
 }
 
-// killMonster makes m a corpse and schedules its camp's respawn. Its EXP has
+// killMonster makes m a corpse and schedules its region's respawn. Its EXP has
 // already been paid hit by hit; drops, when they come, go to the killer
 // (game-design 5.8).
 func (z *Zone) killMonster(m *monster) {
@@ -197,7 +197,7 @@ func (z *Zone) killMonster(m *monster) {
 	m.target = 0
 	clear(m.attackers)
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: m.id})
-	m.camp.pending = append(m.camp.pending, m.diedAt+z.ticks(m.camp.Kind.RespawnSec))
+	m.region.pending = append(m.region.pending, m.diedAt+z.ticks(m.region.Kind.RespawnSec))
 }
 
 // replyError answers seq with an ErrorResp carrying code.

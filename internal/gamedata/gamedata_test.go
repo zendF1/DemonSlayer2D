@@ -116,26 +116,6 @@ func TestLoadMissingFile(t *testing.T) {
 
 // ______________________TEST VALIDATE_____________________
 
-func mapWithCamp(monster string, min, max int) map[string]*mapdata.Map {
-	return map[string]*mapdata.Map{"m": {Camps: []mapdata.Camp{{ID: "c", Monster: monster, MinLevel: min, MaxLevel: max}}}}
-}
-
-func TestValidateMissingKindOrLevel(t *testing.T) {
-	d, err := Parse([]byte(validJSON))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := d.Validate(mapWithCamp("a", 1, 2)); err != nil {
-		t.Fatalf("valid: %v", err)
-	}
-	if err := d.Validate(mapWithCamp("ghost", 1, 2)); err == nil || !strings.Contains(err.Error(), "ghost") {
-		t.Fatalf("missing kind: %v", err)
-	}
-	if err := d.Validate(mapWithCamp("a", 1, 3)); err == nil || !strings.Contains(err.Error(), "3") {
-		t.Fatalf("missing level: %v", err)
-	}
-}
-
 func TestValidateRegions(t *testing.T) {
 	d, err := Parse([]byte(validJSON))
 	if err != nil {

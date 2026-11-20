@@ -67,8 +67,8 @@ go run ./cmd/botclient -fight 3                      # against ws://localhost:80
 go run ./cmd/botclient -fight 3 -url ws://localhost:8099/ws -timeout 1m
 ```
 
-With no monster in view it walks towards `-seek` (default `20,10`, camp c1 on
-`kumotori_1`). Each run without `-u` counts against `REGISTER_PER_HOUR`.
+With no monster in view it walks towards `-seek` (default `22.5,10.5`, the nest
+of region r1 on `kumotori_1`). Each run without `-u` counts against `REGISTER_PER_HOUR`.
 
 Load test (lift the registration limit on the server first, e.g. `REGISTER_PER_HOUR=100000`):
 
@@ -86,7 +86,7 @@ zones: tick p99 ≈ 9 ms, no dropped clients.
 ## Game data
 
 Maps live in [`maps/`](maps/) (collision, spawn points, safe zones, rest points and
-monster camps). Monster kinds and per-level stats live in
+monster regions). Monster kinds and per-level stats live in
 [`data/monsters.json`](data/monsters.json), which is generated: edit
 [`docs/balance/monster_stats.py`](docs/balance/monster_stats.py), then run
 

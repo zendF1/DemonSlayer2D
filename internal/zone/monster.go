@@ -45,9 +45,9 @@ const (
 
 type monster struct {
 	entity
-	camp  *campState
-	home  Vec2 // where it spawned
-	state monsterState
+	region *regionState
+	home   Vec2 // where it spawned
+	state  monsterState
 
 	target     uint64              // player it chases or attacks; 0 when none
 	attackers  map[uint64]struct{} // players who hit it since it last went home
@@ -111,7 +111,7 @@ func nearer(m *monster, p, best *player) bool {
 // nearestInDetect is the nearest valid player within the kind's detect range.
 // Only the AOI cells around m are searched.
 func (z *Zone) nearestInDetect(m *monster) *player {
-	reach := float32(m.camp.Kind.DetectRange)
+	reach := float32(m.region.Kind.DetectRange)
 	var best *player
 	for dx := -1; dx <= 1; dx++ {
 		for dy := -1; dy <= 1; dy++ {
@@ -156,7 +156,7 @@ func (z *Zone) fight(m *monster) {
 		}
 		m.target = t.id
 	}
-	k := &m.camp.Kind
+	k := &m.region.Kind
 	if distance(m.pos, m.home) > float32(k.ChaseRange) {
 		z.startReturn(m)
 		return
@@ -182,7 +182,7 @@ func (z *Zone) fight(m *monster) {
 // canHit reports whether t is within m's attack range with no blocked tile
 // between them.
 func (z *Zone) canHit(m *monster, t *player) bool {
-	return distance(m.pos, t.pos) <= float32(m.camp.Kind.AttackRange) && !lineBlocked(z.area.Grid, m.pos, t.pos)
+	return distance(m.pos, t.pos) <= float32(m.region.Kind.AttackRange) && !lineBlocked(z.area.Grid, m.pos, t.pos)
 }
 
 // chaseStep walks m straight towards t until it is chaseStop tiles away. While
@@ -197,7 +197,7 @@ func (z *Zone) chaseStep(m *monster, t *player) {
 	// Stop a little inside the attack range: a walk ends within arriveEps of
 	// its target, and float error must not leave m just beyond reach. The
 	// reach/2 floor only matters for absurdly short ranges.
-	reach := float32(m.camp.Kind.AttackRange)
+	reach := float32(m.region.Kind.AttackRange)
 	stop := min(chaseStop, max(reach-2*arriveEps, reach/2))
 	d := distance(m.pos, t.pos)
 	if d <= stop {
@@ -253,7 +253,7 @@ func (z *Zone) arriveHome(m *monster) {
 
 // monsterStep is how far m walks in one tick at full speed.
 func (z *Zone) monsterStep(m *monster) float32 {
-	return float32(m.camp.Kind.Speed) * z.cfg.MoveSpeed / float32(z.cfg.TickRate)
+	return float32(m.region.Kind.Speed) * z.cfg.MoveSpeed / float32(z.cfg.TickRate)
 }
 
 // wander walks an idle monster to a random spot near home every 4-8 s. The

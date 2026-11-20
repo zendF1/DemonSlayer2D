@@ -29,14 +29,14 @@ Commands:
   delete   -u USER -p PASS -id CHAR_ID -name NAME
   play     -u USER -p PASS -id CHAR_ID [-dir 1,0] [-for 10s]
   load     [-n 100] [-prefix bot] [-p botpass123] [-for 60s] [-ramp 20ms]
-  -fight N [-timeout 2m] [-u USER -p PASS] [-id CHAR_ID] [-class viem] [-seek 20,10]
+  -fight N [-timeout 2m] [-u USER -p PASS] [-id CHAR_ID] [-class viem] [-seek 22.5,10.5]
 
 Every command accepts -url (default ws://localhost:8080/ws).
 
 -fight enters the world and kills N monsters, walking to the nearest one it
-sees (or towards -seek, camp c1 on kumotori_1, when it sees none). Without -u
-it registers a new account; without -id it plays the first character, creating
-one if the account has none. It exits 0 after N kills and 1 on timeout.
+sees (or towards -seek, the nest of region r1 on kumotori_1, when it sees
+none). Without -u it registers a new account; without -id it plays the first
+character, creating one if the account has none. It exits 0 after N kills and 1 on timeout.
 `
 
 var classByName = map[string]pb.CharClass{
@@ -276,7 +276,7 @@ func cmdFight(args []string) error {
 	limit := fs.Duration("timeout", 2*time.Minute, "give up after this long")
 	id := fs.Int64("id", 0, "character id (default: the first character, created if needed)")
 	className := fs.String("class", "viem", "class of a newly created character")
-	seek := fs.String("seek", "20,10", "where to walk when no monster is in view, x,y")
+	seek := fs.String("seek", "22.5,10.5", "where to walk when no monster is in view, x,y")
 	_ = fs.Parse(args)
 	class, ok := classByName[*className]
 	if !ok {

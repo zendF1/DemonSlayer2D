@@ -45,7 +45,7 @@ type Fighter struct {
 	dirY     float32
 	resend   bool // send the next direction even if unchanged
 
-	// Seek is where to walk when no live monster is in view, e.g. a camp.
+	// Seek is where to walk when no live monster is in view, e.g. a region's nest.
 	Seek [2]float32
 	// Observe, if set, sees every push before the fighter acts on it.
 	Observe func(*pb.Envelope)

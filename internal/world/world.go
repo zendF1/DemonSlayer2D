@@ -95,8 +95,9 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 	}, nil
 }
 
-// areaOf converts a map's collision and triggers, and the monster data its camps
-// use, into the zone's view of the map. Camp tiles are computed here once.
+// areaOf converts a map's collision and triggers, and the monster data its
+// regions use, into the zone's view of the map. Region tiles are computed here
+// once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
 	a := zone.Area{Grid: m, Levels: d.Levels}
 	sp := m.Spawns["default"]
@@ -107,12 +108,16 @@ func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
 	for _, r := range m.RestPoints {
 		a.Rests = append(a.Rests, zone.Circle{C: zone.Vec2{X: r.X, Y: r.Y}, R: r.Radius})
 	}
-	for _, c := range m.Camps {
-		camp := zone.Camp{ID: c.ID, Count: c.Count, MinLevel: c.MinLevel, MaxLevel: c.MaxLevel, Kind: d.Kinds[c.Monster]}
-		for _, p := range m.CampTiles(c) {
-			camp.Tiles = append(camp.Tiles, zone.Vec2{X: p.X, Y: p.Y})
+	for _, r := range m.Regions {
+		reg := zone.Region{ID: r.ID, Nest: zone.Vec2{X: r.Nest.X, Y: r.Nest.Y}, Count: r.Count,
+			MinLevel: r.MinLevel, MaxLevel: r.MaxLevel, Kind: d.Kinds[r.Monster]}
+		for _, rc := range r.Rects {
+			reg.Rects = append(reg.Rects, zone.Rect{X: rc.X, Y: rc.Y, W: rc.W, H: rc.H})
 		}
-		a.Camps = append(a.Camps, camp)
+		for _, p := range m.RegionTiles(r) {
+			reg.Tiles = append(reg.Tiles, zone.Vec2{X: p.X, Y: p.Y})
+		}
+		a.Regions = append(a.Regions, reg)
 	}
 	return a
 }

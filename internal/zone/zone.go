@@ -43,7 +43,7 @@ type Config struct {
 	Capacity     int
 	SaveInterval time.Duration
 	// NewID hands out entity ids for monsters. It must draw from the same
-	// counter as player ids. Required when the area has camps.
+	// counter as player ids. Required when the area has regions.
 	NewID func() uint64
 	// Rand drives monster behaviour and spawns; a nil Rand is randomly seeded.
 	// Only the zone goroutine uses it.
@@ -148,17 +148,17 @@ type Zone struct {
 	tickNo   uint32
 	players  map[uint64]*player
 	monsters map[uint64]*monster
-	camps    []*campState
+	regions  []*regionState
 	cells    map[cellKey]map[uint64]*entity
 	departed map[uint64]chan error // evicted players whose Leave has not arrived yet
 	lastSave time.Time
 	events   tickEvents // combat events of the current tick
 }
 
-// New creates a zone on area and fills its monster camps.
+// New creates a zone on area and fills its monster regions.
 func New(cfg Config, area Area, saver Saver, log *slog.Logger) *Zone {
-	if cfg.NewID == nil && len(area.Camps) > 0 {
-		panic("zone: Config.NewID is required when the area has camps")
+	if cfg.NewID == nil && len(area.Regions) > 0 {
+		panic("zone: Config.NewID is required when the area has regions")
 	}
 	rng := cfg.Rand
 	if rng == nil {

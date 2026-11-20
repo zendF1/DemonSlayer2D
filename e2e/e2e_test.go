@@ -362,8 +362,9 @@ func TestHealthz(t *testing.T) {
 
 // ______________________TEST COMBAT_____________________
 
-// campC1 is camp c1 on kumotori_1: wanderers of level 1-2 east of the safe zone.
-var campC1 = [2]float32{20, 10}
+// nestR1 is the nest of region r1 on kumotori_1: wanderers of level 1-2 east
+// of the safe zone.
+var nestR1 = [2]float32{22.5, 10.5}
 
 func TestKillMonsterOverWebSocket(t *testing.T) {
 	s := startServer(t)
@@ -375,7 +376,7 @@ func TestKillMonsterOverWebSocket(t *testing.T) {
 	deaths := make(map[uint64]bool)
 	var stats *pb.SelfStats
 	f := client.NewFighter(p.c, p.enter)
-	f.Seek = campC1
+	f.Seek = nestR1
 	f.Observe = func(env *pb.Envelope) {
 		for _, d := range env.GetWorldTick().GetDeaths() {
 			deaths[d.Id] = true
@@ -470,7 +471,7 @@ func TestCombatProgressSurvivesLogout(t *testing.T) {
 		}
 	}
 	f := client.NewFighter(c, ew)
-	f.Seek = campC1
+	f.Seek = nestR1
 	f.Observe = observe
 	fctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

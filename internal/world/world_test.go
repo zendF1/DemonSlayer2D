@@ -6,8 +6,11 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
+	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -81,7 +84,7 @@ var testMonsters = &gamedata.Data{
 }
 
 // triggerMap is a 20x20 open map with a safe zone around the default spawn,
-// a rest point in it and one camp of 3 wanderers east of it.
+// a rest point in it and one region of 3 wanderers east of it.
 func triggerMap(t *testing.T) *mapdata.Map {
 	t.Helper()
 	rows := make([]string, 20)
@@ -93,8 +96,8 @@ func triggerMap(t *testing.T) *mapdata.Map {
 		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5}},
 		"safe_zones":   []map[string]any{{"id": "camp", "x": 0, "y": 0, "w": 5, "h": 5}},
 		"rest_points":  []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.5}},
-		"camps": []map[string]any{{"id": "c1", "monster": "wanderer", "x": 12, "y": 4, "radius": 1.5,
-			"count": 3, "min_level": 1, "max_level": 2}},
+		"regions": []map[string]any{{"id": "r1", "monster": "wanderer", "min_level": 1, "max_level": 2, "count": 3,
+			"rects": []map[string]any{{"x": 11, "y": 3, "w": 3, "h": 3}}, "nest": map[string]any{"x": 12.5, "y": 4.5}}},
 	})
 	m, err := mapdata.Parse(data)
 	if err != nil {
@@ -407,20 +410,136 @@ func TestAreaOf(t *testing.T) {
 	if a.Respawn != (zone.Vec2{X: 2.5, Y: 2.5}) {
 		t.Fatalf("respawn = %v", a.Respawn)
 	}
-	if len(a.Camps) != 1 {
-		t.Fatalf("camps = %v", a.Camps)
+	if len(a.Regions) != 1 {
+		t.Fatalf("regions = %v", a.Regions)
 	}
-	c := a.Camps[0]
+	r := a.Regions[0]
 	var want []zone.Vec2
-	for _, p := range m.CampTiles(m.Camps[0]) {
+	for _, p := range m.RegionTiles(m.Regions[0]) {
 		want = append(want, zone.Vec2{X: p.X, Y: p.Y})
 	}
-	if c.ID != "c1" || c.Count != 3 || c.MinLevel != 1 || c.MaxLevel != 2 || c.Kind != testMonsters.Kinds["wanderer"] ||
-		len(want) < 3 || !slices.Equal(c.Tiles, want) {
-		t.Fatalf("camp = %+v, want tiles %v", c, want)
+	if r.ID != "r1" || r.Count != 3 || r.MinLevel != 1 || r.MaxLevel != 2 || r.Kind != testMonsters.Kinds["wanderer"] ||
+		r.Nest != (zone.Vec2{X: 12.5, Y: 4.5}) || !slices.Equal(r.Rects, []zone.Rect{{X: 11, Y: 3, W: 3, H: 3}}) ||
+		len(want) != 9 || !slices.Equal(r.Tiles, want) {
+		t.Fatalf("region = %+v, want tiles %v", r, want)
 	}
 	if len(a.Levels) != 2 || a.Levels[2] != testMonsters.Levels[2] {
 		t.Fatalf("levels = %v", a.Levels)
+	}
+}
+
+// kumotoriArea is the zone's view of the real kumotori_1 with the real monster data.
+func kumotoriArea(t *testing.T) zone.Area {
+	t.Helper()
+	maps, err := mapdata.LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := gamedata.Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Validate(maps); err != nil {
+		t.Fatal(err)
+	}
+	return areaOf(maps["kumotori_1"], d)
+}
+
+func TestAreaOfKumotori(t *testing.T) {
+	a := kumotoriArea(t)
+	wants := []struct {
+		id, kind string
+		count    int
+		nest     zone.Vec2
+	}{
+		{"r1", "wanderer", 8, zone.Vec2{X: 22.5, Y: 10.5}},
+		{"r2", "wanderer", 7, zone.Vec2{X: 47.5, Y: 9.5}},
+		{"r3", "snow_ghoul", 7, zone.Vec2{X: 15.5, Y: 34.5}},
+		{"r4", "snow_ghoul", 8, zone.Vec2{X: 52.5, Y: 40.5}},
+	}
+	if len(a.Regions) != len(wants) {
+		t.Fatalf("%d regions, want %d", len(a.Regions), len(wants))
+	}
+	for i, w := range wants {
+		r := a.Regions[i]
+		if r.ID != w.id || r.Kind.ID != w.kind || r.Count != w.count || r.Nest != w.nest || len(r.Rects) == 0 {
+			t.Errorf("region %d = %s %s count %d nest %v rects %v, want %+v", i, r.ID, r.Kind.ID, r.Count, r.Nest, r.Rects, w)
+		}
+		if len(r.Tiles) < r.Count || !slices.Contains(r.Tiles, r.Nest) {
+			t.Errorf("region %s: %d tiles, nest on one: %v", r.ID, len(r.Tiles), slices.Contains(r.Tiles, r.Nest))
+		}
+	}
+}
+
+// The real map's regions keep their first monsters at least 2 tiles apart.
+// A zone on kumotori_1 is joined by a player who sees the whole map, and the
+// monsters it is shown are sorted into regions by tile.
+func TestKumotoriSpawnSpreadsOut(t *testing.T) {
+	a := kumotoriArea(t)
+	region := map[zone.Vec2]string{}
+	for _, r := range a.Regions {
+		for _, p := range r.Tiles {
+			region[p] = r.ID
+		}
+	}
+	worst := map[string]float64{}
+	for seed := uint64(1); seed <= 10; seed++ {
+		var next atomic.Uint64
+		next.Store(1000)
+		z := zone.New(zone.Config{MapID: "kumotori_1", ZoneNo: 1, TickRate: 20, MoveSpeed: 4, AOICellSize: 64, Capacity: 10,
+			SaveInterval: time.Minute, NewID: func() uint64 { return next.Add(1) }, Rand: rand.New(rand.NewPCG(seed, 7))},
+			a, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		ctx, cancel := context.WithCancel(context.Background())
+		go z.Run(ctx)
+		out := newRecOut()
+		if err := z.Join(ctx, zone.PlayerInfo{EntityID: 1, CharID: 1, Name: "p", Level: 1, Pos: a.Respawn, HP: -1, MP: -1}, out); err != nil {
+			t.Fatal(err)
+		}
+		pos := map[string][]zone.Vec2{}
+		seen := 0
+		timeout := time.After(2 * time.Second)
+		for seen < 30 {
+			select {
+			case e := <-out.ch:
+				if en := e.GetEntityEnter(); en != nil && en.Kind == pb.EntityKind_ENTITY_KIND_MONSTER {
+					p := zone.Vec2{X: en.X, Y: en.Y}
+					id, ok := region[p]
+					if !ok {
+						t.Fatalf("seed %d: monster %d at %v is on no region tile", seed, en.Id, p)
+					}
+					pos[id] = append(pos[id], p)
+					seen++
+				}
+			case <-timeout:
+				t.Fatalf("seed %d: saw %d monsters, want 30", seed, seen)
+			}
+		}
+		cancel()
+		<-z.Done()
+		for _, r := range a.Regions {
+			ps := pos[r.ID]
+			if len(ps) != r.Count {
+				t.Fatalf("seed %d: region %s has %d monsters, want %d", seed, r.ID, len(ps), r.Count)
+			}
+			d := math.Inf(1)
+			for i := range ps {
+				for j := i + 1; j < len(ps); j++ {
+					d = min(d, math.Hypot(float64(ps[i].X-ps[j].X), float64(ps[i].Y-ps[j].Y)))
+				}
+			}
+			if d < 2 {
+				t.Errorf("seed %d: region %s monsters %v only %.2f tiles apart, want at least 2", seed, r.ID, ps, d)
+			}
+			if w, ok := worst[r.ID]; !ok || d < w {
+				worst[r.ID] = d
+			}
+			if seed == 1 {
+				t.Logf("seed 1: region %s min pairwise distance %.2f", r.ID, d)
+			}
+		}
+	}
+	for _, r := range a.Regions {
+		t.Logf("seeds 1-10: region %s min pairwise distance %.2f", r.ID, worst[r.ID])
 	}
 }
 

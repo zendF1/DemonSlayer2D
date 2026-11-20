@@ -461,7 +461,7 @@ var testLevels = map[int]gamedata.Level{
 }
 
 // newMonsterZone builds a zone on a 60x60 open grid with the safe rect (0,0,10,10)
-// and one camp of 3 monsters on the given tiles.
+// and one region of 3 monsters on the given tiles, with its nest on the first.
 func newMonsterZone(t *testing.T, tiles ...Vec2) (*Zone, *counterID) {
 	t.Helper()
 	ids := &counterID{next: 100}
@@ -472,49 +472,18 @@ func newMonsterZone(t *testing.T, tiles ...Vec2) (*Zone, *counterID) {
 		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
 		Rests:   []Circle{{C: Vec2{3.5, 3.5}, R: 1.5}},
 		Respawn: Vec2{5.5, 5.5},
-		Camps:   []Camp{{ID: "c1", Tiles: tiles, Count: 3, MinLevel: 1, MaxLevel: 2, Kind: testKind}},
+		Regions: []Region{{ID: "r1", Tiles: tiles, Nest: tiles[0], Count: 3, MinLevel: 1, MaxLevel: 2, Kind: testKind}},
 		Levels:  testLevels,
 	}
 	return New(cfg, area, &fakeSaver{}, quietLog()), ids
 }
 
-var campTiles = []Vec2{{30.5, 30.5}, {31.5, 30.5}, {30.5, 31.5}}
+var fewTiles = []Vec2{{30.5, 30.5}, {31.5, 30.5}, {30.5, 31.5}}
 
 func dist(a, b Vec2) float64 { return math.Hypot(float64(a.X-b.X), float64(a.Y-b.Y)) }
 
-func TestSpawnFillsCamps(t *testing.T) {
-	z, ids := newMonsterZone(t, campTiles...)
-	if len(z.monsters) != 3 {
-		t.Fatalf("monsters = %d, want 3", len(z.monsters))
-	}
-	got := slices.Sorted(maps.Keys(z.monsters))
-	if !slices.Equal(got, ids.issued) {
-		t.Fatalf("monster ids %v, want the ids NewID issued %v", got, ids.issued)
-	}
-	for id, m := range z.monsters {
-		if m.id != id || m.kind != pb.EntityKind_ENTITY_KIND_MONSTER || m.name != testKind.Name {
-			t.Fatalf("monster %d: bad identity %+v", id, m.entity)
-		}
-		if !slices.Contains(campTiles, m.pos) || m.home != m.pos {
-			t.Fatalf("monster %d at %v (home %v), want on a camp tile", id, m.pos, m.home)
-		}
-		if m.level < 1 || m.level > 2 {
-			t.Fatalf("monster %d level %d out of range", id, m.level)
-		}
-		if m.maxHP != testLevels[m.level].HP || m.hp != m.maxHP || m.dead {
-			t.Fatalf("monster %d hp %d/%d dead=%v, want full %d", id, m.hp, m.maxHP, m.dead, testLevels[m.level].HP)
-		}
-		if _, in := z.cells[m.cell][id]; !in {
-			t.Fatalf("monster %d is not in its AOI cell", id)
-		}
-		if m.attackers == nil {
-			t.Fatalf("monster %d has no attackers map", id)
-		}
-	}
-}
-
 func TestPlayerSeesMonsters(t *testing.T) {
-	z, _ := newMonsterZone(t, campTiles...)
+	z, _ := newMonsterZone(t, fewTiles...)
 	a := joinNow(t, z, 1, 28.5, 30.5)
 	z.advance(time.Now())
 	seen := 0
@@ -563,7 +532,7 @@ func TestPlayerEnterHasHP(t *testing.T) {
 }
 
 func TestMonstersWander(t *testing.T) {
-	z, _ := newMonsterZone(t, campTiles...)
+	z, _ := newMonsterZone(t, fewTiles...)
 	a := joinNow(t, z, 1, 30.5, 39.5) // in view, beyond detect range plus the wander radius
 	home := map[uint64]Vec2{}
 	for id, m := range z.monsters {
@@ -600,7 +569,7 @@ func TestMonstersWander(t *testing.T) {
 }
 
 func TestMonstersNeverEnterSafeZone(t *testing.T) {
-	// Camp tiles border the safe rect (0,0,10,10) on its right edge.
+	// Region tiles border the safe rect (0,0,10,10) on its right edge.
 	z, _ := newMonsterZone(t, Vec2{10.5, 5.5}, Vec2{10.5, 6.5}, Vec2{11.5, 5.5})
 	now := time.Now()
 	for i := 0; i < 1000; i++ {
@@ -660,7 +629,7 @@ func TestWanderStopsAtWalls(t *testing.T) {
 }
 
 func TestWalkToResults(t *testing.T) {
-	z, _ := newMonsterZone(t, campTiles...)
+	z, _ := newMonsterZone(t, fewTiles...)
 	z.area.Grid = gridFrom(
 		"......",
 		"...#..",
@@ -717,7 +686,7 @@ func TestMonsterGridBlocksSafeTiles(t *testing.T) {
 }
 
 func TestDeadMonsterIsNotNewlyEntered(t *testing.T) {
-	z, _ := newMonsterZone(t, campTiles...)
+	z, _ := newMonsterZone(t, fewTiles...)
 	a := joinNow(t, z, 1, 28.5, 30.5)
 	z.advance(time.Now())
 	a.take()
@@ -748,5 +717,172 @@ func TestTicksRoundsUp(t *testing.T) {
 		if got := z.ticks(c.sec); got != c.want {
 			t.Errorf("ticks(%v) = %d, want %d", c.sec, got, c.want)
 		}
+	}
+}
+
+// ______________________TEST REGIONS_____________________
+
+// rectTiles lists the tile centres of r, sorted by (y, x).
+func rectTiles(r Rect) []Vec2 {
+	var out []Vec2
+	for y := r.Y; y < r.Y+r.H; y++ {
+		for x := r.X; x < r.X+r.W; x++ {
+			out = append(out, Vec2{float32(x) + 0.5, float32(y) + 0.5})
+		}
+	}
+	return out
+}
+
+// newRegionZone builds a zone on a 60x60 open grid with the safe rect
+// (0,0,10,10) and the given regions, its randomness seeded with seed.
+func newRegionZone(t *testing.T, seed uint64, regions ...Region) (*Zone, *counterID) {
+	t.Helper()
+	ids := &counterID{next: 100}
+	cfg := testConfig(10)
+	cfg.NewID = ids.id
+	cfg.Rand = rand.New(rand.NewPCG(seed, 2))
+	area := Area{
+		Grid:    openGrid(60, 60),
+		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
+		Respawn: Vec2{5.5, 5.5},
+		Regions: regions,
+		Levels:  testLevels,
+	}
+	return New(cfg, area, &fakeSaver{}, quietLog()), ids
+}
+
+// minPairwise is the smallest distance between two of ps.
+func minPairwise(ps []Vec2) float64 {
+	best := math.Inf(1)
+	for i := range ps {
+		for j := i + 1; j < len(ps); j++ {
+			best = min(best, dist(ps[i], ps[j]))
+		}
+	}
+	return best
+}
+
+func TestSpawnFillsRegions(t *testing.T) {
+	west := []Rect{{X: 12, Y: 12, W: 6, H: 5}}
+	east := []Rect{{X: 40, Y: 12, W: 5, H: 8}, {X: 45, Y: 12, W: 2, H: 2}}
+	eastTiles := append(rectTiles(east[0]), rectTiles(east[1])...)
+	z, ids := newRegionZone(t, 1,
+		Region{ID: "west", Tiles: rectTiles(west[0]), Rects: west, Nest: Vec2{14.5, 14.5}, Count: 5, MinLevel: 1, MaxLevel: 2, Kind: testKind},
+		Region{ID: "east", Tiles: eastTiles, Rects: east, Nest: Vec2{42.5, 15.5}, Count: 3, MinLevel: 2, MaxLevel: 2, Kind: testKind},
+	)
+	if len(z.regions) != 2 || z.regions[0].ID != "west" || z.regions[1].ID != "east" {
+		t.Fatalf("regions %v, want west and east in map order", z.regions)
+	}
+	if got := slices.Sorted(maps.Keys(z.monsters)); len(got) != 8 || !slices.Equal(got, ids.issued) {
+		t.Fatalf("monster ids %v, want the 8 ids NewID issued %v", got, ids.issued)
+	}
+	count := map[string]int{}
+	for id, m := range z.monsters {
+		r := m.region
+		if r == nil {
+			t.Fatalf("monster %d has no region", id)
+		}
+		count[r.ID]++
+		if m.id != id || m.kind != pb.EntityKind_ENTITY_KIND_MONSTER || m.name != testKind.Name {
+			t.Fatalf("monster %d: bad identity %+v", id, m.entity)
+		}
+		if !slices.Contains(r.Tiles, m.pos) || !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) || m.home != m.pos {
+			t.Fatalf("monster %d at %v (home %v), want on a tile of region %s", id, m.pos, m.home, r.ID)
+		}
+		if m.level < r.MinLevel || m.level > r.MaxLevel {
+			t.Fatalf("monster %d level %d outside region %s's %d-%d", id, m.level, r.ID, r.MinLevel, r.MaxLevel)
+		}
+		if m.maxHP != testLevels[m.level].HP || m.hp != m.maxHP || m.dead {
+			t.Fatalf("monster %d hp %d/%d dead=%v, want full %d", id, m.hp, m.maxHP, m.dead, testLevels[m.level].HP)
+		}
+		if _, in := z.cells[m.cell][id]; !in {
+			t.Fatalf("monster %d is not in its AOI cell", id)
+		}
+		if m.attackers == nil || m.dmgBy == nil || m.expPaid == nil {
+			t.Fatalf("monster %d has nil maps", id)
+		}
+	}
+	for _, r := range z.regions {
+		if count[r.ID] != r.Count || r.present != r.Count || len(r.pending) != 0 {
+			t.Fatalf("region %s: %d monsters, present %d, pending %v, want %d", r.ID, count[r.ID], r.present, r.pending, r.Count)
+		}
+	}
+	// The tile set is the region's own: east's second rect counts, west's tiles do not.
+	if !z.regions[1].hasTile(46, 13) || z.regions[1].hasTile(14, 14) || z.regions[0].hasTile(46, 13) || z.regions[0].hasTile(18, 12) {
+		t.Fatal("hasTile does not match the region tiles")
+	}
+}
+
+// Best-candidate placement spreads a region's monsters out: on a 20x20 open
+// region 8 monsters stay at least 2 tiles apart, for every seed tried
+// (uniform random placement fails this for most seeds).
+func TestSpawnSpreadsOut(t *testing.T) {
+	open := Rect{X: 20, Y: 20, W: 20, H: 20}
+	for seed := uint64(1); seed <= 20; seed++ {
+		z, _ := newRegionZone(t, seed, Region{ID: "open", Tiles: rectTiles(open), Rects: []Rect{open}, Nest: Vec2{30.5, 30.5},
+			Count: 8, MinLevel: 1, MaxLevel: 2, Kind: testKind})
+		var ps []Vec2
+		for _, m := range z.monsters {
+			ps = append(ps, m.pos)
+		}
+		if len(ps) != 8 {
+			t.Fatalf("seed %d: %d monsters, want 8", seed, len(ps))
+		}
+		if d := minPairwise(ps); d < 2 {
+			t.Errorf("seed %d: monsters %v only %.2f tiles apart, want at least 2", seed, ps, d)
+		}
+	}
+}
+
+// A dead monster comes back respawn_sec after its death at the region's nest,
+// not where it first spawned, with full HP and fresh EXP tracking (spec 4.1).
+func TestRespawnAtNest(t *testing.T) {
+	area := Rect{X: 20, Y: 20, W: 10, H: 10}
+	nest := Vec2{29.5, 29.5}
+	z, _ := newRegionZone(t, 1, Region{ID: "r", Tiles: rectTiles(area), Rects: []Rect{area}, Nest: nest,
+		Count: 1, MinLevel: 1, MaxLevel: 2, Kind: testKind})
+	if len(z.monsters) != 1 {
+		t.Fatalf("monsters = %d, want 1", len(z.monsters))
+	}
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	if m.pos == nest {
+		t.Fatal("the first spawn landed on the nest; pick another seed so the test means something")
+	}
+	r := m.region
+	m.dmgBy[1], m.expPaid[1] = 20, 3
+	z.killMonster(m)
+	diedAt := z.tickNo
+	due := diedAt + z.ticks(testKind.RespawnSec)
+	now := time.Now()
+	for z.tickNo < due {
+		for id := range z.monsters {
+			if id != m.id {
+				t.Fatalf("tick %d: monster %d spawned before tick %d", z.tickNo, id, due)
+			}
+		}
+		z.advance(now)
+	}
+	if len(z.monsters) != 1 {
+		t.Fatalf("at tick %d: %d monsters, want only the new one", z.tickNo, len(z.monsters))
+	}
+	for id, nm := range z.monsters {
+		if id == m.id || nm.dead || nm.region != r {
+			t.Fatalf("monster %d dead=%v region %v, want a new live monster of region r", id, nm.dead, nm.region)
+		}
+		if nm.pos != nest || nm.home != nest {
+			t.Fatalf("respawned at %v (home %v), want the nest %v", nm.pos, nm.home, nest)
+		}
+		if nm.level < 1 || nm.level > 2 || nm.hp != testLevels[nm.level].HP || nm.maxHP != nm.hp {
+			t.Fatalf("respawned level %d hp %d/%d, want full HP at level 1-2", nm.level, nm.hp, nm.maxHP)
+		}
+		if len(nm.dmgBy) != 0 || len(nm.expPaid) != 0 || len(nm.attackers) != 0 {
+			t.Fatalf("respawned monster keeps damage %v, exp %v, attackers %v", nm.dmgBy, nm.expPaid, nm.attackers)
+		}
+	}
+	if r.present != 1 || len(r.pending) != 0 {
+		t.Fatalf("region present %d pending %v, want 1 and none", r.present, r.pending)
 	}
 }
