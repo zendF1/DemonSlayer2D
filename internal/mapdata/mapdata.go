@@ -1,4 +1,5 @@
-// Package mapdata loads map files: collision grid, spawn points, safe zones, rest points and monster regions.
+// Package mapdata loads map files: collision grid, spawn and respawn points,
+// safe zones, rest points, monster regions and portals.
 package mapdata
 
 import (
@@ -9,6 +10,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 )
 
 // Point is a position in tile units; (12.5, 3.5) is the centre of tile (12, 3).
@@ -24,13 +27,52 @@ type Map struct {
 	Width  int
 	Height int
 	Spawns map[string]Point
+	// MinZones is how many zones of this map are always open.
+	MinZones int
+	// Respawns are the spawn points marked respawn, sorted by id; RespawnIDs
+	// holds their ids in the same order.
+	Respawns   []Point
+	RespawnIDs []string
 
 	SafeZones  []Rect
 	RestPoints []RestPoint
 	Regions    []Region
+	// Portals are in file order.
+	Portals []Portal
 
 	blocked []bool
 }
+
+// Portal moves a player who walks into Rect to the spawn point ToSpawn of map ToMap.
+type Portal struct {
+	ID      string
+	Rect    Rect
+	ToMap   string
+	ToSpawn string
+}
+
+// Portal returns the portal with this id.
+func (m *Map) Portal(id string) (Portal, bool) {
+	for _, p := range m.Portals {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return Portal{}, false
+}
+
+// RectDistance is the distance from p to the nearest point of
+// [r.X, r.X+r.W] x [r.Y, r.Y+r.H]; 0 when p is inside.
+func RectDistance(p Point, r Rect) float32 {
+	x, y := float64(p.X), float64(p.Y)
+	dx := max(float64(r.X)-x, 0, x-float64(r.X+r.W))
+	dy := max(float64(r.Y)-y, 0, y-float64(r.Y+r.H))
+	return float32(math.Hypot(dx, dy))
+}
+
+// MinArrivalDistance is how far, in tiles, a portal's arrival point must be
+// from every portal of its map, so arriving never walks into a portal.
+const MinArrivalDistance = 2
 
 // Rect is a rectangle of tiles: tile (i, j) belongs to it when X <= i < X+W and Y <= j < Y+H.
 type Rect struct {
@@ -151,11 +193,28 @@ func Parse(data []byte) (*Map, error) {
 			return nil, fmt.Errorf("mapdata %s: spawn point %q at (%.2f, %.2f) is not walkable", f.ID, sp.ID, sp.X, sp.Y)
 		}
 		m.Spawns[sp.ID] = p
+		if sp.Respawn {
+			m.RespawnIDs = append(m.RespawnIDs, sp.ID)
+		}
 	}
 	if _, ok := m.Spawns["default"]; !ok {
 		return nil, fmt.Errorf("mapdata %s: missing default spawn point", f.ID)
 	}
+	if f.MinZones < 1 || f.MinZones > 10 {
+		return nil, fmt.Errorf("mapdata %s: min_zones %d is not in 1-10", f.ID, f.MinZones)
+	}
+	m.MinZones = f.MinZones
+	sort.Strings(m.RespawnIDs)
+	for _, id := range m.RespawnIDs {
+		m.Respawns = append(m.Respawns, m.Spawns[id])
+	}
 	if err := m.parseTriggers(&f); err != nil {
+		return nil, err
+	}
+	if err := m.parsePortals(f.Portals); err != nil {
+		return nil, err
+	}
+	if err := m.Reachable(); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -177,6 +236,9 @@ func (m *Map) parseTriggers(f *mapFile) error {
 		}
 		m.SafeZones = append(m.SafeZones, z)
 	}
+	if len(m.SafeZones) == 0 {
+		return fmt.Errorf("mapdata %s: no safe zone", m.ID)
+	}
 	seen = map[string]bool{}
 	for _, r := range f.RestPoints {
 		if seen[r.ID] {
@@ -191,10 +253,132 @@ func (m *Map) parseTriggers(f *mapFile) error {
 		}
 		m.RestPoints = append(m.RestPoints, r)
 	}
-	if len(m.SafeZones) > 0 && !m.InSafeZone(m.Spawns["default"]) {
+	if !m.InSafeZone(m.Spawns["default"]) {
 		return fmt.Errorf("mapdata %s: default spawn point is outside the safe zones", m.ID)
 	}
+	if len(m.Respawns) == 0 {
+		return fmt.Errorf("mapdata %s: no respawn point", m.ID)
+	}
+	for i, p := range m.Respawns {
+		if !m.InSafeZone(p) {
+			return fmt.Errorf("mapdata %s: respawn point %q is outside the safe zones", m.ID, m.RespawnIDs[i])
+		}
+	}
+	if m.Type == "town" {
+		// A town is safe everywhere (game-design 5.1): no monsters, no PK.
+		if len(f.Regions) > 0 {
+			return fmt.Errorf("mapdata %s: a town has monster regions", m.ID)
+		}
+		for ty := 0; ty < m.Height; ty++ {
+			for tx := 0; tx < m.Width; tx++ {
+				if !m.Blocked(tx, ty) && !m.safeTile(tx, ty) {
+					return fmt.Errorf("mapdata %s: town tile (%d,%d) is walkable and outside the safe zones", m.ID, tx, ty)
+				}
+			}
+		}
+	}
 	return m.parseRegions(f.Regions)
+}
+
+// parsePortals validates the portals on this map; Link checks their targets.
+func (m *Map) parsePortals(portals []portalFile) error {
+	owner := map[[2]int]string{}
+	for _, pf := range portals {
+		if pf.ID == "" {
+			return fmt.Errorf("mapdata %s: portal without id", m.ID)
+		}
+		if _, dup := m.Portal(pf.ID); dup {
+			return fmt.Errorf("mapdata %s: duplicate portal %q", m.ID, pf.ID)
+		}
+		if pf.W <= 0 || pf.H <= 0 {
+			return fmt.Errorf("mapdata %s: portal %q: w and h must be positive", m.ID, pf.ID)
+		}
+		if pf.X < 0 || pf.Y < 0 || pf.X+pf.W > m.Width || pf.Y+pf.H > m.Height {
+			return fmt.Errorf("mapdata %s: portal %q is outside the map", m.ID, pf.ID)
+		}
+		for ty := pf.Y; ty < pf.Y+pf.H; ty++ {
+			for tx := pf.X; tx < pf.X+pf.W; tx++ {
+				if m.Blocked(tx, ty) {
+					return fmt.Errorf("mapdata %s: portal %q: tile (%d,%d) is not walkable", m.ID, pf.ID, tx, ty)
+				}
+				if other, taken := owner[[2]int{tx, ty}]; taken {
+					return fmt.Errorf("mapdata %s: portals %q and %q share tile (%d,%d)", m.ID, other, pf.ID, tx, ty)
+				}
+				owner[[2]int{tx, ty}] = pf.ID
+			}
+		}
+		if pf.ToMap == "" || pf.ToSpawn == "" {
+			return fmt.Errorf("mapdata %s: portal %q: to_map and to_spawn must be set", m.ID, pf.ID)
+		}
+		if pf.ToMap == m.ID {
+			return fmt.Errorf("mapdata %s: portal %q leads to its own map", m.ID, pf.ID)
+		}
+		m.Portals = append(m.Portals, Portal{
+			ID: pf.ID, Rect: Rect{ID: pf.ID, X: pf.X, Y: pf.Y, W: pf.W, H: pf.H}, ToMap: pf.ToMap, ToSpawn: pf.ToSpawn,
+		})
+	}
+	return nil
+}
+
+// Reachable checks that, walking in four directions over walkable tiles from
+// the tile of the default spawn point, a player reaches every spawn point, at
+// least one tile of every portal, every region's nest and every rest point's
+// centre.
+func (m *Map) Reachable() error {
+	tileOf := func(p Point) [2]int {
+		return [2]int{int(math.Floor(float64(p.X))), int(math.Floor(float64(p.Y)))}
+	}
+	start := tileOf(m.Spawns["default"])
+	seen := make([]bool, m.Width*m.Height)
+	seen[start[1]*m.Width+start[0]] = true
+	queue := [][2]int{start}
+	for len(queue) > 0 {
+		t := queue[0]
+		queue = queue[1:]
+		for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+			nx, ny := t[0]+d[0], t[1]+d[1]
+			if !m.Blocked(nx, ny) && !seen[ny*m.Width+nx] {
+				seen[ny*m.Width+nx] = true
+				queue = append(queue, [2]int{nx, ny})
+			}
+		}
+	}
+	reached := func(p Point) bool {
+		t := tileOf(p)
+		return !m.Blocked(t[0], t[1]) && seen[t[1]*m.Width+t[0]]
+	}
+	ids := make([]string, 0, len(m.Spawns))
+	for id := range m.Spawns {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		if !reached(m.Spawns[id]) {
+			return fmt.Errorf("mapdata %s: spawn point %q is unreachable from default", m.ID, id)
+		}
+	}
+	for _, p := range m.Portals {
+		ok := false
+		for ty := p.Rect.Y; ty < p.Rect.Y+p.Rect.H && !ok; ty++ {
+			for tx := p.Rect.X; tx < p.Rect.X+p.Rect.W && !ok; tx++ {
+				ok = seen[ty*m.Width+tx]
+			}
+		}
+		if !ok {
+			return fmt.Errorf("mapdata %s: portal %q is unreachable from default", m.ID, p.ID)
+		}
+	}
+	for _, r := range m.Regions {
+		if !reached(r.Nest) {
+			return fmt.Errorf("mapdata %s: region %q: nest (%.2f, %.2f) is unreachable from default", m.ID, r.ID, r.Nest.X, r.Nest.Y)
+		}
+	}
+	for _, r := range m.RestPoints {
+		if !reached(Point{r.X, r.Y}) {
+			return fmt.Errorf("mapdata %s: rest point %q is unreachable from default", m.ID, r.ID)
+		}
+	}
+	return nil
 }
 
 // parseRegions validates monster regions (the safe zones are already known).
@@ -363,5 +547,41 @@ func LoadDir(dir string) (map[string]*Map, error) {
 		}
 		out[m.ID] = m
 	}
+	if err := Link(out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// Link checks the portals across maps (phase 4a spec 2.1): each portal leads
+// to a loaded map and one of its spawn points, at least MinArrivalDistance
+// tiles from every portal of that map. Whether every map can be reached and
+// every portal has a reverse is checked by tests on the real maps, so tests
+// can use small maps that stand alone.
+func Link(maps map[string]*Map) error {
+	ids := make([]string, 0, len(maps))
+	for id := range maps {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		m := maps[id]
+		for _, p := range m.Portals {
+			target, ok := maps[p.ToMap]
+			if !ok {
+				return fmt.Errorf("mapdata %s: portal %q: unknown map %q", m.ID, p.ID, p.ToMap)
+			}
+			arrival, ok := target.Spawns[p.ToSpawn]
+			if !ok {
+				return fmt.Errorf("mapdata %s: portal %q: map %q has no spawn point %q", m.ID, p.ID, p.ToMap, p.ToSpawn)
+			}
+			for _, q := range target.Portals {
+				if d := RectDistance(arrival, q.Rect); d < MinArrivalDistance {
+					return fmt.Errorf("mapdata %s: portal %q: arrival %q is %.2f tiles from portal %q of map %q, want at least %d",
+						m.ID, p.ID, p.ToSpawn, d, q.ID, p.ToMap, MinArrivalDistance)
+				}
+			}
+		}
+	}
+	return nil
 }

@@ -72,8 +72,10 @@ func testMaps(t *testing.T) map[string]*mapdata.Map {
 	}
 	rows[10] = strings.Repeat("#", 20)
 	data, _ := json.Marshal(map[string]any{
-		"id": "m1", "name": "M1", "type": "training", "width": 20, "height": 20, "collision": rows,
-		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5}},
+		"id": "m1", "name": "M1", "type": "training", "width": 20, "height": 20, "min_zones": 1, "collision": rows,
+		// Tiles 1..3 x 1..3, around the default spawn only.
+		"safe_zones":   []map[string]any{{"id": "camp", "x": 1, "y": 1, "w": 3, "h": 3}},
+		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5, "respawn": true}},
 	})
 	m, err := mapdata.Parse(data)
 	if err != nil {
@@ -119,8 +121,8 @@ func triggerMap(t *testing.T) *mapdata.Map {
 		rows[i] = strings.Repeat(".", 20)
 	}
 	data, _ := json.Marshal(map[string]any{
-		"id": "m1", "name": "M1", "type": "training", "width": 20, "height": 20, "collision": rows,
-		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5}},
+		"id": "m1", "name": "M1", "type": "training", "width": 20, "height": 20, "min_zones": 1, "collision": rows,
+		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5, "respawn": true}},
 		"safe_zones":   []map[string]any{{"id": "camp", "x": 0, "y": 0, "w": 5, "h": 5}},
 		"rest_points":  []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.5}},
 		"regions": []map[string]any{{"id": "r1", "monster": "wanderer", "min_level": 1, "max_level": 2, "count": 3,

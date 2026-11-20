@@ -3,7 +3,10 @@ package mapdata
 import (
 	"encoding/json"
 	"maps"
+	"math"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -12,9 +15,10 @@ import (
 func mapJSON(t *testing.T, mutate func(m map[string]any)) []byte {
 	t.Helper()
 	m := map[string]any{
-		"id": "t1", "name": "Test", "type": "training", "width": 4, "height": 3,
+		"id": "t1", "name": "Test", "type": "training", "width": 4, "height": 3, "min_zones": 1,
 		"collision":    []string{"####", "#..#", "####"},
-		"spawn_points": []map[string]any{{"id": "default", "x": 1.5, "y": 1.5}},
+		"safe_zones":   []map[string]any{{"id": "camp", "x": 1, "y": 1, "w": 2, "h": 1}},
+		"spawn_points": []map[string]any{{"id": "default", "x": 1.5, "y": 1.5, "respawn": true}},
 	}
 	if mutate != nil {
 		mutate(m)
@@ -62,7 +66,7 @@ func TestParseErrors(t *testing.T) {
 		"row 1 has length": func(m map[string]any) { m["collision"] = []string{"####", "#...#", "####"} },
 		"invalid char":     func(m map[string]any) { m["collision"] = []string{"####", "#.x#", "####"} },
 		"not walkable": func(m map[string]any) {
-			m["spawn_points"] = []map[string]any{{"id": "default", "x": 0.5, "y": 0.5}}
+			m["spawn_points"] = []map[string]any{{"id": "default", "x": 0.5, "y": 0.5, "respawn": true}}
 		},
 		"default spawn": func(m map[string]any) {
 			m["spawn_points"] = []map[string]any{{"id": "gate", "x": 1.5, "y": 1.5}}
@@ -150,8 +154,8 @@ func TestParseTriggersOptional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.SafeZones)+len(m.RestPoints)+len(m.Regions) != 0 || m.InSafeZone(Point{1.5, 1.5}) {
-		t.Fatal("a map without triggers must have none")
+	if len(m.RestPoints)+len(m.Regions)+len(m.Portals) != 0 {
+		t.Fatal("a map without rest points, regions and portals must have none")
 	}
 }
 
@@ -175,7 +179,7 @@ func TestParseTriggerErrors(t *testing.T) {
 			m["rest_points"] = []map[string]any{r, r}
 		},
 		"default spawn point is outside the safe zones": func(m map[string]any) {
-			m["spawn_points"] = []map[string]any{{"id": "default", "x": 6.5, "y": 1.5}}
+			m["spawn_points"] = []map[string]any{{"id": "default", "x": 6.5, "y": 1.5, "respawn": true}}
 		},
 	}
 	for want, mutate := range cases {
@@ -383,6 +387,259 @@ func TestParseRegionCountAtLimit(t *testing.T) {
 	}
 }
 
+// ______________________TEST PORTALS AND RESPAWNS_____________________
+
+// portalJSON is a valid 16x8 open map "t1" with min_zones 2: safe zones camp
+// (tiles 1..4) and gate (12..14), a rest point and three respawn points
+// (zeta and default in the camp, alpha in the gate), a region r between the
+// safe zones and the portals to_west (tiles 1 x 3..4) and to_east (14 x 3..4).
+func portalJSON(t *testing.T, mutate func(m map[string]any)) []byte {
+	t.Helper()
+	return mapJSON(t, func(m map[string]any) {
+		m["width"], m["height"], m["min_zones"] = 16, 8, 2
+		rows := []string{strings.Repeat("#", 16)}
+		for range 6 {
+			rows = append(rows, "#"+strings.Repeat(".", 14)+"#")
+		}
+		m["collision"] = append(rows, strings.Repeat("#", 16))
+		m["safe_zones"] = []map[string]any{
+			{"id": "camp", "x": 1, "y": 1, "w": 4, "h": 6}, {"id": "gate", "x": 12, "y": 1, "w": 3, "h": 6},
+		}
+		m["rest_points"] = []map[string]any{{"id": "fire", "x": 2.5, "y": 2.5, "radius": 1.0}}
+		m["spawn_points"] = []map[string]any{
+			{"id": "default", "x": 2.5, "y": 4.5, "respawn": true},
+			{"id": "zeta", "x": 3.5, "y": 5.5, "respawn": true},
+			{"id": "alpha", "x": 13.5, "y": 5.5, "respawn": true},
+			{"id": "plain", "x": 8.5, "y": 6.5},
+		}
+		m["regions"] = []map[string]any{{"id": "r", "monster": "wanderer", "min_level": 1, "max_level": 1, "count": 2,
+			"rects": []map[string]any{{"x": 6, "y": 1, "w": 5, "h": 6}}, "nest": map[string]any{"x": 8.5, "y": 3.5}}}
+		m["portals"] = []map[string]any{
+			{"id": "to_west", "x": 1, "y": 3, "w": 1, "h": 2, "to_map": "a", "to_spawn": "from_t1"},
+			{"id": "to_east", "x": 14, "y": 3, "w": 1, "h": 2, "to_map": "b", "to_spawn": "from_t1"},
+		}
+		if mutate != nil {
+			mutate(m)
+		}
+	})
+}
+
+// setTiles returns m's collision with the listed tiles set to c.
+func setTiles(m map[string]any, c byte, tiles ...[2]int) {
+	rows := slices.Clone(m["collision"].([]string))
+	for _, tl := range tiles {
+		b := []byte(rows[tl[1]])
+		b[tl[0]] = c
+		rows[tl[1]] = string(b)
+	}
+	m["collision"] = rows
+}
+
+func portalAt(m map[string]any, i int) map[string]any { return m["portals"].([]map[string]any)[i] }
+
+func TestParsePortalsAndRespawns(t *testing.T) {
+	m, err := Parse(portalJSON(t, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.MinZones != 2 {
+		t.Errorf("MinZones = %d", m.MinZones)
+	}
+	if !slices.Equal(m.RespawnIDs, []string{"alpha", "default", "zeta"}) ||
+		!slices.Equal(m.Respawns, []Point{{13.5, 5.5}, {2.5, 4.5}, {3.5, 5.5}}) {
+		t.Errorf("respawns %v at %v, want alpha, default, zeta sorted by id", m.RespawnIDs, m.Respawns)
+	}
+	want := []Portal{
+		{ID: "to_west", Rect: Rect{ID: "to_west", X: 1, Y: 3, W: 1, H: 2}, ToMap: "a", ToSpawn: "from_t1"},
+		{ID: "to_east", Rect: Rect{ID: "to_east", X: 14, Y: 3, W: 1, H: 2}, ToMap: "b", ToSpawn: "from_t1"},
+	}
+	if !slices.Equal(m.Portals, want) {
+		t.Errorf("portals %+v, want %+v (file order)", m.Portals, want)
+	}
+	if p, ok := m.Portal("to_east"); !ok || p != want[1] {
+		t.Errorf("Portal(to_east) = %+v, %v", p, ok)
+	}
+	if _, ok := m.Portal("to_nowhere"); ok {
+		t.Error("Portal(to_nowhere) found")
+	}
+	if _, ok := m.Spawns["plain"]; !ok {
+		t.Error("a spawn point without respawn is still a spawn point")
+	}
+}
+
+func TestParsePortalErrors(t *testing.T) {
+	town := func(m map[string]any) {
+		m["type"] = "town"
+		m["safe_zones"] = []map[string]any{{"id": "town", "x": 1, "y": 1, "w": 14, "h": 6}}
+		m["regions"] = []map[string]any{}
+	}
+	cases := map[string]func(m map[string]any){
+		"min_zones 0 is not in 1-10":           func(m map[string]any) { m["min_zones"] = 0 },
+		"min_zones 11 is not in 1-10":          func(m map[string]any) { m["min_zones"] = 11 },
+		"min_zones 0 is not in 1-10 (missing)": func(m map[string]any) { delete(m, "min_zones") },
+		"no respawn point": func(m map[string]any) {
+			for _, sp := range m["spawn_points"].([]map[string]any) {
+				delete(sp, "respawn")
+			}
+		},
+		`respawn point "mid" is outside the safe zones`: func(m map[string]any) {
+			m["spawn_points"] = append(m["spawn_points"].([]map[string]any), map[string]any{"id": "mid", "x": 6.5, "y": 6.5, "respawn": true})
+		},
+		"no safe zone": func(m map[string]any) {
+			m["safe_zones"], m["rest_points"] = []map[string]any{}, []map[string]any{}
+		},
+		"a town has monster regions": func(m map[string]any) {
+			town(m)
+			m["regions"] = []map[string]any{{"id": "r", "monster": "wanderer", "min_level": 1, "max_level": 1, "count": 1,
+				"rects": []map[string]any{{"x": 6, "y": 1, "w": 5, "h": 6}}, "nest": map[string]any{"x": 8.5, "y": 3.5}}}
+		},
+		"town tile (5,1) is walkable and outside the safe zones": func(m map[string]any) {
+			town(m)
+			m["safe_zones"] = []map[string]any{
+				{"id": "camp", "x": 1, "y": 1, "w": 4, "h": 6}, {"id": "gate", "x": 6, "y": 1, "w": 9, "h": 6},
+			}
+		},
+		`portal without id`: func(m map[string]any) { portalAt(m, 1)["id"] = "" },
+		`duplicate portal "to_west"`: func(m map[string]any) {
+			portalAt(m, 1)["id"] = "to_west"
+		},
+		`portal "to_east": w and h must be positive`: func(m map[string]any) { portalAt(m, 1)["w"] = 0 },
+		`portal "to_east" is outside the map`:        func(m map[string]any) { portalAt(m, 1)["w"] = 3 },
+		`portal "to_east" is outside the map (negative)`: func(m map[string]any) {
+			portalAt(m, 1)["y"] = -1
+		},
+		`portal "to_east": tile (15,3) is not walkable`: func(m map[string]any) { portalAt(m, 1)["x"] = 15 },
+		`portals "to_west" and "to_east" share tile (2,4)`: func(m map[string]any) {
+			portalAt(m, 0)["w"] = 2
+			p := portalAt(m, 1)
+			p["x"], p["y"] = 2, 4
+		},
+		`portal "to_east" leads to its own map`:             func(m map[string]any) { portalAt(m, 1)["to_map"] = "t1" },
+		`portal "to_east": to_map and to_spawn must be set`: func(m map[string]any) { portalAt(m, 1)["to_spawn"] = "" },
+		`portal "to_east": to_map and to_spawn must be set (to_map)`: func(m map[string]any) {
+			portalAt(m, 1)["to_map"] = ""
+		},
+		`spawn point "alpha" is unreachable from default`: func(m map[string]any) {
+			setTiles(m, '#', [2]int{13, 4}, [2]int{12, 5}, [2]int{14, 5}, [2]int{13, 6})
+		},
+		`region "r": nest (8.50, 3.50) is unreachable from default`: func(m map[string]any) {
+			setTiles(m, '#', [2]int{8, 2}, [2]int{7, 3}, [2]int{9, 3}, [2]int{8, 4})
+		},
+		`portal "to_east" is unreachable from default`: func(m map[string]any) {
+			setTiles(m, '#', [2]int{13, 1}, [2]int{13, 2}, [2]int{13, 3}, [2]int{13, 4}, [2]int{13, 5}, [2]int{13, 6})
+			m["spawn_points"].([]map[string]any)[2]["x"] = 12.5
+		},
+		`rest point "fire" is unreachable from default`: func(m map[string]any) {
+			setTiles(m, '#', [2]int{2, 1}, [2]int{1, 2}, [2]int{3, 2}, [2]int{2, 3})
+		},
+	}
+	for want, mutate := range cases {
+		_, err := Parse(portalJSON(t, mutate))
+		if i := strings.Index(want, " ("); i > 0 && strings.HasSuffix(want, ")") {
+			want = want[:i]
+		}
+		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "mapdata t1") {
+			t.Errorf("want error containing %q (naming the map), got %v", want, err)
+		}
+	}
+}
+
+// A town whose walkable tiles are all in safe zones and that has no regions parses.
+func TestParseTown(t *testing.T) {
+	_, err := Parse(portalJSON(t, func(m map[string]any) {
+		m["type"] = "town"
+		m["safe_zones"] = []map[string]any{{"id": "town", "x": 1, "y": 1, "w": 14, "h": 6}}
+		m["regions"] = []map[string]any{}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRectDistance(t *testing.T) {
+	r := Rect{X: 2, Y: 3, W: 4, H: 2} // [2, 6] x [3, 5]
+	for _, c := range []struct {
+		p    Point
+		want float32
+	}{
+		{Point{3, 4}, 0}, {Point{6, 5}, 0}, {Point{2, 3.5}, 0}, // inside and on the edge
+		{Point{7.5, 4}, 1.5}, {Point{4, 1}, 2}, // beside an edge
+		{Point{9, 9}, 5}, {Point{0.5, 1}, 2.5}, // beyond a corner
+	} {
+		if got := RectDistance(c.p, r); math.Abs(float64(got-c.want)) > 1e-6 {
+			t.Errorf("RectDistance(%v) = %v, want %v", c.p, got, c.want)
+		}
+	}
+}
+
+// linkPair is two maps joined both ways: a's to_b leads to b's from_a (2.5
+// tiles from b's to_a) and b's to_a to a's from_b.
+func linkPair(t *testing.T, mutateA, mutateB func(m map[string]any)) map[string]*Map {
+	t.Helper()
+	parse := func(id string, portal map[string]any, arrival map[string]any, mutate func(m map[string]any)) *Map {
+		m, err := Parse(portalJSON(t, func(m map[string]any) {
+			m["id"] = id
+			m["portals"] = []map[string]any{portal}
+			m["spawn_points"] = append(m["spawn_points"].([]map[string]any), arrival)
+			if mutate != nil {
+				mutate(m)
+			}
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	a := parse("a", map[string]any{"id": "to_b", "x": 14, "y": 3, "w": 1, "h": 2, "to_map": "b", "to_spawn": "from_a"},
+		map[string]any{"id": "from_b", "x": 11.5, "y": 4.0}, mutateA)
+	b := parse("b", map[string]any{"id": "to_a", "x": 1, "y": 3, "w": 1, "h": 2, "to_map": "a", "to_spawn": "from_b"},
+		map[string]any{"id": "from_a", "x": 4.5, "y": 4.0}, mutateB)
+	return map[string]*Map{"a": a, "b": b}
+}
+
+func TestLink(t *testing.T) {
+	if err := Link(linkPair(t, nil, nil)); err != nil {
+		t.Fatalf("a valid pair: %v", err)
+	}
+	cases := map[string][2]func(m map[string]any){
+		`mapdata a: portal "to_b": unknown map "c"`: {func(m map[string]any) { portalAt(m, 0)["to_map"] = "c" }, nil},
+		`mapdata a: portal "to_b": map "b" has no spawn point "from_x"`: {
+			func(m map[string]any) { portalAt(m, 0)["to_spawn"] = "from_x" }, nil,
+		},
+		`mapdata a: portal "to_b": arrival "from_a" is 1.50 tiles from portal "to_a" of map "b", want at least 2`: {
+			nil, func(m map[string]any) {
+				sps := m["spawn_points"].([]map[string]any)
+				sps[len(sps)-1]["x"] = 3.5
+			},
+		},
+	}
+	for want, mut := range cases {
+		err := Link(linkPair(t, mut[0], mut[1]))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want error containing %q, got %v", want, err)
+		}
+	}
+}
+
+func TestLoadDirLinks(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name string, data []byte) {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("t1.json", portalJSON(t, func(m map[string]any) {
+		m["portals"] = []map[string]any{portalAt(m, 0)} // to_west leads to a map that is not there
+	}))
+	if _, err := LoadDir(dir); err == nil || !strings.Contains(err.Error(), `portal "to_west": unknown map "a"`) {
+		t.Fatalf("LoadDir must check portals across maps, got %v", err)
+	}
+	write("t1.json", portalJSON(t, func(m map[string]any) { m["portals"] = []map[string]any{} }))
+	if _, err := LoadDir(dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // ______________________TEST REAL MAPS_____________________
 
 // The committed maps are what tools/mapgen.py writes (phase 4a spec 2.2).
@@ -405,5 +662,45 @@ func TestRepoMapsLoad(t *testing.T) {
 	want := []string{"fujikasane_1", "kumotori_1", "sagiri_1", "sagiri_2", "ubuyashiki"}
 	if got := slices.Sorted(maps.Keys(loaded)); !slices.Equal(got, want) {
 		t.Fatalf("maps %v, want %v", got, want)
+	}
+}
+
+// Phase 4a spec 2.1: every map is reachable from kumotori_1 through portals
+// and every portal A -> B has a portal B -> A.
+func TestRepoMapsPortalGraph(t *testing.T) {
+	loaded, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{"kumotori_1": true}
+	queue := []string{"kumotori_1"}
+	for len(queue) > 0 {
+		m := loaded[queue[0]]
+		queue = queue[1:]
+		for _, p := range m.Portals {
+			back := slices.ContainsFunc(loaded[p.ToMap].Portals, func(q Portal) bool { return q.ToMap == m.ID })
+			if !back {
+				t.Errorf("%s: portal %s has no reverse portal in %s", m.ID, p.ID, p.ToMap)
+			}
+			if !seen[p.ToMap] {
+				seen[p.ToMap] = true
+				queue = append(queue, p.ToMap)
+			}
+		}
+	}
+	if len(seen) != len(loaded) {
+		t.Errorf("reached %v from kumotori_1, want all %d maps", seen, len(loaded))
+	}
+	for id, m := range loaded {
+		want := 2
+		if m.Type == "town" {
+			want = 1
+		}
+		if m.MinZones != want || len(m.Respawns) == 0 {
+			t.Errorf("%s: min_zones %d (want %d), respawns %v", id, m.MinZones, want, m.RespawnIDs)
+		}
+	}
+	if k := loaded["kumotori_1"]; !slices.Equal(k.RespawnIDs, []string{"default"}) || k.Respawns[0] != (Point{5.5, 5.5}) {
+		t.Errorf("kumotori_1 respawns %v at %v, want default at (5.5, 5.5)", k.RespawnIDs, k.Respawns)
 	}
 }
