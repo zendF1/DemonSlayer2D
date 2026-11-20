@@ -689,7 +689,7 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 	if hitAt == 0 {
 		t.Fatalf("never hit: %v at %v, %.2f tiles away", m.state, m.pos, distance(m.pos, p.pos))
 	}
-	if hitAt == 1 || m.pos == start {
+	if m.pos == start {
 		t.Fatalf("hit on tick %d from %v, want it to walk round the corner from %v first", hitAt, m.pos, start)
 	}
 	if m.state != attack || p.hp != 480 {
@@ -854,7 +854,7 @@ func TestChaseGivesUpBeyondChaseRange(t *testing.T) {
 	attackNow(t, z, 1, 1, m.id)
 	hp := m.hp
 	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}})
-	step := testKind.Speed * 4 / 10
+	chaseStep, step := testKind.ChaseSpeed*4/10, testKind.Speed*4/10
 	now := time.Now()
 	far := 0.0
 	for i := 0; i < 100 && chasing(m); i++ {
@@ -864,7 +864,7 @@ func TestChaseGivesUpBeyondChaseRange(t *testing.T) {
 	if chasing(m) || m.target != 0 {
 		t.Fatalf("state %v target %d, want the chase over", m.state, m.target)
 	}
-	if far <= testKind.ChaseRange || far > testKind.ChaseRange+step+1e-3 {
+	if far <= testKind.ChaseRange || far > testKind.ChaseRange+chaseStep+1e-3 {
 		t.Fatalf("farthest from the chase start %.3f, want just beyond the chase range %v", far, testKind.ChaseRange)
 	}
 	z.move(moveCmd{id: 1, seq: 3, dir: Vec2{}})
@@ -910,28 +910,143 @@ func TestChaseStartsWhereItWasHit(t *testing.T) {
 	}
 }
 
-// A target that steps into a safe zone is let go at once.
-func TestChaseGivesUpWhenTargetEntersSafeZone(t *testing.T) {
+// A chasing monster is faster than a player: one who runs straight away at
+// full speed after a hit is caught and hit within 2 s (spec 4.4).
+func TestChaseOutrunsRetreatingPlayer(t *testing.T) {
+	k := testKind
+	k.ChaseRange, k.RegionMargin = 100, 100
+	z, m := boxRegion(t, k)
+	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range, out of its attack range
+	attackNow(t, z, 1, 1, m.id)
+	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}}) // straight away from it
+	a.take()
+	now := time.Now()
+	for i := 1; i <= 20; i++ {
+		z.advance(now)
+		if _, melee := rangedHits(a.take()); len(melee) > 0 {
+			return
+		}
+	}
+	t.Fatalf("no melee hit within 2 s: monster at %v, player at %v", m.pos, z.players[1].pos)
+}
+
+// safeEdgeZone puts one monster at r1's safe edge, on the r1-like region of
+// lRegion: the safe rect (1,1,10,10) ends at x = 11, and the region starts at
+// x = 12, beyond the 1-tile margin.
+func safeEdgeZone(t *testing.T) (*Zone, *monster) {
+	t.Helper()
+	z, _ := lRegion(t, 1, 1)
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	m.pos = Vec2{12.9, 5.5}
+	z.updateCell(&m.entity)
+	return z, m
+}
+
+// The review's safe-zone poke: step out, slash, step back in, rest inside
+// until the slash is ready, repeat. The monster waits at the edge and hits
+// the player as soon as it steps out (spec 4.4).
+func TestSafeZonePokeGetsHit(t *testing.T) {
+	z, m := safeEdgeZone(t)
+	a := joinNow(t, z, 1, 11.3, 5.5) // one step outside the safe edge, 1.6 tiles from the monster
+	p := z.players[1]
+	seq := uint32(0)
+	next := func() uint32 { seq++; return seq }
+	now := time.Now()
+	hits := 0
+	for cycle := 0; cycle < 5 && hits == 0; cycle++ {
+		if z.area.InSafe(p.pos) {
+			t.Fatalf("cycle %d: the poke starts outside, player at %v", cycle, p.pos)
+		}
+		// Slash and step back in on the same tick.
+		z.move(moveCmd{id: 1, seq: next(), dir: Vec2{-1, 0}})
+		attackNow(t, z, 1, next(), m.id)
+		z.move(moveCmd{id: 1, seq: next(), dir: Vec2{}})
+		if !z.area.InSafe(p.pos) {
+			t.Fatalf("cycle %d: the player should be back in the safe zone, at %v", cycle, p.pos)
+		}
+		for i := 0; i < 6; i++ { // wait inside for the slash cooldown
+			z.advance(now)
+		}
+		// Step out for one tick.
+		z.move(moveCmd{id: 1, seq: next(), dir: Vec2{1, 0}})
+		z.advance(now)
+		z.move(moveCmd{id: 1, seq: next(), dir: Vec2{}})
+		for _, h := range hitsIn(a.take()) {
+			if h.AttackerId == m.id && h.TargetId == 1 {
+				hits++
+			}
+		}
+	}
+	if hits == 0 {
+		t.Fatalf("five pokes and no hit back: state %v target %d at %v", m.state, m.target, m.pos)
+	}
+}
+
+// A target that stays in a safe zone is kept for safe_wait_sec, during which
+// the monster waits at the edge; then the chase ends, without healing.
+func TestSafeZoneWaitExpires(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
+	a := joinNow(t, z, 1, 12.5, 5.5)
+	attackNow(t, z, 1, 1, m.id)
+	hp := m.hp
+	teleport(z, 1, Vec2{7.5, 5.5}) // inside the safe rect (0,0,10,10), out of its reach
+	wait := int(z.ticks(testKind.SafeWaitSec))
+	now := time.Now()
+	for i := 0; i < wait; i++ {
+		z.advance(now)
+		if !chasing(m) || m.target != 1 {
+			t.Fatalf("tick %d of the wait: state %v target %d, want it waiting for the target", i, m.state, m.target)
+		}
+		if z.area.InSafe(m.pos) {
+			t.Fatalf("tick %d: the monster is in the safe zone at %v", i, m.pos)
+		}
+	}
+	if m.pos.X > 10.31 {
+		t.Fatalf("waited at %v, want at the safe edge (x 10.3)", m.pos)
+	}
+	z.advance(now)
+	if chasing(m) || m.target != 0 {
+		t.Fatalf("after %d ticks: state %v target %d, want the chase over", wait, m.state, m.target)
+	}
+	for i := 0; i < 60 && m.state != wander; i++ {
+		z.advance(now)
+	}
+	if m.state != wander || m.hp != hp {
+		t.Fatalf("state %v hp %d, want wandering with its %d HP", m.state, m.hp, hp)
+	}
+	for _, c := range hpChangesIn(a.take()) {
+		if c.Id == m.id {
+			t.Fatalf("HpChange %v for the monster, want no heal", c)
+		}
+	}
+}
+
+// Stepping out of the safe zone, even for one tick, starts the wait again.
+func TestSafeZoneWaitResets(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
 	joinNow(t, z, 1, 12.5, 5.5)
 	attackNow(t, z, 1, 1, m.id)
-	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{-1, 0}}) // west into the safe rect (0,0,10,10)
-	p := z.players[1]
+	wait := int(z.ticks(testKind.SafeWaitSec))
 	now := time.Now()
-	for i := 0; i < 40; i++ {
+	teleport(z, 1, Vec2{7.5, 5.5})
+	for i := 0; i < wait-10; i++ {
 		z.advance(now)
-		if z.area.InSafe(p.pos) {
-			break
-		}
-		if !chasing(m) {
-			t.Fatalf("tick %d: player at %v outside the safe zone, but state %v", i, p.pos, m.state)
+	}
+	teleport(z, 1, Vec2{14.5, 8.5}) // out for one tick
+	z.advance(now)
+	teleport(z, 1, Vec2{7.5, 5.5})
+	for i := 0; i < wait; i++ {
+		z.advance(now)
+		if !chasing(m) || m.target != 1 {
+			t.Fatalf("tick %d after going back in: state %v target %d, want the wait restarted", i, m.state, m.target)
 		}
 	}
-	if !z.area.InSafe(p.pos) {
-		t.Fatal("the player never reached the safe zone")
-	}
+	z.advance(now)
 	if chasing(m) || m.target != 0 {
-		t.Fatalf("state %v target %d, want the chase over the tick the player got in", m.state, m.target)
+		t.Fatalf("state %v target %d, want the chase over %d ticks after going back in", m.state, m.target, wait)
 	}
 }
 
@@ -1288,13 +1403,18 @@ func TestAttackHitsAndAggro(t *testing.T) {
 	if m.hp != 56-14 {
 		t.Fatalf("monster hp %d, want 42", m.hp)
 	}
+	// The monster, chasing faster than 1.9-1.5 tiles a tick, may hit back on
+	// the same tick; only the slash is checked here.
+	slashes := func(hs []*pb.Hit) []*pb.Hit {
+		return slices.DeleteFunc(hs, func(h *pb.Hit) bool { return h.AttackerId != 1 })
+	}
 	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42}
-	for name, got := range map[string][]*pb.Hit{"attacker": hitsIn(envs), "viewer": hitsIn(v.take())} {
+	for name, got := range map[string][]*pb.Hit{"attacker": slashes(hitsIn(envs)), "viewer": slashes(hitsIn(v.take()))} {
 		if len(got) != 1 || got[0].String() != want.String() {
 			t.Fatalf("%s hits %v, want %v", name, got, want)
 		}
 	}
-	if m.state != chase || m.target != 1 {
+	if !chasing(m) || m.target != 1 {
 		t.Fatalf("state %v target %d, want a wandering monster to chase its attacker", m.state, m.target)
 	}
 	if at, ok := m.attackers[1]; !ok || at != z.tickNo || m.chaseFrom != (Vec2{30.5, 30.5}) {
@@ -1628,9 +1748,9 @@ func TestGiveUpKeepsExpTracking(t *testing.T) {
 	if p.exp != 2 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 || !chasing(m) {
 		t.Fatalf("exp %d dmgBy %v expPaid %v state %v, want 2, 14, 2 and a chase", p.exp, m.dmgBy, m.expPaid, m.state)
 	}
-	teleport(z, 1, Vec2{8.5, 5.5}) // into the safe zone: the chase ends
+	teleport(z, 1, Vec2{8.5, 5.5}) // into the safe zone: the chase ends after the wait
 	now := time.Now()
-	for i := 0; i < 20 && m.state != wander; i++ {
+	for i := 0; i < 100 && m.state != wander; i++ {
 		z.advance(now)
 	}
 	if m.state != wander || m.hp != 42 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 {

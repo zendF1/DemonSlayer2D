@@ -11,6 +11,8 @@
       "shoot_sec": 2,
       "shoot_windup_sec": 0.5,
       "region_margin": 3,
+      "chase_speed": 1.2,
+      "safe_wait_sec": 5,
       "respawn_sec": 8
     },
     {
@@ -24,6 +26,8 @@
       "shoot_sec": 2,
       "shoot_windup_sec": 0.5,
       "region_margin": 3,
+      "chase_speed": 1.2,
+      "safe_wait_sec": 5,
       "respawn_sec": 8
     }
   ],

@@ -54,6 +54,7 @@ type monster struct {
 
 	target     uint64            // player it chases or attacks; 0 when none
 	chaseFrom  Vec2              // where the current chase started
+	safeSince  uint32            // tick its target was first seen in a safe zone this time; 0 while outside
 	attackers  map[uint64]uint32 // the last tick each player hit it
 	nextAttack uint32            // first tick it may hit again
 	stuck      uint32            // consecutive ticks a monster going back could not move
@@ -169,15 +170,35 @@ func (z *Zone) startWander(m *monster) {
 
 // startChase sets m on player id, the chase starting where m stands.
 func (z *Zone) startChase(m *monster, id uint64) {
-	m.target, m.state, m.chaseFrom, m.stuck = id, chase, m.pos, 0
+	m.target, m.state, m.chaseFrom, m.stuck, m.safeSince = id, chase, m.pos, 0, 0
 }
 
-// keepsChasing reports whether m may go on chasing t (spec 4.4): t is within
-// the kind's region margin of the region's rects, and m is within the chase
-// range of where the chase started. t must already be a valid target.
-func (z *Zone) keepsChasing(m *monster, t *player) bool {
+// chaseTarget returns m's target if m keeps chasing it (spec 4.4), and
+// whether m may hit it now. The target is let go when it is dead or gone,
+// when m is beyond the chase range of where the chase started, when it has
+// stayed in a safe zone for SafeWaitSec, or, outside a safe zone, when it is
+// beyond the region margin. While the target is in a safe zone m keeps it
+// but may not hit it, and the margin does not count.
+func (z *Zone) chaseTarget(m *monster) (*player, bool) {
+	p := z.players[m.target]
 	k := &m.region.Kind
-	return m.region.nearMargin(t.pos, float32(k.RegionMargin)) && distance(m.pos, m.chaseFrom) <= float32(k.ChaseRange)
+	if p == nil || p.dead || distance(m.pos, m.chaseFrom) > float32(k.ChaseRange) {
+		return nil, false
+	}
+	if z.area.InSafe(p.pos) {
+		if m.safeSince == 0 {
+			m.safeSince = z.tickNo
+		}
+		if z.tickNo-m.safeSince >= z.ticks(k.SafeWaitSec) {
+			return nil, false
+		}
+		return p, false
+	}
+	m.safeSince = 0
+	if !m.region.nearMargin(p.pos, float32(k.RegionMargin)) {
+		return nil, false
+	}
+	return p, true
 }
 
 // fallback picks who m chases once it lets its target go: the nearest valid
@@ -201,23 +222,24 @@ func (z *Zone) fallback(m *monster, old uint64) *player {
 	return best
 }
 
-// fight runs a monster in chase or attack. First it lets its target go if
-// the target is no longer valid, has left the region margin, or has led it
-// beyond the chase range; it then turns on a recent attacker, or goes back to
-// its region. Otherwise it walks up to the target and hits it every AttackSec
-// once in range with a clear line, the same line of sight a player's slash
-// needs. It never shoots.
+// fight runs a monster in chase or attack. First it lets its target go as
+// chaseTarget says; it then turns on a recent attacker, or goes back to its
+// region. A target waiting in a safe zone is walked up to as close as the
+// monster grid allows, so the monster stands at the edge. Otherwise it walks
+// up to the target and hits it every AttackSec once in range with a clear
+// line, the same line of sight a player's slash needs. It never shoots.
 func (z *Zone) fight(m *monster) {
-	t := z.validTarget(m.target)
-	if t != nil && !z.keepsChasing(m, t) {
-		t = nil
-	}
+	t, hittable := z.chaseTarget(m)
 	if t == nil {
 		if t = z.fallback(m, m.target); t == nil {
 			z.startBack(m)
 			return
 		}
-		z.startChase(m, t.id)
+		z.startChase(m, t.id) // fallback only picks hittable players
+	} else if !hittable {
+		m.state = chase
+		z.chaseStep(m, t)
+		return
 	}
 	k := &m.region.Kind
 	if m.state == attack && !z.canHit(m, t) {
@@ -249,8 +271,9 @@ func (z *Zone) canHit(m *monster, t *player) bool {
 // along the wall takes it round the corner. A stuck monster just stands; it
 // keeps its state (spec 4.2).
 func (z *Zone) chaseStep(m *monster, t *player) {
+	step := z.chaseSpeed(m)
 	if lineBlocked(z.area.Grid, m.pos, t.pos) {
-		z.walkTo(m, t.pos, z.monsterStep(m))
+		z.walkTo(m, t.pos, step)
 		return
 	}
 	// Stop a little inside the attack range: a walk ends within arriveEps of
@@ -265,7 +288,7 @@ func (z *Zone) chaseStep(m *monster, t *player) {
 	}
 	f := stop / d
 	to := Vec2{t.pos.X + (m.pos.X-t.pos.X)*f, t.pos.Y + (m.pos.Y-t.pos.Y)*f}
-	z.walkTo(m, to, z.monsterStep(m))
+	z.walkTo(m, to, step)
 }
 
 // startBack sends m back to its region, forgetting its target (spec 4.5).
@@ -301,6 +324,12 @@ func (z *Zone) goBack(m *monster) {
 // monsterStep is how far m walks in one tick at full speed.
 func (z *Zone) monsterStep(m *monster) float32 {
 	return float32(m.region.Kind.Speed) * z.cfg.MoveSpeed / float32(z.cfg.TickRate)
+}
+
+// chaseSpeed is how far m moves in one tick while chasing, faster than a
+// player so a retreating one cannot kite it (spec 4.4).
+func (z *Zone) chaseSpeed(m *monster) float32 {
+	return float32(m.region.Kind.ChaseSpeed) * z.cfg.MoveSpeed / float32(z.cfg.TickRate)
 }
 
 // wander runs a wandering monster (spec 4.2): it rests restMinSec to

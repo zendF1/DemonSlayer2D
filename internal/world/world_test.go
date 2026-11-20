@@ -79,7 +79,8 @@ func testMaps(t *testing.T) map[string]*mapdata.Map {
 
 var testMonsters = &gamedata.Data{
 	Kinds: map[string]gamedata.Kind{"wanderer": {ID: "wanderer", Name: "Quỷ lang thang", AttackRange: 1.5, AttackSec: 1.5,
-		Speed: 0.8, DetectRange: 4, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, RespawnSec: 8}},
+		Speed: 0.8, DetectRange: 4, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, ChaseSpeed: 1.2, SafeWaitSec: 5,
+		RespawnSec: 8}},
 	Levels: map[int]gamedata.Level{1: {Level: 1, HP: 56, Attack: 30, Defense: 8}, 2: {Level: 2, HP: 104, Attack: 39, Defense: 16}},
 }
 

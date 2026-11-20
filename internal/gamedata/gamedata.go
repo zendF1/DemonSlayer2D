@@ -31,7 +31,13 @@ type Kind struct {
 	// RegionMargin is how many tiles outside its region a target may be
 	// before the monster gives up the chase.
 	RegionMargin float64 `json:"region_margin"`
-	RespawnSec   float64 `json:"respawn_sec"`
+	// ChaseSpeed is the chase and attack move speed, a factor of the
+	// configured move speed; above 1 so a retreating player cannot kite.
+	ChaseSpeed float64 `json:"chase_speed"`
+	// SafeWaitSec is how long a chasing monster waits at the edge for a
+	// target that stays in a safe zone.
+	SafeWaitSec float64 `json:"safe_wait_sec"`
+	RespawnSec  float64 `json:"respawn_sec"`
 }
 
 // Level holds the monster stats of one level. Defense serves as both
@@ -73,7 +79,8 @@ func Parse(b []byte) (*Data, error) {
 		for name, v := range map[string]float64{
 			"attack_range": k.AttackRange, "attack_sec": k.AttackSec, "speed": k.Speed,
 			"detect_range": k.DetectRange, "chase_range": k.ChaseRange, "shoot_sec": k.ShootSec,
-			"shoot_windup_sec": k.ShootWindupSec, "respawn_sec": k.RespawnSec,
+			"shoot_windup_sec": k.ShootWindupSec, "chase_speed": k.ChaseSpeed, "safe_wait_sec": k.SafeWaitSec,
+			"respawn_sec": k.RespawnSec,
 		} {
 			// The negated comparison also rejects NaN.
 			if !(v > 0) {
