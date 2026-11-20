@@ -9,13 +9,13 @@ import (
 
 const (
 	bpScale = 10000 // chances are in basis points
-	minTier = 10
-	maxTier = 50
 )
 
 // DropTier is the equipment tier a monster of the level drops (spec 4.3).
+// gamedata checks that items.json has every tier this can return.
 func DropTier(monsterLevel int) int {
-	return min(maxTier, max(minTier, 10*(monsterLevel/10)))
+	t := gamedata.TierStep * (monsterLevel / gamedata.TierStep)
+	return min(gamedata.MaxTier, max(gamedata.MinTier, t))
 }
 
 // RollDrops rolls what a monster of rank and level gives its killer (spec

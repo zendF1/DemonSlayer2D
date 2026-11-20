@@ -636,11 +636,15 @@ func sixteen(v int) []int {
 	return a
 }
 
-// validItems is a minimal valid items.json: one tier (10) with its nine
-// shared pieces and five weapons, two stackables and the three drop tables.
-// equipment[0..4] are the weapons of viem, thuy, minh, nham, phong;
-// equipment[5..13] the shared pieces in slot order (boots .. ring_right).
-func validItems() obj {
+// validItems is a minimal valid items.json: the five drop tiers (10-50),
+// each with its nine shared pieces and five weapons, three stackables and
+// the three drop tables. equipment[0..4] are tier 10's weapons of viem,
+// thuy, minh, nham, phong; equipment[5..13] its shared pieces in slot order
+// (boots .. ring_right); the other tiers follow in the same order.
+func validItems() obj { return itemsWithTiers(MinTier, 20, 30, 40, MaxTier) }
+
+// itemsWithTiers is validItems with only the given tiers and their pieces.
+func itemsWithTiers(tiers ...int) obj {
 	var slots []any
 	for i, id := range SlotIDs {
 		regen := RegenHP
@@ -652,24 +656,30 @@ func validItems() obj {
 	quality := func(name string, min, max, hidden int) obj {
 		return obj{"name": name, "rank": "r", "lines": []int{min, max}, "hidden_pct": hidden}
 	}
-	piece := func(code, slot, class string, level int) obj {
+	piece := func(code string, tier int, slot, class string, level int) obj {
 		zero := make([]int, EnhanceLevels)
-		return obj{"code": code, "tier": 10, "slot": slot, "class": class, "name": "n " + code, "level": level,
+		return obj{"code": code, "tier": tier, "slot": slot, "class": class, "name": "n " + code, "level": level,
 			"hp": sixteen(10), "phys_attack": zero, "magic_attack": zero, "phys_defense": sixteen(1), "magic_defense": sixteen(1)}
 	}
-	var equipment []any
-	for _, c := range classList {
-		w := piece("eq10_weapon_"+c, SlotWeapon, c, 10)
-		if c == "thuy" || c == "phong" {
-			w["magic_attack"] = sixteen(25)
-		} else {
-			w["phys_attack"] = sixteen(25)
+	var equipment, tierList []any
+	for _, tier := range tiers {
+		prefix := fmt.Sprintf("eq%d_", tier)
+		for _, c := range classList {
+			w := piece(prefix+"weapon_"+c, tier, SlotWeapon, c, tier)
+			if c == "thuy" || c == "phong" {
+				w["magic_attack"] = sixteen(25)
+			} else {
+				w["phys_attack"] = sixteen(25)
+			}
+			equipment = append(equipment, w)
 		}
-		equipment = append(equipment, w)
+		for i, id := range SlotIDs[1:] {
+			equipment = append(equipment, piece(prefix+id, tier, id, "", tier+i+1))
+		}
+		tierList = append(tierList, obj{"tier": tier, "name": fmt.Sprintf("Bậc %d", tier), "line_standard": obj{
+			StatHP: 86, StatPhysAttack: 4, StatMagicAttack: 4, StatPhysDefense: 1, StatMagicDefense: 1}})
 	}
-	for i, id := range SlotIDs[1:] {
-		equipment = append(equipment, piece("eq10_"+id, id, "", 10+i+1))
-	}
+	tierList[0].(obj)["name"] = "Lữ Hành"
 	drop := func(xuMin, xuMax, chance, count int, q []int, stacks ...obj) obj {
 		st := []any{}
 		for _, s := range stacks {
@@ -688,9 +698,8 @@ func validItems() obj {
 			quality("Cam", 4, 4, 125), quality("Đỏ", 4, 4, 150)},
 		"line_stats":        []any{StatHP, StatPhysAttack, StatMagicAttack, StatPhysDefense, StatMagicDefense},
 		"line_roll_min_pct": 50,
-		"tiers": []any{obj{"tier": 10, "name": "Lữ Hành", "line_standard": obj{
-			StatHP: 86, StatPhysAttack: 4, StatMagicAttack: 4, StatPhysDefense: 1, StatMagicDefense: 1}}},
-		"equipment": equipment,
+		"tiers":             tierList,
+		"equipment":         equipment,
 		"stackables": []any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"},
 			obj{"code": "charm_protect", "name": "Bùa bảo vệ"}},
 		"drops": obj{
@@ -748,10 +757,10 @@ func TestParseItemsValid(t *testing.T) {
 	if e := it.Equipment["eq10_armor"]; e.SlotIndex != 5 || e.Level != 15 || e.HP[3] != 13 {
 		t.Fatalf("armor: %+v", e)
 	}
-	if it.Weapon(10, "nham") != "eq10_weapon_nham" || it.Weapon(20, "nham") != "" || it.Weapon(10, "lua") != "" {
+	if it.Weapon(10, "nham") != "eq10_weapon_nham" || it.Weapon(60, "nham") != "" || it.Weapon(10, "lua") != "" {
 		t.Fatal("Weapon lookup")
 	}
-	if it.Piece(10, 5) != "eq10_armor" || it.Piece(10, 0) != "" || it.Piece(20, 5) != "" {
+	if it.Piece(10, 5) != "eq10_armor" || it.Piece(10, 0) != "" || it.Piece(60, 5) != "" || it.Piece(50, 5) != "eq50_armor" {
 		t.Fatal("Piece lookup")
 	}
 	if !it.IsEquipment("eq10_ring_left") || it.IsEquipment("stone_enhance") {
@@ -790,6 +799,13 @@ func TestParseItemsRejects(t *testing.T) {
 	}
 	dropStack := func(rank string, i int, f string, v any) func(obj) {
 		return drop(rank, func(x obj) { x["stacks"].([]any)[i].(obj)[f] = v })
+	}
+	// tiersOnly replaces the tiers and their pieces with those of tiers.
+	tiersOnly := func(tiers ...int) func(obj) {
+		return func(d obj) {
+			x := itemsWithTiers(tiers...)
+			d["tiers"], d["equipment"] = x["tiers"], x["equipment"]
+		}
 	}
 	// equipment indices: 0 viem, 1 thuy, ... 4 phong weapons; 5 boots .. 13 ring_right; 9 armor.
 	const viem, thuy, boots, armor, ringRight = 0, 1, 5, 9, 13
@@ -830,6 +846,18 @@ func TestParseItemsRejects(t *testing.T) {
 		{"quality without name", setIn("qualities", 1, "name", ""), "quality 1: name is empty"},
 
 		{"duplicate line stat", set("line_stats", []any{StatHP, StatHP, StatMagicAttack, StatPhysDefense, StatMagicDefense}), `line stat "hp" is listed twice`},
+		// Without line stats every quality has 0 lines and the tiers no
+		// standards, which is otherwise consistent; hidden lines would then
+		// pick from an empty list.
+		{"empty line_stats", func(d obj) {
+			d["line_stats"] = []any{}
+			for _, q := range list(d, "qualities") {
+				q.(obj)["lines"] = []int{0, 0}
+			}
+			for _, tr := range list(d, "tiers") {
+				tr.(obj)["line_standard"] = obj{}
+			}
+		}, "line_stats is empty"},
 		{"unknown line stat", set("line_stats", []any{StatHP, "mp", StatMagicAttack, StatPhysDefense, StatMagicDefense}), `line stat "mp" is unknown`},
 
 		{"tier missing a line standard", std(func(s obj) { delete(s, StatMagicDefense) }), `tier 10: line_standard has no "magic_defense"`},
@@ -837,11 +865,17 @@ func TestParseItemsRejects(t *testing.T) {
 		{"standard of unknown stat", std(func(s obj) { s["mp"] = 3 }), `tier 10: line_standard "mp" is not a line stat`},
 		{"duplicate tier", func(d obj) { d["tiers"] = append(list(d, "tiers"), list(d, "tiers")[0]) }, "tier 10 is listed twice"},
 		{"tier 0", setIn("tiers", 0, "tier", 0), "tier 0 must be positive"},
+		// Every tier DropTier can return must exist, and no other: a missing
+		// one would silently drop nothing.
+		{"missing tier 50", tiersOnly(MinTier, 20, 30, 40), "tiers has no 50"},
+		{"missing tier 10", tiersOnly(20, 30, 40, MaxTier), "tiers has no 10"},
+		{"tier 60", tiersOnly(MinTier, 20, 30, 40, MaxTier, 60), "tier 60 is not a drop tier (10-50, step 10)"},
+		{"tier 15", tiersOnly(MinTier, 15, 20, 30, 40, MaxTier), "tier 15 is not a drop tier"},
 		{"tier without name", setIn("tiers", 0, "name", ""), "tier 10: name is empty"},
 
 		{"duplicate code", setIn("equipment", boots, "code", "eq10_weapon_viem"), `duplicate item code "eq10_weapon_viem"`},
 		{"empty code", setIn("equipment", boots, "code", ""), "equipment with empty code"},
-		{"unknown tier", func(d obj) { e := at(d, "equipment", boots); e["tier"], e["level"] = 20, 21 }, `equipment "eq10_boots": tier 20 is not in tiers`},
+		{"unknown tier", func(d obj) { e := at(d, "equipment", boots); e["tier"], e["level"] = 60, 61 }, `equipment "eq10_boots": tier 60 is not in tiers`},
 		{"unknown slot", setIn("equipment", boots, "slot", "cape"), `equipment "eq10_boots": slot "cape" is unknown`},
 		{"weapon without class", setIn("equipment", viem, "class", ""), `equipment "eq10_weapon_viem": class "" is not valid`},
 		{"weapon with bad class", setIn("equipment", viem, "class", "lua"), `equipment "eq10_weapon_viem": class "lua" is not valid`},

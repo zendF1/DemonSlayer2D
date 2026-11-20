@@ -677,6 +677,45 @@ func TestSortKeepsTiesInBagOrder(t *testing.T) {
 	}
 }
 
+// Codes the data does not know (the world drops them at login, so this is
+// only a safety net) stay in their slots; the known items sort around them.
+func TestSortKeepsUnknownCodes(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Bag[0] = &Item{Code: "old_gem", Count: 7}
+	inv.Bag[2] = stone(5)
+	inv.Bag[3] = &Item{Code: "eq99_armor", Count: 1, Quality: 3}
+	inv.Bag[5] = &Item{Code: "eq10_armor", Count: 1}
+	inv.Bag[59] = &Item{Code: "old_gem", Count: 2}
+	inv.Sort(d)
+	if b := inv.Bag; b[0].Code != "old_gem" || b[0].Count != 7 || b[3].Code != "eq99_armor" || b[3].Quality != 3 ||
+		b[59].Code != "old_gem" || b[59].Count != 2 {
+		t.Fatalf("unknown codes moved or lost: %+v %+v %+v", b[0], b[3], b[59])
+	}
+	if b := inv.Bag; b[1].Code != "eq10_armor" || b[2].Code != "stone_enhance" || b[2].Count != 5 || b[4] != nil || b[5] != nil {
+		t.Fatalf("known items: %+v %+v %+v %+v", b[1], b[2], b[4], b[5])
+	}
+}
+
+// A layout that does not fit (stacks above stack_max in a full bag) leaves
+// the bag as it was rather than dropping the overflow.
+func TestSortNeverDeletes(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	for i := range inv.Bag {
+		inv.Bag[i] = &Item{Code: "eq10_armor", Count: 1}
+	}
+	inv.Bag[0] = &Item{Code: "old_gem", Count: 1}
+	inv.Bag[1] = stone(d.StackMax + 1) // needs two slots after the merge
+	before := inv.Clone()
+	inv.Sort(d)
+	for i := range inv.Bag {
+		if a, b := inv.Bag[i], before.Bag[i]; a.Code != b.Code || a.Count != b.Count {
+			t.Fatalf("slot %d changed: %+v, was %+v", i, inv.Bag[i], before.Bag[i])
+		}
+	}
+}
+
 // ______________________TEST GEAR_____________________
 
 func TestWearable(t *testing.T) {

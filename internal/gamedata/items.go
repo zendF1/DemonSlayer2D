@@ -65,6 +65,15 @@ const (
 	RegenMP = "mp"
 )
 
+// Equipment tiers: a monster drops tier 10 * (level / 10), clamped to
+// MinTier..MaxTier (phase 3a spec 4.3, items.DropTier). items.json must list
+// exactly these tiers, so no drop finds a missing tier.
+const (
+	MinTier  = 10
+	MaxTier  = 50
+	TierStep = 10
+)
+
 const (
 	qualityCount = 5
 	// firstHiddenQuality is the first quality (Vàng) with an element and
@@ -319,6 +328,10 @@ func parseSlots(it *Items, _ *itemsFile) error {
 }
 
 func parseLineStats(it *Items, _ *itemsFile) error {
+	// Hidden lines pick among the line stats, so the list cannot be empty.
+	if len(it.LineStats) == 0 {
+		return fmt.Errorf("line_stats is empty")
+	}
 	seen := map[string]bool{}
 	for _, s := range it.LineStats {
 		if !statKeys[s] {
@@ -363,6 +376,9 @@ func parseTiers(it *Items, f *itemsFile) error {
 		if t.Tier <= 0 {
 			return fmt.Errorf("tier %d must be positive", t.Tier)
 		}
+		if t.Tier < MinTier || t.Tier > MaxTier || t.Tier%TierStep != 0 {
+			return fmt.Errorf("tier %d is not a drop tier (%d-%d, step %d)", t.Tier, MinTier, MaxTier, TierStep)
+		}
 		if _, dup := it.Tiers[t.Tier]; dup {
 			return fmt.Errorf("tier %d is listed twice", t.Tier)
 		}
@@ -384,6 +400,11 @@ func parseTiers(it *Items, f *itemsFile) error {
 			}
 		}
 		it.Tiers[t.Tier] = t
+	}
+	for tier := MinTier; tier <= MaxTier; tier += TierStep {
+		if _, ok := it.Tiers[tier]; !ok {
+			return fmt.Errorf("tiers has no %d", tier)
+		}
 	}
 	return nil
 }

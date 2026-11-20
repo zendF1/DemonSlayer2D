@@ -142,11 +142,15 @@ func (inv *Inventory) Discard(bagSlot, count int) error {
 // Sort merges stacks of the same code (each up to stack_max) and lays the bag
 // out from slot 0 (spec 4.7): equipment first, by tier descending, slot index,
 // quality descending, enhance descending, then code; then stacks in the
-// stackables' file order, larger first. Ties keep their bag order. Codes in
-// neither list (not expected: the world drops them) go last, as they were.
+// stackables' file order, larger first. Ties keep their bag order. A code in
+// neither list (not expected: the world drops them at login) stays in its
+// slot and the rest fill the other slots. If the result would not fit (only
+// possible with a stack above stack_max), the bag is left as it was: Sort
+// never deletes an item.
 func (inv *Inventory) Sort(d *gamedata.Items) {
-	var equip, unknown []*Item
+	var equip []*Item
 	totals := map[string]int{}
+	free := 0 // slots not held by an unknown code
 	for _, it := range inv.Bag {
 		switch {
 		case it == nil:
@@ -155,8 +159,9 @@ func (inv *Inventory) Sort(d *gamedata.Items) {
 		case isStackable(d, it.Code):
 			totals[it.Code] += it.Count
 		default:
-			unknown = append(unknown, it)
+			continue
 		}
+		free++
 	}
 	slices.SortStableFunc(equip, func(a, b *Item) int {
 		ea, eb := d.Equipment[a.Code], d.Equipment[b.Code]
@@ -174,9 +179,18 @@ func (inv *Inventory) Sort(d *gamedata.Items) {
 			sorted = append(sorted, &Item{Code: code, Count: min(n, d.StackMax)})
 		}
 	}
-	sorted = append(sorted, unknown...)
-	clear(inv.Bag)
-	copy(inv.Bag, sorted)
+	if len(sorted) > free {
+		return
+	}
+	for i, it := range inv.Bag {
+		if it != nil && !d.IsEquipment(it.Code) && !isStackable(d, it.Code) {
+			continue // unknown code: keep it where it is
+		}
+		inv.Bag[i] = nil
+		if len(sorted) > 0 {
+			inv.Bag[i], sorted = sorted[0], sorted[1:]
+		}
+	}
 }
 
 func isStackable(d *gamedata.Items, code string) bool {
