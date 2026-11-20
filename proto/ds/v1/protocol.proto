@@ -378,4 +378,5 @@ message Cast {
   uint64 target_id = 3;
   float dir_x = 4;
   float dir_y = 5;
+  int32 level = 6; // the skill level used, so clients draw the right reach
 }

@@ -3307,6 +3307,7 @@ type Cast struct {
 	TargetId      uint64                 `protobuf:"varint,3,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	DirX          float32                `protobuf:"fixed32,4,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
 	DirY          float32                `protobuf:"fixed32,5,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	Level         int32                  `protobuf:"varint,6,opt,name=level,proto3" json:"level,omitempty"` // the skill level used, so clients draw the right reach
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3372,6 +3373,13 @@ func (x *Cast) GetDirX() float32 {
 func (x *Cast) GetDirY() float32 {
 	if x != nil {
 		return x.DirY
+	}
+	return 0
+}
+
+func (x *Cast) GetLevel() int32 {
+	if x != nil {
+		return x.Level
 	}
 	return 0
 }
@@ -3602,13 +3610,14 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"SkillLevel\x12\x19\n" +
 	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x14\n" +
-	"\x05level\x18\x02 \x01(\x05R\x05level\"\x85\x01\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level\"\x9b\x01\n" +
 	"\x04Cast\x12\x1b\n" +
 	"\tcaster_id\x18\x01 \x01(\x04R\bcasterId\x12\x19\n" +
 	"\bskill_id\x18\x02 \x01(\tR\askillId\x12\x1b\n" +
 	"\ttarget_id\x18\x03 \x01(\x04R\btargetId\x12\x13\n" +
 	"\x05dir_x\x18\x04 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY*\xa3\x06\n" +
+	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY\x12\x14\n" +
+	"\x05level\x18\x06 \x01(\x05R\x05level*\xa3\x06\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +

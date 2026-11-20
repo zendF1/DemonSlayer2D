@@ -70,7 +70,7 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	p.statsDirty = true
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_CastResp{CastResp: &pb.CastResp{}}})
 	hit := z.victims(p, s, n, primary, dir)
-	ev := &pb.Cast{CasterId: p.id, SkillId: s.ID, DirX: dir.X, DirY: dir.Y}
+	ev := &pb.Cast{CasterId: p.id, SkillId: s.ID, DirX: dir.X, DirY: dir.Y, Level: int32(n)}
 	switch {
 	case s.Shape == gamedata.ShapeCircleSelf:
 		// The named target only orders the hits; name it only if it was hit.

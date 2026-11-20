@@ -274,13 +274,14 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 	return nil, zone.ErrZoneFull
 }
 
-// knownSkills is c's stored skills without those missing from the skill data
-// or of another class, with one warning per dropped skill (phase 2 spec 2.2).
+// knownSkills is c's stored skills without those missing from the skill data,
+// of another class or learned above c's level (a devchar level-down), with one
+// warning per dropped skill (phase 2 spec 2.2).
 func (w *World) knownSkills(c store.Character) map[string]int {
 	out := make(map[string]int, len(c.Skills))
 	for id, lv := range c.Skills {
-		if s, ok := w.skills[id]; !ok || s.Class != c.Class {
-			w.log.Warn("dropped unknown skill", "char", c.ID, "class", c.Class, "skill", id, "level", lv)
+		if s, ok := w.skills[id]; !ok || s.Class != c.Class || s.LearnLevel > c.Level {
+			w.log.Warn("dropped stored skill", "char", c.ID, "class", c.Class, "char_level", c.Level, "skill", id, "level", lv)
 			continue
 		}
 		out[id] = lv

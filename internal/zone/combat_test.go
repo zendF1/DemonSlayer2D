@@ -3069,7 +3069,7 @@ func TestCastSingleHitsAndAggro(t *testing.T) {
 	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].String() != want.String() {
 		t.Fatalf("hits %v, want %v", hs, want)
 	}
-	wantCast := &pb.Cast{CasterId: 1, SkillId: "thuy_1", TargetId: m.id, DirX: -1}
+	wantCast := &pb.Cast{CasterId: 1, SkillId: "thuy_1", TargetId: m.id, DirX: -1, Level: 1}
 	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != wantCast.String() {
 		t.Fatalf("casts %v, want %v: dir points at the target", cs, wantCast)
 	}
@@ -3217,7 +3217,7 @@ func TestCastCircleSelf(t *testing.T) {
 	if far.hp != far.maxHP {
 		t.Fatal("the monster 2.6 tiles away was hit")
 	}
-	want := &pb.Cast{CasterId: 1, SkillId: "thuy_4"}
+	want := &pb.Cast{CasterId: 1, SkillId: "thuy_4", Level: 1}
 	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
 		t.Fatalf("casts %v, want %v", cs, want)
 	}
@@ -3537,7 +3537,7 @@ func TestCastConeLineAim(t *testing.T) {
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0])) {
 				t.Fatalf("hits %v, want only %d to the south", hs, ms[0].id)
 			}
-			want := &pb.Cast{CasterId: 1, SkillId: skill, DirY: 1}
+			want := &pb.Cast{CasterId: 1, SkillId: skill, DirY: 1, Level: 1}
 			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
@@ -3552,7 +3552,7 @@ func TestCastConeLineAim(t *testing.T) {
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[1])) {
 				t.Fatalf("hits %v, want only %d, towards the target", hs, ms[1].id)
 			}
-			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, DirY: -1}
+			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, DirY: -1, Level: 1}
 			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
@@ -3567,7 +3567,7 @@ func TestCastConeLineAim(t *testing.T) {
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0])) {
 				t.Fatalf("hits %v, want only %d", targetIDs(hs), ms[0].id)
 			}
-			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id}
+			want := &pb.Cast{CasterId: 1, SkillId: skill, TargetId: ms[0].id, Level: 1}
 			if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
 				t.Fatalf("casts %v, want %v", cs, want)
 			}
@@ -3637,7 +3637,7 @@ func TestCastCircleTargetArea(t *testing.T) {
 	if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), idsOf(ms[0], ms[1])) {
 		t.Fatalf("hits %v, want %v", targetIDs(hs), idsOf(ms[0], ms[1]))
 	}
-	want := &pb.Cast{CasterId: 1, SkillId: "viem_4", TargetId: ms[0].id, DirX: 1}
+	want := &pb.Cast{CasterId: 1, SkillId: "viem_4", TargetId: ms[0].id, DirX: 1, Level: 4}
 	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
 		t.Fatalf("casts %v, want %v", cs, want)
 	}
@@ -3702,7 +3702,7 @@ func TestCastCircleSelfOrder(t *testing.T) {
 			if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), want) {
 				t.Fatalf("hits %v, want %v", targetIDs(hs), want)
 			}
-			cast := &pb.Cast{CasterId: 1, SkillId: "thuy_4"}
+			cast := &pb.Cast{CasterId: 1, SkillId: "thuy_4", Level: int32(c.lv)}
 			if c.castTo {
 				cast.TargetId = ms[0].id
 			}

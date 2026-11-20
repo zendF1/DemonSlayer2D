@@ -134,7 +134,7 @@ Migration `00003_skills.sql`:
 
 - `characters.skill_points int NOT NULL DEFAULT 0 CHECK (skill_points >= 0)`; khi migrate, `UPDATE characters SET skill_points = level - 1`.
 - Bảng `character_skills (character_id bigint REFERENCES characters(id) ON DELETE CASCADE, skill_id text NOT NULL, level int NOT NULL CHECK (level BETWEEN 1 AND 10), PRIMARY KEY (character_id, skill_id))`.
-- Store nạp chiêu cùng nhân vật và lưu chiêu cùng lần lưu nhân vật (cùng transaction). `skill_id` không có trong `skills.json` thì bị bỏ khi nạp, ghi một dòng log cảnh báo.
+- Store nạp chiêu cùng nhân vật và lưu chiêu cùng lần lưu nhân vật (cùng transaction). `skill_id` không có trong `skills.json`, thuộc class khác, hoặc có `learn_level` cao hơn cấp nhân vật (ví dụ sau khi `devchar` hạ cấp) thì bị bỏ khi vào game, ghi một dòng log cảnh báo.
 - Học hoặc nâng chiêu được lưu ngay (như cộng điểm tiềm năng). Lên cấp đã lưu ngay từ Giai đoạn 1; nay lưu thêm `skill_points`.
 - Hồi chiêu không lưu. Vào lại game thì mọi chiêu sẵn sàng; chấp nhận được vì đăng xuất rồi vào lại lâu hơn hồi chiêu dài nhất 7,5 giây.
 

@@ -239,6 +239,40 @@ func TestEnterDropsUnknownSkills(t *testing.T) {
 	}
 }
 
+// Stored skills whose learn level is above the character's level (a devchar
+// level-down) are dropped with one warning each: a level-29 Viêm keeps viem_1
+// (learn level 10) but not the passive viem_3 (30), which then no longer
+// counts in the stats. TestEnterDropsUnknownSkills keeps viem_3 at level 30.
+func TestEnterDropsSkillsAboveLevel(t *testing.T) {
+	var buf lockedBuf
+	w := startWorldLog(t, 10, testMaps(t), slog.New(slog.NewTextHandler(&buf, nil)))
+	c := char(1, "m1", 3.5, 4.5)
+	c.Level = 29
+	c.Skills = map[string]int{"viem_1": 3, "viem_3": 2}
+	out := newRecOut()
+	if _, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out}); err != nil {
+		t.Fatal(err)
+	}
+	r := out.enterResp(t)
+	var got []string
+	for _, s := range r.Skills {
+		got = append(got, fmt.Sprintf("%s:%d", s.SkillId, s.Level))
+	}
+	if !slices.Equal(got, []string{"viem_1:3"}) {
+		t.Fatalf("skills %v, want viem_1:3", got)
+	}
+	if want := combat.Compute(false, 29, combat.Points{}, combat.Passive{}); r.Stats.PhysDefense != int32(want.PhysDefense) {
+		t.Fatalf("phys defense %d, want %d without the passive", r.Stats.PhysDefense, want.PhysDefense)
+	}
+	logs := buf.String()
+	if n := strings.Count(logs, "skill=viem_3"); n != 1 {
+		t.Fatalf("%d log lines for viem_3, want 1:\n%s", n, logs)
+	}
+	if strings.Contains(logs, "skill=viem_1") {
+		t.Fatalf("kept skill viem_1 was logged:\n%s", logs)
+	}
+}
+
 func TestEnterFallsBackToStartSpawn(t *testing.T) {
 	w := newTestWorld(t, 10)
 	for _, c := range []store.Character{char(1, "m1", 5.5, 10.5), char(2, "gone", 3.5, 3.5)} {

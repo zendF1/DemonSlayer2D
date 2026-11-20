@@ -272,7 +272,7 @@ func clientFixtures() map[string]*pb.Envelope {
 		"world_tick_cast": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
 			Tick: 45, AckInputSeq: 9,
 			Moves: []*pb.EntityMove{{Id: 77, X: 8.5, Y: 7.25, DirX: 1, Snap: true}},
-			Casts: []*pb.Cast{{CasterId: 77, SkillId: "viem_1", TargetId: 900, DirX: 1}},
+			Casts: []*pb.Cast{{CasterId: 77, SkillId: "viem_1", TargetId: 900, DirX: 1, Level: 3}},
 			Hits: []*pb.Hit{
 				{AttackerId: 77, TargetId: 900, Damage: 40, HpAfter: 60, SkillId: "viem_1"},
 				{AttackerId: 77, TargetId: 902, Damage: 35, HpAfter: 65, SkillId: "viem_1"},
@@ -316,7 +316,7 @@ func TestRangedHitFixtureRoundTrip(t *testing.T) {
 	}
 }
 
-// The cast fixture decodes back to the Cast, both Hits with their skill id and
+// The cast fixture decodes back to the Cast with its level, both Hits with their skill id and
 // the snapping move.
 func TestCastFixtureRoundTrip(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "client", "world_tick_cast.hex"))
@@ -333,8 +333,8 @@ func TestCastFixtureRoundTrip(t *testing.T) {
 	}
 	wt := env.GetWorldTick()
 	casts := wt.GetCasts()
-	if len(casts) != 1 || casts[0].GetCasterId() != 77 || casts[0].GetSkillId() != "viem_1" || casts[0].GetTargetId() != 900 {
-		t.Fatalf("casts %v, want one viem_1 cast by 77 at 900", casts)
+	if len(casts) != 1 || casts[0].GetCasterId() != 77 || casts[0].GetSkillId() != "viem_1" || casts[0].GetTargetId() != 900 || casts[0].GetLevel() != 3 {
+		t.Fatalf("casts %v, want one level-3 viem_1 cast by 77 at 900", casts)
 	}
 	hits := wt.GetHits()
 	if len(hits) != 2 || hits[0].GetSkillId() != "viem_1" || hits[1].GetSkillId() != "viem_1" {
