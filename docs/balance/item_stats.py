@@ -17,13 +17,20 @@ Rules (phase 3a spec 2.1):
   equipment_balance.generate(); names and the per-class attack split follow
   its write_csv(), and each array element n is the stat at +n;
 - drop tables follow game-design 5.12; elite and boss Xu are 6 and 25 times
-  the normal range.
+  the normal range;
+- enhancement (phase 3b spec 2.1): success rates and level drops follow
+  game-design 3.3, stones and Xu per attempt are the spec's table; regen
+  milestones and each slot's regen kind follow game-design 2.7.
 The script checks every equipment value against equipment-stats-proposal.csv.
+Without --print-json it also prints the mean enhancement costs from a seeded
+simulation and checks the +15 mean attempts without charms (game-design 3.3:
+about 6,500).
 """
 
 import argparse
 import csv
 import json
+import random
 import sys
 from fractions import Fraction
 from pathlib import Path
@@ -50,10 +57,33 @@ QUALITIES = [
 ]
 LINE_STATS = ["hp", "phys_attack", "magic_attack", "phys_defense", "magic_defense"]
 STAT_KEYS = LINE_STATS  # the five per-piece arrays, in JSON order
+SLOT_REGEN = {"weapon": "mp", "boots": "hp", "bracers": "hp", "pants": "hp", "helmet": "hp",
+              "armor": "hp", "necklace": "mp", "pendant": "mp", "ring_left": "mp", "ring_right": "mp"}
 STACKABLES = [
     {"code": "stone_enhance", "name": "Đá cường hóa"},
     {"code": "stone_refine", "name": "Đá tẩy luyện"},
+    {"code": "charm_protect", "name": "Bùa bảo vệ"},
 ]
+STONE = "stone_enhance"
+CHARM = "charm_protect"
+PITY_PCT = 1
+MAX_TIMES = 100
+# Phase 3b spec 2.1: target level, success %, drops a level on an unprotected
+# failure, stones per attempt, Xu per attempt per item tier.
+ENHANCE_TABLE = [
+    (1, 100, False, 1, 10), (2, 100, False, 1, 15), (3, 100, False, 1, 20), (4, 100, False, 1, 25),
+    (5, 90, False, 2, 40), (6, 80, False, 2, 50), (7, 70, False, 2, 60),
+    (8, 60, True, 3, 80), (9, 50, True, 3, 100), (10, 40, True, 3, 120),
+    (11, 30, True, 4, 150), (12, 25, True, 4, 180), (13, 20, True, 5, 220),
+    (14, 15, True, 5, 260), (15, 10, True, 5, 300),
+]
+# game-design 2.7: enhance milestone, HP per second in 1/10000 of max HP
+# (armour), MP per second (weapon and jewellery).
+REGEN = [(7, 5, 1), (10, 10, 2), (12, 20, 3), (15, 30, 5)]
+SIM_SEED = 3
+SIM_RUNS = {7: 20000, 10: 20000, 12: 20000, 15: 2000}
+SIM_TIER = 50
+MEAN_15_RANGE = (5500, 7500)
 XU_NORMAL = [3, 5]
 DROPS = {
     "normal": {
@@ -136,7 +166,8 @@ def build():
         "bag_size": BAG_SIZE,
         "stack_max": STACK_MAX,
         "ground_sec": GROUND_SEC,
-        "slots": [{"id": sid, "name": eb.SLOTS[i], "index": i} for i, sid in enumerate(SLOT_IDS)],
+        "slots": [{"id": sid, "name": eb.SLOTS[i], "index": i, "regen": SLOT_REGEN[sid]}
+                  for i, sid in enumerate(SLOT_IDS)],
         "qualities": QUALITIES,
         "line_stats": LINE_STATS,
         "line_roll_min_pct": LINE_ROLL_MIN_PCT,
@@ -144,6 +175,13 @@ def build():
         "equipment": equipment,
         "stackables": STACKABLES,
         "drops": DROPS,
+        "enhance": {
+            "pity_pct": PITY_PCT,
+            "max_times": MAX_TIMES,
+            "levels": [{"level": lv, "success_pct": pct, "drop": drop, "stones": stones, "xu_per_tier": xu}
+                       for lv, pct, drop, stones, xu in ENHANCE_TABLE],
+        },
+        "regen": [{"enhance": n, "hp_bp": hp, "mp": mp} for n, hp, mp in REGEN],
     }
 
 
@@ -178,6 +216,88 @@ def check(data):
         assert sum(drop["equipment"]["quality_bp"]) == 10000, rank
     codes = [e["code"] for e in data["equipment"]] + [s["code"] for s in data["stackables"]]
     assert len(codes) == len(set(codes)), codes
+    check_enhance(data)
+
+
+def check_enhance(data):
+    """The load checks of phase 3b spec 2.1, as the Go server makes them."""
+    enh = data["enhance"]
+    assert enh["pity_pct"] >= 1 and 1 <= enh["max_times"] <= 1000, enh
+    levels = enh["levels"]
+    assert [lv["level"] for lv in levels] == list(range(1, 16)), levels
+    for i, lv in enumerate(levels):
+        assert 1 <= lv["success_pct"] <= 100, lv
+        assert lv["stones"] >= 1 and lv["xu_per_tier"] >= 1, lv
+        assert not lv["drop"] or lv["success_pct"] < 100, lv
+        if lv["level"] <= 4:
+            assert lv["success_pct"] == 100 and not lv["drop"], lv
+        if i:
+            assert lv["success_pct"] <= levels[i - 1]["success_pct"], lv
+            assert lv["xu_per_tier"] >= levels[i - 1]["xu_per_tier"], lv
+    regen = data["regen"]
+    assert regen, regen
+    for i, step in enumerate(regen):
+        assert 1 <= step["enhance"] <= 15 and step["hp_bp"] > 0 and step["mp"] > 0, step
+        if i:
+            prev = regen[i - 1]
+            assert step["enhance"] > prev["enhance"] and step["hp_bp"] > prev["hp_bp"] and step["mp"] > prev["mp"], step
+    for slot in data["slots"]:
+        assert slot["regen"] in ("hp", "mp"), slot
+    codes = [s["code"] for s in data["stackables"]]
+    assert STONE in codes and CHARM in codes, codes
+
+
+def simulate(levels, pity_pct, target, charm, rng):
+    """One item from +0 to target (phase 3b spec 4.1), attempts one at a
+    time; charm protects every attempt whose target level can drop. Returns
+    (attempts, stones, Xu per tier, charms)."""
+    level, pity = 0, [0] * len(levels)
+    attempts = stones = xu = charms = 0
+    while level < target:
+        k = levels[level]
+        protect = charm and k["drop"]
+        attempts += 1
+        stones += k["stones"]
+        xu += k["xu_per_tier"]
+        charms += protect
+        rate = min(100, k["success_pct"] + pity[level])
+        if rng.randrange(100) < rate:
+            pity[level] = 0
+            level += 1
+            continue
+        pity[level] = min(pity[level] + pity_pct, 100 - k["success_pct"])
+        if k["drop"] and not protect:
+            level -= 1
+    return attempts, stones, xu, charms
+
+
+def mean_costs(data):
+    """{(target, charm): (attempts, stones, Xu at SIM_TIER, charms)}, means
+    over SIM_RUNS[target] seeded runs."""
+    enh = data["enhance"]
+    out = {}
+    for target, runs in SIM_RUNS.items():
+        for charm in (False, True):
+            rng = random.Random(f"{SIM_SEED}-{target}-{charm}")
+            sums = [0, 0, 0, 0]
+            for _ in range(runs):
+                for i, v in enumerate(simulate(enh["levels"], enh["pity_pct"], target, charm, rng)):
+                    sums[i] += v
+            a, s, x, c = (v / runs for v in sums)
+            out[target, charm] = (a, s, x * SIM_TIER, c)
+    return out
+
+
+def print_costs(costs):
+    print(f"mean enhancement cost from +0 (seed {SIM_SEED}, Xu at tier {SIM_TIER}):")
+    print("target | no charm: attempts / stones / Xu | charm from +8: attempts / stones / Xu / charms")
+    for target in SIM_RUNS:
+        a, s, x, _ = costs[target, False]
+        ca, cs, cx, cc = costs[target, True]
+        print(f"+{target:<5} | {a:,.0f} / {s:,.0f} / {x:,.0f} | {ca:,.0f} / {cs:,.0f} / {cx:,.0f} / {cc:,.0f}")
+    lo, hi = MEAN_15_RANGE
+    mean15 = costs[15, False][0]
+    assert lo <= mean15 <= hi, f"+15 mean attempts without charm {mean15:.0f} outside {lo}-{hi}"
 
 
 def to_json(data):
@@ -198,6 +318,7 @@ def main():
     for t in data["tiers"]:
         print(f"tier {t['tier']} {t['name']}: line standard {t['line_standard']}")
     print(f"{len(data['equipment'])} equipment pieces, {len(data['stackables'])} stackables")
+    print_costs(mean_costs(data))
     if args.write_json:
         path = Path(__file__).resolve().parents[2] / "data" / "items.json"
         path.parent.mkdir(exist_ok=True)

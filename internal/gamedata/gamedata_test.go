@@ -643,7 +643,11 @@ func sixteen(v int) []int {
 func validItems() obj {
 	var slots []any
 	for i, id := range SlotIDs {
-		slots = append(slots, obj{"id": id, "name": "s" + id, "index": i})
+		regen := RegenHP
+		if i == 0 || i >= 6 {
+			regen = RegenMP
+		}
+		slots = append(slots, obj{"id": id, "name": "s" + id, "index": i, "regen": regen})
 	}
 	quality := func(name string, min, max, hidden int) obj {
 		return obj{"name": name, "rank": "r", "lines": []int{min, max}, "hidden_pct": hidden}
@@ -686,14 +690,33 @@ func validItems() obj {
 		"line_roll_min_pct": 50,
 		"tiers": []any{obj{"tier": 10, "name": "Lữ Hành", "line_standard": obj{
 			StatHP: 86, StatPhysAttack: 4, StatMagicAttack: 4, StatPhysDefense: 1, StatMagicDefense: 1}}},
-		"equipment":  equipment,
-		"stackables": []any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"}},
+		"equipment": equipment,
+		"stackables": []any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"},
+			obj{"code": "charm_protect", "name": "Bùa bảo vệ"}},
 		"drops": obj{
 			RankNormal: drop(3, 5, 500, 1, []int{8000, 1700, 300, 0, 0}, stack("stone_enhance", 2000, 1)),
 			RankElite:  drop(18, 30, 10000, 1, []int{0, 7500, 2500, 0, 0}, stack("stone_enhance", 10000, 3), stack("stone_refine", 1000, 1)),
 			RankBoss:   drop(75, 125, 10000, 2, []int{0, 2000, 7500, 500, 0}, stack("stone_enhance", 10000, 10), stack("stone_refine", 10000, 1)),
 		},
+		"enhance": obj{"pity_pct": 1, "max_times": 100, "levels": enhanceLevels()},
+		"regen": []any{obj{"enhance": 7, "hp_bp": 5, "mp": 1}, obj{"enhance": 10, "hp_bp": 10, "mp": 2},
+			obj{"enhance": 12, "hp_bp": 20, "mp": 3}, obj{"enhance": 15, "hp_bp": 30, "mp": 5}},
 	}
+}
+
+// enhanceLevels is the phase 3b spec 2.1 table: entry i is target +i+1.
+func enhanceLevels() []any {
+	rows := [][5]int{ // level, success_pct, drop (0/1), stones, xu_per_tier
+		{1, 100, 0, 1, 10}, {2, 100, 0, 1, 15}, {3, 100, 0, 1, 20}, {4, 100, 0, 1, 25},
+		{5, 90, 0, 2, 40}, {6, 80, 0, 2, 50}, {7, 70, 0, 2, 60},
+		{8, 60, 1, 3, 80}, {9, 50, 1, 3, 100}, {10, 40, 1, 3, 120}, {11, 30, 1, 4, 150},
+		{12, 25, 1, 4, 180}, {13, 20, 1, 5, 220}, {14, 15, 1, 5, 260}, {15, 10, 1, 5, 300},
+	}
+	var out []any
+	for _, r := range rows {
+		out = append(out, obj{"level": r[0], "success_pct": r[1], "drop": r[2] == 1, "stones": r[3], "xu_per_tier": r[4]})
+	}
+	return out
 }
 
 func itemsJSON(t *testing.T, d obj) []byte {
@@ -713,7 +736,7 @@ func TestParseItemsValid(t *testing.T) {
 	if it.BagSize != 60 || it.StackMax != 999 || it.GroundSec != 60 || it.LineRollMinPct != 50 {
 		t.Fatalf("scalars: %+v", it)
 	}
-	if len(it.Slots) != 10 || it.Slots[9] != (Slot{ID: SlotRingRight, Name: "sring_right", Index: 9}) {
+	if len(it.Slots) != 10 || it.Slots[9] != (Slot{ID: SlotRingRight, Name: "sring_right", Index: 9, Regen: RegenMP}) {
 		t.Fatalf("slots: %+v", it.Slots)
 	}
 	if q := it.Qualities[1]; q.Name != "Xanh" || q.Lines != [2]int{1, 2} || q.HiddenPct != 0 {
@@ -734,7 +757,7 @@ func TestParseItemsValid(t *testing.T) {
 	if !it.IsEquipment("eq10_ring_left") || it.IsEquipment("stone_enhance") {
 		t.Fatal("IsEquipment")
 	}
-	if !slices.Equal(it.StackOrder, []string{"stone_enhance", "stone_refine"}) || it.Stackables["stone_refine"].Name != "Đá tẩy luyện" {
+	if !slices.Equal(it.StackOrder, []string{"stone_enhance", "stone_refine", "charm_protect"}) || it.Stackables["stone_refine"].Name != "Đá tẩy luyện" {
 		t.Fatalf("stackables: %v %+v", it.StackOrder, it.Stackables)
 	}
 	b := it.Drops[RankBoss]
@@ -885,7 +908,7 @@ func TestRepoItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	it := d.Items
-	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 2 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
+	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 3 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
 		t.Fatalf("items: %d equipment, %d stackables, %d drops", len(it.Equipment), len(it.Stackables), len(it.Drops))
 	}
 	perTier := map[int]int{}
@@ -918,5 +941,146 @@ func TestRepoItems(t *testing.T) {
 	}
 	if s := it.Tiers[50].LineStandard; s[StatHP] != 469 || s[StatPhysAttack] != 32 || s[StatMagicDefense] != 5 {
 		t.Fatalf("tier 50 standard: %v", s)
+	}
+}
+
+// ______________________TEST ENHANCE DATA_____________________
+
+func TestParseEnhanceData(t *testing.T) {
+	it, err := ParseItems(itemsJSON(t, validItems()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := it.Enhance
+	if e.PityPct != 1 || e.MaxTimes != 100 || len(e.Levels) != 15 {
+		t.Fatalf("enhance: %+v", e)
+	}
+	if e.Levels[0] != (EnhanceLevel{Level: 1, SuccessPct: 100, Stones: 1, XuPerTier: 10}) {
+		t.Fatalf("+1: %+v", e.Levels[0])
+	}
+	if e.Levels[7] != (EnhanceLevel{Level: 8, SuccessPct: 60, Drop: true, Stones: 3, XuPerTier: 80}) {
+		t.Fatalf("+8: %+v", e.Levels[7])
+	}
+	if !slices.Equal(it.Regen, []RegenStep{{7, 5, 1}, {10, 10, 2}, {12, 20, 3}, {15, 30, 5}}) {
+		t.Fatalf("regen: %+v", it.Regen)
+	}
+	if it.Slots[0].Regen != RegenMP || it.Slots[1].Regen != RegenHP || it.Slots[5].Regen != RegenHP || it.Slots[6].Regen != RegenMP {
+		t.Fatalf("slot regen: %+v", it.Slots)
+	}
+	if _, ok := it.Stackables[CharmProtect]; !ok {
+		t.Fatal("no charm")
+	}
+}
+
+func TestParseEnhanceRejects(t *testing.T) {
+	enh := func(f func(obj)) func(obj) {
+		return func(d obj) { f(d["enhance"].(obj)) }
+	}
+	level := func(i int, f string, v any) func(obj) {
+		return enh(func(e obj) { e["levels"].([]any)[i].(obj)[f] = v })
+	}
+	regen := func(i int, f string, v any) func(obj) {
+		return func(d obj) { d["regen"].([]any)[i].(obj)[f] = v }
+	}
+	tests := []struct {
+		name   string
+		mutate func(obj)
+		want   string
+	}{
+		{"14 levels", enh(func(e obj) { e["levels"] = e["levels"].([]any)[:14] }), "enhance levels has 14 entries, want 15"},
+		{"16 levels", enh(func(e obj) { e["levels"] = append(e["levels"].([]any), e["levels"].([]any)[14]) }), "enhance levels has 16 entries, want 15"},
+		{"no enhance", func(d obj) { delete(d, "enhance") }, "enhance pity_pct 0 must be at least 1"},
+		{"levels out of order", func(d obj) {
+			l := d["enhance"].(obj)["levels"].([]any)
+			l[9], l[10] = l[10], l[9]
+		}, "enhance levels[9] is level 11, want 10"},
+		{"rising success_pct", level(9, "success_pct", 55), "enhance +10: success_pct 55 must not be above +9's 50"},
+		{"success_pct 0", level(14, "success_pct", 0), "enhance +15: success_pct 0 must be in 1-100"},
+		{"success_pct 101", level(0, "success_pct", 101), "enhance +1: success_pct 101 must be in 1-100"},
+		{"+4 below 100", level(3, "success_pct", 95), "enhance +4: success_pct 95 must be 100"},
+		{"drop at +3", level(2, "drop", true), "enhance +3: drop must be false"},
+		{"drop with 100%", func(d obj) {
+			level(4, "success_pct", 100)(d)
+			level(4, "drop", true)(d)
+		}, "enhance +5: drop needs success_pct below 100"},
+		{"stones 0", level(5, "stones", 0), "enhance +6: stones 0 must be at least 1"},
+		{"xu_per_tier 0", level(0, "xu_per_tier", 0), "enhance +1: xu_per_tier 0 must be at least 1"},
+		{"falling xu_per_tier", level(10, "xu_per_tier", 99), "enhance +11: xu_per_tier 99 must not be below +10's 120"},
+		{"pity_pct 0", enh(func(e obj) { e["pity_pct"] = 0 }), "enhance pity_pct 0 must be at least 1"},
+		{"max_times 0", enh(func(e obj) { e["max_times"] = 0 }), "enhance max_times 0 must be in 1-1000"},
+		{"max_times 1001", enh(func(e obj) { e["max_times"] = 1001 }), "enhance max_times 1001 must be in 1-1000"},
+		{"unknown enhance field", enh(func(e obj) { e["bogus"] = 1 }), `unknown field "bogus"`},
+
+		{"no regen", func(d obj) { delete(d, "regen") }, "regen is empty"},
+		{"regen out of order", func(d obj) {
+			r := d["regen"].([]any)
+			r[1], r[2] = r[2], r[1]
+		}, "regen[2]: enhance 10, hp_bp 10 and mp 2 must each be above the step before"},
+		{"regen equal enhance", regen(1, "enhance", 7), "regen[1]: enhance 7, hp_bp 10 and mp 2 must each be above the step before"},
+		{"regen hp_bp not rising", regen(3, "hp_bp", 20), "regen[3]: enhance 15, hp_bp 20 and mp 5 must each be above the step before"},
+		{"regen mp not rising", regen(2, "mp", 2), "regen[2]: enhance 12, hp_bp 20 and mp 2 must each be above the step before"},
+		{"regen enhance 16", regen(3, "enhance", 16), "regen[3]: enhance 16 must be in 1-15"},
+		{"regen enhance 0", regen(0, "enhance", 0), "regen[0]: enhance 0 must be in 1-15"},
+		{"regen hp_bp 0", regen(0, "hp_bp", 0), "regen[0]: hp_bp 0 and mp 1 must be positive"},
+		{"regen mp 0", regen(0, "mp", 0), "regen[0]: hp_bp 5 and mp 0 must be positive"},
+
+		{"slot without regen", func(d obj) { delete(d["slots"].([]any)[4].(obj), "regen") }, `slot "helmet": regen "" must be "hp" or "mp"`},
+		{"slot with bad regen", func(d obj) { d["slots"].([]any)[0].(obj)["regen"] = "sp" }, `slot "weapon": regen "sp" must be "hp" or "mp"`},
+		{"missing charm", func(d obj) { d["stackables"] = d["stackables"].([]any)[:2] }, `stackables has no "charm_protect"`},
+		{"missing stone", func(d obj) {
+			d["stackables"] = d["stackables"].([]any)[1:]
+			d["drops"] = obj{RankNormal: dropNoStacks(d, RankNormal), RankElite: dropNoStacks(d, RankElite), RankBoss: dropNoStacks(d, RankBoss)}
+		}, `stackables has no "stone_enhance"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := validItems()
+			tt.mutate(d)
+			_, err := ParseItems(itemsJSON(t, d))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+// dropNoStacks is the rank's drop table of d without its stack drops.
+func dropNoStacks(d obj, rank string) obj {
+	x := maps.Clone(d["drops"].(obj)[rank].(obj))
+	x["stacks"] = []any{}
+	return x
+}
+
+// The committed enhancement data is the spec 2.1 table.
+func TestRepoEnhanceData(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := d.Items
+	if got := it.Enhance.Levels[14]; got != (EnhanceLevel{Level: 15, SuccessPct: 10, Drop: true, Stones: 5, XuPerTier: 300}) {
+		t.Fatalf("+15: %+v", got)
+	}
+	var want []EnhanceLevel
+	for _, l := range enhanceLevels() {
+		o := l.(obj)
+		want = append(want, EnhanceLevel{Level: o["level"].(int), SuccessPct: o["success_pct"].(int), Drop: o["drop"].(bool),
+			Stones: o["stones"].(int), XuPerTier: o["xu_per_tier"].(int)})
+	}
+	if !slices.Equal(it.Enhance.Levels, want) || it.Enhance.PityPct != 1 || it.Enhance.MaxTimes != 100 {
+		t.Fatalf("enhance: %+v", it.Enhance)
+	}
+	if !slices.Equal(it.Regen, []RegenStep{{7, 5, 1}, {10, 10, 2}, {12, 20, 3}, {15, 30, 5}}) {
+		t.Fatalf("regen: %+v", it.Regen)
+	}
+	wantRegen := map[string]string{SlotWeapon: RegenMP, SlotBoots: RegenHP, SlotBracers: RegenHP, SlotPants: RegenHP,
+		SlotHelmet: RegenHP, SlotArmor: RegenHP, SlotNecklace: RegenMP, SlotPendant: RegenMP, SlotRingLeft: RegenMP, SlotRingRight: RegenMP}
+	for _, s := range it.Slots {
+		if s.Regen != wantRegen[s.ID] {
+			t.Errorf("slot %s regen %q, want %q", s.ID, s.Regen, wantRegen[s.ID])
+		}
+	}
+	if it.Stackables[CharmProtect].Name != "Bùa bảo vệ" || it.StackOrder[2] != CharmProtect || it.StackOrder[0] != StoneEnhance {
+		t.Fatalf("stackables: %v", it.StackOrder)
 	}
 }

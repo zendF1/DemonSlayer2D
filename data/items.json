@@ -6,52 +6,62 @@
     {
       "id": "weapon",
       "name": "Vũ khí",
-      "index": 0
+      "index": 0,
+      "regen": "mp"
     },
     {
       "id": "boots",
       "name": "Giày",
-      "index": 1
+      "index": 1,
+      "regen": "hp"
     },
     {
       "id": "bracers",
       "name": "Hộ uyển",
-      "index": 2
+      "index": 2,
+      "regen": "hp"
     },
     {
       "id": "pants",
       "name": "Quần",
-      "index": 3
+      "index": 3,
+      "regen": "hp"
     },
     {
       "id": "helmet",
       "name": "Mũ",
-      "index": 4
+      "index": 4,
+      "regen": "hp"
     },
     {
       "id": "armor",
       "name": "Áo",
-      "index": 5
+      "index": 5,
+      "regen": "hp"
     },
     {
       "id": "necklace",
       "name": "Dây chuyền",
-      "index": 6
+      "index": 6,
+      "regen": "mp"
     },
     {
       "id": "pendant",
       "name": "Ngọc bội",
-      "index": 7
+      "index": 7,
+      "regen": "mp"
     },
     {
       "id": "ring_left",
       "name": "Nhẫn trái",
-      "index": 8
+      "index": 8,
+      "regen": "mp"
     },
     {
       "id": "ring_right",
       "name": "Nhẫn phải",
-      "index": 9
+      "index": 9,
+      "regen": "mp"
     }
   ],
   "qualities": [
@@ -7036,6 +7046,10 @@
     {
       "code": "stone_refine",
       "name": "Đá tẩy luyện"
+    },
+    {
+      "code": "charm_protect",
+      "name": "Bùa bảo vệ"
     }
   ],
   "drops": {
@@ -7121,5 +7135,138 @@
         }
       ]
     }
-  }
+  },
+  "enhance": {
+    "pity_pct": 1,
+    "max_times": 100,
+    "levels": [
+      {
+        "level": 1,
+        "success_pct": 100,
+        "drop": false,
+        "stones": 1,
+        "xu_per_tier": 10
+      },
+      {
+        "level": 2,
+        "success_pct": 100,
+        "drop": false,
+        "stones": 1,
+        "xu_per_tier": 15
+      },
+      {
+        "level": 3,
+        "success_pct": 100,
+        "drop": false,
+        "stones": 1,
+        "xu_per_tier": 20
+      },
+      {
+        "level": 4,
+        "success_pct": 100,
+        "drop": false,
+        "stones": 1,
+        "xu_per_tier": 25
+      },
+      {
+        "level": 5,
+        "success_pct": 90,
+        "drop": false,
+        "stones": 2,
+        "xu_per_tier": 40
+      },
+      {
+        "level": 6,
+        "success_pct": 80,
+        "drop": false,
+        "stones": 2,
+        "xu_per_tier": 50
+      },
+      {
+        "level": 7,
+        "success_pct": 70,
+        "drop": false,
+        "stones": 2,
+        "xu_per_tier": 60
+      },
+      {
+        "level": 8,
+        "success_pct": 60,
+        "drop": true,
+        "stones": 3,
+        "xu_per_tier": 80
+      },
+      {
+        "level": 9,
+        "success_pct": 50,
+        "drop": true,
+        "stones": 3,
+        "xu_per_tier": 100
+      },
+      {
+        "level": 10,
+        "success_pct": 40,
+        "drop": true,
+        "stones": 3,
+        "xu_per_tier": 120
+      },
+      {
+        "level": 11,
+        "success_pct": 30,
+        "drop": true,
+        "stones": 4,
+        "xu_per_tier": 150
+      },
+      {
+        "level": 12,
+        "success_pct": 25,
+        "drop": true,
+        "stones": 4,
+        "xu_per_tier": 180
+      },
+      {
+        "level": 13,
+        "success_pct": 20,
+        "drop": true,
+        "stones": 5,
+        "xu_per_tier": 220
+      },
+      {
+        "level": 14,
+        "success_pct": 15,
+        "drop": true,
+        "stones": 5,
+        "xu_per_tier": 260
+      },
+      {
+        "level": 15,
+        "success_pct": 10,
+        "drop": true,
+        "stones": 5,
+        "xu_per_tier": 300
+      }
+    ]
+  },
+  "regen": [
+    {
+      "enhance": 7,
+      "hp_bp": 5,
+      "mp": 1
+    },
+    {
+      "enhance": 10,
+      "hp_bp": 10,
+      "mp": 2
+    },
+    {
+      "enhance": 12,
+      "hp_bp": 20,
+      "mp": 3
+    },
+    {
+      "enhance": 15,
+      "hp_bp": 30,
+      "mp": 5
+    }
+  ]
 }

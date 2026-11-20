@@ -52,6 +52,19 @@ var rankList = []string{RankNormal, RankElite, RankBoss}
 // has; every equipment stat array has exactly this many entries.
 const EnhanceLevels = 16
 
+// Stackable codes the enhancement rules use (phase 3b spec 2.1).
+const (
+	StoneEnhance = "stone_enhance"
+	CharmProtect = "charm_protect"
+)
+
+// Slot regen kinds: worn pieces at an enhance milestone regenerate HP
+// (armour) or MP (weapon and jewellery) every second (game-design 2.7).
+const (
+	RegenHP = "hp"
+	RegenMP = "mp"
+)
+
 const (
 	qualityCount = 5
 	// firstHiddenQuality is the first quality (Vàng) with an element and
@@ -59,13 +72,46 @@ const (
 	firstHiddenQuality = 2
 	maxBagSize         = 200
 	maxChanceBP        = 10000
+	// alwaysSucceed is the last target level that must succeed every time.
+	alwaysSucceed   = 4
+	maxEnhanceTimes = 1000
 )
 
-// Slot is one of the ten equipment slots.
+// Slot is one of the ten equipment slots. Regen is RegenHP or RegenMP.
 type Slot struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Index int    `json:"index"`
+	Regen string `json:"regen"`
+}
+
+// EnhanceTable is the enhancement rules (phase 3b spec 2.1). Levels[i] is
+// the attempt at target level +i+1; PityPct is the hidden rate a failure
+// adds; MaxTimes caps the attempts of one request.
+type EnhanceTable struct {
+	PityPct  int            `json:"pity_pct"`
+	MaxTimes int            `json:"max_times"`
+	Levels   []EnhanceLevel `json:"levels"`
+}
+
+// EnhanceLevel is one attempt at target Level: SuccessPct is the base rate;
+// Drop means an unprotected failure drops one level; each attempt costs
+// Stones enhance stones and XuPerTier times the item tier in Xu.
+type EnhanceLevel struct {
+	Level      int  `json:"level"`
+	SuccessPct int  `json:"success_pct"`
+	Drop       bool `json:"drop"`
+	Stones     int  `json:"stones"`
+	XuPerTier  int  `json:"xu_per_tier"`
+}
+
+// RegenStep is an enhance milestone: a worn piece at Enhance or more (up to
+// the next step) regenerates HPBP / 10000 of max HP (armour) or MP (weapon
+// and jewellery) every second.
+type RegenStep struct {
+	Enhance int `json:"enhance"`
+	HPBP    int `json:"hp_bp"`
+	MP      int `json:"mp"`
 }
 
 // Quality is an item quality; its index in Items.Qualities is the quality
@@ -149,6 +195,9 @@ type Items struct {
 	StackOrder []string
 	// Drops is keyed by monster rank.
 	Drops map[string]Drop
+	// Enhance is the enhancement table; Regen the milestones, ascending.
+	Enhance EnhanceTable
+	Regen   []RegenStep
 
 	pieces map[pieceKey]string
 }
@@ -172,6 +221,8 @@ type itemsFile struct {
 	Equipment      []Equipment         `json:"equipment"`
 	Stackables     []Stackable         `json:"stackables"`
 	Drops          map[string]dropFile `json:"drops"`
+	Enhance        EnhanceTable        `json:"enhance"`
+	Regen          []RegenStep         `json:"regen"`
 }
 
 // qualityFile and dropFile take pairs as slices so a wrong length is an
@@ -209,16 +260,18 @@ func (it *Items) Piece(tier, slotIndex int) string {
 	return it.pieces[pieceKey{tier: tier, slot: slotIndex}]
 }
 
-// ParseItems decodes and validates items.json (phase 3a spec 2.1).
+// ParseItems decodes and validates items.json (phase 3a spec 2.1, phase 3b
+// spec 2.1).
 func ParseItems(b []byte) (*Items, error) {
 	var f itemsFile
 	if err := decodeStrict(b, &f); err != nil {
 		return nil, fmt.Errorf("gamedata: items: decode: %w", err)
 	}
 	it := &Items{BagSize: f.BagSize, StackMax: f.StackMax, GroundSec: f.GroundSec, Slots: f.Slots,
-		LineStats: f.LineStats, LineRollMinPct: f.LineRollMinPct}
+		LineStats: f.LineStats, LineRollMinPct: f.LineRollMinPct, Enhance: f.Enhance, Regen: f.Regen}
 	for _, step := range []func(*Items, *itemsFile) error{
 		parseScalars, parseSlots, parseLineStats, parseQualities, parseTiers, parseEquipment, parseStackables, parseDrops,
+		parseEnhance, parseRegen,
 	} {
 		if err := step(it, &f); err != nil {
 			return nil, fmt.Errorf("gamedata: items: %w", err)
@@ -257,6 +310,9 @@ func parseSlots(it *Items, _ *itemsFile) error {
 		}
 		if s.Name == "" {
 			return fmt.Errorf("slot %q: name is empty", s.ID)
+		}
+		if s.Regen != RegenHP && s.Regen != RegenMP {
+			return fmt.Errorf("slot %q: regen %q must be %q or %q", s.ID, s.Regen, RegenHP, RegenMP)
 		}
 	}
 	return nil
@@ -512,4 +568,85 @@ func parseDrop(it *Items, d dropFile) (Drop, error) {
 		}
 	}
 	return Drop{XuPerLevel: [2]int{d.XuPerLevel[0], d.XuPerLevel[1]}, Equipment: eq, Stacks: d.Stacks}, nil
+}
+
+// parseEnhance checks the enhancement table (phase 3b spec 2.1): 15 levels
+// +1..+15, rates in 1-100 and never rising, +1..+4 always succeed and never
+// drop, a drop only where a failure is possible, stones and Xu at least 1
+// with Xu never falling; and the stone and the charm exist.
+func parseEnhance(it *Items, _ *itemsFile) error {
+	e := it.Enhance
+	if e.PityPct < 1 {
+		return fmt.Errorf("enhance pity_pct %d must be at least 1", e.PityPct)
+	}
+	if e.MaxTimes < 1 || e.MaxTimes > maxEnhanceTimes {
+		return fmt.Errorf("enhance max_times %d must be in 1-%d", e.MaxTimes, maxEnhanceTimes)
+	}
+	if len(e.Levels) != EnhanceLevels-1 {
+		return fmt.Errorf("enhance levels has %d entries, want %d", len(e.Levels), EnhanceLevels-1)
+	}
+	for i, l := range e.Levels {
+		if l.Level != i+1 {
+			return fmt.Errorf("enhance levels[%d] is level %d, want %d", i, l.Level, i+1)
+		}
+		if l.SuccessPct < 1 || l.SuccessPct > 100 {
+			return fmt.Errorf("enhance +%d: success_pct %d must be in 1-100", l.Level, l.SuccessPct)
+		}
+		if l.Stones < 1 {
+			return fmt.Errorf("enhance +%d: stones %d must be at least 1", l.Level, l.Stones)
+		}
+		if l.XuPerTier < 1 {
+			return fmt.Errorf("enhance +%d: xu_per_tier %d must be at least 1", l.Level, l.XuPerTier)
+		}
+		if l.Level <= alwaysSucceed {
+			if l.SuccessPct != 100 {
+				return fmt.Errorf("enhance +%d: success_pct %d must be 100", l.Level, l.SuccessPct)
+			}
+			if l.Drop {
+				return fmt.Errorf("enhance +%d: drop must be false", l.Level)
+			}
+		}
+		if l.Drop && l.SuccessPct == 100 {
+			return fmt.Errorf("enhance +%d: drop needs success_pct below 100", l.Level)
+		}
+		if i == 0 {
+			continue
+		}
+		prev := e.Levels[i-1]
+		if l.SuccessPct > prev.SuccessPct {
+			return fmt.Errorf("enhance +%d: success_pct %d must not be above +%d's %d", l.Level, l.SuccessPct, prev.Level, prev.SuccessPct)
+		}
+		if l.XuPerTier < prev.XuPerTier {
+			return fmt.Errorf("enhance +%d: xu_per_tier %d must not be below +%d's %d", l.Level, l.XuPerTier, prev.Level, prev.XuPerTier)
+		}
+	}
+	for _, code := range []string{StoneEnhance, CharmProtect} {
+		if _, ok := it.Stackables[code]; !ok {
+			return fmt.Errorf("stackables has no %q", code)
+		}
+	}
+	return nil
+}
+
+// parseRegen checks the regen milestones: at least one, enhance in 1-15,
+// hp_bp and mp positive, and all three strictly rising step by step.
+func parseRegen(it *Items, _ *itemsFile) error {
+	if len(it.Regen) == 0 {
+		return fmt.Errorf("regen is empty")
+	}
+	for i, r := range it.Regen {
+		if r.Enhance < 1 || r.Enhance > EnhanceLevels-1 {
+			return fmt.Errorf("regen[%d]: enhance %d must be in 1-%d", i, r.Enhance, EnhanceLevels-1)
+		}
+		if r.HPBP <= 0 || r.MP <= 0 {
+			return fmt.Errorf("regen[%d]: hp_bp %d and mp %d must be positive", i, r.HPBP, r.MP)
+		}
+		if i > 0 {
+			prev := it.Regen[i-1]
+			if r.Enhance <= prev.Enhance || r.HPBP <= prev.HPBP || r.MP <= prev.MP {
+				return fmt.Errorf("regen[%d]: enhance %d, hp_bp %d and mp %d must each be above the step before", i, r.Enhance, r.HPBP, r.MP)
+			}
+		}
+	}
+	return nil
 }
