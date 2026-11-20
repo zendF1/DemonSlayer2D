@@ -51,6 +51,14 @@ const (
 	// Respawn was requested while alive.
 	ErrorCode_ERROR_CODE_NOT_DEAD          ErrorCode = 21
 	ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS ErrorCode = 22
+	// The skill has not been learned yet.
+	ErrorCode_ERROR_CODE_SKILL_NOT_LEARNED ErrorCode = 23
+	// The character lacks the MP the skill costs.
+	ErrorCode_ERROR_CODE_NOT_ENOUGH_MP ErrorCode = 24
+	// The skill is already at its maximum level.
+	ErrorCode_ERROR_CODE_SKILL_MAXED ErrorCode = 25
+	// The character level is below the level the skill needs.
+	ErrorCode_ERROR_CODE_LEVEL_TOO_LOW ErrorCode = 26
 )
 
 // Enum value maps for ErrorCode.
@@ -79,6 +87,10 @@ var (
 		20: "ERROR_CODE_DEAD",
 		21: "ERROR_CODE_NOT_DEAD",
 		22: "ERROR_CODE_NOT_ENOUGH_POINTS",
+		23: "ERROR_CODE_SKILL_NOT_LEARNED",
+		24: "ERROR_CODE_NOT_ENOUGH_MP",
+		25: "ERROR_CODE_SKILL_MAXED",
+		26: "ERROR_CODE_LEVEL_TOO_LOW",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":       0,
@@ -104,6 +116,10 @@ var (
 		"ERROR_CODE_DEAD":              20,
 		"ERROR_CODE_NOT_DEAD":          21,
 		"ERROR_CODE_NOT_ENOUGH_POINTS": 22,
+		"ERROR_CODE_SKILL_NOT_LEARNED": 23,
+		"ERROR_CODE_NOT_ENOUGH_MP":     24,
+		"ERROR_CODE_SKILL_MAXED":       25,
+		"ERROR_CODE_LEVEL_TOO_LOW":     26,
 	}
 )
 
@@ -346,6 +362,10 @@ type Envelope struct {
 	//	*Envelope_RespawnReq
 	//	*Envelope_RespawnResp
 	//	*Envelope_SelfStats
+	//	*Envelope_LearnSkillReq
+	//	*Envelope_LearnSkillResp
+	//	*Envelope_CastReq
+	//	*Envelope_CastResp
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -656,6 +676,42 @@ func (x *Envelope) GetSelfStats() *SelfStats {
 	return nil
 }
 
+func (x *Envelope) GetLearnSkillReq() *LearnSkillReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_LearnSkillReq); ok {
+			return x.LearnSkillReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetLearnSkillResp() *LearnSkillResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_LearnSkillResp); ok {
+			return x.LearnSkillResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetCastReq() *CastReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_CastReq); ok {
+			return x.CastReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetCastResp() *CastResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_CastResp); ok {
+			return x.CastResp
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -776,6 +832,22 @@ type Envelope_SelfStats struct {
 	SelfStats *SelfStats `protobuf:"bytes,56,opt,name=self_stats,json=selfStats,proto3,oneof"`
 }
 
+type Envelope_LearnSkillReq struct {
+	LearnSkillReq *LearnSkillReq `protobuf:"bytes,57,opt,name=learn_skill_req,json=learnSkillReq,proto3,oneof"`
+}
+
+type Envelope_LearnSkillResp struct {
+	LearnSkillResp *LearnSkillResp `protobuf:"bytes,58,opt,name=learn_skill_resp,json=learnSkillResp,proto3,oneof"`
+}
+
+type Envelope_CastReq struct {
+	CastReq *CastReq `protobuf:"bytes,59,opt,name=cast_req,json=castReq,proto3,oneof"`
+}
+
+type Envelope_CastResp struct {
+	CastResp *CastResp `protobuf:"bytes,60,opt,name=cast_resp,json=castResp,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -833,6 +905,14 @@ func (*Envelope_RespawnReq) isEnvelope_Payload() {}
 func (*Envelope_RespawnResp) isEnvelope_Payload() {}
 
 func (*Envelope_SelfStats) isEnvelope_Payload() {}
+
+func (*Envelope_LearnSkillReq) isEnvelope_Payload() {}
+
+func (*Envelope_LearnSkillResp) isEnvelope_Payload() {}
+
+func (*Envelope_CastReq) isEnvelope_Payload() {}
+
+func (*Envelope_CastResp) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1491,7 +1571,9 @@ type EnterWorldResp struct {
 	// Zone ticks per second; each tick moves move_speed / tick_rate tiles.
 	TickRate uint32 `protobuf:"varint,8,opt,name=tick_rate,json=tickRate,proto3" json:"tick_rate,omitempty"`
 	// The character's own stats at entry.
-	Stats         *SelfStats `protobuf:"bytes,9,opt,name=stats,proto3" json:"stats,omitempty"`
+	Stats *SelfStats `protobuf:"bytes,9,opt,name=stats,proto3" json:"stats,omitempty"`
+	// Every skill the character has learned.
+	Skills        []*SkillLevel `protobuf:"bytes,10,rep,name=skills,proto3" json:"skills,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1585,6 +1667,13 @@ func (x *EnterWorldResp) GetTickRate() uint32 {
 func (x *EnterWorldResp) GetStats() *SelfStats {
 	if x != nil {
 		return x.Stats
+	}
+	return nil
+}
+
+func (x *EnterWorldResp) GetSkills() []*SkillLevel {
+	if x != nil {
+		return x.Skills
 	}
 	return nil
 }
@@ -1985,9 +2074,9 @@ func (x *EntityMove) GetSnap() bool {
 }
 
 // Sent every tick, even when moves is empty. Events only cover entities in
-// the receiver's view. Clients apply hits in order, then hp_changes: each
-// HpChange is an entity's HP and max HP at the end of the tick, so it
-// overrides any hp_after of the same tick.
+// the receiver's view. Clients apply them in this order: moves, casts, hits,
+// deaths, hp_changes, level_ups. Each HpChange is an entity's HP and max HP at
+// the end of the tick, so it overrides any hp_after of the same tick.
 type WorldTick struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Tick  uint32                 `protobuf:"varint,1,opt,name=tick,proto3" json:"tick,omitempty"`
@@ -1998,6 +2087,7 @@ type WorldTick struct {
 	Deaths        []*Death      `protobuf:"bytes,5,rep,name=deaths,proto3" json:"deaths,omitempty"`
 	HpChanges     []*HpChange   `protobuf:"bytes,6,rep,name=hp_changes,json=hpChanges,proto3" json:"hp_changes,omitempty"`
 	LevelUps      []*LevelUp    `protobuf:"bytes,7,rep,name=level_ups,json=levelUps,proto3" json:"level_ups,omitempty"`
+	Casts         []*Cast       `protobuf:"bytes,8,rep,name=casts,proto3" json:"casts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2077,6 +2167,13 @@ func (x *WorldTick) GetHpChanges() []*HpChange {
 func (x *WorldTick) GetLevelUps() []*LevelUp {
 	if x != nil {
 		return x.LevelUps
+	}
+	return nil
+}
+
+func (x *WorldTick) GetCasts() []*Cast {
+	if x != nil {
+		return x.Casts
 	}
 	return nil
 }
@@ -2528,7 +2625,9 @@ type SelfStats struct {
 	Accuracy     int32 `protobuf:"varint,17,opt,name=accuracy,proto3" json:"accuracy,omitempty"`
 	Evasion      int32 `protobuf:"varint,18,opt,name=evasion,proto3" json:"evasion,omitempty"`
 	// Critical rate in basis points (100 = 1%).
-	CritRateBp    int32 `protobuf:"varint,19,opt,name=crit_rate_bp,json=critRateBp,proto3" json:"crit_rate_bp,omitempty"`
+	CritRateBp int32 `protobuf:"varint,19,opt,name=crit_rate_bp,json=critRateBp,proto3" json:"crit_rate_bp,omitempty"`
+	// Unspent skill points.
+	SkillPoints   int32 `protobuf:"varint,20,opt,name=skill_points,json=skillPoints,proto3" json:"skill_points,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2696,6 +2795,13 @@ func (x *SelfStats) GetCritRateBp() int32 {
 	return 0
 }
 
+func (x *SelfStats) GetSkillPoints() int32 {
+	if x != nil {
+		return x.SkillPoints
+	}
+	return 0
+}
+
 type Hit struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	AttackerId uint64                 `protobuf:"varint,1,opt,name=attacker_id,json=attackerId,proto3" json:"attacker_id,omitempty"`
@@ -2703,7 +2809,9 @@ type Hit struct {
 	Damage     int32                  `protobuf:"varint,3,opt,name=damage,proto3" json:"damage,omitempty"`
 	HpAfter    int32                  `protobuf:"varint,4,opt,name=hp_after,json=hpAfter,proto3" json:"hp_after,omitempty"`
 	// True for a monster's ranged shot; the client draws a projectile, not a slash.
-	Ranged        bool `protobuf:"varint,5,opt,name=ranged,proto3" json:"ranged,omitempty"`
+	Ranged bool `protobuf:"varint,5,opt,name=ranged,proto3" json:"ranged,omitempty"`
+	// The skill that dealt the hit; empty for the default slash or a monster hit.
+	SkillId       string `protobuf:"bytes,6,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2771,6 +2879,13 @@ func (x *Hit) GetRanged() bool {
 		return x.Ranged
 	}
 	return false
+}
+
+func (x *Hit) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
 }
 
 type Death struct {
@@ -2929,11 +3044,343 @@ func (x *LevelUp) GetLevel() int32 {
 	return 0
 }
 
+// Learns a skill or raises it one level; spends one skill point.
+type LearnSkillReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SkillId       string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LearnSkillReq) Reset() {
+	*x = LearnSkillReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LearnSkillReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LearnSkillReq) ProtoMessage() {}
+
+func (x *LearnSkillReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LearnSkillReq.ProtoReflect.Descriptor instead.
+func (*LearnSkillReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *LearnSkillReq) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+type LearnSkillResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Stats         *SelfStats             `protobuf:"bytes,1,opt,name=stats,proto3" json:"stats,omitempty"`
+	Skills        []*SkillLevel          `protobuf:"bytes,2,rep,name=skills,proto3" json:"skills,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LearnSkillResp) Reset() {
+	*x = LearnSkillResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LearnSkillResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LearnSkillResp) ProtoMessage() {}
+
+func (x *LearnSkillResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LearnSkillResp.ProtoReflect.Descriptor instead.
+func (*LearnSkillResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *LearnSkillResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+func (x *LearnSkillResp) GetSkills() []*SkillLevel {
+	if x != nil {
+		return x.Skills
+	}
+	return nil
+}
+
+// Casts a skill. target_id is the locked target (0 for none); dir is the
+// facing for skills without a target.
+type CastReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SkillId       string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	TargetId      uint64                 `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	DirX          float32                `protobuf:"fixed32,3,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
+	DirY          float32                `protobuf:"fixed32,4,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CastReq) Reset() {
+	*x = CastReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CastReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CastReq) ProtoMessage() {}
+
+func (x *CastReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CastReq.ProtoReflect.Descriptor instead.
+func (*CastReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *CastReq) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *CastReq) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *CastReq) GetDirX() float32 {
+	if x != nil {
+		return x.DirX
+	}
+	return 0
+}
+
+func (x *CastReq) GetDirY() float32 {
+	if x != nil {
+		return x.DirY
+	}
+	return 0
+}
+
+type CastResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CastResp) Reset() {
+	*x = CastResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CastResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CastResp) ProtoMessage() {}
+
+func (x *CastResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CastResp.ProtoReflect.Descriptor instead.
+func (*CastResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{39}
+}
+
+type SkillLevel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SkillId       string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	Level         int32                  `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkillLevel) Reset() {
+	*x = SkillLevel{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillLevel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillLevel) ProtoMessage() {}
+
+func (x *SkillLevel) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillLevel.ProtoReflect.Descriptor instead.
+func (*SkillLevel) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *SkillLevel) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *SkillLevel) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+// A skill was cast; sent to everyone who sees the caster and to the caster.
+type Cast struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CasterId      uint64                 `protobuf:"varint,1,opt,name=caster_id,json=casterId,proto3" json:"caster_id,omitempty"`
+	SkillId       string                 `protobuf:"bytes,2,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	TargetId      uint64                 `protobuf:"varint,3,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	DirX          float32                `protobuf:"fixed32,4,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
+	DirY          float32                `protobuf:"fixed32,5,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Cast) Reset() {
+	*x = Cast{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Cast) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Cast) ProtoMessage() {}
+
+func (x *Cast) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Cast.ProtoReflect.Descriptor instead.
+func (*Cast) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *Cast) GetCasterId() uint64 {
+	if x != nil {
+		return x.CasterId
+	}
+	return 0
+}
+
+func (x *Cast) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *Cast) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *Cast) GetDirX() float32 {
+	if x != nil {
+		return x.DirX
+	}
+	return 0
+}
+
+func (x *Cast) GetDirY() float32 {
+	if x != nil {
+		return x.DirY
+	}
+	return 0
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x99\r\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xf9\x0e\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -2972,7 +3419,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"respawnReq\x127\n" +
 	"\frespawn_resp\x187 \x01(\v2\x12.ds.v1.RespawnRespH\x00R\vrespawnResp\x121\n" +
 	"\n" +
-	"self_stats\x188 \x01(\v2\x10.ds.v1.SelfStatsH\x00R\tselfStatsB\t\n" +
+	"self_stats\x188 \x01(\v2\x10.ds.v1.SelfStatsH\x00R\tselfStats\x12>\n" +
+	"\x0flearn_skill_req\x189 \x01(\v2\x14.ds.v1.LearnSkillReqH\x00R\rlearnSkillReq\x12A\n" +
+	"\x10learn_skill_resp\x18: \x01(\v2\x15.ds.v1.LearnSkillRespH\x00R\x0elearnSkillResp\x12+\n" +
+	"\bcast_req\x18; \x01(\v2\x0e.ds.v1.CastReqH\x00R\acastReq\x12.\n" +
+	"\tcast_resp\x18< \x01(\v2\x0f.ds.v1.CastRespH\x00R\bcastRespB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -3011,7 +3462,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fconfirm_name\x18\x02 \x01(\tR\vconfirmName\"\x10\n" +
 	"\x0eDeleteCharResp\"(\n" +
 	"\rEnterWorldReq\x12\x17\n" +
-	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\x82\x02\n" +
+	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xad\x02\n" +
 	"\x0eEnterWorldResp\x12$\n" +
 	"\x0eself_entity_id\x18\x01 \x01(\x04R\fselfEntityId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x12\n" +
@@ -3023,7 +3474,9 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"move_speed\x18\a \x01(\x02R\tmoveSpeed\x12\x1b\n" +
 	"\ttick_rate\x18\b \x01(\rR\btickRate\x12&\n" +
-	"\x05stats\x18\t \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"\x0f\n" +
+	"\x05stats\x18\t \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\x12)\n" +
+	"\x06skills\x18\n" +
+	" \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\"\x0f\n" +
 	"\rLeaveWorldReq\"\x10\n" +
 	"\x0eLeaveWorldResp\"R\n" +
 	"\tMoveInput\x12\x1b\n" +
@@ -3054,7 +3507,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x01y\x18\x03 \x01(\x02R\x01y\x12\x13\n" +
 	"\x05dir_x\x18\x04 \x01(\x02R\x04dirX\x12\x13\n" +
 	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY\x12\x12\n" +
-	"\x04snap\x18\x06 \x01(\bR\x04snap\"\x8f\x02\n" +
+	"\x04snap\x18\x06 \x01(\bR\x04snap\"\xb2\x02\n" +
 	"\tWorldTick\x12\x12\n" +
 	"\x04tick\x18\x01 \x01(\rR\x04tick\x12\"\n" +
 	"\rack_input_seq\x18\x02 \x01(\rR\vackInputSeq\x12'\n" +
@@ -3064,7 +3517,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x06deaths\x18\x05 \x03(\v2\f.ds.v1.DeathR\x06deaths\x12.\n" +
 	"\n" +
 	"hp_changes\x18\x06 \x03(\v2\x0f.ds.v1.HpChangeR\thpChanges\x12+\n" +
-	"\tlevel_ups\x18\a \x03(\v2\x0e.ds.v1.LevelUpR\blevelUps\"'\n" +
+	"\tlevel_ups\x18\a \x03(\v2\x0e.ds.v1.LevelUpR\blevelUps\x12!\n" +
+	"\x05casts\x18\b \x03(\v2\v.ds.v1.CastR\x05casts\"'\n" +
 	"\x04Ping\x12\x1f\n" +
 	"\vclient_time\x18\x01 \x01(\x03R\n" +
 	"clientTime\"H\n" +
@@ -3090,7 +3544,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"RespawnReq\")\n" +
 	"\vRespawnResp\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x02R\x01y\"\x91\x04\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\"\xb4\x04\n" +
 	"\tSelfStats\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x10\n" +
 	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x19\n" +
@@ -3114,14 +3568,16 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\baccuracy\x18\x11 \x01(\x05R\baccuracy\x12\x18\n" +
 	"\aevasion\x18\x12 \x01(\x05R\aevasion\x12 \n" +
 	"\fcrit_rate_bp\x18\x13 \x01(\x05R\n" +
-	"critRateBp\"\x8e\x01\n" +
+	"critRateBp\x12!\n" +
+	"\fskill_points\x18\x14 \x01(\x05R\vskillPoints\"\xa9\x01\n" +
 	"\x03Hit\x12\x1f\n" +
 	"\vattacker_id\x18\x01 \x01(\x04R\n" +
 	"attackerId\x12\x1b\n" +
 	"\ttarget_id\x18\x02 \x01(\x04R\btargetId\x12\x16\n" +
 	"\x06damage\x18\x03 \x01(\x05R\x06damage\x12\x19\n" +
 	"\bhp_after\x18\x04 \x01(\x05R\ahpAfter\x12\x16\n" +
-	"\x06ranged\x18\x05 \x01(\bR\x06ranged\"\x17\n" +
+	"\x06ranged\x18\x05 \x01(\bR\x06ranged\x12\x19\n" +
+	"\bskill_id\x18\x06 \x01(\tR\askillId\"\x17\n" +
 	"\x05Death\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\"A\n" +
 	"\bHpChange\x12\x0e\n" +
@@ -3130,7 +3586,29 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHp\"/\n" +
 	"\aLevelUp\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
-	"\x05level\x18\x02 \x01(\x05R\x05level*\xa9\x05\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level\"*\n" +
+	"\rLearnSkillReq\x12\x19\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\"c\n" +
+	"\x0eLearnSkillResp\x12&\n" +
+	"\x05stats\x18\x01 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\x12)\n" +
+	"\x06skills\x18\x02 \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\"k\n" +
+	"\aCastReq\x12\x19\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x1b\n" +
+	"\ttarget_id\x18\x02 \x01(\x04R\btargetId\x12\x13\n" +
+	"\x05dir_x\x18\x03 \x01(\x02R\x04dirX\x12\x13\n" +
+	"\x05dir_y\x18\x04 \x01(\x02R\x04dirY\"\n" +
+	"\n" +
+	"\bCastResp\"=\n" +
+	"\n" +
+	"SkillLevel\x12\x19\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x14\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level\"\x85\x01\n" +
+	"\x04Cast\x12\x1b\n" +
+	"\tcaster_id\x18\x01 \x01(\x04R\bcasterId\x12\x19\n" +
+	"\bskill_id\x18\x02 \x01(\tR\askillId\x12\x1b\n" +
+	"\ttarget_id\x18\x03 \x01(\x04R\btargetId\x12\x13\n" +
+	"\x05dir_x\x18\x04 \x01(\x02R\x04dirX\x12\x13\n" +
+	"\x05dir_y\x18\x05 \x01(\x02R\x04dirY*\xa3\x06\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -3155,7 +3633,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x17ERROR_CODE_IN_SAFE_ZONE\x10\x13\x12\x13\n" +
 	"\x0fERROR_CODE_DEAD\x10\x14\x12\x17\n" +
 	"\x13ERROR_CODE_NOT_DEAD\x10\x15\x12 \n" +
-	"\x1cERROR_CODE_NOT_ENOUGH_POINTS\x10\x16*\x84\x02\n" +
+	"\x1cERROR_CODE_NOT_ENOUGH_POINTS\x10\x16\x12 \n" +
+	"\x1cERROR_CODE_SKILL_NOT_LEARNED\x10\x17\x12\x1c\n" +
+	"\x18ERROR_CODE_NOT_ENOUGH_MP\x10\x18\x12\x1a\n" +
+	"\x16ERROR_CODE_SKILL_MAXED\x10\x19\x12\x1c\n" +
+	"\x18ERROR_CODE_LEVEL_TOO_LOW\x10\x1a*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -3192,7 +3674,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -3234,6 +3716,12 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*Death)(nil),              // 37: ds.v1.Death
 	(*HpChange)(nil),           // 38: ds.v1.HpChange
 	(*LevelUp)(nil),            // 39: ds.v1.LevelUp
+	(*LearnSkillReq)(nil),      // 40: ds.v1.LearnSkillReq
+	(*LearnSkillResp)(nil),     // 41: ds.v1.LearnSkillResp
+	(*CastReq)(nil),            // 42: ds.v1.CastReq
+	(*CastResp)(nil),           // 43: ds.v1.CastResp
+	(*SkillLevel)(nil),         // 44: ds.v1.SkillLevel
+	(*Cast)(nil),               // 45: ds.v1.Cast
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -3265,26 +3753,34 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	33, // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
 	34, // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
 	35, // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
-	0,  // 29: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,  // 30: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10, // 31: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,  // 32: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10, // 33: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	35, // 34: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	3,  // 35: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,  // 36: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	24, // 37: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	36, // 38: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	37, // 39: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	38, // 40: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	39, // 41: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	1,  // 42: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	35, // 43: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	44, // [44:44] is the sub-list for method output_type
-	44, // [44:44] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	40, // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
+	41, // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
+	42, // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
+	43, // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
+	0,  // 33: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,  // 34: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10, // 35: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,  // 36: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10, // 37: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	35, // 38: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	44, // 39: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	3,  // 40: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,  // 41: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	24, // 42: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	36, // 43: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	37, // 44: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	38, // 45: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	39, // 46: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	45, // 47: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	1,  // 48: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	35, // 49: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	35, // 50: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	44, // 51: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	52, // [52:52] is the sub-list for method output_type
+	52, // [52:52] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -3322,6 +3818,10 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_RespawnReq)(nil),
 		(*Envelope_RespawnResp)(nil),
 		(*Envelope_SelfStats)(nil),
+		(*Envelope_LearnSkillReq)(nil),
+		(*Envelope_LearnSkillResp)(nil),
+		(*Envelope_CastReq)(nil),
+		(*Envelope_CastResp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3329,7 +3829,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   36,
+			NumMessages:   42,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

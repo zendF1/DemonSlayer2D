@@ -47,6 +47,11 @@ message Envelope {
     RespawnReq respawn_req = 54;
     RespawnResp respawn_resp = 55;
     SelfStats self_stats = 56;
+
+    LearnSkillReq learn_skill_req = 57;
+    LearnSkillResp learn_skill_resp = 58;
+    CastReq cast_req = 59;
+    CastResp cast_resp = 60;
   }
 }
 
@@ -78,6 +83,14 @@ enum ErrorCode {
   // Respawn was requested while alive.
   ERROR_CODE_NOT_DEAD = 21;
   ERROR_CODE_NOT_ENOUGH_POINTS = 22;
+  // The skill has not been learned yet.
+  ERROR_CODE_SKILL_NOT_LEARNED = 23;
+  // The character lacks the MP the skill costs.
+  ERROR_CODE_NOT_ENOUGH_MP = 24;
+  // The skill is already at its maximum level.
+  ERROR_CODE_SKILL_MAXED = 25;
+  // The character level is below the level the skill needs.
+  ERROR_CODE_LEVEL_TOO_LOW = 26;
 }
 
 enum KickReason {
@@ -177,6 +190,8 @@ message EnterWorldResp {
   uint32 tick_rate = 8;
   // The character's own stats at entry.
   SelfStats stats = 9;
+  // Every skill the character has learned.
+  repeated SkillLevel skills = 10;
 }
 
 message LeaveWorldReq {}
@@ -221,9 +236,9 @@ message EntityMove {
 }
 
 // Sent every tick, even when moves is empty. Events only cover entities in
-// the receiver's view. Clients apply hits in order, then hp_changes: each
-// HpChange is an entity's HP and max HP at the end of the tick, so it
-// overrides any hp_after of the same tick.
+// the receiver's view. Clients apply them in this order: moves, casts, hits,
+// deaths, hp_changes, level_ups. Each HpChange is an entity's HP and max HP at
+// the end of the tick, so it overrides any hp_after of the same tick.
 message WorldTick {
   uint32 tick = 1;
   // Highest MoveInput.input_seq the server has applied for the receiver.
@@ -233,6 +248,7 @@ message WorldTick {
   repeated Death deaths = 5;
   repeated HpChange hp_changes = 6;
   repeated LevelUp level_ups = 7;
+  repeated Cast casts = 8;
 }
 
 message Ping {
@@ -299,6 +315,8 @@ message SelfStats {
   int32 evasion = 18;
   // Critical rate in basis points (100 = 1%).
   int32 crit_rate_bp = 19;
+  // Unspent skill points.
+  int32 skill_points = 20;
 }
 
 message Hit {
@@ -308,6 +326,8 @@ message Hit {
   int32 hp_after = 4;
   // True for a monster's ranged shot; the client draws a projectile, not a slash.
   bool ranged = 5;
+  // The skill that dealt the hit; empty for the default slash or a monster hit.
+  string skill_id = 6;
 }
 
 message Death {
@@ -323,4 +343,39 @@ message HpChange {
 message LevelUp {
   uint64 id = 1;
   int32 level = 2;
+}
+
+// Learns a skill or raises it one level; spends one skill point.
+message LearnSkillReq {
+  string skill_id = 1;
+}
+
+message LearnSkillResp {
+  SelfStats stats = 1;
+  repeated SkillLevel skills = 2;
+}
+
+// Casts a skill. target_id is the locked target (0 for none); dir is the
+// facing for skills without a target.
+message CastReq {
+  string skill_id = 1;
+  uint64 target_id = 2;
+  float dir_x = 3;
+  float dir_y = 4;
+}
+
+message CastResp {}
+
+message SkillLevel {
+  string skill_id = 1;
+  int32 level = 2;
+}
+
+// A skill was cast; sent to everyone who sees the caster and to the caster.
+message Cast {
+  uint64 caster_id = 1;
+  string skill_id = 2;
+  uint64 target_id = 3;
+  float dir_x = 4;
+  float dir_y = 5;
 }

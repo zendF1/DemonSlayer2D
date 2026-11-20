@@ -246,6 +246,22 @@ func clientFixtures() map[string]*pb.Envelope {
 		"world_tick_ranged": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
 			Tick: 44,
 			Hits: []*pb.Hit{{AttackerId: 900, TargetId: 77, Damage: 9, HpAfter: 111, Ranged: true}}}}},
+		"learn_skill_resp": {Seq: 11, Payload: &pb.Envelope_LearnSkillResp{LearnSkillResp: &pb.LearnSkillResp{
+			Stats: &pb.SelfStats{Level: 20, Exp: 100, ExpNext: 5000, SkillPoints: 17, Hp: 300, MaxHp: 300, Mp: 80, MaxMp: 90},
+			Skills: []*pb.SkillLevel{
+				{SkillId: "viem_1", Level: 2},
+				{SkillId: "viem_2", Level: 1},
+			}}}},
+		"cast_req": {Seq: 12, Payload: &pb.Envelope_CastReq{CastReq: &pb.CastReq{
+			SkillId: "viem_1", TargetId: 900, DirX: 0.6, DirY: -0.8}}},
+		"world_tick_cast": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
+			Tick: 45, AckInputSeq: 9,
+			Moves: []*pb.EntityMove{{Id: 77, X: 8.5, Y: 7.25, DirX: 1, Snap: true}},
+			Casts: []*pb.Cast{{CasterId: 77, SkillId: "viem_1", TargetId: 900, DirX: 1}},
+			Hits: []*pb.Hit{
+				{AttackerId: 77, TargetId: 900, Damage: 40, HpAfter: 60, SkillId: "viem_1"},
+				{AttackerId: 77, TargetId: 902, Damage: 35, HpAfter: 65, SkillId: "viem_1"},
+			}}}},
 		"error_resp": {Seq: 4, Payload: &pb.Envelope_Error{Error: &pb.ErrorResp{
 			Code: pb.ErrorCode_ERROR_CODE_AUTH_FAILED, Detail: "wrong username or password"}}},
 		"kicked": {Payload: &pb.Envelope_Kicked{Kicked: &pb.Kicked{
@@ -257,8 +273,8 @@ func clientFixtures() map[string]*pb.Envelope {
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 3 {
-		t.Fatalf("ProtocolVersion = %d, want 3", ProtocolVersion)
+	if ProtocolVersion != 4 {
+		t.Fatalf("ProtocolVersion = %d, want 4", ProtocolVersion)
 	}
 }
 
@@ -282,6 +298,35 @@ func TestRangedHitFixtureRoundTrip(t *testing.T) {
 		if len(hits) != 1 || hits[0].GetRanged() != want {
 			t.Fatalf("%s: hits %v, want one with ranged=%v", name, hits, want)
 		}
+	}
+}
+
+// The cast fixture decodes back to the Cast, both Hits with their skill id and
+// the snapping move.
+func TestCastFixtureRoundTrip(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "client", "world_tick_cast.hex"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := hex.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env pb.Envelope
+	if err := proto.Unmarshal(b, &env); err != nil {
+		t.Fatal(err)
+	}
+	wt := env.GetWorldTick()
+	casts := wt.GetCasts()
+	if len(casts) != 1 || casts[0].GetCasterId() != 77 || casts[0].GetSkillId() != "viem_1" || casts[0].GetTargetId() != 900 {
+		t.Fatalf("casts %v, want one viem_1 cast by 77 at 900", casts)
+	}
+	hits := wt.GetHits()
+	if len(hits) != 2 || hits[0].GetSkillId() != "viem_1" || hits[1].GetSkillId() != "viem_1" {
+		t.Fatalf("hits %v, want two with skill_id viem_1", hits)
+	}
+	if mv := wt.GetMoves(); len(mv) != 1 || !mv[0].GetSnap() {
+		t.Fatalf("moves %v, want one snap", mv)
 	}
 }
 
