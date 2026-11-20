@@ -104,11 +104,16 @@ func (s *Store) loadExtras(ctx context.Context, chars []Character) error {
 	if err := s.loadSkills(ctx, chars); err != nil {
 		return err
 	}
-	return s.loadItems(ctx, chars)
+	return loadItems(ctx, s.pool, chars)
+}
+
+// querier is what loadItems needs from a pool or a transaction.
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
 // loadItems fills the Items of chars with one query, bag first, then by slot.
-func (s *Store) loadItems(ctx context.Context, chars []Character) error {
+func loadItems(ctx context.Context, q querier, chars []Character) error {
 	if len(chars) == 0 {
 		return nil
 	}
@@ -118,7 +123,7 @@ func (s *Store) loadItems(ctx context.Context, chars []Character) error {
 		byID[chars[i].ID] = &chars[i]
 		ids[i] = chars[i].ID
 	}
-	rows, err := s.pool.Query(ctx, `SELECT character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden
+	rows, err := q.Query(ctx, `SELECT character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden
 		FROM character_items WHERE character_id = ANY($1) ORDER BY character_id, equipped, slot`, ids)
 	if err != nil {
 		return err

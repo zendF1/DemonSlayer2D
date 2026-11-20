@@ -524,3 +524,88 @@ func TestDevSetLevelErrors(t *testing.T) {
 		t.Fatalf("after refused levels: %+v, %v", got, err)
 	}
 }
+
+// ______________________TEST DEV ITEM_____________________
+
+func TestDevGiveItem(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	second, _ := st.CreateCharacter(ctx, newChar(acc, 2, "Zenitsu"))
+	first, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	worn := store.ItemRow{Equipped: true, Slot: 4, Code: "eq10_armor", Count: 1, Quality: 2, Element: "thuy",
+		Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{{Stat: "hp", Value: 50}, {Stat: "hp", Value: 50}}}
+	stones := store.ItemRow{Slot: 0, Code: "stone_enhance", Count: 7, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: first.ID, MapID: "kumotori_1", Level: 1, HP: -1, MP: -1,
+		Xu: 100, Items: []store.ItemRow{stones, worn}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// place sees the current rows and its list replaces them; Xu is added.
+	sword := store.ItemRow{Slot: 1, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
+	var seen []store.ItemRow
+	res, err := st.DevGiveItem(ctx, "owner", func(rows []store.ItemRow) ([]store.ItemRow, error) {
+		seen = rows
+		merged := stones
+		merged.Count = 12
+		return []store.ItemRow{merged, sword, worn}, nil
+	}, 500)
+	if err != nil || res != (store.DevItemResult{Name: "Tanjiro", Xu: 600}) {
+		t.Fatalf("give: %+v, %v", res, err)
+	}
+	if !reflect.DeepEqual(seen, []store.ItemRow{stones, worn}) {
+		t.Fatalf("place saw %+v", seen)
+	}
+	got, err := st.GetCharacter(ctx, acc, first.ID)
+	merged := stones
+	merged.Count = 12
+	if err != nil || got.Xu != 600 || !reflect.DeepEqual(got.Items, []store.ItemRow{merged, sword, worn}) {
+		t.Fatalf("stored xu %d items %+v, %v", got.Xu, got.Items, err)
+	}
+	if other, _ := st.GetCharacter(ctx, acc, second.ID); other.Xu != 0 || len(other.Items) != 0 {
+		t.Fatalf("the slot 2 character changed: %+v", other)
+	}
+
+	// A nil place only adds Xu.
+	res, err = st.DevGiveItem(ctx, "owner", nil, 500)
+	if err != nil || res.Xu != 1100 {
+		t.Fatalf("xu only: %+v, %v", res, err)
+	}
+	if got, _ := st.GetCharacter(ctx, acc, first.ID); got.Xu != 1100 || len(got.Items) != 3 {
+		t.Fatalf("after xu only: xu %d, %d items", got.Xu, len(got.Items))
+	}
+
+	// A place error (a full bag) writes nothing, not even the Xu.
+	full := errors.New("bag full")
+	if _, err := st.DevGiveItem(ctx, "owner", func([]store.ItemRow) ([]store.ItemRow, error) { return nil, full }, 500); !errors.Is(err, full) {
+		t.Fatalf("place error: %v, want %v", err, full)
+	}
+	if got, _ := st.GetCharacter(ctx, acc, first.ID); got.Xu != 1100 || len(got.Items) != 3 {
+		t.Fatalf("after a place error: xu %d, %d items", got.Xu, len(got.Items))
+	}
+}
+
+func TestDevGiveItemErrors(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	if _, err := st.DevGiveItem(ctx, "nobody", nil, 10); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing account: %v, want ErrNotFound", err)
+	}
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	if _, err := st.DevGiveItem(ctx, "owner", nil, 10); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("account without a character: %v, want ErrNotFound", err)
+	}
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DevGiveItem(ctx, "owner", nil, -1); err == nil {
+		t.Fatal("negative xu: no error")
+	}
+	if got, err := st.GetCharacter(ctx, acc, c.ID); err != nil || got.Xu != 0 {
+		t.Fatalf("after refused calls: %+v, %v", got, err)
+	}
+}

@@ -105,6 +105,26 @@ The character must be offline. The server does not record who is online, so
 `devchar` cannot check; a running server's next save of the character
 overwrites the change.
 
+## Dev items
+
+`devitem` gives an account's first character (lowest slot) an item or Xu, for
+development only. It reads `DATABASE_URL` and `DATA_DIR` (default `./data`):
+
+```bash
+export DATABASE_URL='postgres://ds:ds@localhost:5433/ds?sslmode=disable'
+go run ./cmd/devitem -u tanjiro -code eq50_armor -quality 2   # a Vàng Áo Xích Cương
+go run ./cmd/devitem -u tanjiro -code stone_enhance -count 100
+go run ./cmd/devitem -u tanjiro -xu 100000
+```
+
+An equipment code adds one piece into the first empty bag slot, with quality
+`-quality` (0 Trắng, 1 Xanh Dương, 2 Vàng, 3 Cam, 4 Đỏ; default 0) and lines and
+element rolled at random. A stackable code adds `-count` (default 1), topping
+up existing stacks first (999 per stack). `-xu` adds Xu and can be used alone
+or with `-code`. An unknown code or a full bag is an error, and nothing is
+written. It prints the character's name, the item added and its bag slots,
+and the Xu it now has. Like `devchar`, it needs the character offline.
+
 ## Game data
 
 Maps live in [`maps/`](maps/) (collision, spawn points, safe zones, rest points and

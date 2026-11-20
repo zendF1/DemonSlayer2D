@@ -2,12 +2,16 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,9 +37,15 @@ type server struct {
 
 func startServer(t *testing.T) server {
 	t.Helper()
+	return startServerData(t, "../data")
+}
+
+// startServerData starts a server that reads its game data from dataDir.
+func startServerData(t *testing.T, dataDir string) server {
+	t.Helper()
 	st := storetest.New(t)
 	cfg := config.Config{
-		MapsDir: "../maps", DataDir: "../data", StartMap: "kumotori_1", TickRate: 10, MoveSpeedTiles: 4,
+		MapsDir: "../maps", DataDir: dataDir, StartMap: "kumotori_1", TickRate: 10, MoveSpeedTiles: 4,
 		AOICellSize: 10, ZoneCapacity: 50, SaveInterval: time.Minute, LogLevel: slog.LevelInfo,
 		RegisterPerHour: 100,
 	}
@@ -710,5 +720,291 @@ func sixthRateLimited(t *testing.T, username, charName string, req func(seq uint
 	}
 	if code := replies[first+n-1].GetError().GetCode(); code != pb.ErrorCode_ERROR_CODE_RATE_LIMITED {
 		t.Fatalf("6th request: %v, want RATE_LIMITED", replies[first+n-1])
+	}
+}
+
+// ______________________TEST ITEMS_____________________
+
+// sureDrops copies ../data into a temporary directory with every normal
+// monster's equipment and stack drop chances at 100%, and returns it.
+func sureDrops(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	entries, err := os.ReadDir("../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join("../data", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.Name() == "items.json" {
+			var doc map[string]any
+			if err := json.Unmarshal(b, &doc); err != nil {
+				t.Fatal(err)
+			}
+			normal := doc["drops"].(map[string]any)["normal"].(map[string]any)
+			normal["equipment"].(map[string]any)["chance_bp"] = 10000
+			for _, st := range normal["stacks"].([]any) {
+				st.(map[string]any)["chance_bp"] = 10000
+			}
+			if b, err = json.Marshal(doc); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dir, e.Name()), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// watcher reads a client's pushes in the background and records the deaths
+// and the ITEM entities it was shown.
+type watcher struct {
+	mu     sync.Mutex
+	deaths map[uint64]bool
+	items  []uint64
+	stop   chan struct{}
+	done   chan struct{}
+}
+
+func watch(c *client.Client) *watcher {
+	w := &watcher{deaths: map[uint64]bool{}, stop: make(chan struct{}), done: make(chan struct{})}
+	go func() {
+		defer close(w.done)
+		for {
+			select {
+			case env := <-c.Pushes():
+				w.mu.Lock()
+				if e := env.GetEntityEnter(); e != nil && e.Kind == pb.EntityKind_ENTITY_KIND_ITEM {
+					w.items = append(w.items, e.Id)
+				}
+				for _, d := range env.GetWorldTick().GetDeaths() {
+					w.deaths[d.Id] = true
+				}
+				w.mu.Unlock()
+			case <-w.stop:
+				return
+			case <-c.Closed():
+				return
+			}
+		}
+	}()
+	return w
+}
+
+func (w *watcher) close() {
+	close(w.stop)
+	<-w.done
+}
+
+// gearStats is the part of SelfStats that worn gear changes.
+func gearStats(s *pb.SelfStats) [5]int32 {
+	return [5]int32{s.GetMaxHp(), s.GetPhysAttack(), s.GetMagicAttack(), s.GetPhysDefense(), s.GetMagicDefense()}
+}
+
+// A level 19 Viêm kills a monster with sure drops: it gets Xu at once and an
+// equipment piece and a stone beside the corpse, which an onlooker in view
+// is never shown. It picks both up, wears the piece (stats rise), takes it
+// off (stats fall back), wears it again and sorts the bag; after leaving and
+// re-entering, the Xu, the bag and the worn piece are all still there.
+func TestItemsOverWebSocket(t *testing.T) {
+	s := startServerData(t, sureDrops(t))
+	ctx := ctxT(t)
+
+	// The onlooker stands in the camp at (10.5, 10.5): its view covers x and y
+	// up to 30, which takes in the region r1 monsters near the camp.
+	o := newPlayer(t, s, "miko01", "Miko", pb.CharClass_CHAR_CLASS_THUY)
+	if err := o.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.store.SaveCharacterState(ctx, store.CharState{ID: o.charID, MapID: "kumotori_1", X: 10.5, Y: 10.5,
+		Level: 1, HP: -1, MP: -1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.c.EnterWorld(ctx, o.charID); err != nil {
+		t.Fatal(err)
+	}
+	onlooker := watch(o.c)
+
+	p := newPlayer(t, s, "rin01", "Rin", pb.CharClass_CHAR_CLASS_VIEM)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for drained := false; !drained; {
+		select {
+		case <-p.c.Pushes():
+		default:
+			drained = true
+		}
+	}
+	if _, err := s.store.DevSetLevel(ctx, "rin01", 19); err != nil {
+		t.Fatal(err)
+	}
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv := ew.Inventory; inv.GetBagSize() != 60 || len(inv.GetBag()) != 0 || len(inv.GetEquipped()) != 0 || ew.Stats.GetXu() != 0 {
+		t.Fatalf("entered with inventory %v and %d Xu, want an empty 60-slot bag and no Xu", inv, ew.Stats.GetXu())
+	}
+
+	self := ew.SelfEntityId
+	x, y := ew.X, ew.Y
+	stats := ew.Stats
+	ground := map[uint64]*pb.EntityEnter{}
+	observe := func(env *pb.Envelope) {
+		if e := env.GetEntityEnter(); e != nil && e.Kind == pb.EntityKind_ENTITY_KIND_ITEM {
+			ground[e.Id] = e
+		}
+		if l := env.GetEntityLeave(); l != nil {
+			delete(ground, l.Id)
+		}
+		if st := env.GetSelfStats(); st != nil {
+			stats = st
+		}
+		for _, m := range env.GetWorldTick().GetMoves() {
+			if m.Id == self {
+				x, y = m.X, m.Y
+			}
+		}
+	}
+	f := client.NewFighter(p.c, ew)
+	f.Seek = nestR1
+	f.Observe = observe
+	var kill client.Kill
+	fctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := f.Fight(fctx, 1, func(k client.Kill) { kill = k }); err != nil {
+		t.Fatalf("fight: %v", err)
+	}
+	if _, err := p.c.Move(ctx, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Xu and the two drops (one piece, one stone) may come a push or two after the kill.
+	var piece, stone *pb.EntityEnter
+	waitFor(t, p.c, 3*time.Second, func(env *pb.Envelope) bool {
+		observe(env)
+		return stats.GetXu() > 0 && len(ground) == 2
+	})
+	for _, e := range ground {
+		if strings.HasPrefix(e.Item.GetCode(), "eq10_") {
+			piece = e
+		} else {
+			stone = e
+		}
+	}
+	if piece == nil || stone == nil || stone.Item.GetCode() != "stone_enhance" || stone.Item.GetCount() != 1 {
+		t.Fatalf("ground items %v, want a tier 10 piece and one stone_enhance", ground)
+	}
+	if w := piece.Item.GetCode(); strings.HasPrefix(w, "eq10_weapon_") && w != "eq10_weapon_viem" {
+		t.Fatalf("dropped weapon %s, want the killer's class", w)
+	}
+	if xu := stats.GetXu(); xu < 3 || xu > 5*2 {
+		t.Fatalf("Xu %d after killing a level 1-2 monster, want 3-10", xu)
+	}
+
+	// walkTo walks straight to (gx, gy) and stops within reach of it.
+	walkTo := func(gx, gy float32) {
+		t.Helper()
+		d := float32(math.Hypot(float64(gx-x), float64(gy-y)))
+		if d <= 0.8 {
+			return
+		}
+		if _, err := p.c.Move(ctx, (gx-x)/d, (gy-y)/d); err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, p.c, 3*time.Second, func(env *pb.Envelope) bool {
+			observe(env)
+			return math.Hypot(float64(gx-x), float64(gy-y)) <= 0.8
+		})
+		if _, err := p.c.Move(ctx, 0, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	slotOf := func(u *pb.InventoryUpdate, code string) int {
+		t.Helper()
+		for _, sl := range u.GetBag() {
+			if sl.Item.GetCode() == code {
+				return int(sl.Slot)
+			}
+		}
+		t.Fatalf("update %v has no %s", u, code)
+		return -1
+	}
+	walkTo(piece.X, piece.Y)
+	r, err := p.c.Pickup(ctx, piece.Id)
+	if err != nil {
+		t.Fatalf("pick up %v: %v", piece, err)
+	}
+	pieceSlot := slotOf(r.Update, piece.Item.Code)
+	walkTo(stone.X, stone.Y)
+	if r, err = p.c.Pickup(ctx, stone.Id); err != nil {
+		t.Fatalf("pick up %v: %v", stone, err)
+	}
+	slotOf(r.Update, "stone_enhance")
+	if _, err := p.c.Pickup(ctx, stone.Id); client.Code(err) != pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND {
+		t.Fatalf("second pickup of the stone: %v, want ITEM_NOT_FOUND", err)
+	}
+
+	// Wearing the piece raises a gear stat and lowers none; taking it off undoes that.
+	bare := gearStats(stats)
+	er, err := p.c.Equip(ctx, pieceSlot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worn, raised := gearStats(er.Stats), false
+	for i := range worn {
+		if worn[i] < bare[i] {
+			t.Fatalf("stats %v after wearing %s, below %v", worn, piece.Item.Code, bare)
+		}
+		raised = raised || worn[i] > bare[i]
+	}
+	if !raised || len(er.Update.GetEquipped()) != 1 {
+		t.Fatalf("equip %s: stats %v from %v, update %v", piece.Item.Code, worn, bare, er.Update)
+	}
+	equipSlot := int(er.Update.Equipped[0].Slot)
+	ur, err := p.c.Unequip(ctx, equipSlot)
+	if err != nil || gearStats(ur.Stats) != bare {
+		t.Fatalf("unequip: %v, %v, want stats back at %v", ur, err, bare)
+	}
+	if er, err = p.c.Equip(ctx, slotOf(ur.Update, piece.Item.Code)); err != nil || gearStats(er.Stats) != worn {
+		t.Fatalf("equip again: %v, %v", er, err)
+	}
+	sr, err := p.c.SortBag(ctx)
+	if err != nil || len(sr.Update.GetBag()) != 60 || sr.Update.Bag[0].Item.GetCode() != "stone_enhance" {
+		t.Fatalf("sort: %v, %v, want 60 slots with the stone first", sr, err)
+	}
+
+	// The onlooker saw the monster die but was never shown either drop.
+	onlooker.close()
+	if !onlooker.deaths[kill.ID] {
+		t.Logf("the onlooker did not see monster %d die; the owner-only check proves nothing this run", kill.ID)
+	}
+	if len(onlooker.items) != 0 {
+		t.Fatalf("the onlooker was shown ground items %v", onlooker.items)
+	}
+
+	// Everything survives leaving and re-entering.
+	xu := stats.GetXu()
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv := again.Inventory
+	if again.Stats.GetXu() != xu || gearStats(again.Stats) != worn {
+		t.Fatalf("re-entered with %v, want %d Xu and gear stats %v", again.Stats, xu, worn)
+	}
+	if len(inv.GetBag()) != 1 || inv.Bag[0].Slot != 0 || !proto.Equal(inv.Bag[0].Item, stone.Item) {
+		t.Fatalf("re-entered with bag %v, want the stone in slot 0", inv.GetBag())
+	}
+	if len(inv.GetEquipped()) != 1 || int(inv.Equipped[0].Slot) != equipSlot || !proto.Equal(inv.Equipped[0].Item, piece.Item) {
+		t.Fatalf("re-entered wearing %v, want %v in slot %d", inv.GetEquipped(), piece.Item, equipSlot)
 	}
 }
