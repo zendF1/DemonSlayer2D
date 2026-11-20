@@ -13,7 +13,7 @@ import (
 
 // recompute derives p's stats from its class, level, points, worn gear and
 // learned passives (phase 2 spec 3.2, phase 3a spec 4.2) and sets the max HP
-// that goes with them. Current HP and MP are the caller's business. Every
+// and the per-second regen (phase 3b spec 4.2) that go with them. Current HP and MP are the caller's business. Every
 // stat change in the zone goes through here.
 func (z *Zone) recompute(p *player) {
 	var pas combat.Passive
@@ -23,9 +23,11 @@ func (z *Zone) recompute(p *player) {
 		}
 	}
 	var gear combat.Bonus
+	p.regenHPBP, p.regenMP = 0, 0
 	if z.area.Items != nil {
 		class, _ := classes.FromPB(p.class)
 		gear = items.GearBonus(z.area.Items, p.inv, p.level, class)
+		p.regenHPBP, p.regenMP = items.Regen(z.area.Items, p.inv, p.level, class)
 	}
 	p.stats = combat.Compute(classes.IsMagic(p.class), p.level, p.points, gear, pas)
 	p.maxHP = p.stats.MaxHP
@@ -219,5 +221,7 @@ func (z *Zone) selfStats(p *player) *pb.SelfStats {
 		Evasion:      int32(s.Evasion),
 		CritRateBp:   int32(s.CritRateBP),
 		Xu:           p.xu,
+		HpRegenBp:    int32(p.regenHPBP),
+		MpRegen:      int32(p.regenMP),
 	}
 }

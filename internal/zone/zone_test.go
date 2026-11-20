@@ -1904,3 +1904,129 @@ func TestEnhanceFailures(t *testing.T) {
 		})
 	}
 }
+
+// ______________________TEST REGEN ZONE_____________________
+
+// regenZone joins a player of class and level with VIT vit, wearing worn
+// (codes at the given enhance levels, in their own slots), as player 1 into
+// a zone with the real item data and no rest point.
+func regenZone(t *testing.T, class pb.CharClass, level, vit int, worn map[string]int) (*Zone, *player, *fakeOut, *pb.EnterWorldResp) {
+	t.Helper()
+	inv := items.NewInventory(testItemData.BagSize)
+	for code, n := range worn {
+		inv.Worn[testItemData.Equipment[code].SlotIndex] = &items.Item{Code: code, Count: 1, Enhance: n}
+	}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData}, &fakeSaver{}, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.Points, in.Inventory = class, level, combat.Points{Vit: vit}, inv
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	r := out.take()[0].GetEnterWorldResp()
+	return z, z.players[1], out, r
+}
+
+// fullForge is one tier-10 piece in every slot at +15, with the Thủy weapon.
+func fullForge() map[string]int {
+	worn := map[string]int{"eq10_weapon_thuy": 15}
+	for _, s := range []string{"boots", "bracers", "pants", "helmet", "armor", "necklace", "pendant", "ring_left", "ring_right"} {
+		worn["eq10_"+s] = 15
+	}
+	return worn
+}
+
+// advanceSec runs n seconds of ticks.
+func advanceSec(z *Zone, n int) {
+	for range n * int(z.ticks(1)) {
+		z.advance(time.Now())
+	}
+}
+
+// The spec 8 example: 1,640 max HP with one worn +7 boots (5 bp) regains 0 HP
+// in the first second, 1 in the second and 8 after 10 seconds, the fraction
+// carried over. Only a second that changes HP tells the player and viewers.
+func TestRegenCarriesFractions(t *testing.T) {
+	// A level-11 Thủy with 32 VIT: 500 + 50*10 + 16*32 + 128 (the boots) = 1,640.
+	z, p, out, r := regenZone(t, pb.CharClass_CHAR_CLASS_THUY, 11, 32, map[string]int{"eq10_boots": 7})
+	if p.maxHP != 1640 || r.Stats.HpRegenBp != 5 || r.Stats.MpRegen != 0 {
+		t.Fatalf("max HP %d, regen %d bp %d MP, want 1640, 5 and 0", p.maxHP, r.Stats.HpRegenBp, r.Stats.MpRegen)
+	}
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	p.hp = 1000
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	for range z.ticks(1) - 1 {
+		z.advance(time.Now()) // to the end of the first second
+	}
+	if envs := out.take(); p.hp != 1000 || len(hpChangesIn(envs)) != 0 || len(selfStatsIn(envs)) != 0 {
+		t.Fatalf("after 1 s HP %d, envs %v; want 1000 and nothing sent", p.hp, envs)
+	}
+	advanceSec(z, 1)
+	envs := out.take()
+	if p.hp != 1001 || len(selfStatsIn(envs)) != 1 || selfStatsIn(envs)[0].Hp != 1001 {
+		t.Fatalf("after 2 s HP %d, SelfStats %v; want 1001", p.hp, selfStatsIn(envs))
+	}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if cs := hpChangesIn(es); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != 1001 {
+			t.Fatalf("%s HpChanges %v, want one with 1001", name, cs)
+		}
+	}
+	advanceSec(z, 8)
+	if p.hp != 1008 {
+		t.Fatalf("after 10 s HP %d, want 1008", p.hp)
+	}
+}
+
+// Ten worn +15 pieces give 150 bp of max HP and 25 MP a second, shown in
+// SelfStats; neither goes above its max, and full HP drops the carry.
+func TestRegenFullForge(t *testing.T) {
+	z, p, out, r := regenZone(t, pb.CharClass_CHAR_CLASS_THUY, 19, 0, fullForge())
+	if p.regenHPBP != 150 || p.regenMP != 25 || r.Stats.HpRegenBp != 150 || r.Stats.MpRegen != 25 {
+		t.Fatalf("regen %d bp %d MP, SelfStats %v; want 150 and 25", p.regenHPBP, p.regenMP, r.Stats)
+	}
+	p.hp, p.mp = 100, 0
+	advanceSec(z, 1)
+	gain := p.maxHP * 150 / 10000
+	if p.hp != 100+gain || p.mp != 25 || p.hpCarry != p.maxHP*150%10000 {
+		t.Fatalf("after 1 s HP %d MP %d carry %d, want %d, 25 and %d", p.hp, p.mp, p.hpCarry, 100+gain, p.maxHP*150%10000)
+	}
+	ss := selfStatsIn(out.take())
+	if len(ss) != 1 || ss[0].Hp != int32(p.hp) || ss[0].Mp != 25 || ss[0].HpRegenBp != 150 || ss[0].MpRegen != 25 {
+		t.Fatalf("SelfStats %v, want the new HP and MP and the regen sums", ss)
+	}
+	p.hp, p.mp = p.maxHP-1, p.stats.MaxMP-3
+	advanceSec(z, 1)
+	if p.hp != p.maxHP || p.mp != p.stats.MaxMP || p.hpCarry != 0 {
+		t.Fatalf("HP %d/%d MP %d/%d carry %d, want both full and no carry", p.hp, p.maxHP, p.mp, p.stats.MaxMP, p.hpCarry)
+	}
+	out.take()
+	advanceSec(z, 1)
+	if envs := out.take(); len(hpChangesIn(envs)) != 0 || len(selfStatsIn(envs)) != 0 {
+		t.Fatalf("at full HP and MP envs %v, want nothing sent", envs)
+	}
+}
+
+// The dead regenerate nothing; the living keep regenerating while hit.
+func TestRegenDeadAndInCombat(t *testing.T) {
+	z, p, _, _ := regenZone(t, pb.CharClass_CHAR_CLASS_THUY, 19, 0, fullForge())
+	p.mp = 0
+	z.damagePlayer(p, 0, 1<<30, false)
+	advanceSec(z, 3)
+	if !p.dead || p.hp != 0 || p.mp != 0 {
+		t.Fatalf("dead player at HP %d MP %d, want 0 and 0", p.hp, p.mp)
+	}
+
+	z, p, _, _ = regenZone(t, pb.CharClass_CHAR_CLASS_THUY, 19, 0, fullForge())
+	p.hp, p.mp = 1000, 0
+	n := 2 * int(z.ticks(1))
+	for range n {
+		z.damagePlayer(p, 0, 1, false)
+		z.advance(time.Now())
+	}
+	gain := 2 * p.maxHP * 150 / 10000
+	if p.hp != 1000-n+gain || p.mp != 50 {
+		t.Fatalf("HP %d MP %d after 2 s of hits, want %d and 50", p.hp, p.mp, 1000-n+gain)
+	}
+}

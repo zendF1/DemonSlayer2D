@@ -102,6 +102,10 @@ type player struct {
 	// xu is the wallet; inv is never nil.
 	xu  int64
 	inv *items.Inventory
+	// regenHPBP (1/10000 of max HP) and regenMP are the per-second regen of
+	// the worn enhancement milestones, set by recompute; hpCarry holds the
+	// fraction of HP, in 1/10000, not yet regenerated (phase 3b spec 4.2).
+	regenHPBP, regenMP, hpCarry int
 
 	deadUntil     uint32     // tick at which a dead player respawns by itself
 	restTicks     uint32     // consecutive ticks standing still, alive, on a rest point
