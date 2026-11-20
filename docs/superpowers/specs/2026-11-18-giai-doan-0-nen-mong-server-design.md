@@ -21,6 +21,8 @@ Server được làm theo giai đoạn. Mỗi giai đoạn có spec, kế hoạc
 | 6. Nhiệm vụ và auto | Nhiệm vụ, tự tìm đường (A*), click để đi tới điểm, auto đánh | Vòng chơi hằng ngày |
 | 7+. Xã hội | Giao dịch, bang hội, sự kiện, Vô Hạn Thành | Nội dung cộng đồng |
 
+Ghi chú: Giai đoạn 3 chia thành 3a, 3b, 3c ([spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) mục 1.1). Xu có từ Giai đoạn 3a (ví, kiếm từ quái, tiêu khi cường hóa ở 3b/3c); Giai đoạn 4 còn cửa hàng và Lượng. Đồ của nhân vật lưu ở bảng `character_items` và cột `characters.xu` (migration `00004_items.sql`), thay cho bảng `items` dự kiến ở mục 3.3; `item_logs` và `currency_logs` vẫn để sau.
+
 ### 1.2. Ràng buộc
 
 - **Repo này chỉ chứa server.** Client Godot 4 (GDScript) ở repo khác và làm sau.

@@ -160,7 +160,7 @@ Migration `00003_skills.sql`:
 - cấp 1–9: bốn chém mặc định của nhân vật tham chiếu (như cũ);
 - từ cấp 10: hai chém mặc định cộng hai Bất Tri Hỏa ở cấp kỹ năng `min(10, L − 9)` (game-design mục 5.9), hệ số lấy từ `skill_stats.py`.
 
-Trang bị tham chiếu vào công thức ở Giai đoạn 3; khi đó HP và EXP gốc sinh lại cùng nhau.
+Trang bị tham chiếu vào công thức ở Giai đoạn 3; khi đó HP và EXP gốc sinh lại cùng nhau. (Đã làm ở [spec Giai đoạn 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) mục 2.2: từ cấp 10, quái và bảng EXP lên cấp sinh lại theo trang bị thường +0.)
 
 **Bảng EXP lên cấp:** `exp_table.py` giữ số quái cần hạ cho mỗi cấp như cũ, `kills(L) = (10 + 2 × (L − 1)^1,5) × hệ số cấp(L)`, và tính `EXP lên cấp kế tiếp = round10(kills(L) × exp(L))`. Vì số quái và giả định 5 giây mỗi quái không đổi, thời gian ước tính giữ nguyên (khoảng 3 giờ lên cấp 10, khoảng 456 giờ lên cấp 50). Script lấy `exp(L)` từ `monster_stats.py`, ghi `data/exp.json` (`{"exp_to_next": [89 số cho cấp 1 → 89]}`) và `docs/balance/exp-table.csv`. Đổi HP quái thì chạy lại cả hai script.
 

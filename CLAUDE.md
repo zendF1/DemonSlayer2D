@@ -32,14 +32,14 @@ Config comes only from environment variables (see `README.md`). The Makefile als
 ## Invariants (not visible in the graph)
 
 - A new login must wait until the previous session has finished saving (`world.Takeover`, serialised per account).
-- Zone tick order is fixed: `drain → runImpacts → resolveAttacks → movePlayers → thinkMonsters → runSpawnTimers → runPlayerTimers → syncView`. Attacks are decided at press and damage lands at its impact tick in `runImpacts`.
+- Zone tick order is fixed: `drain → runImpacts → resolveAttacks → movePlayers → thinkMonsters → runSpawnTimers → runGroundTimers → runPlayerTimers → syncView`. Attacks are decided at press and damage lands at its impact tick in `runImpacts`, where monsters die and drop. Item commands run in `drain`.
 - Zone state is touched only by that zone's goroutine. Zones never write to the DB; they pass saves to `saver`.
 - On shutdown, the saver flushes under its own timeout, even when the gateway step has timed out.
 - Rate limits use `Limiter.Take` and `Refund`; never split checking and recording into separate calls.
-- Game data is generated; edit the script in `docs/balance/`, not the JSON: `data/monsters.json` from `monster_stats.py`, `data/skills.json` from `skill_stats.py`, `data/exp.json` and `exp-table.csv` from `exp_table.py`. Go tests compare each JSON with its script's output.
-- Monster EXP is `HP × r(L)`, so the level-up table depends on monster HP. When monster HP changes, run `monster_stats.py` and `exp_table.py` together.
+- Game data is generated; edit the script in `docs/balance/`, not the JSON: `data/monsters.json` from `monster_stats.py`, `data/skills.json` from `skill_stats.py`, `data/exp.json` and `exp-table.csv` from `exp_table.py`, `data/items.json` from `item_stats.py`. Go tests compare each JSON with its script's output.
+- Monster EXP is `HP × r(L)`, so the level-up table depends on monster HP. When monster HP changes, run `monster_stats.py` and `exp_table.py` together. `item_stats.py` and `monster_stats.py` (its reference gear) both read `equipment_balance.py`, so when gear stats change, run `item_stats.py`, `monster_stats.py` and `exp_table.py`.
 - Combat formulas live only in `internal/combat`.
-- EXP is paid per hit by damage share (`internal/zone/progression.go`), only when player and monster are within 10 levels; drops, when they exist, go to the killer.
+- EXP is paid per hit by damage share (`internal/zone/progression.go`), only when player and monster are within 10 levels. Xu and drops go to the killer only: Xu straight into the wallet, items on the ground, seen and picked up only by the killer's character, gone after 60 s.
 - Proto names must stay valid in GDScript (no field named `message` or `class`, no message named `Error`) because the client generates code with godobuf.
 
 ## Conventions

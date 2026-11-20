@@ -2,10 +2,10 @@
 
 Go game server for DemonSlayer2D. The Godot client lives in a separate repository and generates its protocol code from [`proto/`](proto/) and reads maps from [`maps/`](maps/).
 
-The protocol version is 4 (`gateway.ProtocolVersion`). A login with any other
+The protocol version is 6 (`gateway.ProtocolVersion`). A login with any other
 version fails with `ERROR_CODE_VERSION_MISMATCH`, so bump it together with the client.
 
-Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md).
+Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md).
 
 ## Requirements
 
@@ -33,7 +33,7 @@ override it for one run.
 | `DATABASE_URL` | (required; `make run` sets it) | Postgres connection string |
 | `LISTEN_ADDR` | `:8080` | HTTP/WebSocket address |
 | `MAPS_DIR` | `./maps` | Map files |
-| `DATA_DIR` | `./data` | Game data (`monsters.json`, `skills.json`, `exp.json`) |
+| `DATA_DIR` | `./data` | Game data (`monsters.json`, `skills.json`, `exp.json`, `items.json`) |
 | `START_MAP` | `kumotori_1` | Map for new characters |
 | `TICK_RATE` | `10` | Zone ticks per second, 1–100 |
 | `MOVE_SPEED_TILES` | `4` | Tiles per second at speed factor 1, above 0 and at most 100 |
@@ -136,17 +136,22 @@ never the JSON:
 | [`data/monsters.json`](data/monsters.json) | [`monster_stats.py`](docs/balance/monster_stats.py) | Monster kinds and stats for levels 1–90, including base EXP (`HP × r(L)`) |
 | [`data/skills.json`](data/skills.json) | [`skill_stats.py`](docs/balance/skill_stats.py) | The 25 class skills: shape, range, coefficients, MP, cooldowns, passives |
 | [`data/exp.json`](data/exp.json) | [`exp_table.py`](docs/balance/exp_table.py) | EXP to the next level for levels 1–89 (also writes `docs/balance/exp-table.csv`) |
+| [`data/items.json`](data/items.json) | [`item_stats.py`](docs/balance/item_stats.py) | Bag size, equipment slots, qualities, line rules, the 70 equipment pieces, stackables and drop tables per monster rank |
 
 ```bash
 python3 docs/balance/monster_stats.py --write-json
 python3 docs/balance/skill_stats.py --write-json
 python3 docs/balance/exp_table.py --write-json --write-csv
+python3 docs/balance/item_stats.py --write-json
 ```
 
 The level-up table depends on monster HP, so rerun `exp_table.py` whenever you
-rerun `monster_stats.py`. A Go test checks that each committed JSON matches its
-script's output. The Godot client keeps a copy of `skills.json`, refreshed by its
-`tools/sync_server.sh`.
+rerun `monster_stats.py`. Both `item_stats.py` and `monster_stats.py` (which
+builds monsters from level 10 against the best +0 gear) read the gear stats from
+`equipment_balance.py`, so after changing those, rerun `item_stats.py`,
+`monster_stats.py` and `exp_table.py`. A Go test checks that each committed JSON
+matches its script's output. The Godot client keeps copies of `skills.json` and
+`items.json`, refreshed by its `tools/sync_server.sh`.
 
 ## Develop
 

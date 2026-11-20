@@ -85,17 +85,18 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 | 1 | 80 | 13 | 80 | ~0 |
 | 5 | 6.240 | 173 | 10.910 | 0,5 |
 | 9 | 56.360 | 663 | 136.760 | 3,0 |
-| 10 | 80.000 | 640 | 216.760 | 3,9 |
-| 20 | 1.541.220 | 2.635 | 6.660.150 | 26,2 |
-| 30 | 7.613.660 | 6.447 | 49.542.690 | 89,6 |
-| 40 | 24.606.940 | 12.428 | 206.580.590 | 222,2 |
-| 50 | 62.118.000 | 20.880 | 636.993.420 | 456,3 |
-| 60 | 133.937.400 | 32.073 | 1.618.393.850 | 828,6 |
-| 70 | 258.135.560 | 46.253 | 3.588.744.780 | 1.378,8 |
-| 80 | 456.780.610 | 63.645 | 7.190.998.800 | 2.150,2 |
-| 89 | 723.131.970 | 82.221 | 12.566.282.520 | 3.071,9 |
+| 10 | 91.520 | 640 | 228.280 | 3,9 |
+| 20 | 2.065.500 | 2.635 | 8.520.700 | 26,2 |
+| 30 | 10.901.520 | 6.447 | 67.814.420 | 89,6 |
+| 40 | 38.004.050 | 12.428 | 301.542.010 | 222,2 |
+| 50 | 103.585.680 | 20.880 | 992.508.980 | 456,3 |
+| 60 | 231.311.430 | 32.073 | 2.680.416.820 | 828,6 |
+| 70 | 418.955.720 | 46.253 | 5.954.633.140 | 1.378,8 |
+| 80 | 706.141.970 | 63.645 | 11.628.544.370 | 2.150,2 |
+| 89 | 1.077.668.080 | 82.221 | 19.753.801.950 | 3.071,9 |
 
 - Mỗi điểm HP của quái cho r(L) EXP và r(L) tăng theo cấp quái (mục 5.8), nên EXP lên cấp cao hơn nhiều so với bảng cũ khi mỗi quái cho 10 × L EXP. Số quái cần hạ và thời gian lên cấp giữ nguyên.
+- Từ cấp 10, HP quái tính theo nhân vật tham chiếu mặc trang bị thường +0 (mục 5.9), nên EXP gốc của quái và EXP lên cấp từ cấp 10 cao hơn bảng trước Giai đoạn 3 (ví dụ EXP gốc quái cấp 10 từ 125 thành 143); số quái cần hạ và giờ ước tính không đổi. Cấp 1–9 giữ nguyên vì chưa mặc được món nào.
 
 - Hệ số tăng 0,5 mỗi cấp nên không có bước nhảy: cấp 9→10 và cấp 10→11 đều mất khoảng 0,9–1,1 giờ đánh quái. Cấp 1–10 là giai đoạn làm quen; từ cấp 10 bắt đầu luyện cấp dài hạn.
 - Nhiệm vụ hàng ngày, chính tuyến, phụ tuyến và bang hội là nguồn EXP chính bổ sung ngoài đánh quái, nên thời gian lên cấp thực tế ngắn hơn bảng.
@@ -107,11 +108,11 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 | Tổ đội 5 người cùng đánh | ×1,2 | ~2,5 giờ | ~380 giờ | ~2.560 giờ |
 
 Tổ đội ×1,2 giả định cả năm người hạ quái nhanh như nhau. Trên thực tế, năm người chung một vùng 7–8 quái hồi sinh 8 giây có thể không đủ quái cho cả nhóm.
-- Tổng EXP lên cấp 90 khoảng 12,6 tỷ, vượt giới hạn số nguyên 32-bit có dấu (khoảng 2,1 tỷ); EXP lên một cấp lớn nhất là khoảng 723 triệu ở cấp 89. Server và database lưu EXP bằng số nguyên 64-bit.
+- Tổng EXP lên cấp 90 khoảng 19,8 tỷ, vượt giới hạn số nguyên 32-bit có dấu (khoảng 2,1 tỷ); EXP lên một cấp lớn nhất là khoảng 1,08 tỷ ở cấp 89. Server và database lưu EXP bằng số nguyên 64-bit.
 
 - Cột "Tổng EXP từ cấp 1" là tổng EXP đến khi lên được cấp kế tiếp. Ví dụ ở dòng cấp 89, đó là tổng EXP từ cấp 1 lên cấp 90.
 - Cột giờ ước tính giả định đánh một mình, 5 giây mỗi quái thường cùng cấp, chưa tính nhiệm vụ, tinh anh, thủ lĩnh, sự kiện và EXP tổ đội. Thời gian thực tế sẽ ngắn hơn khi có các nguồn này.
-- Bảng đầy đủ từng cấp nằm trong [CSV EXP lên cấp](balance/exp-table.csv). [Script EXP](balance/exp_table.py) xuất CSV này và `data/exp.json` mà server đọc; script lấy exp(L) từ [script chỉ số quái](balance/monster_stats.py), nên đổi HP quái thì chạy lại cả hai script.
+- Bảng đầy đủ từng cấp nằm trong [CSV EXP lên cấp](balance/exp-table.csv). [Script EXP](balance/exp_table.py) xuất CSV này và `data/exp.json` mà server đọc; script lấy exp(L) từ [script chỉ số quái](balance/monster_stats.py), nên đổi HP quái thì chạy lại cả hai script. Script chỉ số quái lại lấy trang bị tham chiếu từ [script chỉ số trang bị](balance/equipment_balance.py), nên đổi chỉ số trang bị thì chạy lại `item_stats.py`, `monster_stats.py` rồi `exp_table.py`.
 
 #### Công thức phòng thủ và sát thương PvP ban đầu
 
@@ -405,6 +406,26 @@ Vũ khí **khóa đúng class**: Viêm — Viêm Nha Kiếm; Thủy — Thủy N
 | Đỏ — Hoàng Kim | 4 dòng phụ, 2 dòng ẩn; ngân sách thuộc tính cao hơn Cam, từ hoạt động lớn/sự kiện |
 
 So sức mạnh theo cả bậc và phẩm chất; đồ Đỏ bậc thấp không mặc định hơn đồ Cam bậc cao. Các chỉ số cơ bản và cường hóa dùng bảng dữ liệu bản đầu; phần phụ/ẩn bổ sung lên bảng đó.
+
+**Dòng phụ và dòng ẩn — đã chốt** (spec Giai đoạn 3a):
+
+- Năm loại dòng: HP, công vật lý, công phép, thủ vật lý, thủ phép. Trang bị không cộng MP (mục 2.7); chính xác, né và chí mạng chưa có dòng vì chưa có tác dụng trong chiến đấu.
+- Mỗi bậc có một **giá trị chuẩn S** cho mỗi loại dòng: S = max(1, làm tròn nửa lên 4% tổng chỉ số +0 của đủ 10 món ở bậc đó). Công vật lý và công phép cùng lấy tổng Công, hai loại thủ cùng lấy "Mỗi loại thủ" (mục 3.3).
+
+| Bậc | Dòng | HP | Công vật lý, Công phép | Thủ vật lý, Thủ phép |
+| --- | --- | --- | --- | --- |
+| 10 | Lữ Hành | 86 | 4 | 1 |
+| 20 | Thanh Thiết | 156 | 8 | 1 |
+| 30 | Tinh Cương | 220 | 14 | 2 |
+| 40 | Huyền Cương | 320 | 22 | 3 |
+| 50 | Xích Cương | 469 | 32 | 5 |
+
+- Số dòng phụ theo phẩm chất: Trắng 0; Xanh 1–2; Vàng 3–4; Cam 4; Đỏ 4. Một món không có hai dòng phụ cùng loại; mỗi dòng phụ có giá trị nguyên ngẫu nhiên trong [⌈S/2⌉, S] của loại đó.
+- Vàng, Cam, Đỏ có một hệ ngẫu nhiên trong năm hệ (Viêm, Thủy, Minh, Nham, Phong) và đúng hai dòng ẩn, mỗi dòng một loại ngẫu nhiên (được trùng loại), giá trị cố định S × 100%, 125%, 150% cho Vàng, Cam, Đỏ. Trắng và Xanh không có hệ và dòng ẩn. Dòng ẩn có từ lúc món rơi nhưng chỉ có tác dụng khi tương sinh mở (mục 3.2).
+- Ví dụ: Áo Lữ Hành Cam có 4 dòng phụ khác loại, dòng HP nằm trong 43–86; dòng ẩn HP luôn là 108.
+- Trang bị cộng phẳng vào chỉ số nền và tiềm năng rồi mới áp bị động. Món đang mặc mà nhân vật không còn đủ cấp hoặc sai class thì vẫn ở ô đó nhưng không cộng chỉ số.
+
+**Hành trang:** 60 ô; vật phẩm chồng (đá cường hóa, đá tẩy luyện) chồng tối đa 999 mỗi ô, trang bị không chồng. Mặc đồ đổi chỗ với món đang mặc ở ô đó và giữ tỷ lệ HP hiện tại trên HP tối đa (đang đầy thì vẫn đầy). Có nút Sắp xếp (gộp chồng, xếp theo loại) và Hủy; bán đồ cho NPC có ở Giai đoạn 4.
 
 ### 3.2. Tương sinh trang bị — đã chốt
 
@@ -747,13 +768,15 @@ Quái thường có mỗi loại thủ bằng **8 × cấp quái**. HP thường
 | --- | --- | --- | --- | --- | --- |
 | 10 | 750 | 95 | 80 | 4.500 | 15.000 |
 | 20 | 2.704 | 319 | 160 | 16.224 | 54.080 |
-| 30 | 4.338 | 508 | 240 | 26.028 | 86.760 |
+| 30 | 4.336 | 508 | 240 | 26.016 | 86.720 |
 | 40 | 6.240 | 694 | 320 | 37.440 | 124.800 |
 | 50 | 8.408 | 934 | 400 | 50.448 | 168.160 |
 | 60 | 10.452 | 1.211 | 480 | 62.712 | 209.040 |
 | 70 | 11.466 | 1.276 | 560 | 68.796 | 229.320 |
 | 80 | 12.466 | 1.344 | 640 | 74.796 | 249.320 |
 | 90 | 13.478 | 1.412 | 720 | 80.868 | 269.560 |
+
+Bảng lấy từ [script chỉ số quái](balance/monster_stats.py), script chốt cứng các số này; khi lệch thì script là chuẩn (cấp 30 trước ghi 4.338, script tính đúng luật ra 4.336). Cấp 1–9 chưa mặc được món nào nên mốc tham chiếu không có trang bị.
 
 Đánh thường của quái dùng 100% công tương ứng với vật lý/phép. Hiệu ứng và nhịp đánh riêng theo bảng kỹ năng dưới đây. Mục tiêu khoảng 10 đòn PvP không áp lên quái hoặc thủ lĩnh.
 
@@ -821,6 +844,9 @@ Chiêu vùng của tinh anh đánh tối đa **3 người**, thủ lĩnh tối �
 - v1.0.0.0 không có nguyên liệu chế tạo (da, tơ, gỗ, quặng…); hai dòng nguyên liệu cũ được đổi thành đá cường hóa và đá tẩy luyện, giữ nguyên tỷ lệ rơi.
 - Các lượt rơi trang bị/đá độc lập; tỷ lệ phẩm chất chỉ xét sau khi có trang bị rơi. Thủ lĩnh xét phẩm chất riêng cho từng món trong hai món rơi.
 - EXP chia cho mọi người đánh theo phần sát thương của từng người (mục 5.8); đồ rơi vẫn thuộc người kết liễu. Phần thưởng nhân vật/người chơi khác không làm nhân bản lượt rơi đồ của một con quái.
+- **Xu cộng thẳng** vào ví người kết liễu ngay khi quái chết, không rơi xuống đất; client hiện "+N Xu".
+- Trang bị và đá **rơi xuống đất cạnh xác**. Chỉ người kết liễu thấy và nhặt được (nhặt từng món, tầm 1,5 ô); sau 60 giây món biến mất. Người kết liễu đã rời zone khi đòn trúng thì không có Xu và không rơi gì.
+- Ô của món rơi chọn đều trong 10 ô; **vũ khí rơi đúng class người kết liễu**.
 
 ### 5.13. Chuyến Tàu Vô Tận thường và sự kiện
 
