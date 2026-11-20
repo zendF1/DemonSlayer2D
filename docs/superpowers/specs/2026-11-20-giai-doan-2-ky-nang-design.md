@@ -1,0 +1,332 @@
+# Giai đoạn 2 — Kỹ năng
+
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế, chờ triển khai.
+
+Spec này thiết kế Giai đoạn 2 cho cả server (repo này) và client Godot (`../DemonSlayer2DGame`). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.3–2.6; khi hai tài liệu lệch nhau về luật chơi thì game-design là chuẩn, trừ các điểm ghi rõ ở mục 1.3. Những gì không nhắc tới ở đây giữ nguyên như [spec Giai đoạn 1](2026-11-19-giai-doan-1-chien-dau-pve-design.md) và [spec quái thường theo vùng](2026-11-20-quai-thuong-vung-va-chuong-design.md).
+
+## 1. Mục tiêu và phạm vi
+
+### 1.1. Mục tiêu
+
+Nhân vật đủ cấp thì học và nâng kỹ năng của class mình. Người chơi dùng bốn chiêu chủ động lên quái từ thanh kỹ năng; mỗi chiêu tốn MP, có hồi chiêu, tính vùng trúng trên server, và chiêu lao tới dời nhân vật thật. Bị động cộng vào chỉ số. Hai cửa sổ cùng map thấy chiêu và số sát thương của nhau. Hai tài khoản test `test1` (Kaito, Viêm) và `test2` (Hana, Thủy) ở cấp 90, đủ điểm để thử mọi chiêu.
+
+Giai đoạn này cũng đổi luật EXP: quái cấp càng cao cho càng nhiều EXP trên mỗi điểm sát thương, và chỉ nhận EXP từ quái chênh không quá 10 cấp.
+
+### 1.2. Quyết định đã chốt
+
+| Vấn đề | Quyết định | Lý do |
+| --- | --- | --- |
+| Lên cấp cao để thử chiêu | Không thêm map hay quái. Lệnh dev `devchar` đưa `test1`, `test2` lên cấp 90 | Map mới thuộc Giai đoạn 4; người dùng chỉ cần thử kỹ năng |
+| Sách kỹ năng | Tạm bỏ. Học chỉ cần đủ cấp nhân vật và 1 điểm kỹ năng | Sách đến từ nhiệm vụ (Giai đoạn 6) và là vật phẩm (Giai đoạn 3); thêm điều kiện khi có sách |
+| Trượt và chí mạng | Vẫn luôn trúng, không chí mạng. Lặng, Nhiệt Giới Lôi và phần chính xác của Tình Lam Phong Thụ chỉ tăng chỉ số hiển thị | Công thức trượt/chí mạng chưa chốt trong game-design; bật lên phải cân bằng lại quái và PvP |
+| Chiêu lao tới (Bất Tri Hỏa, Phích Lịch Nhất Thiểm) | Server dời nhân vật thật tới cạnh mục tiêu; đường lao bị chắn thì không dùng được | Đúng chữ "lao/lướt" và yêu cầu kiểm tra vị trí, vật cản ở game-design mục 2.6 |
+| Thanh kỹ năng | Bốn ô cố định theo cấp học, phím 1–4; học và nâng ở bảng Kỹ năng (phím K) | Mỗi class đúng bốn chiêu chủ động, không cần lưu cách xếp |
+| Nguồn định nghĩa chiêu | `docs/balance/skill_stats.py` sinh `data/skills.json`; server và client cùng đọc | Một nguồn số liệu, như `monsters.json` |
+| Mục tiêu của chiêu | Chỉ quái | PK thuộc Giai đoạn 5 |
+| Hồi MP | Như Giai đoạn 1: điểm nghỉ và lên cấp | Bình thuốc thuộc Giai đoạn 4 |
+| Điểm kỹ năng | 1 điểm mỗi lần lên cấp; nhân vật đang có được bù `cấp − 1` điểm | Game-design mục 2.6 |
+| EXP theo cấp quái | Mỗi điểm sát thương cho r(L) EXP, r tăng theo cấp quái; bảng EXP lên cấp tính lại để giữ thời gian lên cấp | Người dùng yêu cầu: quái cấp cao đánh đau hơn nên cho nhiều EXP hơn |
+| Cửa sổ cấp | Nhân vật và quái chênh quá 10 cấp thì không nhận EXP | Người dùng yêu cầu |
+
+### 1.3. Khác với game-design
+
+- Học lần đầu **không cần sách** cho tới khi có vật phẩm sách.
+- **EXP gốc của quái** đổi từ `10 × cấp` thành `HP × r(L)` (mục 2.4). Game-design mục 2.2, 5.8, 5.12 được cập nhật theo.
+
+### 1.4. Không làm ở Giai đoạn 2
+
+Sách kỹ năng, tinh anh Quỷ lang thang đầu đàn và chiêu Vồ, kỹ năng của quái, trượt và chí mạng, chiêu hỗ trợ/buff, PK, bình thuốc, tẩy điểm kỹ năng, lưu hồi chiêu qua lần đăng nhập, hình ảnh chiêu thật (chỉ có hiệu ứng vẽ tạm).
+
+## 2. Dữ liệu
+
+### 2.1. `data/skills.json`
+
+Sinh bằng `python3 docs/balance/skill_stats.py --write-json`; không sửa tay. Server nạp qua `internal/gamedata`; client đọc bản chép ở `data/skills.json` của repo client (mục 6.4).
+
+```json
+{
+  "skills": [
+    {
+      "id": "viem_1", "class": "viem", "name": "Bất Tri Hỏa", "form": "I",
+      "learn_level": 10, "slot": 1, "damage": "phys",
+      "shape": "single", "cast_range": 4, "dash": true,
+      "coef_pct":    [150, 165, 180, 195, 210, 225, 240, 255, 270, 285],
+      "mp":          [10, 12, 14, 16, 18, 20, 22, 24, 26, 28],
+      "cooldown_ms": [1500, 1350, 1215, 1094, 984, 886, 797, 717, 646, 581]
+    },
+    {
+      "id": "viem_3", "class": "viem", "name": "Thịnh Viêm Lãng Triều", "form": "IV",
+      "learn_level": 30, "slot": 0,
+      "passive": { "phys_def_pct": [2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
+                   "magic_def_pct": [2, 4, 6, 8, 10, 12, 14, 16, 18, 20] }
+    }
+  ]
+}
+```
+
+**Trường chung:** `id` (`<class>_<1..5>` theo thứ tự cấp học), `class` (`viem`, `thuy`, `minh`, `nham`, `phong`), `name`, `form` (số thức La Mã), `learn_level` (10/20/30/40/50), `slot` (1–4 cho chủ động theo thứ tự cấp học, 0 cho bị động).
+
+**Chủ động** có thêm:
+
+| Trường | Ý nghĩa |
+| --- | --- |
+| `damage` | `phys` (dùng công vật lý) hoặc `magic` (công phép) |
+| `shape` | `single`, `cone`, `circle_self`, `circle_target`, `line` |
+| `cast_range` | Tầm chọn mục tiêu, ô. Có ở `single` và `circle_target` |
+| `radius` | Bán kính vùng, ô. Có ở `circle_self` và `circle_target` |
+| `cone_deg`, `reach` | Góc mở và độ vươn của quạt. Có ở `cone` |
+| `length`, `width` | Dài và rộng của dải. Có ở `line` |
+| `dash` | `true` với chiêu lao tới; chỉ hợp lệ với `single` |
+| `coef_pct[10]` | Hệ số theo cấp kỹ năng 1–10, phần trăm nguyên |
+| `mp[10]` | MP theo cấp kỹ năng |
+| `cooldown_ms[10]` | `round(hồi chiêu cấp 1 × 0,9^(n−1) × 1000)` |
+| `max_targets[10]` | Chỉ có ở chiêu nhiều mục tiêu (mọi shape trừ `single`): 2,2,2,3,3,3,4,4,4,5 |
+
+**Bị động** có `passive`: một hoặc nhiều khóa trong `phys_def_pct`, `magic_def_pct`, `max_hp_pct`, `evasion_pct`, `accuracy_pct`, `magic_attack_pct`, `crit_bp`, mỗi khóa là mảng 10 số nguyên không âm (phần trăm, hoặc điểm cơ bản với `crit_bp`, 100 = 1%). Bị động không có các trường của chủ động.
+
+**Bảng 25 chiêu** (theo game-design mục 2.6, MP và hồi chiêu theo mục "MP và hồi chiêu"):
+
+| id | Tên | Ô | Kiểu | Thông số vùng | Hệ số | MP | Hồi cấp 1 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| viem_1 | Bất Tri Hỏa | 1 | single, dash | cast_range 4 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| viem_2 | Thăng Viêm Thiên | 2 | cone | 120°, reach 2 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| viem_3 | Thịnh Viêm Lãng Triều | 0 | bị động | phys_def_pct, magic_def_pct = 2n | | | |
+| viem_4 | Viêm Hổ | 3 | circle_target | cast_range 5, radius 1,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| viem_5 | Luyện Ngục | 4 | single | cast_range 5 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| thuy_1 | Thủy Diện Trảm | 1 | single | cast_range 3 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| thuy_2 | Đả Triều | 2 | cone | 120°, reach 4 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| thuy_3 | Lặng | 0 | bị động | evasion_pct = 3n | | | |
+| thuy_4 | Liệt Oa | 3 | circle_self | radius 2,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| thuy_5 | Sinh Sinh Lưu Chuyển | 4 | single | cast_range 5 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| minh_1 | Phích Lịch Nhất Thiểm | 1 | single, dash | cast_range 5 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| minh_2 | Tụ Văn Thành Lôi | 2 | circle_self | radius 2 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| minh_3 | Nhiệt Giới Lôi | 0 | bị động | crit_bp = 100n | | | |
+| minh_4 | Viễn Lôi | 3 | line | length 6, width 1,5 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| minh_5 | Hỏa Lôi Thần | 4 | single | cast_range 6 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| nham_1 | Xà Văn Nham · Song Cực | 1 | single | cast_range 3 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| nham_2 | Thiên Diện Toái | 2 | circle_target | cast_range 4, radius 1,5 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| nham_3 | Nham Phu Khu | 0 | bị động | max_hp_pct, phys_def_pct = 2n | | | |
+| nham_4 | Lưu Văn Nham · Tốc Chinh | 3 | circle_self | radius 3 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| nham_5 | Ngõa Hình Luân Bộ | 4 | single | cast_range 4 | 250 + 25(n−1) | 40 + 5(n−1) | 7,5 s |
+| phong_1 | Trần Toàn Phong · Tước | 1 | line | length 5, width 1,5 | 110 + 10(n−1) | 15 + 3(n−1) | 2,5 s |
+| phong_2 | Trảo · Khoa Hộ Phong | 2 | single | cast_range 5 | 150 + 15(n−1) | 10 + 2(n−1) | 1,5 s |
+| phong_3 | Tình Lam Phong Thụ | 0 | bị động | accuracy_pct = 2n, magic_attack_pct = n | | | |
+| phong_4 | Mộc Khô Lạp Phong | 3 | circle_target | cast_range 5, radius 2 | 160 + 15(n−1) | 25 + 4(n−1) | 4 s |
+| phong_5 | Vi Đà Thiên Đài Phong | 4 | circle_target | cast_range 6, radius 3 | 200 + 20(n−1) | 45 + 6(n−1) | 7,5 s |
+
+Viêm, Minh, Nham dùng `damage: phys`; Thủy, Phong dùng `magic`.
+
+**Server kiểm tra khi nạp** (sai thì dừng và báo lỗi, như `monsters.json`):
+
+- JSON không có trường lạ (`DisallowUnknownFields`); `id` không trùng; `class` hợp lệ.
+- Mỗi class có đúng năm chiêu: bốn chủ động ở ô 1, 2, 3, 4 với `learn_level` lần lượt 10, 20, 40, 50, và một bị động ô 0 với `learn_level` 30.
+- Chủ động có `damage` và `shape` hợp lệ, có đủ và chỉ có thông số vùng của shape đó, mọi số đo dương, `cone_deg` trong (0, 360]; `dash` chỉ đi với `single`; `max_targets` có khi và chỉ khi shape khác `single`.
+- Mọi mảng có đúng 10 phần tử; `coef_pct`, `mp`, `cooldown_ms`, `max_targets` dương; mảng bị động không âm.
+- Bị động có ít nhất một khóa `passive` và không có trường của chủ động.
+
+### 2.2. Lưu trữ
+
+Migration `00003_skills.sql`:
+
+- `characters.skill_points int NOT NULL DEFAULT 0 CHECK (skill_points >= 0)`; khi migrate, `UPDATE characters SET skill_points = level - 1`.
+- Bảng `character_skills (character_id bigint REFERENCES characters(id) ON DELETE CASCADE, skill_id text NOT NULL, level int NOT NULL CHECK (level BETWEEN 1 AND 10), PRIMARY KEY (character_id, skill_id))`.
+- Store nạp chiêu cùng nhân vật và lưu chiêu cùng lần lưu nhân vật (cùng transaction). `skill_id` không có trong `skills.json` thì bị bỏ khi nạp, ghi một dòng log cảnh báo.
+- Học hoặc nâng chiêu được lưu ngay (như cộng điểm tiềm năng). Lên cấp đã lưu ngay từ Giai đoạn 1; nay lưu thêm `skill_points`.
+- Hồi chiêu không lưu. Vào lại game thì mọi chiêu sẵn sàng; chấp nhận được vì đăng xuất rồi vào lại lâu hơn hồi chiêu dài nhất 7,5 giây.
+
+### 2.3. Lệnh dev `cmd/devchar`
+
+`go run ./cmd/devchar -u <username> -level <L>` (đọc `DATABASE_URL`, không cờ nào khác):
+
+- Tìm nhân vật đầu tiên (slot nhỏ nhất) của tài khoản; không có thì báo lỗi.
+- Chỉ chạy khi nhân vật đã thoát game. Server không ghi trạng thái online xuống DB nên lệnh không tự phát hiện được; nếu nhân vật đang online, lần lưu kế tiếp của server sẽ ghi đè thay đổi. Lệnh in nhắc điều này trước khi ghi. Chỉ dùng cho dev.
+- Đặt `level = L` (1 ≤ L ≤ 90), `exp = 0`, trả hết điểm tiềm năng đã cộng về tự do: `str = agi = vit = int = 0`, `free_points = 10 × (L − 1)`; `skill_points = (L − 1) − tổng cấp các chiêu đã học`, nếu số đó âm thì xóa hết chiêu và đặt `skill_points = L − 1`; `hp`, `mp` về NULL (đầy).
+- In tóm tắt: tên nhân vật, cấp, điểm tiềm năng, điểm kỹ năng. Không in chuỗi kết nối.
+
+### 2.4. EXP theo cấp quái
+
+**Tỷ lệ EXP trên sát thương:** `r(L) = 0,1 × (1 + 0,1 × (L − 1))` với L là cấp quái: cấp 1 là 0,1 (100 sát thương được 10 EXP), cấp 10 là 0,19, cấp 50 là 0,59, cấp 90 là 0,99.
+
+**EXP gốc của quái** `exp(L) = max(1, round(HP(L) × r(L)))`, tính bằng phân số trong script rồi làm tròn nửa lên. Cách trả EXP theo phần sát thương (game-design mục 5.8) giữ nguyên, chỉ thay `10 × L` bằng `exp(L)`. Hệ quả: EXP trên mỗi điểm sát thương xấp xỉ r(L), tăng theo cấp quái.
+
+**Cửa sổ cấp:** một đòn của người chơi lên quái chỉ trả EXP khi `|cấp nhân vật − cấp quái| ≤ 10`. Đòn ngoài cửa sổ vẫn gây sát thương nhưng không trả EXP và không được ghi vào bảng sát thương tính EXP của con quái. Áp dụng cho cả chém mặc định và kỹ năng.
+
+**Chỉ số quái cấp 1–90:** `monster_stats.py` sinh đủ 90 cấp (hiện chỉ 1–5) và thêm trường `exp` cho mỗi cấp. Quy tắc giữ như Giai đoạn 1 (chưa có trang bị): nhân vật tham chiếu Viêm, 2/3 điểm vào STR, thủ quái `8 × L`, công quái theo mốc 4% HP. HP quái:
+
+- cấp 1–9: bốn chém mặc định của nhân vật tham chiếu (như cũ);
+- từ cấp 10: hai chém mặc định cộng hai Bất Tri Hỏa ở cấp kỹ năng `min(10, L − 9)` (game-design mục 5.9), hệ số lấy từ `skill_stats.py`.
+
+Trang bị tham chiếu vào công thức ở Giai đoạn 3; khi đó HP và EXP gốc sinh lại cùng nhau.
+
+**Bảng EXP lên cấp:** `exp_table.py` giữ số quái cần hạ cho mỗi cấp như cũ, `kills(L) = (10 + 2 × (L − 1)^1,5) × hệ số cấp(L)`, và tính `EXP lên cấp kế tiếp = round10(kills(L) × exp(L))`. Vì số quái và giả định 5 giây mỗi quái không đổi, thời gian ước tính giữ nguyên (khoảng 3 giờ lên cấp 10, khoảng 456 giờ lên cấp 50). Script lấy `exp(L)` từ `monster_stats.py`, ghi `data/exp.json` (`{"exp_to_next": [89 số cho cấp 1 → 89]}`) và `docs/balance/exp-table.csv`. Đổi HP quái thì chạy lại cả hai script.
+
+Server nạp `exp.json` qua `gamedata` (đúng 89 số dương, tăng dần); `combat.ExpToNext` đọc bảng này thay cho công thức trong Go. `combat.MonsterExp` bỏ; EXP gốc lấy từ `Levels[L].Exp`.
+
+Nhân vật dev có EXP vượt mức của bảng mới sẽ lên cấp ở lần nhận EXP kế tiếp (`GainExp` lặp tới khi EXP nhỏ hơn mức cần).
+
+## 3. Server: học chiêu và chỉ số
+
+### 3.1. Học hoặc nâng chiêu
+
+`LearnSkillReq{skill_id}`. Kiểm tra theo thứ tự, lỗi đầu tiên được trả:
+
+1. Nhân vật chết: `DEAD`.
+2. `skill_id` không có hoặc thuộc class khác: `BAD_REQUEST`.
+3. Chiêu đã cấp 10: `SKILL_MAXED`.
+4. Gọi n là cấp hiện tại (0 nếu chưa học). Cấp nhân vật nhỏ hơn `learn_level + n`: `LEVEL_TOO_LOW`.
+5. `skill_points < 1`: `NOT_ENOUGH_POINTS`.
+
+Hợp lệ: trừ 1 điểm, cấp chiêu thành n + 1, lưu ngay, trả `LearnSkillResp{stats, skills}`. Học hoặc nâng bị động thì chỉ số tính lại; HP và MP hiện tại tăng đúng bằng phần tăng của HP và MP tối đa (như cộng điểm tiềm năng, spec Giai đoạn 1 mục 3.5).
+
+Mỗi lần lên cấp nhân vật cộng 1 điểm kỹ năng, cùng lúc với 10 điểm tiềm năng.
+
+### 3.2. Bị động trong chỉ số
+
+`combat.Compute(magic, level, points, passive)` nhận tổng hiệu ứng bị động ở cấp đã học. Tính chỉ số như cũ, rồi với mỗi khóa phần trăm: `chỉ số += floor(chỉ số trước bị động × pct / 100)`; `crit_bp` cộng thẳng vào tỷ lệ chí mạng. `max_hp_pct` áp lên HP tối đa, `magic_attack_pct` lên công phép, `accuracy_pct` lên chính xác, `evasion_pct` lên né tránh, `phys_def_pct`/`magic_def_pct` lên thủ tương ứng.
+
+Theo mục 1.2, né tránh, chính xác và tỷ lệ chí mạng chỉ hiển thị.
+
+## 4. Server: dùng chiêu
+
+### 4.1. Lệnh và hàng chờ
+
+`CastReq{skill_id, target_id, dir_x, dir_y}`. Mỗi người chơi có một chỗ chờ chiêu, tách riêng chỗ chờ chém. Lệnh mới thay lệnh cũ; lệnh cũ nhận `ON_COOLDOWN`. `resolveAttacks` xử lý từng người theo thứ tự id: chém trước, chiêu sau, trước khi ai di chuyển. Hồi chiêu của mỗi chiêu độc lập với nhau và với chém.
+
+### 4.2. Kiểm tra
+
+Theo thứ tự, lỗi đầu tiên được trả; mọi lỗi đều không trừ MP và không bắt đầu hồi chiêu:
+
+1. Nhân vật chết: `DEAD`.
+2. Nhân vật đứng trong khu an toàn: `IN_SAFE_ZONE`.
+3. Chiêu không có, thuộc class khác, chưa học hoặc là bị động: `SKILL_NOT_LEARNED`.
+4. Chưa hết hồi chiêu: `ON_COOLDOWN`. Hồi chiêu tính theo tick: `z.ticks(cooldown_ms / 1000)` của cấp đã học.
+5. `mp < mp[n]`: `NOT_ENOUGH_MP`.
+6. Mục tiêu theo shape (mục 4.3).
+
+Hợp lệ: trừ MP, ghi tick dùng chiêu, gửi `CastResp`, rồi áp kết quả (mục 4.4–4.5). MP đổi nên `statsDirty` bật và người chơi nhận `SelfStats` cuối tick.
+
+### 4.3. Mục tiêu và hướng
+
+`cast_range` cộng `attackRangeSlack` (0,5 ô) như chém mặc định, vì client thấy quái trễ hai tick. Kích thước vùng (`radius`, `reach`, `length`, `width`) dùng đúng số, không cộng.
+
+- **`single`, `circle_target`:** cần `target_id` là quái còn sống (`INVALID_TARGET`), trong `cast_range + 0,5` và không bị tường chắn từ nhân vật (`OUT_OF_RANGE`).
+- **`cone`, `line`:** nếu `target_id` là quái còn sống thì hướng chiêu là từ nhân vật tới quái đó, không xét tầm. Nếu không, hướng là `(dir_x, dir_y)` chuẩn hóa. Không có quái hợp lệ và `dir` bằng 0 (hoặc không hữu hạn): `BAD_REQUEST`.
+- **`circle_self`:** không cần mục tiêu; `target_id`, `dir` bị bỏ qua (chỉ dùng `target_id` để ưu tiên, mục 4.4).
+
+### 4.4. Vùng trúng
+
+Mỗi shape có **gốc** (điểm xét tường chắn) và **tâm** (điểm xếp thứ tự ưu tiên):
+
+| Shape | Gốc và tâm | Quái trúng khi |
+| --- | --- | --- |
+| `single` | | chỉ mục tiêu chính |
+| `circle_self` | nhân vật | khoảng cách tới nhân vật ≤ `radius` |
+| `circle_target` | mục tiêu chính | khoảng cách tới mục tiêu chính ≤ `radius` |
+| `cone` | nhân vật | khoảng cách ≤ `reach` và góc giữa hướng chiêu và hướng tới quái ≤ `cone_deg / 2` |
+| `line` | nhân vật | hình chiếu lên hướng chiêu trong [0, `length`] và khoảng cách vuông góc ≤ `width / 2` |
+
+- Chỉ xét quái còn sống, và từ gốc tới quái không bị tường chắn (`lineBlocked`). Quái trùng vị trí gốc luôn được xét là trong vùng.
+- Quét quái bằng lưới ô AOI quanh tâm, đủ phủ vùng lớn nhất (dải 6 ô); không duyệt toàn zone.
+- Thứ tự: `target_id` nếu là quái trong vùng, rồi các quái còn lại theo khoảng cách tới tâm tăng dần, hòa thì id nhỏ trước. Cắt ở `max_targets[n]`.
+- Chiêu nhiều mục tiêu không trúng ai vẫn hợp lệ: trừ MP, hồi chiêu, phát `Cast`.
+
+### 4.5. Lao tới
+
+Áp cho chiêu `dash`, sau khi qua kiểm tra mục 4.2–4.3 và trước khi tính sát thương:
+
+- Gọi d là khoảng cách nhân vật tới mục tiêu. Nếu d ≤ 1 thì không dời. Nếu không, điểm đáp là điểm trên đoạn nhân vật → mục tiêu, cách mục tiêu 1 ô.
+- Điểm đáp phải nằm trên ô đi được, không thuộc khu an toàn, và đoạn nhân vật → điểm đáp không bị tường chắn; sai thì `OUT_OF_RANGE` (kiểm tra trước khi trừ MP).
+- Server đặt vị trí mới, cập nhật ô AOI của nhân vật, và đánh dấu để `syncView` phát `EntityMove{snap: true}` cho mọi người thấy, kể cả chính người dùng chiêu. Input di chuyển của tick đó áp tiếp từ điểm đáp.
+
+### 4.6. Sát thương và hệ quả
+
+Với mỗi quái trúng, theo thứ tự ở mục 4.4:
+
+- `base = floor(công × coef_pct[n] / 100)`, công là công vật lý nếu `damage = phys`, công phép nếu `magic`.
+- `dmg = combat.Damage(base, thủ của quái, cấp nhân vật)`; sát thương tính EXP tối đa bằng HP còn lại.
+- Thêm `Hit{attacker, target, damage, hp_after, skill_id}`.
+- Trả EXP theo phần sát thương nếu trong cửa sổ cấp (mục 2.4).
+- Ghi người dùng chiêu vào danh sách người đánh của quái; quái chưa đuổi thì đuổi người dùng chiêu (như chém mặc định).
+- Quái về 0 HP thì chết.
+
+Phát một `Cast{caster_id, skill_id, target_id, dir_x, dir_y}` mỗi lần dùng chiêu hợp lệ: `target_id` là mục tiêu chính (0 nếu không có), `dir` là hướng đã chốt cho `cone`/`line`, hướng tới mục tiêu cho `single`/`circle_target`, và 0 cho `circle_self`.
+
+### 4.7. Chống spam
+
+Gateway thêm giới hạn tần suất cho `CastReq` và `LearnSkillReq` bằng `Limiter.Take`/`Refund`, cùng cách và cùng mức với `AttackReq`/`AllocatePointsReq`.
+
+## 5. Giao thức
+
+`ProtocolVersion` lên **4**.
+
+| Envelope | Message | Trường |
+| --- | --- | --- |
+| 57 | `LearnSkillReq` | `string skill_id = 1` |
+| 58 | `LearnSkillResp` | `SelfStats stats = 1`, `repeated SkillLevel skills = 2` |
+| 59 | `CastReq` | `string skill_id = 1`, `uint64 target_id = 2`, `float dir_x = 3`, `float dir_y = 4` |
+| 60 | `CastResp` | rỗng |
+
+- `SkillLevel { string skill_id = 1; int32 level = 2; }`.
+- `EnterWorldResp.skills = 10` (`repeated SkillLevel`): toàn bộ chiêu đã học.
+- `SelfStats.skill_points = 20`.
+- `Cast { uint64 caster_id = 1; string skill_id = 2; uint64 target_id = 3; float dir_x = 4; float dir_y = 5; }`; `WorldTick.casts = 8`. Gửi cho người thấy người dùng chiêu và chính người đó.
+- `Hit.skill_id = 6`: rỗng là chém mặc định hoặc đòn của quái.
+- Thứ tự client áp một `WorldTick`: `moves`, `casts`, `hits`, `deaths`, `hp_changes`, `level_ups`. Ghi chú của `WorldTick` trong proto cập nhật theo.
+- `ErrorCode`: `SKILL_NOT_LEARNED = 23`, `NOT_ENOUGH_MP = 24`, `SKILL_MAXED = 25`, `LEVEL_TOO_LOW = 26`.
+- Tên tuân theo ràng buộc godobuf (CLAUDE.md). Fixture mới: `learn_skill_resp.hex`, `cast_req.hex`, `world_tick_cast.hex` (một `Cast`, hai `Hit` có `skill_id`, một `EntityMove` có `snap`). Fixture cũ sinh lại.
+
+## 6. Client Godot
+
+### 6.1. Lõi (`core/`, không dùng Node)
+
+- **`core/skill_book.gd`**: nạp `skills.json`; giữ cấp chiêu đã học (từ `EnterWorldResp`, `LearnSkillResp`) và điểm kỹ năng (từ `SelfStats`). Trả về chiêu theo class và ô; MP, hồi chiêu, hệ số, số mục tiêu, hiệu ứng bị động ở cấp n; `learn_block(skill, char_level)` trả lý do không học được (`""`, `"maxed"`, `"level"`, `"points"`). Giữ thời điểm hết hồi chiêu của từng chiêu, đặt khi nhận `CastResp`.
+- **`core/cast_loop.gd`**: một lần bấm ô = một lần dùng chiêu.
+  - Chiêu `single`/`circle_target`/`dash` cần mục tiêu đang khóa; không có thì báo "Chưa chọn mục tiêu" và không gửi. Ngoài `cast_range` thì tự chạy lại gần (như `attack_loop`), tới tầm thì gửi.
+  - `cone`/`line`/`circle_self` gửi ngay, kèm mục tiêu đang khóa (nếu có) và hướng nhân vật đang nhìn.
+  - Trước khi gửi, tự kiểm tra hồi chiêu và MP; thiếu thì báo "Chưa hồi chiêu" hoặc "Không đủ MP" và không gửi.
+  - Đang chạy lại gần mà người chơi tự di chuyển, đổi mục tiêu hoặc bấm ô khác thì hủy.
+  - `OUT_OF_RANGE` thì chạy thẳng tới mục tiêu và thử lại, như `attack_loop`.
+- **`core/entity_table.gd`**: `casts` phát tín hiệu vẽ hiệu ứng; `Hit` có `skill_id` chỉ hiện số sát thương.
+- **`core/predictor.gd`**: `EntityMove` của chính mình có `snap` thì đặt vị trí dự đoán bằng vị trí server và giữ lại các input chưa được xác nhận để phát lại từ điểm mới.
+- **`core/errors.gd`**: câu tiếng Việt cho bốn mã mới. **`core/wire.gd`**: thêm payload mới vào `PAYLOADS`.
+
+### 6.2. Giao diện (`ui/`)
+
+- **`ui/skill_bar.gd`**: bốn ô quanh nút chém, phím 1–4 trên PC, bấm trên di động. Ô hiện tên ngắn và cấp; chưa học thì xám; đang hồi thì có vòng quét và số giây; thiếu MP thì tối màu.
+- **`ui/skill_panel.gd`**: phím K hoặc nút trên HUD. Năm chiêu của class: thức, tên, cấp n/10, cấp nhân vật cần, mô tả vùng; so sánh cấp hiện tại với cấp kế (hệ số, MP, hồi chiêu, số mục tiêu, hoặc hiệu ứng bị động). Nút "Học"/"Nâng" khóa thì ghi lý do. Đầu bảng hiện điểm kỹ năng còn lại.
+- **`ui/skill_effect.gd`**: hiệu ứng tạm bằng `_draw`, khoảng 0,35 giây, đúng kích thước vùng server: quạt, vòng tròn, dải thẳng, chớp sáng tại mục tiêu (`single`), vệt lướt (`dash`). Màu theo class: Viêm đỏ cam, Thủy xanh nước, Minh vàng, Nham nâu xám, Phong xanh lá.
+- **HUD**: chấm báo trên nút Kỹ năng khi còn điểm kỹ năng; thanh MP giảm khi dùng chiêu.
+
+### 6.3. Smoke
+
+`tests/smoke` thêm bước kỹ năng: tạo tài khoản mới, vào game rồi thoát, chạy `devchar -level 20` cho tài khoản đó, vào lại, học chiêu ô 1 và ô 2, dùng chiêu lên quái. Kết quả in "SMOKE OK" kèm sát thương chiêu và MP đã tiêu.
+
+### 6.4. Đồng bộ
+
+`tools/sync_server.sh` chép thêm `server/data/skills.json` sang `data/skills.json`; `--check` so cả file này.
+
+## 7. Kiểm thử
+
+**Script cân bằng:** `skill_stats.py`, `monster_stats.py`, `exp_table.py` đều có `--print-json`; test Go so với file đã commit. `exp_table.py` tự kiểm tra lên cấp 10 mất 2,8–3,2 giờ, lên cấp 50 trong ±5% của 456 giờ, bảng tăng dần.
+
+**Server** (`go test -race`, mỗi package một hoặc hai file test, chia section):
+
+- `gamedata`: `skills.json` hợp lệ nạp được; lỗi khi thiếu thông số shape, thừa thông số, mảng không đủ 10, class thiếu hoặc trùng ô, `dash` với shape khác `single`, `max_targets` sai chỗ, trường lạ, bị động sai cấp. `exp.json` sai độ dài hoặc không tăng dần thì lỗi. `monsters.json` đủ 90 cấp, có `exp`.
+- `combat`: `ExpToNext` theo bảng; `Compute` với bị động (làm tròn xuống, tính trên chỉ số trước bị động, Nham tăng HP tối đa); cửa sổ cấp ở chênh 10 và 11; EXP trên mỗi điểm sát thương của quái cấp cao lớn hơn cấp thấp.
+- `store`: migration bù `skill_points`; lưu và nạp chiêu; `skill_id` lạ bị bỏ.
+- `zone` học chiêu: từng mã lỗi theo thứ tự; bị động tăng chỉ số, HP, MP; lên cấp cộng điểm kỹ năng.
+- `zone` dùng chiêu: từng mã lỗi theo thứ tự; lỗi không trừ MP và không hồi chiêu; hồi chiêu độc lập với chém; quạt không trúng phía sau; biên bán kính; bề rộng dải; `max_targets` và thứ tự ưu tiên; quái sau tường không trúng; chiêu không trúng ai vẫn tốn MP; lao tới đáp cách mục tiêu 1 ô và phát `snap`; đường lao bị chắn hoặc điểm đáp trong khu an toàn bị từ chối; nhân vật cấp 90 đánh quái cấp 5 không nhận EXP; `Cast` chỉ gửi cho người thấy.
+- `gateway`: giới hạn tần suất `CastReq`, `LearnSkillReq`; `ProtocolVersion` là 4; giải mã fixture mới.
+- `cmd/devchar`: đặt đúng cấp và điểm; trả điểm tiềm năng; bớt chiêu khi điểm kỹ năng không đủ; tài khoản không có nhân vật thì báo lỗi.
+- e2e: nhân vật được đưa lên cấp 20 bằng helper store, vào game, học chiêu ô 1, ô 2, dùng lên quái; MP giảm, có `Hit` mang `skill_id`, dùng lại ngay bị `ON_COOLDOWN`.
+
+**Client** (`tests/run.sh`): `skill_book` (cấp, lý do, hồi chiêu); `cast_loop` (chạy lại gần, gửi ngay, tự kiểm tra); `entity_table` (`Cast`, `Hit` có `skill_id`); `predictor` (`snap` của mình); giải mã fixture mới; `sync --check`. Smoke theo mục 6.3.
+
+**Nghiệm thu:** server chạy ở `:8199`. `devchar` đưa `test1`, `test2` lên cấp 90. Người dùng mở hai cửa sổ: Kaito (Viêm) và Hana (Thủy) học đủ chiêu, dùng lên quái và thấy chiêu của nhau.
+
+## 8. Tài liệu cập nhật
+
+- `docs/game-design.md`: mục 2.2 (công thức và bảng EXP lên cấp mới), 5.8 (EXP theo r(L), cửa sổ ±10 cấp), 5.12 (cột EXP là HP × r(L)).
+- `CLAUDE.md`: thêm bất biến `skills.json` sinh bằng `skill_stats.py`, `exp.json` bằng `exp_table.py`; không sửa tay.
+- README hai repo: `devchar`, phím 1–4 và K.
+- Spec Giai đoạn 1: ghi chú "đã thay bằng spec Giai đoạn 2" ở chỗ nói EXP gốc `10 × cấp` và `ExpToNext`.
