@@ -1,10 +1,7 @@
 package combat
 
 import (
-	"encoding/csv"
-	"os"
 	"slices"
-	"strconv"
 	"testing"
 )
 
@@ -72,59 +69,70 @@ func TestSlashBase(t *testing.T) {
 	}
 }
 
-// ______________________TEST EXP_____________________
+// ______________________TEST EXP TABLE_____________________
 
-func TestExpToNextMatchesCSV(t *testing.T) {
-	t.Skip("phase 2 task 1 regenerated the CSV from monster EXP; Task 3 makes ExpToNext read data/exp.json and replaces this test")
-	f, err := os.Open("../../docs/balance/exp-table.csv")
-	if err != nil {
-		t.Fatal(err)
+// testTable is a synthetic table: level L needs 100 * L EXP.
+func testTable() ExpTable {
+	t := make(ExpTable, MaxLevel-1)
+	for i := range t {
+		t[i] = 100 * int64(i+1)
 	}
-	defer f.Close()
-	rows, err := csv.NewReader(f).ReadAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 90 { // header + levels 1-89
-		t.Fatalf("rows = %d", len(rows))
-	}
-	for _, r := range rows[1:] {
-		level, _ := strconv.Atoi(r[0])
-		want, _ := strconv.ParseInt(r[1], 10, 64)
-		if got := ExpToNext(level); got != want {
-			t.Errorf("ExpToNext(%d) = %d, want %d", level, got, want)
+	return t
+}
+
+func TestExpTableToNext(t *testing.T) {
+	tb := testTable()
+	for _, c := range []struct {
+		level int
+		want  int64
+	}{{1, 100}, {89, 8900}, {MaxLevel, 0}, {0, 0}, {-1, 0}, {MaxLevel + 1, 0}} {
+		if got := tb.ToNext(c.level); got != c.want {
+			t.Errorf("ToNext(%d) = %d, want %d", c.level, got, c.want)
 		}
 	}
-	if got := ExpToNext(MaxLevel); got != 0 {
-		t.Fatalf("ExpToNext(90) = %d", got)
+	if got := tb[:3].ToNext(4); got != 0 {
+		t.Fatalf("ToNext past a short table = %d, want 0", got)
 	}
 }
 
-func TestGainExp(t *testing.T) {
-	need1 := ExpToNext(1)
-	if l, e := GainExp(1, 0, need1+7); l != 2 || e != 7 {
+func TestExpTableGain(t *testing.T) {
+	tb := testTable()
+	if l, e := tb.Gain(1, 0, 100+7); l != 2 || e != 7 {
 		t.Fatalf("carry: got %d, %d", l, e)
 	}
-	if l, e := GainExp(1, 5, 10); l != 1 || e != 15 {
+	if l, e := tb.Gain(1, 5, 10); l != 1 || e != 15 {
 		t.Fatalf("no level-up: got %d, %d", l, e)
 	}
-	multi := ExpToNext(1) + ExpToNext(2) + ExpToNext(3) + 3
-	if l, e := GainExp(1, 0, multi); l != 4 || e != 3 {
-		t.Fatalf("several levels: got %d, %d", l, e)
+	if l, e := tb.Gain(1, 0, 100+200+3); l != 3 || e != 3 {
+		t.Fatalf("two levels at once: got %d, %d", l, e)
 	}
-	if l, e := GainExp(89, 0, 1<<50); l != MaxLevel || e != 0 {
+	if l, e := tb.Gain(89, 0, 1<<50); l != MaxLevel || e != 0 {
 		t.Fatalf("cap: got %d, %d", l, e)
 	}
-	if l, e := GainExp(MaxLevel, 0, 1000); l != MaxLevel || e != 0 {
+	if l, e := tb.Gain(MaxLevel, 0, 1000); l != MaxLevel || e != 0 {
 		t.Fatalf("at max: got %d, %d", l, e)
+	}
+	// A dev character above its level's need levels up on the next gain.
+	if l, e := tb.Gain(2, 450, 1); l != 3 || e != 251 {
+		t.Fatalf("over the need: got %d, %d", l, e)
+	}
+	if l, e := tb[:2].Gain(3, 0, 1000); l != 3 || e != 1000 {
+		t.Fatalf("past a short table: got %d, %d, want the EXP kept at level 3", l, e)
 	}
 }
 
-func TestMonsterExp(t *testing.T) {
-	if got := MonsterExp(7); got != 70 {
-		t.Fatalf("got %d", got)
+func TestExpEligible(t *testing.T) {
+	for _, c := range []struct {
+		player, monster int
+		want            bool
+	}{{20, 10, true}, {10, 20, true}, {10, 10, true}, {21, 10, false}, {10, 21, false}, {12, 1, false}, {11, 1, true}} {
+		if got := ExpEligible(c.player, c.monster); got != c.want {
+			t.Errorf("ExpEligible(%d, %d) = %v, want %v", c.player, c.monster, got, c.want)
+		}
 	}
 }
+
+// ______________________TEST EXP SHARE_____________________
 
 func TestExpShare(t *testing.T) {
 	for _, c := range []struct {
@@ -150,12 +158,12 @@ func TestExpShare(t *testing.T) {
 }
 
 // Paying the share of the summed damage less what was paid loses nothing: a
-// level-1 monster (56 HP, 10 EXP) slashed for 14 four times pays 2, 3, 2, 3.
+// monster of 56 HP and 10 EXP slashed for 14 four times pays 2, 3, 2, 3.
 func TestExpShareCumulative(t *testing.T) {
 	var paid int64
 	var got []int64
 	for sum := 14; sum <= 56; sum += 14 {
-		share := ExpShare(MonsterExp(1), 56, sum)
+		share := ExpShare(10, 56, sum)
 		got = append(got, share-paid)
 		paid = share
 	}

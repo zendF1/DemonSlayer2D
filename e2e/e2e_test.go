@@ -18,6 +18,7 @@ import (
 	"demonslayer2d/internal/client"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/config"
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/store/storetest"
@@ -426,8 +427,12 @@ func TestCombatProgressSurvivesLogout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	data, err := gamedata.Load("../data")
+	if err != nil {
+		t.Fatal(err)
+	}
 	const seedLevel, seedFree = 3, 20
-	seedExp := combat.ExpToNext(seedLevel) - 1
+	seedExp := data.Exp.ToNext(seedLevel) - 1
 	if err := s.store.SaveCharacterState(ctx, store.CharState{ID: row.ID, MapID: row.MapID, X: row.X, Y: row.Y,
 		Level: seedLevel, Exp: seedExp, FreePoints: seedFree, HP: -1, MP: -1}); err != nil {
 		t.Fatal(err)

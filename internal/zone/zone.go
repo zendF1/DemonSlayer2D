@@ -437,7 +437,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		ServerTick:   z.tickNo,
 		MoveSpeed:    z.cfg.MoveSpeed,
 		TickRate:     uint32(z.cfg.TickRate),
-		Stats:        selfStats(p),
+		Stats:        z.selfStats(p),
 	}}})
 	return nil
 }
@@ -529,7 +529,7 @@ func (z *Zone) syncView(p *player) bool {
 	send(&pb.Envelope{Payload: &pb.Envelope_WorldTick{WorldTick: wt}})
 	if p.statsDirty {
 		p.statsDirty = false
-		send(&pb.Envelope{Payload: &pb.Envelope_SelfStats{SelfStats: selfStats(p)}})
+		send(&pb.Envelope{Payload: &pb.Envelope_SelfStats{SelfStats: z.selfStats(p)}})
 	}
 	return ok
 }

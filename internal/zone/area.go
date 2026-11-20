@@ -1,6 +1,7 @@
 package zone
 
 import (
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 )
 
@@ -30,8 +31,9 @@ type Region struct {
 	Kind                      gamedata.Kind
 }
 
-// Area is everything the zone knows about its map: collision, map triggers and
-// the monsters that live there. Levels is shared between zones and read-only.
+// Area is everything the zone knows about its map: collision, map triggers,
+// the monsters that live there and the EXP table. Levels and Exp are shared
+// between zones and read-only.
 type Area struct {
 	Grid    Grid
 	Safe    []Rect
@@ -39,6 +41,7 @@ type Area struct {
 	Respawn Vec2
 	Regions []Region
 	Levels  map[int]gamedata.Level
+	Exp     combat.ExpTable
 }
 
 // InSafe reports whether the tile containing p is in a safe zone.

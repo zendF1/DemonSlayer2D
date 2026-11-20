@@ -16,11 +16,16 @@ func setStats(p *player, s combat.Stats) {
 }
 
 // payExpShare gives p the EXP that counted more damage on m earns (spec 3.4):
-// the share of p's summed damage on m, less what m has already paid p, so
-// no fraction is lost over several hits.
+// the share of p's summed damage on m of the monster's total EXP, less what m
+// has already paid p, so no fraction is lost over several hits. A hit from a
+// player more than ExpLevelWindow levels away pays nothing and is not counted
+// (phase 2 spec 2.4).
 func (z *Zone) payExpShare(p *player, m *monster, counted int) {
+	if !combat.ExpEligible(p.level, m.level) {
+		return
+	}
 	m.dmgBy[p.id] += counted
-	share := combat.ExpShare(combat.MonsterExp(m.level), m.maxHP, m.dmgBy[p.id])
+	share := combat.ExpShare(z.area.Levels[m.level].Exp, m.maxHP, m.dmgBy[p.id])
 	gain := share - m.expPaid[p.id]
 	m.expPaid[p.id] = share
 	z.gainExp(p, gain)
@@ -33,7 +38,7 @@ func (z *Zone) gainExp(p *player, gain int64) {
 	if gain <= 0 {
 		return
 	}
-	level, exp := combat.GainExp(p.level, p.exp, gain)
+	level, exp := z.area.Exp.Gain(p.level, p.exp, gain)
 	if level == p.level && exp == p.exp {
 		return // at the level cap
 	}
@@ -88,16 +93,16 @@ func (z *Zone) allocate(c allocateCmd) {
 		z.hpChanged(&p.entity)
 	}
 	z.saver.Save(z.state(p), nil)
-	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AllocatePointsResp{AllocatePointsResp: &pb.AllocatePointsResp{Stats: selfStats(p)}}})
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AllocatePointsResp{AllocatePointsResp: &pb.AllocatePointsResp{Stats: z.selfStats(p)}}})
 }
 
 // selfStats is p's own view of its progression and stats (spec 5.2).
-func selfStats(p *player) *pb.SelfStats {
+func (z *Zone) selfStats(p *player) *pb.SelfStats {
 	s := p.stats
 	return &pb.SelfStats{
 		Level:        int32(p.level),
 		Exp:          p.exp,
-		ExpNext:      combat.ExpToNext(p.level),
+		ExpNext:      z.area.Exp.ToNext(p.level),
 		FreePoints:   int32(p.freePoints),
 		Strength:     int32(p.points.Str),
 		Agility:      int32(p.points.Agi),

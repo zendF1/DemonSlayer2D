@@ -9,12 +9,14 @@ import (
 	"maps"
 	"math"
 	"math/rand/v2"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -99,7 +101,7 @@ func testConfig(capacity int) Config {
 
 func newTestZone(capacity int, g Grid) (*Zone, *fakeSaver) {
 	sv := &fakeSaver{}
-	return New(testConfig(capacity), Area{Grid: g}, sv, quietLog()), sv
+	return New(testConfig(capacity), Area{Grid: g, Exp: testExp}, sv, quietLog()), sv
 }
 
 func info(id uint64, x, y float32) PlayerInfo {
@@ -378,7 +380,7 @@ func TestRunJoinLeaveAndShutdown(t *testing.T) {
 	sv := &fakeSaver{}
 	cfg := testConfig(10)
 	cfg.TickRate = 50
-	z := New(cfg, Area{Grid: openGrid(64, 64)}, sv, quietLog())
+	z := New(cfg, Area{Grid: openGrid(64, 64), Exp: testExp}, sv, quietLog())
 	ctx, cancel := context.WithCancel(context.Background())
 	go z.Run(ctx)
 
@@ -457,9 +459,22 @@ var testKind = gamedata.Kind{ID: "wanderer", Name: "Quỷ lang thang", AttackRan
 	MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8}
 
 var testLevels = map[int]gamedata.Level{
-	1: {Level: 1, HP: 56, Attack: 30, Defense: 8},
-	2: {Level: 2, HP: 104, Attack: 39, Defense: 16},
+	1: {Level: 1, HP: 56, Attack: 30, Defense: 8, Exp: 6},
+	2: {Level: 2, HP: 104, Attack: 39, Defense: 16, Exp: 11},
 }
+
+// testExp is the real EXP table, data/exp.json.
+var testExp = func() combat.ExpTable {
+	b, err := os.ReadFile("../../data/exp.json")
+	if err != nil {
+		panic(err)
+	}
+	t, err := gamedata.ParseExp(b)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}()
 
 // newMonsterZone builds a zone on a 60x60 open grid with the safe rect (0,0,10,10)
 // and one region of 3 monsters on the given tiles, with its nest on the first.
@@ -475,6 +490,7 @@ func newMonsterZone(t *testing.T, tiles ...Vec2) (*Zone, *counterID) {
 		Respawn: Vec2{5.5, 5.5},
 		Regions: []Region{{ID: "r1", Tiles: tiles, Nest: tiles[0], Count: 3, MinLevel: 1, MaxLevel: 2, Kind: testKind}},
 		Levels:  testLevels,
+		Exp:     testExp,
 	}
 	return New(cfg, area, &fakeSaver{}, quietLog()), ids
 }
@@ -722,6 +738,7 @@ func newRegionZone(t *testing.T, seed uint64, regions ...Region) (*Zone, *counte
 		Respawn: Vec2{5.5, 5.5},
 		Regions: regions,
 		Levels:  testLevels,
+		Exp:     testExp,
 	}
 	return New(cfg, area, &fakeSaver{}, quietLog()), ids
 }

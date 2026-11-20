@@ -308,12 +308,12 @@ func classSkills(skills map[string]Skill) map[string][]Skill {
 }
 
 type expFile struct {
-	ExpToNext []int64 `json:"exp_to_next"`
+	ExpToNext combat.ExpTable `json:"exp_to_next"`
 }
 
 // ParseExp decodes and validates exp.json: the EXP needed to leave each
 // level, index 0 = level 1.
-func ParseExp(b []byte) ([]int64, error) {
+func ParseExp(b []byte) (combat.ExpTable, error) {
 	var f expFile
 	if err := decodeStrict(b, &f); err != nil {
 		return nil, fmt.Errorf("gamedata: exp: decode: %w", err)

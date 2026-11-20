@@ -95,11 +95,11 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 	}, nil
 }
 
-// areaOf converts a map's collision and triggers, and the monster data its
-// regions use, into the zone's view of the map. Region tiles are computed here
-// once.
+// areaOf converts a map's collision and triggers, the monster data its
+// regions use and the EXP table into the zone's view of the map. Region
+// tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
-	a := zone.Area{Grid: m, Levels: d.Levels}
+	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp}
 	sp := m.Spawns["default"]
 	a.Respawn = zone.Vec2{X: sp.X, Y: sp.Y}
 	for _, r := range m.SafeZones {

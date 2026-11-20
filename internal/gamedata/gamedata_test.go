@@ -2,13 +2,16 @@ package gamedata
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
+	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/mapdata"
 )
 
@@ -196,6 +199,55 @@ func TestRepoMonstersCoverLevels1To90(t *testing.T) {
 	}
 	if len(d.Levels) != 90 {
 		t.Fatalf("levels: %d", len(d.Levels))
+	}
+}
+
+// docs/balance/exp-table.csv and data/exp.json come from the same run of
+// exp_table.py; the table the server reads must match the CSV people read.
+func TestRepoExpMatchesCSV(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open("../../docs/balance/exp-table.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 90 || rows[0][0] != "level" || rows[0][1] != "exp_to_next" { // header + levels 1-89
+		t.Fatalf("%d rows, header %v", len(rows), rows[0])
+	}
+	for _, r := range rows[1:] {
+		level, err1 := strconv.Atoi(r[0])
+		want, err2 := strconv.ParseInt(r[1], 10, 64)
+		if err1 != nil || err2 != nil {
+			t.Fatalf("row %v: %v %v", r, err1, err2)
+		}
+		if got := d.Exp.ToNext(level); got != want {
+			t.Errorf("ToNext(%d) = %d, the CSV says %d", level, got, want)
+		}
+	}
+	if got := d.Exp.ToNext(combat.MaxLevel); got != 0 {
+		t.Fatalf("ToNext(90) = %d", got)
+	}
+}
+
+// EXP per damage point rises with monster level (phase 2 spec 2.4).
+func TestRepoExpPerDamageRisesWithLevel(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rate := func(level int) float64 {
+		l := d.Levels[level]
+		return float64(l.Exp) / float64(l.HP)
+	}
+	if !(rate(50) > rate(10) && rate(10) > rate(1)) {
+		t.Fatalf("EXP per damage: level 1 %.3f, 10 %.3f, 50 %.3f; want it rising", rate(1), rate(10), rate(50))
 	}
 }
 
