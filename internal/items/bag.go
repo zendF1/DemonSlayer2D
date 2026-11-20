@@ -36,16 +36,27 @@ func (inv *Inventory) Add(d *gamedata.Items, it Item) (changed []int, err error)
 	if _, ok := d.Stackables[it.Code]; !ok {
 		return nil, ErrNotFound
 	}
+	plan, err := inv.planStack(d, it.Code, it.Count)
+	if err != nil {
+		return nil, err
+	}
+	return inv.applyStack(it.Code, plan), nil
+}
 
-	// Plan every slot's new count first, then apply.
-	type put struct{ slot, count int }
+// put is one step of a stack plan: bag slot gets count of the code.
+type put struct{ slot, count int }
+
+// planStack is where Add puts count of the stackable code, without changing
+// anything: the stacks of the code in slot order, then empty slots.
+// ErrBagFull when it does not all fit.
+func (inv *Inventory) planStack(d *gamedata.Items, code string, count int) ([]put, error) {
 	var plan []put
-	left := it.Count
+	left := count
 	for i, b := range inv.Bag {
 		if left == 0 {
 			break
 		}
-		if b != nil && b.Code == it.Code && b.Count < d.StackMax {
+		if b != nil && b.Code == code && b.Count < d.StackMax {
 			n := min(left, d.StackMax-b.Count)
 			plan = append(plan, put{i, b.Count + n})
 			left -= n
@@ -64,15 +75,21 @@ func (inv *Inventory) Add(d *gamedata.Items, it Item) (changed []int, err error)
 	if left > 0 {
 		return nil, ErrBagFull
 	}
+	return plan, nil
+}
+
+// applyStack carries out a planStack plan for code and returns the changed
+// bag slots, ascending.
+func (inv *Inventory) applyStack(code string, plan []put) (changed []int) {
 	for _, p := range plan {
 		if inv.Bag[p.slot] == nil {
-			inv.Bag[p.slot] = &Item{Code: it.Code}
+			inv.Bag[p.slot] = &Item{Code: code}
 		}
 		inv.Bag[p.slot].Count = p.count
 		changed = append(changed, p.slot)
 	}
 	slices.Sort(changed)
-	return changed, nil
+	return changed
 }
 
 // Equip wears the piece in bagSlot, swapping with whatever is worn in its

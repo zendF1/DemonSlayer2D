@@ -1600,3 +1600,185 @@ func TestGearBonusHiddenAndGems(t *testing.T) {
 		t.Fatalf("sword of another class: %+v, want %+v", got, want)
 	}
 }
+
+// ______________________TEST SOCKETS_____________________
+
+func gem(code string, n int) *Item { return &Item{Code: code, Count: n} }
+
+// checkUnchanged fails when inv differs from before or xu from xu0.
+func checkUnchanged(t *testing.T, what string, before, inv *Inventory, xu0, xu int64) {
+	t.Helper()
+	if !sameInventory(before, inv) || xu != xu0 {
+		t.Fatalf("%s changed something (xu %d -> %d)", what, xu0, xu)
+	}
+}
+
+func TestPunch(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Bag[2] = &Item{Code: "eq20_armor", Count: 1, Quality: 1}
+	r := Ref{Slot: 2}
+	xu := int64(2000 + 4000 + 8000)
+	for i, cost := range []int64{2000, 4000, 8000} {
+		before := xu
+		changed, err := inv.Punch(d, r, &xu)
+		if err != nil || !slices.Equal(changed, []int{2}) || before-xu != cost || len(inv.Bag[2].Gems) != i+1 || inv.Bag[2].Gems[i] != "" {
+			t.Fatalf("hole %d: %v %v, paid %d, gems %q", i+1, changed, err, before-xu, inv.Bag[2].Gems)
+		}
+	}
+	xu = rich
+	before := inv.Clone()
+	if _, err := inv.Punch(d, r, &xu); !errors.Is(err, ErrHolesMaxed) {
+		t.Fatalf("fourth hole: %v", err)
+	}
+	checkUnchanged(t, "fourth hole", before, inv, rich, xu)
+
+	// Not enough Xu: no hole. A worn piece changes no bag slot.
+	inv.Worn[5] = &Item{Code: "eq30_armor", Count: 1}
+	xu = 3000 - 1
+	before = inv.Clone()
+	if _, err := inv.Punch(d, Ref{Equipped: true, Slot: 5}, &xu); !errors.Is(err, ErrNoXu) {
+		t.Fatalf("no xu: %v", err)
+	}
+	checkUnchanged(t, "no xu", before, inv, 2999, xu)
+	xu = 3000
+	if changed, err := inv.Punch(d, Ref{Equipped: true, Slot: 5}, &xu); err != nil || changed != nil || xu != 0 || len(inv.Worn[5].Gems) != 1 {
+		t.Fatalf("worn: %v %v xu %d", changed, err, xu)
+	}
+
+	inv.Bag[0] = stone(3)
+	for _, c := range []struct {
+		r    Ref
+		want error
+	}{
+		{Ref{Slot: -1}, ErrBadSlot}, {Ref{Slot: d.BagSize}, ErrBadSlot}, {Ref{Equipped: true, Slot: EquipSlots}, ErrBadSlot},
+		{Ref{Slot: 1}, ErrNotFound}, {Ref{Equipped: true, Slot: 0}, ErrNotFound}, {Ref{Slot: 0}, ErrNotEquipment},
+	} {
+		xu = rich
+		before := inv.Clone()
+		if _, err := inv.Punch(d, c.r, &xu); !errors.Is(err, c.want) {
+			t.Fatalf("%+v: %v, want %v", c.r, err, c.want)
+		}
+		checkUnchanged(t, "bad punch", before, inv, rich, xu)
+	}
+}
+
+func TestSocket(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Bag[0] = &Item{Code: "eq20_armor", Count: 1, Gems: []string{"", "", ""}}
+	inv.Bag[1] = gem("gem_hp_1", 3)
+	inv.Bag[2] = stone(5)
+	inv.Bag[3] = gem("gem_attack_3", 1)
+	inv.Bag[4] = gem("gem_attack_2", 1)
+	r := Ref{Slot: 0}
+	changed, err := inv.Socket(d, r, 1, 1)
+	if err != nil || !slices.Equal(changed, []int{0, 1}) || inv.Bag[1].Count != 2 || !slices.Equal(inv.Bag[0].Gems, []string{"", "gem_hp_1", ""}) {
+		t.Fatalf("socket: %v %v, stack %+v, gems %q", changed, err, inv.Bag[1], inv.Bag[0].Gems)
+	}
+	for _, c := range []struct {
+		name      string
+		r         Ref
+		hole, gem int
+		want      error
+	}{
+		{"item slot out of range", Ref{Slot: -1}, 0, 1, ErrBadSlot},
+		{"gem slot out of range before an empty item", Ref{Slot: 9}, 0, d.BagSize, ErrBadSlot},
+		{"gem slot -1", r, 0, -1, ErrBadSlot},
+		{"empty item slot", Ref{Slot: 9}, 0, 1, ErrNotFound},
+		{"empty gem slot before a bad hole", r, 7, 9, ErrNotFound},
+		{"not equipment", Ref{Slot: 2}, 0, 1, ErrNotEquipment},
+		{"a stone in the gem slot", r, 0, 2, ErrBadRequest},
+		{"equipment in the gem slot", r, 0, 0, ErrBadRequest},
+		{"filled hole", r, 1, 1, ErrBadRequest},
+		{"hole equal to the count", r, 3, 1, ErrBadRequest},
+		{"hole -1", r, -1, 1, ErrBadRequest},
+		{"level 3 gem in a tier-20 piece", r, 0, 3, ErrGemTooHigh},
+	} {
+		before := inv.Clone()
+		if _, err := inv.Socket(d, c.r, c.hole, c.gem); !errors.Is(err, c.want) {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.want)
+		}
+		checkUnchanged(t, c.name, before, inv, 0, 0)
+	}
+	// A level 2 gem fits tier 20; the last gem of a stack frees its slot. A
+	// worn piece changes only the gem's slot.
+	inv.Worn[5] = inv.Bag[0]
+	inv.Bag[0] = nil
+	changed, err = inv.Socket(d, Ref{Equipped: true, Slot: 5}, 2, 4)
+	if err != nil || !slices.Equal(changed, []int{4}) || inv.Bag[4] != nil || inv.Worn[5].Gems[2] != "gem_attack_2" {
+		t.Fatalf("worn socket: %v %v %+v", changed, err, inv.Worn[5])
+	}
+}
+
+func TestUnsocket(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Worn[5] = &Item{Code: "eq30_armor", Count: 1, Gems: []string{"gem_hp_3", "", "gem_hp_1"}}
+	inv.Bag[7] = gem("gem_hp_3", 5)
+	r := Ref{Equipped: true, Slot: 5}
+	xu := int64(1500)
+	changed, err := inv.Unsocket(d, r, 0, &xu)
+	if err != nil || !slices.Equal(changed, []int{7}) || inv.Bag[7].Count != 6 || xu != 0 || !slices.Equal(inv.Worn[5].Gems, []string{"", "", "gem_hp_1"}) {
+		t.Fatalf("unsocket: %v %v, stack %+v, xu %d, gems %q", changed, err, inv.Bag[7], xu, inv.Worn[5].Gems)
+	}
+	// A full bag with no stack to merge into: BAG_FULL before the Xu check,
+	// and nothing changes.
+	for i := range inv.Bag {
+		if inv.Bag[i] == nil {
+			inv.Bag[i] = stone(1)
+		}
+	}
+	for _, x := range []int64{0, rich} {
+		xu = x
+		before := inv.Clone()
+		if _, err := inv.Unsocket(d, r, 2, &xu); !errors.Is(err, ErrBagFull) {
+			t.Fatalf("full bag, xu %d: %v", x, err)
+		}
+		checkUnchanged(t, "full bag", before, inv, x, xu)
+	}
+	// With a matching stack the gem merges even into a full bag.
+	inv.Bag[3] = gem("gem_hp_1", 1)
+	xu = 500 - 1
+	before := inv.Clone()
+	if _, err := inv.Unsocket(d, r, 2, &xu); !errors.Is(err, ErrNoXu) {
+		t.Fatalf("no xu: %v", err)
+	}
+	checkUnchanged(t, "no xu", before, inv, 499, xu)
+	xu = 500
+	if changed, err := inv.Unsocket(d, r, 2, &xu); err != nil || !slices.Equal(changed, []int{3}) || inv.Bag[3].Count != 2 || xu != 0 ||
+		!slices.Equal(inv.Worn[5].Gems, []string{"", "", ""}) {
+		t.Fatalf("merge into full bag: %v %v %+v xu %d", changed, err, inv.Bag[3], xu)
+	}
+
+	// A bag piece lists its own slot too; the gem takes the first free slot.
+	inv = NewInventory(d.BagSize)
+	inv.Bag[0] = stone(1)
+	inv.Bag[2] = &Item{Code: "eq50_ring_left", Count: 1, Gems: []string{"gem_attack_5"}}
+	xu = 2500
+	if changed, err := inv.Unsocket(d, Ref{Slot: 2}, 0, &xu); err != nil || !slices.Equal(changed, []int{1, 2}) || inv.Bag[1].Code != "gem_attack_5" ||
+		inv.Bag[1].Count != 1 || xu != 0 || !slices.Equal(inv.Bag[2].Gems, []string{""}) {
+		t.Fatalf("bag piece: %v %v %+v", changed, err, inv.Bag[1])
+	}
+	inv.Bag[2].Gems = []string{"gem_attack_5", ""}
+	for _, c := range []struct {
+		name string
+		r    Ref
+		hole int
+		want error
+	}{
+		{"slot out of range", Ref{Slot: d.BagSize}, 0, ErrBadSlot},
+		{"empty slot", Ref{Slot: 5}, 0, ErrNotFound},
+		{"not equipment", Ref{Slot: 0}, 0, ErrNotEquipment},
+		{"empty hole", Ref{Slot: 2}, 1, ErrBadRequest},
+		{"hole equal to the count", Ref{Slot: 2}, 2, ErrBadRequest},
+		{"hole -1", Ref{Slot: 2}, -1, ErrBadRequest},
+	} {
+		xu = rich
+		before := inv.Clone()
+		if _, err := inv.Unsocket(d, c.r, c.hole, &xu); !errors.Is(err, c.want) {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.want)
+		}
+		checkUnchanged(t, c.name, before, inv, rich, xu)
+	}
+}
