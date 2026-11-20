@@ -96,6 +96,39 @@ type Skill struct {
 // Active reports whether the skill is cast (slots 1-4), not a passive.
 func (s Skill) Active() bool { return s.Slot > 0 }
 
+// PassiveAt is the passive effect of the skill at skill level 1-10; an active
+// skill, or a level out of range, gives none. This is the one place passive
+// keys map to combat.Passive fields.
+func (s Skill) PassiveAt(level int) combat.Passive {
+	var p combat.Passive
+	if level < 1 || level > SkillLevels {
+		return p
+	}
+	for k, v := range s.Passive {
+		if len(v) < level {
+			continue
+		}
+		n := v[level-1]
+		switch k {
+		case PassivePhysDefPct:
+			p.PhysDefPct = n
+		case PassiveMagicDefPct:
+			p.MagicDefPct = n
+		case PassiveMaxHPPct:
+			p.MaxHPPct = n
+		case PassiveEvasionPct:
+			p.EvasionPct = n
+		case PassiveAccuracyPct:
+			p.AccuracyPct = n
+		case PassiveMagicAttackPct:
+			p.MagicAttackPct = n
+		case PassiveCritBP:
+			p.CritBP = n
+		}
+	}
+	return p
+}
+
 type skillsFile struct {
 	Skills []Skill `json:"skills"`
 }

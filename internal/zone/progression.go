@@ -1,6 +1,7 @@
 package zone
 
 import (
+	"maps"
 	"slices"
 
 	"demonslayer2d/internal/classes"
@@ -8,11 +9,28 @@ import (
 	"demonslayer2d/internal/pb"
 )
 
-// setStats gives p new derived stats and the max HP that goes with them.
-// Current HP is the caller's business.
-func setStats(p *player, s combat.Stats) {
-	p.stats = s
-	p.maxHP = s.MaxHP
+// recompute derives p's stats from its class, level, points and learned
+// passives (phase 2 spec 3.2) and sets the max HP that goes with them.
+// Current HP and MP are the caller's business. Every stat change in the zone
+// goes through here.
+func (z *Zone) recompute(p *player) {
+	var pas combat.Passive
+	for id, lv := range p.skills {
+		if s, ok := z.area.Skills[id]; ok && !s.Active() {
+			pas = pas.Add(s.PassiveAt(lv))
+		}
+	}
+	p.stats = combat.Compute(classes.IsMagic(p.class), p.level, p.points, pas)
+	p.maxHP = p.stats.MaxHP
+}
+
+// skillLevels lists p's learned skills sorted by id.
+func skillLevels(p *player) []*pb.SkillLevel {
+	out := make([]*pb.SkillLevel, 0, len(p.skills))
+	for _, id := range slices.Sorted(maps.Keys(p.skills)) {
+		out = append(out, &pb.SkillLevel{SkillId: id, Level: int32(p.skills[id])})
+	}
+	return out
 }
 
 // payExpShare gives p the EXP that counted more damage on m earns (spec 3.4):
@@ -32,8 +50,8 @@ func (z *Zone) payExpShare(p *player, m *monster, counted int) {
 }
 
 // gainExp adds gain to p's EXP and pushes p its new stats. Each level gained
-// brings PointsPerLevel free points and full HP and MP, and is saved at once
-// (spec 6.3). A player at MaxLevel, or a gain of 0, changes nothing.
+// brings PointsPerLevel free points, one skill point (phase 2 spec 3.1) and
+// full HP and MP, and is saved at once (spec 6.3). A player at MaxLevel, or a gain of 0, changes nothing.
 func (z *Zone) gainExp(p *player, gain int64) {
 	if gain <= 0 {
 		return
@@ -49,7 +67,8 @@ func (z *Zone) gainExp(p *player, gain int64) {
 		return
 	}
 	p.freePoints += combat.PointsPerLevel * gained
-	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points, combat.Passive{}))
+	p.skillPoints += gained
+	z.recompute(p)
 	p.hp, p.mp = p.maxHP, p.stats.MaxMP
 	z.events.levelUps = append(z.events.levelUps, &pb.LevelUp{Id: p.id, Level: int32(p.level)})
 	z.hpChanged(&p.entity)
@@ -86,7 +105,7 @@ func (z *Zone) allocate(c allocateCmd) {
 	p.points.Int += a.Int
 	p.freePoints -= a.Total()
 	oldHP, oldMP := p.maxHP, p.stats.MaxMP
-	setStats(p, combat.Compute(classes.IsMagic(p.class), p.level, p.points, combat.Passive{}))
+	z.recompute(p)
 	p.hp += p.maxHP - oldHP
 	p.mp += p.stats.MaxMP - oldMP
 	if p.maxHP != oldHP {
@@ -104,6 +123,7 @@ func (z *Zone) selfStats(p *player) *pb.SelfStats {
 		Exp:          p.exp,
 		ExpNext:      z.area.Exp.ToNext(p.level),
 		FreePoints:   int32(p.freePoints),
+		SkillPoints:  int32(p.skillPoints),
 		Strength:     int32(p.points.Str),
 		Agility:      int32(p.points.Agi),
 		Vitality:     int32(p.points.Vit),

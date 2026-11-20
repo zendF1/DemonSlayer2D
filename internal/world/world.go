@@ -45,9 +45,11 @@ type World struct {
 	cfg   Config
 	maps  map[string]*mapdata.Map
 	areas map[string]zone.Area // per map, shared by its zones
-	saver zone.Saver
-	log   *slog.Logger
-	start mapdata.Point
+	// skills is skills.json by id, shared and read-only.
+	skills map[string]gamedata.Skill
+	saver  zone.Saver
+	log    *slog.Logger
+	start  mapdata.Point
 
 	ctx context.Context
 	wg  sync.WaitGroup
@@ -87,7 +89,7 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 		areas[id] = areaOf(mp, monsters)
 	}
 	return &World{
-		cfg: cfg, maps: maps, areas: areas, saver: saver, log: log,
+		cfg: cfg, maps: maps, areas: areas, skills: monsters.Skills, saver: saver, log: log,
 		start:    m.Spawns["default"],
 		zones:    make(map[string][]*slot),
 		online:   make(map[int64]Session),
@@ -96,10 +98,10 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 }
 
 // areaOf converts a map's collision and triggers, the monster data its
-// regions use and the EXP table into the zone's view of the map. Region
-// tiles are computed here once.
+// regions use, the EXP table and the skills into the zone's view of the map.
+// Region tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
-	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp}
+	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills}
 	sp := m.Spawns["default"]
 	a.Respawn = zone.Vec2{X: sp.X, Y: sp.Y}
 	for _, r := range m.SafeZones {
@@ -224,18 +226,20 @@ func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error) {
 	mapID, pos := w.placement(req.Char)
 	info := zone.PlayerInfo{
-		EntityID:   w.nextEntity.Add(1),
-		CharID:     req.Char.ID,
-		Name:       req.Char.Name,
-		Class:      classes.ToPB(req.Char.Class),
-		Level:      req.Char.Level,
-		Exp:        req.Char.Exp,
-		Pos:        pos,
-		Points:     req.Char.Points,
-		FreePoints: req.Char.FreePoints,
-		HP:         req.Char.HP,
-		MP:         req.Char.MP,
-		RespSeq:    req.RespSeq,
+		EntityID:    w.nextEntity.Add(1),
+		CharID:      req.Char.ID,
+		Name:        req.Char.Name,
+		Class:       classes.ToPB(req.Char.Class),
+		Level:       req.Char.Level,
+		Exp:         req.Char.Exp,
+		Pos:         pos,
+		Points:      req.Char.Points,
+		FreePoints:  req.Char.FreePoints,
+		HP:          req.Char.HP,
+		MP:          req.Char.MP,
+		SkillPoints: req.Char.SkillPoints,
+		Skills:      w.knownSkills(req.Char),
+		RespSeq:     req.RespSeq,
 	}
 	for attempt := 0; attempt < 10; attempt++ {
 		s := w.reserve(mapID)
@@ -255,6 +259,20 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		}
 	}
 	return nil, zone.ErrZoneFull
+}
+
+// knownSkills is c's stored skills without those missing from the skill data
+// or of another class, with one warning per dropped skill (phase 2 spec 2.2).
+func (w *World) knownSkills(c store.Character) map[string]int {
+	out := make(map[string]int, len(c.Skills))
+	for id, lv := range c.Skills {
+		if s, ok := w.skills[id]; !ok || s.Class != c.Class {
+			w.log.Warn("dropped unknown skill", "char", c.ID, "class", c.Class, "skill", id, "level", lv)
+			continue
+		}
+		out[id] = lv
+	}
+	return out
 }
 
 func (w *World) placement(c store.Character) (string, zone.Vec2) {

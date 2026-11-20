@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
@@ -64,7 +63,11 @@ type PlayerInfo struct {
 	Points     combat.Points
 	FreePoints int
 	HP, MP     int
-	RespSeq    uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
+	// SkillPoints are unspent; Skills maps learned skill ids, all of the
+	// player's class and in Area.Skills, to their level. Join copies Skills.
+	SkillPoints int
+	Skills      map[string]int
+	RespSeq     uint32 // seq of the EnterWorldReq; the zone answers it with EnterWorldResp
 }
 
 var (
@@ -87,6 +90,9 @@ type player struct {
 	freePoints int
 	exp        int64
 	mp         int
+	// skillPoints are unspent; skills maps a learned skill id to its level.
+	skillPoints int
+	skills      map[string]int
 
 	deadUntil     uint32     // tick at which a dead player respawns by itself
 	restTicks     uint32     // consecutive ticks standing still, alive, on a rest point
@@ -411,8 +417,12 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		},
 		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
+		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills),
 	}
-	setStats(p, combat.Compute(classes.IsMagic(info.Class), info.Level, info.Points, combat.Passive{}))
+	if p.skills == nil {
+		p.skills = map[string]int{}
+	}
+	z.recompute(p)
 	p.hp, p.mp = info.HP, info.MP // -1 = full
 	// HP 0: logged out dead, so back at the respawn point with full HP/MP (spec 3.6).
 	if p.hp == 0 {
@@ -438,6 +448,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		MoveSpeed:    z.cfg.MoveSpeed,
 		TickRate:     uint32(z.cfg.TickRate),
 		Stats:        z.selfStats(p),
+		Skills:       skillLevels(p),
 	}}})
 	return nil
 }
@@ -488,8 +499,10 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 // state is what gets saved, all from the player's live state; a full player
 // saves its real HP and MP rather than -1.
 func (z *Zone) state(p *player) store.CharState {
+	// The saver runs on another goroutine, so it gets its own skill map.
 	return store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
-		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp}
+		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
+		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills)}
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick, with

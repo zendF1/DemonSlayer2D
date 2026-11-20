@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -82,6 +84,13 @@ var testMonsters = &gamedata.Data{
 		Speed: 0.8, DetectRange: 4, ChaseRange: 10, ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, ChaseSpeed: 1.2, SafeWaitSec: 5,
 		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8}},
 	Levels: map[int]gamedata.Level{1: {Level: 1, HP: 56, Attack: 30, Defense: 8}, 2: {Level: 2, HP: 104, Attack: 39, Defense: 16}},
+	Skills: map[string]gamedata.Skill{
+		"viem_1": {ID: "viem_1", Class: "viem", Slot: 1, LearnLevel: 10},
+		"viem_3": {ID: "viem_3", Class: "viem", Slot: 0, LearnLevel: 30,
+			Passive: map[string][]int{gamedata.PassivePhysDefPct: {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}}},
+		"nham_3": {ID: "nham_3", Class: "nham", Slot: 0, LearnLevel: 30,
+			Passive: map[string][]int{gamedata.PassiveMaxHPPct: {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}}},
+	},
 }
 
 // triggerMap is a 20x20 open map with a safe zone around the default spawn,
@@ -114,10 +123,15 @@ func newTestWorld(t *testing.T, capacity int) *World {
 
 func startWorld(t *testing.T, capacity int, maps map[string]*mapdata.Map) *World {
 	t.Helper()
+	return startWorldLog(t, capacity, maps, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func startWorldLog(t *testing.T, capacity int, maps map[string]*mapdata.Map, log *slog.Logger) *World {
+	t.Helper()
 	w, err := New(Config{
 		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: capacity,
 		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
-	}, maps, testMonsters, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, maps, testMonsters, nopSaver{}, log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,6 +180,62 @@ func TestEnterUsesSavedPosition(t *testing.T) {
 	r := out.enterResp(t)
 	if r.X != 3.5 || r.Y != 4.5 || m.ZoneNo != 1 || m.MapID != "m1" || r.SelfEntityId != m.EntityID {
 		t.Fatalf("resp %v membership %+v", r, m)
+	}
+}
+
+// lockedBuf is a log sink safe for the zone goroutines.
+type lockedBuf struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *lockedBuf) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuf) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+// Stored skills that are not in the skill data, or belong to another class,
+// are dropped with one warning each; the rest reach the zone.
+func TestEnterDropsUnknownSkills(t *testing.T) {
+	var buf lockedBuf
+	w := startWorldLog(t, 10, testMaps(t), slog.New(slog.NewTextHandler(&buf, nil)))
+	c := char(1, "m1", 3.5, 4.5)
+	c.Level, c.SkillPoints = 30, 2
+	c.Skills = map[string]int{"viem_1": 3, "viem_3": 2, "nham_3": 4, "gone_9": 1}
+	out := newRecOut()
+	if _, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out}); err != nil {
+		t.Fatal(err)
+	}
+	r := out.enterResp(t)
+	var got []string
+	for _, s := range r.Skills {
+		got = append(got, fmt.Sprintf("%s:%d", s.SkillId, s.Level))
+	}
+	if !slices.Equal(got, []string{"viem_1:3", "viem_3:2"}) || r.Stats.SkillPoints != 2 {
+		t.Fatalf("skills %v, skill points %d, want viem_1:3 viem_3:2 and 2", got, r.Stats.SkillPoints)
+	}
+	// viem_3 (phys_def_pct 4 at level 2) counts in the stats.
+	if want := combat.Compute(false, 30, combat.Points{}, combat.Passive{PhysDefPct: 4}); r.Stats.PhysDefense != int32(want.PhysDefense) {
+		t.Fatalf("phys defense %d, want %d with the passive", r.Stats.PhysDefense, want.PhysDefense)
+	}
+	logs := buf.String()
+	for _, id := range []string{"nham_3", "gone_9"} {
+		if n := strings.Count(logs, "skill="+id); n != 1 {
+			t.Fatalf("%d log lines for %s, want 1:\n%s", n, id, logs)
+		}
+	}
+	if strings.Contains(logs, "skill=viem_") {
+		t.Fatalf("kept skills were logged:\n%s", logs)
+	}
+	if c.Skills["nham_3"] != 4 {
+		t.Fatal("Enter changed the caller's skill map")
 	}
 }
 
@@ -426,6 +496,9 @@ func TestAreaOf(t *testing.T) {
 	}
 	if len(a.Levels) != 2 || a.Levels[2] != testMonsters.Levels[2] {
 		t.Fatalf("levels = %v", a.Levels)
+	}
+	if len(a.Skills) != 3 || a.Skills["nham_3"].Class != "nham" {
+		t.Fatalf("skills = %v", a.Skills)
 	}
 }
 

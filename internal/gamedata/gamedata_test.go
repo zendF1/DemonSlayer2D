@@ -427,6 +427,36 @@ func TestRepoData(t *testing.T) {
 	}
 }
 
+// Every passive key lands on its own combat.Passive field, at the learned level.
+func TestPassiveAt(t *testing.T) {
+	s := Skill{ID: "p", Passive: map[string][]int{}}
+	keys := []string{PassivePhysDefPct, PassiveMagicDefPct, PassiveMaxHPPct, PassiveEvasionPct,
+		PassiveAccuracyPct, PassiveMagicAttackPct, PassiveCritBP}
+	for i, k := range keys {
+		v := make([]int, SkillLevels)
+		for l := range v {
+			v[l] = (i+1)*100 + l + 1 // key i, level l+1
+		}
+		s.Passive[k] = v
+	}
+	want := combat.Passive{PhysDefPct: 103, MagicDefPct: 203, MaxHPPct: 303, EvasionPct: 403,
+		AccuracyPct: 503, MagicAttackPct: 603, CritBP: 703}
+	if got := s.PassiveAt(3); got != want {
+		t.Fatalf("level 3: %+v, want %+v", got, want)
+	}
+	if got := s.PassiveAt(10); got.CritBP != 710 || got.PhysDefPct != 110 {
+		t.Fatalf("level 10: %+v", got)
+	}
+	for _, l := range []int{0, -1, 11} {
+		if got := s.PassiveAt(l); got != (combat.Passive{}) {
+			t.Fatalf("level %d: %+v, want none", l, got)
+		}
+	}
+	if got := (Skill{ID: "a", Slot: 1}).PassiveAt(5); got != (combat.Passive{}) {
+		t.Fatalf("active skill: %+v, want none", got)
+	}
+}
+
 func TestParseExp(t *testing.T) {
 	exp := func(n int, mutate func([]int64)) []byte {
 		a := make([]int64, n)

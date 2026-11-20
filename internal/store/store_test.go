@@ -3,11 +3,17 @@ package store_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/store/storetest"
+	"demonslayer2d/migrations"
 )
 
 // ______________________TEST MIGRATIONS_____________________
@@ -146,5 +152,155 @@ func TestSaveCharacterStateRoundTrip(t *testing.T) {
 	got, err = st.GetCharacter(ctx, acc, c.ID)
 	if err != nil || got.HP != -1 || got.MP != -1 {
 		t.Fatalf("after saving full: %+v, %v", got, err)
+	}
+}
+
+// ______________________TEST SKILLS STORE_____________________
+
+// schemaConfig is a connection config for url that works in schema.
+func schemaConfig(t *testing.T, url, schema string) *pgx.ConnConfig {
+	t.Helper()
+	cfg, err := pgx.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RuntimeParams["search_path"] = schema
+	return cfg
+}
+
+// openMigrated opens a store on schema and migrates it to the latest version.
+func openMigrated(t *testing.T, url, schema string) *store.Store {
+	t.Helper()
+	st, err := store.OpenSchema(context.Background(), url, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(st.Close)
+	if err := st.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+// The migration gives existing characters the skill points of the levels
+// they already have.
+func TestMigrationBackfillsSkillPoints(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	db := stdlib.OpenDB(*schemaConfig(t, url, schema))
+	defer db.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	var acc, char1, char5 int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO accounts (username, password_hash) VALUES ('old', 'h') RETURNING id`).Scan(&acc); err != nil {
+		t.Fatal(err)
+	}
+	insert := `INSERT INTO characters (account_id, slot, name, name_key, class, level, map_id, pos_x, pos_y)
+		VALUES ($1, $2, $3, $3, 'nham', $4, 'kumotori_1', 5.5, 5.5) RETURNING id`
+	if err := db.QueryRowContext(ctx, insert, acc, 1, "five", 5).Scan(&char5); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, insert, acc, 2, "one", 1).Scan(&char1); err != nil {
+		t.Fatal(err)
+	}
+
+	st := openMigrated(t, url, schema)
+	for id, want := range map[int64]int{char5: 4, char1: 0} {
+		c, err := st.GetCharacter(ctx, acc, id)
+		if err != nil || c.SkillPoints != want || len(c.Skills) != 0 {
+			t.Fatalf("character %d: %+v, %v, want %d skill points and no skills", id, c, err, want)
+		}
+	}
+
+	// Down removes both again, and Up comes back cleanly.
+	if _, err := p.Down(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var cols, tables int
+	if err := db.QueryRowContext(ctx, `SELECT
+		(SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'characters' AND column_name = 'skill_points'),
+		(SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'character_skills')`,
+		schema).Scan(&cols, &tables); err != nil || cols != 0 || tables != 0 {
+		t.Fatalf("after down: %d skill_points columns, %d character_skills tables, %v", cols, tables, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveAndLoadSkills(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	st := openMigrated(t, url, schema)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.SkillPoints != 0 || len(c.Skills) != 0 {
+		t.Fatalf("new character %+v, want no skill points or skills", c)
+	}
+	other, _ := st.CreateCharacter(ctx, newChar(acc, 2, "Zenitsu"))
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: other.ID, MapID: "kumotori_1", Level: 1, HP: -1, MP: -1,
+		Skills: map[string]int{"viem_1": 1}}); err != nil {
+		t.Fatal(err)
+	}
+
+	state := store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 30, HP: -1, MP: -1, SkillPoints: 3,
+		Skills: map[string]int{"viem_1": 10, "viem_2": 4, "viem_3": 1}}
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || got.SkillPoints != 3 || !maps.Equal(got.Skills, state.Skills) {
+		t.Fatalf("after save: %+v, %v", got, err)
+	}
+
+	// Saving replaces the rows: a dropped skill is gone, a changed one updated.
+	state.SkillPoints, state.Skills = 1, map[string]int{"viem_2": 5}
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	list, err := st.ListCharacters(ctx, acc)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("list %+v, %v", list, err)
+	}
+	if list[0].SkillPoints != 1 || !maps.Equal(list[0].Skills, state.Skills) {
+		t.Fatalf("listed %+v, want viem_2 at 5 and 1 point", list[0])
+	}
+	if !maps.Equal(list[1].Skills, map[string]int{"viem_1": 1}) {
+		t.Fatalf("other character %+v, want its own skills untouched", list[1])
+	}
+
+	// An empty map deletes every row.
+	state.Skills = nil
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.GetCharacter(ctx, acc, c.ID); err != nil || len(got.Skills) != 0 {
+		t.Fatalf("after saving no skills: %+v, %v", got, err)
+	}
+
+	// Deleting a character takes its skills with it, and saving it after is still a no-op.
+	if err := st.DeleteCharacter(ctx, acc, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := pgx.ConnectConfig(ctx, schemaConfig(t, url, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close(ctx)
+	var n int
+	if err := raw.QueryRow(ctx, `SELECT count(*) FROM character_skills WHERE character_id = $1`, other.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("%d skill rows left after delete, %v", n, err)
+	}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: other.ID, MapID: "kumotori_1", Level: 1,
+		Skills: map[string]int{"viem_1": 2}}); err != nil {
+		t.Fatalf("saving a deleted character with skills must be a no-op, got %v", err)
 	}
 }

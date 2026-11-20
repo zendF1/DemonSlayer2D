@@ -3,6 +3,7 @@ package zone
 import (
 	"maps"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -1992,6 +1993,7 @@ func TestLevelUp(t *testing.T) {
 	in := info(1, 31.5, 30.5)
 	share := combat.ExpShare(testLevels[1].Exp, testLevels[1].HP, 14)
 	in.Exp, in.HP, in.MP = testExp.ToNext(1)-share+1, 100, 20 // the slash's share passes level 1 by 1
+	in.SkillPoints = 2
 	a := &fakeOut{}
 	if err := z.join(in, a); err != nil {
 		t.Fatal(err)
@@ -2004,8 +2006,8 @@ func TestLevelUp(t *testing.T) {
 	if m.dead || m.hp != 42 {
 		t.Fatalf("monster dead=%v hp %d, want it alive at 42", m.dead, m.hp)
 	}
-	if p.level != 2 || p.exp != 1 || p.freePoints != 10 {
-		t.Fatalf("level %d exp %d free %d, want 2, 1, 10", p.level, p.exp, p.freePoints)
+	if p.level != 2 || p.exp != 1 || p.freePoints != 10 || p.skillPoints != 3 {
+		t.Fatalf("level %d exp %d free %d skill points %d, want 2, 1, 10, 3", p.level, p.exp, p.freePoints, p.skillPoints)
 	}
 	if p.maxHP != 560 || p.hp != 560 || p.mp != 120 || p.stats.MaxMP != 120 || p.stats.PhysAttack != 25 {
 		t.Fatalf("hp %d/%d mp %d stats %+v, want full at level-2 stats", p.hp, p.maxHP, p.mp, p.stats)
@@ -2029,11 +2031,12 @@ func TestLevelUp(t *testing.T) {
 			t.Fatalf("%s HpChange %v, want 560/560", name, hc)
 		}
 	}
-	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Level != 2 || ss[0].FreePoints != 10 || ss[0].MaxHp != 560 {
-		t.Fatalf("SelfStats %v, want level 2 with 10 free points", ss)
+	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Level != 2 || ss[0].FreePoints != 10 || ss[0].SkillPoints != 3 || ss[0].MaxHp != 560 {
+		t.Fatalf("SelfStats %v, want level 2 with 10 free points and 3 skill points", ss)
 	}
 	saves := sv.all()
-	if len(saves) != 1 || saves[0].Level != 2 || saves[0].Exp != 1 || saves[0].FreePoints != 10 || saves[0].HP != 560 || saves[0].MP != 120 {
+	if len(saves) != 1 || saves[0].Level != 2 || saves[0].Exp != 1 || saves[0].FreePoints != 10 || saves[0].SkillPoints != 3 ||
+		saves[0].HP != 560 || saves[0].MP != 120 {
 		t.Fatalf("saves %+v, want one immediate save at level 2", saves)
 	}
 }
@@ -2343,19 +2346,83 @@ func TestStateSavesProgress(t *testing.T) {
 	z, sv := newTestZone(10, openGrid(64, 64))
 	in := info(1, 5.5, 5.5)
 	in.Points, in.FreePoints = combat.Points{Str: 1}, 9
+	in.Skills = map[string]int{"viem_1": 1}
 	if err := z.join(in, &fakeOut{}); err != nil {
 		t.Fatal(err)
 	}
 	p := z.players[1]
 	p.points, p.freePoints, p.hp, p.mp, p.exp = combat.Points{Str: 2, Agi: 3, Vit: 4, Int: 5}, 1, 77, 33, 88
+	p.skillPoints, p.skills["viem_1"] = 4, 2
+	in.Skills["viem_1"] = 9 // the zone owns its own copy
 	t0 := time.Now()
 	z.advance(t0)
 	z.advance(t0.Add(61 * time.Second))
 	saves := sv.all()
 	want := store.CharState{ID: 100, MapID: "m1", X: 5.5, Y: 5.5, Level: 1, Exp: 88,
-		Points: combat.Points{Str: 2, Agi: 3, Vit: 4, Int: 5}, FreePoints: 1, HP: 77, MP: 33}
-	if len(saves) != 1 || saves[0] != want {
+		Points: combat.Points{Str: 2, Agi: 3, Vit: 4, Int: 5}, FreePoints: 1, HP: 77, MP: 33,
+		SkillPoints: 4, Skills: map[string]int{"viem_1": 2}}
+	if len(saves) != 1 || !reflect.DeepEqual(saves[0], want) {
 		t.Fatalf("saves %+v, want %+v", saves, want)
+	}
+	// The saver runs on another goroutine: the saved map is a copy.
+	p.skills["viem_1"] = 3
+	if saves[0].Skills["viem_1"] != 2 {
+		t.Fatal("the saved state shares the player's skill map")
+	}
+}
+
+// ______________________TEST SKILL STATE_____________________
+
+var testSkills = map[string]gamedata.Skill{
+	"nham_1": {ID: "nham_1", Class: "nham", Slot: 1, LearnLevel: 10},
+	"nham_3": {ID: "nham_3", Class: "nham", Slot: 0, LearnLevel: 30, Passive: map[string][]int{
+		gamedata.PassiveMaxHPPct:   {2, 4, 6, 8, 10, 12, 14, 16, 18, 20},
+		gamedata.PassivePhysDefPct: {2, 4, 6, 8, 10, 12, 14, 16, 18, 20},
+	}},
+}
+
+// A learned passive counts in the stats at join, after a level-up and after
+// allocating points; the join reply carries the skills and skill points.
+func TestPassiveInStats(t *testing.T) {
+	sv := &fakeSaver{}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Skills: testSkills}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.SkillPoints, in.FreePoints = pb.CharClass_CHAR_CLASS_NHAM, 30, 2, 3
+	in.Skills = map[string]int{"nham_3": 5, "nham_1": 2}
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	pas := combat.Passive{MaxHPPct: 10, PhysDefPct: 10}
+	with, without := combat.Compute(false, 30, combat.Points{}, pas), combat.Compute(false, 30, combat.Points{}, combat.Passive{})
+	if with.MaxHP <= without.MaxHP {
+		t.Fatalf("passive max HP %d, base %d", with.MaxHP, without.MaxHP)
+	}
+	r := out.take()[0].GetEnterWorldResp()
+	if r.Stats.MaxHp != int32(with.MaxHP) || r.Stats.Hp != int32(with.MaxHP) || r.Stats.PhysDefense != int32(with.PhysDefense) {
+		t.Fatalf("stats %v, want max HP %d and phys defense %d", r.Stats, with.MaxHP, with.PhysDefense)
+	}
+	if r.Stats.SkillPoints != 2 {
+		t.Fatalf("skill points %d, want 2", r.Stats.SkillPoints)
+	}
+	want := []*pb.SkillLevel{{SkillId: "nham_1", Level: 2}, {SkillId: "nham_3", Level: 5}}
+	if len(r.Skills) != len(want) || r.Skills[0].String() != want[0].String() || r.Skills[1].String() != want[1].String() {
+		t.Fatalf("skills %v, want %v sorted by id", r.Skills, want)
+	}
+
+	p := z.players[1]
+	z.gainExp(p, testExp.ToNext(30))
+	if lv := combat.Compute(false, 31, combat.Points{}, pas); p.level != 31 || p.skillPoints != 3 || p.maxHP != lv.MaxHP || p.hp != lv.MaxHP {
+		t.Fatalf("after level-up: level %d skill points %d hp %d/%d, want 31, 3, %d", p.level, p.skillPoints, p.hp, p.maxHP, lv.MaxHP)
+	}
+
+	allocateNow(t, z, 1, 4, combat.Points{Vit: 3})
+	lv := combat.Compute(false, 31, combat.Points{Vit: 3}, pas)
+	if p.maxHP != lv.MaxHP || p.hp != lv.MaxHP {
+		t.Fatalf("after allocate: hp %d/%d, want %d", p.hp, p.maxHP, lv.MaxHP)
+	}
+	if ss := allocateRespFor(out.take(), 4).GetStats(); ss.SkillPoints != 3 || ss.MaxHp != int32(lv.MaxHP) {
+		t.Fatalf("allocate stats %v", ss)
 	}
 }
 
