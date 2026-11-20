@@ -104,7 +104,7 @@ Từ 7c, "cùng nhóm" trong `combat.PvPAllowed(attackerPK, targetPK, sameGroup)
 
 ### 3.6. Cấp của nội dung sự kiện
 
-Thế giới hiện có năm map (cấp 1–20, spec 4a). Game-design 5.5 chốt khung 1–90 cho bản đầu nhưng chưa có giai đoạn nào trong lộ trình làm các map 21–90 (spec 4a mục 1.3 hẹn "làm sau bằng cùng script"). Giai đoạn 7 giữ đúng thiết kế game-design và **không hạ cấp nội dung cuối game** cho vừa năm map:
+Thế giới hiện có năm map (cấp 1–20, spec 4a). Game-design 5.5 chốt khung 1–90 cho bản đầu; spec 4a mục 1.3 hẹn làm các map 21–90 "sau bằng cùng script", và phần 4d bên dưới làm việc đó. Giai đoạn 7 giữ đúng thiết kế game-design và **không hạ cấp nội dung cuối game** cho vừa năm map:
 
 | Sự kiện | Cấp tham gia | Cấp quái |
 | --- | --- | --- |
@@ -115,7 +115,11 @@ Thế giới hiện có năm map (cấp 1–20, spec 4a). Game-design 5.5 chốt
 
 Cho tới khi có map 21–90, người chơi thật chưa tới được ba sự kiện cuối; kiểm thử và nghiệm thu dùng `devchar` để đặt cấp. Cấp quái sự kiện nằm trong dữ liệu sinh bằng script nên chỉnh được khi cân bằng.
 
-**Phụ thuộc ngoài Giai đoạn 7 (đề xuất cho người dùng):** một phần "Thế giới mở rộng" làm các map và quái thường cấp 21–90 của game-design 5.5 cùng tinh anh/thủ lĩnh của chúng (khung của 7d), trước khi phát hành v1.
+**Phụ thuộc ngoài Giai đoạn 7 (Thế giới mở rộng, chia hai phần):**
+
+- [**4d**](2026-11-20-giai-doan-4d-the-gioi-mo-rong-design.md): 14 map luyện cấp và 26 loại quái thường cấp 21–90, chỉ là dữ liệu (không đổi giao thức, không migration). Chạy **sau 6d và trước 7f**; 7a–7e làm trước hay sau 4d đều được. 7f, 7g, 7h cần 4d để người chơi thật lên được cấp 50 và 66.
+- [**4e**](2026-11-20-giai-doan-4e-tinh-anh-thu-linh-21-90-design.md): 17 tinh anh/thủ lĩnh cấp 25–90 trên các map đó, theo khung của 7d. Chạy **sau 7g**, vì Enmu dùng loại `enmu` và hiệu ứng ngủ của 7g; trước hay sau 7h đều được.
+- 4d tạo trước ba loại quái tàu của 7g (`train_tentacle`, `train_flesh`, `train_nightmare`, cùng id và thông số), nên 7g chỉ còn thêm `enmu`. Nếu 7d có trước 4d thì luật "mỗi map luyện cấp đúng một khu thủ lĩnh" của 7d chỉ áp cho map 1–20 (spec 4d mục 9).
 
 ### 3.7. Tiền và vật phẩm trong giao dịch
 
@@ -138,7 +142,7 @@ Cho tới khi có map 21–90, người chơi thật chưa tới được ba s�
 | Lễ hội theo mùa, đua top máy chủ mới | Game-design 6.1 chưa chốt công thức và luật xếp hạng |
 | Bạn bè, thư giữa người chơi, lịch sử chat lưu server, lọc từ ngữ, báo cáo người chơi | Không cần cho vòng chơi lõi; chặn người chơi làm ở client (7a) |
 | Đồ khóa (không giao dịch) cho thưởng sự kiện | Chưa có nhu cầu khi thưởng v1 là Xu, EXP, đá, trang bị thường |
-| Tinh anh/thủ lĩnh cấp 25–90 và các hiệu ứng chậm, giữ chân, đẩy lùi, phân thân chung máu | Đến cùng map của chúng (mục 3.6); 7d dựng khung, 7g thêm hiệu ứng ngủ cho Enmu |
+| Hiệu ứng chậm, giữ chân, đẩy lùi, phân thân chung máu của tinh anh/thủ lĩnh | Tinh anh/thủ lĩnh cấp 25–90 có ở 4e (mục 3.6) với sát thương của chiêu nhưng chưa có các hiệu ứng này; chậm, giữ chân đổi tốc độ người chơi và dự đoán di chuyển, đẩy lùi dời vị trí cưỡng bức, phân thân cần thực thể chung máu. 7d dựng khung, 7g thêm hiệu ứng ngủ cho Enmu |
 | Hạ Huyền/Thượng Huyền ngoài bộ v1 của 7f, 7h | Thêm bằng dữ liệu khi cần |
 | Điểm năng động, rương mốc hàng ngày | Đã để sau ở 6d |
 
