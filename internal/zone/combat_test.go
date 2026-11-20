@@ -967,9 +967,11 @@ func TestChaseFallsBackToRecentAttacker(t *testing.T) {
 	k.ChaseRange = 100
 	for _, c := range []struct {
 		name  string
-		wait  int // ticks between B's hit and the tick before A leaves
+		wait  int  // ticks between B's hit and the tick before A leaves
+		bOut  bool // B has also left the margin
 		fresh bool
-	}{{"recent", 0, true}, {"exactly 5 s ago", 49, true}, {"5.1 s ago", 50, false}} {
+	}{{"recent", 0, false, true}, {"exactly 5 s ago", 49, false, true}, {"5.1 s ago", 50, false, false},
+		{"recent but beyond the margin", 0, true, false}} {
 		t.Run(c.name, func(t *testing.T) {
 			z, m := boxRegion(t, k)
 			joinNow(t, z, 1, 31.5, 30.5)
@@ -983,6 +985,9 @@ func TestChaseFallsBackToRecentAttacker(t *testing.T) {
 				t.Fatalf("target %d, want A", m.target)
 			}
 			teleport(z, 1, Vec2{50.5, 30.5}) // beyond the margin
+			if c.bOut {
+				teleport(z, 2, Vec2{30.5, 50.5})
+			}
 			from := m.pos
 			z.advance(time.Now())
 			if c.fresh && (m.target != 2 || !chasing(m) || m.chaseFrom != from) {
@@ -993,6 +998,77 @@ func TestChaseFallsBackToRecentAttacker(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A player who died is forgotten as an attacker: after respawning near the
+// monster within 5 s of its hit, it is not chased when the target is let go.
+func TestDeadAttackerIsNotFallenBackOn(t *testing.T) {
+	k := testKind
+	k.ChaseRange = 100
+	z, m := boxRegion(t, k)
+	z.area.Respawn = Vec2{28.5, 30.5} // inside the region, outside any safe zone
+	joinNow(t, z, 1, 31.5, 30.5)
+	joinNow(t, z, 2, 29.5, 30.5)
+	attackNow(t, z, 1, 1, m.id) // A first: the target
+	attackNow(t, z, 2, 1, m.id)
+	z.damagePlayer(z.players[2], 0, 10000, false)
+	if !z.Respawn(2, 2) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+	if b := z.players[2]; b.dead || z.validTarget(2) == nil || m.target != 1 {
+		t.Fatalf("B dead %v valid %v, target %d: want B back and valid, A still chased", b.dead, z.validTarget(2) != nil, m.target)
+	}
+	teleport(z, 1, Vec2{50.5, 30.5}) // A leaves the margin
+	z.advance(time.Now())
+	if m.target != 0 || chasing(m) {
+		t.Fatalf("target %d state %v, want the chase given up, not B chased", m.target, m.state)
+	}
+}
+
+// A monster that lets its target go while standing on a region tile wanders
+// again on the same tick, without moving (spec 4.5).
+func TestGiveUpOnRegionTileWandersAtOnce(t *testing.T) {
+	k := testKind
+	k.ChaseRange = 100
+	z, m := boxRegion(t, k)
+	m.pos = Vec2{30.7, 30.3} // inside tile (30,30), off its centre
+	z.updateCell(&m.entity)
+	joinNow(t, z, 1, 31.7, 30.3)
+	engage(m, 1)
+	teleport(z, 1, Vec2{50.5, 30.5}) // beyond the margin
+	z.advance(time.Now())
+	if m.state != wander || m.target != 0 || m.pos != (Vec2{30.7, 30.3}) || m.dir != (Vec2{}) {
+		t.Fatalf("state %v target %d at %v dir %v, want wandering where it stood", m.state, m.target, m.pos, m.dir)
+	}
+}
+
+// A monster going back does not shoot, even at a player in its detect range;
+// it shoots only once it wanders again on its region.
+func TestBackMonsterDoesNotShoot(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	m.pos, m.state = Vec2{36.5, 30.5}, back
+	z.updateCell(&m.entity)
+	joinNow(t, z, 1, 33.5, 32.5) // within 5 tiles all the way back, with a clear line
+	now := time.Now()
+	wandered := false
+	for i := 0; i < 60; i++ {
+		z.advance(now)
+		if m.state == wander {
+			wandered = true
+		}
+		for _, h := range z.events.hits {
+			if !h.Ranged {
+				continue
+			}
+			if !wandered {
+				t.Fatalf("tick %d: shot %v while going back (state %v at %v)", i, h, m.state, m.pos)
+			}
+			return
+		}
+	}
+	t.Fatalf("wandered=%v, but never shot the player in range afterwards", wandered)
 }
 
 // A monster on its way back can be hit; the hit starts a new chase.

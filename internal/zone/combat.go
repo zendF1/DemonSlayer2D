@@ -55,11 +55,14 @@ func (z *Zone) killPlayer(p *player) {
 	}
 	p.deadUntil = z.tickNo + z.ticks(autoRespawnSec)
 	p.restTicks = 0
-	// Monsters lose a dead target (spec 3.6) and pick another at their next think.
+	// Monsters lose a dead target (spec 3.6) and pick another at their next
+	// think. They also forget p as an attacker, so once respawned it is not
+	// chased for a hit from before its death.
 	for _, m := range z.monsters {
 		if m.target == p.id {
 			m.target = 0
 		}
+		delete(m.attackers, p.id)
 	}
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: p.id})
 }
