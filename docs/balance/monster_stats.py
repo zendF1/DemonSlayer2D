@@ -4,9 +4,12 @@ Run from any directory: python3 docs/balance/monster_stats.py
 Add --write-json to write data/monsters.json, or --print-json to print the
 same bytes to stdout (the Go test compares them with the committed file).
 
-Rules (spec 2.3, no gear in Phase 1):
+Rules (phase 1 spec 2.3, phase 3a spec 2.2, game-design 5.9):
 - the reference character is Viem at level L with 10 * (L - 1) potential
-  points, floor(2/3) of them in STR and the rest in VIT;
+  points, floor(2/3) of them in STR and the rest in VIT, wearing in each
+  slot the highest-tier normal +0 piece with tier + slot index <= L
+  (equipment_balance.available_tier), nothing before level 10; its HP,
+  attack and defense add the summed stats of those pieces;
 - monster defense = 8 * L;
 - monster HP, levels 1-9: 4 * the default slash of the reference character on
   a same-level monster (slash base = physical attack); from level 10: two
@@ -27,6 +30,7 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
+import equipment_balance
 import skill_stats
 
 LEVELS = range(1, 91)
@@ -37,12 +41,12 @@ MELEE_WINDUP_MS = 200
 SHOT_SPEED = 15
 
 KINDS = [
-    {"id": "wanderer", "name": "Quỷ lang thang", "attack_range": 2.0, "attack_sec": 1.5,
+    {"id": "wanderer", "name": "Quỷ lang thang", "rank": "normal", "attack_range": 2.0, "attack_sec": 1.5,
      "speed": 0.8, "detect_range": 5, "chase_range": 10, "shoot_sec": 2, "shoot_windup_sec": 0.5,
      "region_margin": 3, "chase_speed": 1.2, "safe_wait_sec": 5,
      "margin_grace_sec": 2, "grudge_sec": 10, "respawn_sec": 8,
      "melee_windup_ms": MELEE_WINDUP_MS, "shot_speed": SHOT_SPEED},
-    {"id": "snow_ghoul", "name": "Quỷ đói trong tuyết", "attack_range": 2.0, "attack_sec": 1.5,
+    {"id": "snow_ghoul", "name": "Quỷ đói trong tuyết", "rank": "normal", "attack_range": 2.0, "attack_sec": 1.5,
      "speed": 0.8, "detect_range": 5, "chase_range": 10, "shoot_sec": 2, "shoot_windup_sec": 0.5,
      "region_margin": 3, "chase_speed": 1.2, "safe_wait_sec": 5,
      "margin_grace_sec": 2, "grudge_sec": 10, "respawn_sec": 8,
@@ -56,13 +60,30 @@ def damage(base, defense, attacker_level):
     return max(1, base * k // (defense + k))
 
 
+GEAR_ITEMS = equipment_balance.generate()
+NORMAL_TIERS = range(5)  # TIERS indices of the normal lines; no crafted gear in v1.0.0.0
+
+
+def gear(level):
+    """Summed +0 stats of the reference gear at this level: (HP, attack, defense)."""
+    hp = attack = defense = 0
+    for slot in range(10):
+        tier = equipment_balance.available_tier(NORMAL_TIERS, level, slot)
+        if tier is not None:
+            piece_attack, piece_hp, piece_defense = GEAR_ITEMS[tier, 0, slot]
+            hp, attack, defense = hp + piece_hp, attack + piece_attack, defense + piece_defense
+    return hp, attack, defense
+
+
 def reference(level):
-    """Stats of the reference character: (HP, attack, defense)."""
+    """Stats of the reference character with its gear: (HP, attack, defense)."""
     points = 10 * (level - 1)
     strength = points * 2 // 3
     vit = points - strength
     step = level - 1
-    return 500 + 60 * step + 20 * vit, 20 + 5 * step + 2 * strength, 10 + 2 * step + 2 * vit
+    gear_hp, gear_attack, gear_defense = gear(level)
+    return (500 + 60 * step + 20 * vit + gear_hp, 20 + 5 * step + 2 * strength + gear_attack,
+            10 + 2 * step + 2 * vit + gear_defense)
 
 
 def exp_ratio(level):
@@ -122,7 +143,15 @@ def main():
     for level, want in pinned.items():
         entry = levels[level - 1]
         assert (entry["hp"], entry["attack"], entry["defense"]) == want, (level, entry)
-    assert (monster(10)[0]["hp"], monster(10)[0]["exp"]) == (658, 125), monster(10)
+    # Game-design 5.9 (HP, attack, defense) with the reference gear; level 30
+    # is 4336, not the doc's 4338 (phase 3a spec 1.4).
+    pinned = {10: (750, 95, 80), 20: (2704, 319, 160), 30: (4336, 508, 240), 40: (6240, 694, 320),
+              50: (8408, 934, 400), 60: (10452, 1211, 480), 90: (13478, 1412, 720)}
+    for level, want in pinned.items():
+        entry = levels[level - 1]
+        assert (entry["hp"], entry["attack"], entry["defense"]) == want, (level, entry)
+    assert (monster(10)[0]["hp"], monster(10)[0]["exp"]) == (750, 143), monster(10)
+    assert all(gear(level) == (0, 0, 0) for level in range(1, 10)), "no gear before level 10"
     if args.print_json:
         sys.stdout.write(to_json(levels))
         return

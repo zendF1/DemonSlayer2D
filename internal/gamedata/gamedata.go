@@ -51,6 +51,9 @@ type Kind struct {
 	// ShotSpeed is how fast a ranged shot flies, in tiles per second.
 	MeleeWindupMS int     `json:"melee_windup_ms"`
 	ShotSpeed     float64 `json:"shot_speed"`
+	// Rank is the monster's rank (normal, elite or boss); it picks the
+	// drop table and the reward multipliers.
+	Rank string `json:"rank"`
 }
 
 // Level holds the monster stats of one level. Defense serves as both

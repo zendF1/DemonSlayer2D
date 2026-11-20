@@ -172,6 +172,7 @@ func TestRepoDataMatchesScripts(t *testing.T) {
 		{"monster_stats.py", "monsters.json"},
 		{"skill_stats.py", "skills.json"},
 		{"exp_table.py", "exp.json"},
+		{"item_stats.py", "items.json"},
 	} {
 		t.Run(tt.file, func(t *testing.T) {
 			got, err := exec.Command(py, "../../docs/balance/"+tt.script, "--print-json").Output()
@@ -201,6 +202,31 @@ func TestRepoMonstersCoverLevels1To90(t *testing.T) {
 	}
 	if len(d.Levels) != 90 {
 		t.Fatalf("levels: %d", len(d.Levels))
+	}
+}
+
+// From level 10 the monsters are built against the reference +0 gear and
+// match game-design 5.9; level 30 is 4,336 HP (phase 3a spec 1.4).
+func TestRepoMonstersMatchGameDesign(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for lvl, want := range map[int][3]int{
+		10: {750, 95, 80}, 20: {2704, 319, 160}, 30: {4336, 508, 240}, 40: {6240, 694, 320}, 50: {8408, 934, 400},
+		60: {10452, 1211, 480}, 70: {11466, 1276, 560}, 80: {12466, 1344, 640}, 90: {13478, 1412, 720},
+	} {
+		if l := d.Levels[lvl]; [3]int{l.HP, l.Attack, l.Defense} != want {
+			t.Errorf("level %d: %d/%d/%d, want %v", lvl, l.HP, l.Attack, l.Defense, want)
+		}
+	}
+	if l := d.Levels[10]; l.Exp != 143 {
+		t.Errorf("level 10 exp %d, want 143", l.Exp)
+	}
+	for id, k := range d.Kinds {
+		if k.Rank != "normal" {
+			t.Errorf("kind %s: rank %q, want normal", id, k.Rank)
+		}
 	}
 }
 
