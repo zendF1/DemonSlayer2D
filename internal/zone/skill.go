@@ -48,13 +48,18 @@ func (z *Zone) queueCast(c castCmd) {
 
 // resolveCast checks p's cast c in the order of phase 2 spec 4.2 and, if it
 // passes, spends its MP, starts its cooldown, answers it, announces it and
-// lands it on its victims (spec 4.6). An error spends nothing.
+// lands it on its victims (spec 4.6), after moving a dash's caster (spec
+// 4.5). An error spends nothing.
 func (z *Zone) resolveCast(p *player, c *castCmd) {
 	s, n, code := z.checkCast(p, c.skillID)
 	var primary *monster
 	var dir Vec2
 	if code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 		primary, dir, code = z.aim(p, c, s, n)
+	}
+	land := p.pos
+	if code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED && s.Dash {
+		land, code = z.dashLanding(p, primary)
 	}
 	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 		z.replyError(p, c.seq, code)
@@ -76,6 +81,12 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 		ev.TargetId = primary.id
 	}
 	z.events.casts = append(z.events.casts, ev)
+	if land != p.pos {
+		// The dash: everyone in view, the caster too, jumps to the landing
+		// point. p.dir is kept, so movePlayers goes on from there this tick.
+		p.pos, p.changed, p.snap = land, true, true
+		z.updateCell(&p.entity)
+	}
 	// The cast is one action: a level gained on its first hit does not
 	// change the damage of the rest.
 	base, level := combat.SkillBase(p.stats, s.Damage == gamedata.DamageMagic, s.CoefPct[n-1]), p.level
@@ -115,8 +126,8 @@ func (z *Zone) checkCast(p *player, skillID string) (gamedata.Skill, int, pb.Err
 // single and circle_target need a living monster within the level's range
 // plus attackRangeSlack and in sight, as a slash does. cone and line aim at a
 // living named monster at any range, else along the normalised dir; with
-// neither the cast is a BAD_REQUEST. Dash skills cast as plain single-target
-// skills for now.
+// neither the cast is a BAD_REQUEST. Dash skills aim as single-target skills;
+// resolveCast then moves the caster (dashLanding).
 func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill, n int) (*monster, Vec2, pb.ErrorCode) {
 	m := z.monsters[c.target]
 	if m != nil && m.dead {
@@ -148,6 +159,43 @@ func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill, n int) (*monster, Ve
 		return m, Vec2{}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	}
 	return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+}
+
+// dashGap is how far short of its target a dash lands, in tiles.
+const dashGap = 1
+
+// dashLanding is where p's dash at target lands (phase 2 spec 4.5): dashGap
+// short of target on the segment from p, or p's own position when target is
+// no further than that. The answer is OUT_OF_RANGE when p's box would not fit
+// there (it overlaps a blocked tile, which a walkable landing tile alone does
+// not rule out) or the landing point is in a safe zone.
+//
+// The segment from p to the landing point is part of the one from p to
+// target, which aim has already found in sight, so it is not blocked either.
+func (z *Zone) dashLanding(p *player, target *monster) (Vec2, pb.ErrorCode) {
+	d := distance(p.pos, target.pos)
+	if d <= dashGap {
+		return p.pos, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	}
+	u := dirTo(p.pos, target.pos)
+	land := Vec2{target.pos.X - u.X*dashGap, target.pos.Y - u.Y*dashGap}
+	if !boxFits(z.area.Grid, land) || z.area.InSafe(land) {
+		return p.pos, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
+	}
+	return land, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// boxFits reports whether an entity's box centred on pos overlaps no blocked
+// tile, with the same edge tolerance as Step.
+func boxFits(g Grid, pos Vec2) bool {
+	for tx := floor(pos.X - halfSize + eps); tx <= floor(pos.X+halfSize-eps); tx++ {
+		for ty := floor(pos.Y - halfSize + eps); ty <= floor(pos.Y+halfSize-eps); ty++ {
+			if g.Blocked(tx, ty) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // victims are the monsters p's cast of s at skill level n hits, aimed at

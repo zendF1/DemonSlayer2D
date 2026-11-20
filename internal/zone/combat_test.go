@@ -3725,3 +3725,162 @@ func TestCastAreaTieByID(t *testing.T) {
 		}
 	}
 }
+
+// ______________________TEST DASH_____________________
+
+// dashZone is a zone like castZone with a level-12 monster at target and a
+// level-12 Viêm, player 1, at caster who knows only viem_1 (Bất Tri Hỏa, a
+// dash) at skill level 1. One tick has run, so the caster has seen itself
+// enter and its later jumps reach it as moves.
+func dashZone(t *testing.T, caster, target Vec2) (*Zone, *monster, *player, *fakeOut) {
+	t.Helper()
+	z, m := newFightZone(t, 12, target)
+	z.area.Skills = repoSkills
+	m.region.Kind.DetectRange = 0.5
+	in := info(1, caster.X, caster.Y)
+	in.Class, in.Level, in.Skills = pb.CharClass_CHAR_CLASS_VIEM, 12, map[string]int{"viem_1": 1}
+	a := &fakeOut{}
+	if err := z.join(in, a); err != nil {
+		t.Fatal(err)
+	}
+	z.advance(time.Now())
+	a.take()
+	return z, m, z.players[1], a
+}
+
+func near32(a, b float32) bool { return abs32(a-b) < 1e-4 }
+
+// Bất Tri Hỏa from 3.5 tiles lands the caster on the line to the monster,
+// exactly 1 tile short of it, before the hit; the caster and a viewer both
+// get the jump as a snapping EntityMove, and the Cast points at the monster.
+func TestDashLandsShortOfTarget(t *testing.T) {
+	start := Vec2{30.5, 30.5}
+	off := polar(3.5, 30)
+	z, m, p, a := dashZone(t, start, Vec2{start.X + off.X, start.Y + off.Y})
+	v := joinNow(t, z, 2, 30.5, 36.5) // same AOI cell
+	z.advance(time.Now())             // the viewer sees the caster enter
+	v.take()
+	a.take()
+	mp := p.mp
+	castNow(t, z, 1, 5, "viem_1", m.id, Vec2{})
+	if d := distance(p.pos, m.pos); !near32(d, 1) {
+		t.Fatalf("landed %v, %v from the monster, want 1", p.pos, d)
+	}
+	if d := distance(start, p.pos); !near32(d, 2.5) {
+		t.Fatalf("dashed %v, want 2.5 along the line", d)
+	}
+	if u, w := dirTo(start, p.pos), dirTo(start, m.pos); !near32(u.X, w.X) || !near32(u.Y, w.Y) {
+		t.Fatalf("dashed along %v, want towards the monster %v", u, w)
+	}
+	if p.cell != z.cellOf(p.pos) || z.cells[p.cell][1] == nil {
+		t.Fatal("the caster's AOI cell is stale")
+	}
+	envs := a.take()
+	for name, es := range map[string][]*pb.Envelope{"caster": envs, "viewer": v.take()} {
+		mv := moveFor(lastTick(es), 1)
+		if mv == nil || !mv.Snap || mv.X != p.pos.X || mv.Y != p.pos.Y {
+			t.Fatalf("%s got move %v, want a snap to %v", name, mv, p.pos)
+		}
+	}
+	if castRespAt(envs, 5) < 0 || p.mp != mp-repoSkills["viem_1"].MP[0] {
+		t.Fatalf("the dash was not accepted: mp %d from %d", p.mp, mp)
+	}
+	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].TargetId != m.id || hs[0].SkillId != "viem_1" {
+		t.Fatalf("hits %v, want one viem_1 hit on the monster", hs)
+	}
+	cs, w := castsIn(envs), dirTo(start, m.pos)
+	if len(cs) != 1 || cs[0].TargetId != m.id || !near32(cs[0].DirX, w.X) || !near32(cs[0].DirY, w.Y) {
+		t.Fatalf("casts %v, want one at the monster along %v", cs, w)
+	}
+	z.advance(time.Now())
+	if mv := moveFor(lastTick(a.take()), 1); mv != nil {
+		t.Fatalf("the next tick moved the caster again: %v", mv)
+	}
+}
+
+// The caster's direction survives the dash: that tick's input moves it on
+// from the landing point, and the snap carries where it ends up.
+func TestDashKeepsMoving(t *testing.T) {
+	z, m, p, a := dashZone(t, Vec2{30.5, 30.5}, Vec2{34.5, 30.5})
+	z.Move(1, 1, 0, 1)
+	castNow(t, z, 1, 5, "viem_1", m.id, Vec2{})
+	want := Step(z.area.Grid, Vec2{33.5, 30.5}, Vec2{0, 1}, z.cfg.MoveSpeed/float32(z.cfg.TickRate))
+	if !near32(p.pos.X, want.X) || !near32(p.pos.Y, want.Y) || p.dir != (Vec2{0, 1}) {
+		t.Fatalf("pos %v dir %v, want %v still moving (0, 1)", p.pos, p.dir, want)
+	}
+	if mv := moveFor(lastTick(a.take()), 1); mv == nil || !mv.Snap || mv.X != p.pos.X || mv.Y != p.pos.Y {
+		t.Fatalf("move %v, want a snap to %v", mv, p.pos)
+	}
+}
+
+// A monster within 1 tile is hit where the caster stands: no move, no snap.
+func TestDashWithinOneTileStays(t *testing.T) {
+	start := Vec2{30.5, 30.5}
+	z, m, p, a := dashZone(t, start, Vec2{31.3, 30.5})
+	castNow(t, z, 1, 5, "viem_1", m.id, Vec2{})
+	envs := a.take()
+	if p.pos != start || p.snap {
+		t.Fatalf("pos %v snap %v, want %v unmoved", p.pos, p.snap, start)
+	}
+	if mv := moveFor(lastTick(envs), 1); mv != nil {
+		t.Fatalf("move %v, want none", mv)
+	}
+	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].TargetId != m.id {
+		t.Fatalf("hits %v, want one on the monster", hs)
+	}
+}
+
+// A landing point in a safe zone, or one where the caster's box would
+// overlap a wall, is OUT_OF_RANGE even though the monster is in range and in
+// sight; the caster stays and spends nothing.
+func TestDashBadLanding(t *testing.T) {
+	for _, c := range []struct {
+		name           string
+		caster, target Vec2
+		setup          func(z *Zone)
+	}{
+		// Both ends are outside the safe rect (0,0,10,10); the landing
+		// point (8.2, 9.8) cuts its corner.
+		{"safe zone", Vec2{10.5, 7.5}, Vec2{7.5, 10.5}, func(*Zone) {}},
+		// The landing point (33, 30.25) is on an open tile, but its box
+		// reaches into the wall above; the line along y = 30.25 is clear.
+		{"wall beside the landing tile", Vec2{30.5, 30.25}, Vec2{34, 30.25}, func(z *Zone) { wallAt(z, 32, 29) }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m, p, a := dashZone(t, c.caster, c.target)
+			c.setup(z)
+			mp, ready, hp := p.mp, maps.Clone(p.skillReady), m.hp
+			castNow(t, z, 1, 42, "viem_1", m.id, Vec2{})
+			envs := a.take()
+			if er := errorFor(envs, 42); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE {
+				t.Fatalf("error %v, want OUT_OF_RANGE", er)
+			}
+			if p.pos != c.caster || moveFor(lastTick(envs), 1) != nil {
+				t.Fatalf("pos %v, want %v unmoved", p.pos, c.caster)
+			}
+			if p.mp != mp || !maps.Equal(p.skillReady, ready) || m.hp != hp || len(castsIn(envs)) != 0 {
+				t.Fatalf("mp %d ready %v hp %d casts %v: a rejected dash spends and lands nothing", p.mp, p.skillReady, m.hp, castsIn(envs))
+			}
+		})
+	}
+}
+
+// A dash across an AOI cell border moves the caster's cell, so a player who
+// is only near the new cell now sees the caster enter.
+func TestDashCrossesAOICell(t *testing.T) {
+	z, m, p, a := dashZone(t, Vec2{29.5, 30.5}, Vec2{33.5, 30.5}) // cell (2, 3) to (3, 3)
+	v := joinNow(t, z, 2, 45.5, 30.5)                             // cell (4, 3)
+	if slices.Contains(enters(v.take()), 1) {
+		t.Fatal("the viewer already sees the caster")
+	}
+	castNow(t, z, 1, 5, "viem_1", m.id, Vec2{})
+	if p.cell != (cellKey{3, 3}) {
+		t.Fatalf("cell %v, want (3, 3)", p.cell)
+	}
+	if !slices.Contains(enters(v.take()), 1) {
+		t.Fatal("the viewer did not see the caster enter")
+	}
+	if !slices.Contains(enters(a.take()), 2) {
+		t.Fatal("the caster did not see the viewer enter")
+	}
+}
