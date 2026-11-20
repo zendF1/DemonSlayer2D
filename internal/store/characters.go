@@ -56,6 +56,10 @@ type ItemRow struct {
 	// an empty stored array loads as nil. The store does not check its
 	// length or values; the world does.
 	Pity []int
+	// Gems has one entry per punched hole: a gem code, or "" for an empty
+	// hole. No holes load as nil. The store does not check the codes or the
+	// length; the world does.
+	Gems []string
 }
 
 // ItemLine is an item line as stored in the lines and hidden jsonb columns.
@@ -129,7 +133,7 @@ func loadItems(ctx context.Context, q querier, chars []Character) error {
 		byID[chars[i].ID] = &chars[i]
 		ids[i] = chars[i].ID
 	}
-	rows, err := q.Query(ctx, `SELECT character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity
+	rows, err := q.Query(ctx, `SELECT character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity, gems
 		FROM character_items WHERE character_id = ANY($1) ORDER BY character_id, equipped, slot`, ids)
 	if err != nil {
 		return err
@@ -139,11 +143,14 @@ func loadItems(ctx context.Context, q querier, chars []Character) error {
 		r      ItemRow
 	)
 	_, err = pgx.ForEachRow(rows, []any{&charID, &r.Equipped, &r.Slot, &r.Code, &r.Count, &r.Quality, &r.Element,
-		&r.Enhance, &r.Lines, &r.Hidden, &r.Pity}, func() error {
+		&r.Enhance, &r.Lines, &r.Hidden, &r.Pity, &r.Gems}, func() error {
 		// pgx decodes each jsonb and array value into a fresh slice, so rows
 		// share nothing.
 		if len(r.Pity) == 0 {
 			r.Pity = nil
+		}
+		if len(r.Gems) == 0 {
+			r.Gems = nil
 		}
 		c := byID[charID]
 		c.Items = append(c.Items, r)
@@ -287,8 +294,8 @@ func saveSkills(ctx context.Context, tx pgx.Tx, st CharState) error {
 
 // saveItems replaces the character's item rows: a delete, then one INSERT
 // from unnest over column arrays, with the lines sent as JSON text and cast
-// to jsonb per row and the pity sent as array text and cast to smallint[]
-// (unnest would flatten an array of arrays).
+// to jsonb per row and the pity and gems sent as array text and cast to
+// smallint[] and text[] (unnest would flatten an array of arrays).
 func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM character_items WHERE character_id = $1`, st.ID); err != nil {
 		return err
@@ -301,7 +308,7 @@ func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 		equipped                             = make([]bool, n)
 		slot, count, quality, enhance        = make([]int32, n), make([]int32, n), make([]int32, n), make([]int32, n)
 		code, element, linesJSON, hiddenJSON = make([]string, n), make([]string, n), make([]string, n), make([]string, n)
-		pity                                 = make([]string, n)
+		pity, gems                           = make([]string, n), make([]string, n)
 	)
 	for i, r := range st.Items {
 		equipped[i], code[i], element[i] = r.Equipped, r.Code, r.Element
@@ -313,14 +320,15 @@ func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 		if hiddenJSON[i], err = linesText(r.Hidden); err != nil {
 			return err
 		}
-		pity[i] = pityText(r.Pity)
+		pity[i], gems[i] = pityText(r.Pity), gemsText(r.Gems)
 	}
 	_, err := tx.Exec(ctx,
-		`INSERT INTO character_items (character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity)
-		 SELECT $1, e, s, c, n, q, el, en, l::jsonb, h::jsonb, p::smallint[]
-		 FROM unnest($2::bool[], $3::int[], $4::text[], $5::int[], $6::int[], $7::text[], $8::int[], $9::text[], $10::text[], $11::text[])
-		   AS u(e, s, c, n, q, el, en, l, h, p)`,
-		st.ID, equipped, slot, code, count, quality, element, enhance, linesJSON, hiddenJSON, pity)
+		`INSERT INTO character_items (character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity, gems)
+		 SELECT $1, e, s, c, n, q, el, en, l::jsonb, h::jsonb, p::smallint[], g::text[]
+		 FROM unnest($2::bool[], $3::int[], $4::text[], $5::int[], $6::int[], $7::text[], $8::int[], $9::text[], $10::text[],
+		   $11::text[], $12::text[])
+		   AS u(e, s, c, n, q, el, en, l, h, p, g)`,
+		st.ID, equipped, slot, code, count, quality, element, enhance, linesJSON, hiddenJSON, pity, gems)
 	return err
 }
 
@@ -332,6 +340,26 @@ func pityText(p []int) string {
 			b = append(b, ',')
 		}
 		b = strconv.AppendInt(b, int64(v), 10)
+	}
+	return string(append(b, '}'))
+}
+
+// gemsText is g as a Postgres array literal, every element quoted so an
+// empty hole stays an empty string; nil is "{}".
+func gemsText(g []string) string {
+	b := []byte{'{'}
+	for i, v := range g {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = append(b, '"')
+		for j := 0; j < len(v); j++ {
+			if v[j] == '"' || v[j] == '\\' {
+				b = append(b, '\\')
+			}
+			b = append(b, v[j])
+		}
+		b = append(b, '"')
 	}
 	return string(append(b, '}'))
 }

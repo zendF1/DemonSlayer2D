@@ -759,7 +759,8 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 // ______________________TEST ITEMS_____________________
 
 // goodItemRows are valid rows of a level-10 Viêm: a Xanh boots piece and a
-// full stone stack in the bag, a Vàng sword with a hidden pity worn, and a
+// full stone stack in the bag, a Vàng sword with a hidden pity and three
+// holes (an HP gem, an empty hole, a defense gem) worn, and a
 // worn ring the character is too low for, which is kept (it just adds
 // nothing).
 func goodItemRows() []store.ItemRow {
@@ -769,7 +770,8 @@ func goodItemRows() []store.ItemRow {
 		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
 			Lines:  []store.ItemLine{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
 			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}},
-			Pity:   []int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 99}},
+			Pity:   []int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 99},
+			Gems:   []string{"gem_hp_1", "", "gem_defense_1"}},
 		{Equipped: true, Slot: 8, Code: "eq10_ring_left", Count: 1},
 	}
 }
@@ -782,7 +784,8 @@ func goodInventory() *items.Inventory {
 	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
 		Lines:  []items.Line{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
 		Hidden: []items.Line{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}},
-		Pity:   [items.MaxEnhance]int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 99}}
+		Pity:   [items.MaxEnhance]int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 99},
+		Gems:   []string{"gem_hp_1", "", "gem_defense_1"}}
 	inv.Worn[8] = &items.Item{Code: "eq10_ring_left", Count: 1}
 	return inv
 }
@@ -827,6 +830,51 @@ func TestKnownItemsResetsBadPity(t *testing.T) {
 			}
 			if n := strings.Count(buf.String(), "reset stored pity"); n != 1 || strings.Contains(buf.String(), "dropped") {
 				t.Fatalf("%d pity warnings, want 1 and nothing dropped:\n%s", n, buf.String())
+			}
+		})
+	}
+}
+
+// Stored holes past the maximum are cut, an unknown gem, a stackable that is
+// not a gem or a gem above the tier / 10 leaves an empty hole, and holes on a
+// stackable are dropped, each fix with one warning; the item is kept.
+func TestKnownItemsFixesBadGems(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		row   int
+		gems  []string
+		want  []string
+		warns int
+	}{
+		{"four holes", 2, []string{"gem_hp_1", "", "gem_defense_1", "gem_attack_1"}, nil, 1},
+		{"unknown gem", 2, []string{"gem_hp_9", "", "gem_defense_1"}, []string{"", "", "gem_defense_1"}, 1},
+		{"stone in a hole", 2, []string{"gem_hp_1", "stone_refine", "gem_defense_1"}, []string{"gem_hp_1", "", "gem_defense_1"}, 1},
+		{"gem above the tier", 2, []string{"gem_hp_1", "", "gem_defense_2"}, []string{"gem_hp_1", "", ""}, 1},
+		{"two bad gems", 2, []string{"gem_hp_2", "", "x"}, []string{"", "", ""}, 2},
+		{"five holes and a bad gem", 2, []string{"gem_hp_9", "", "gem_defense_1", "", ""}, []string{"", "", "gem_defense_1"}, 2},
+		{"stone with holes", 1, []string{"", "gem_hp_1"}, nil, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var buf lockedBuf
+			w, err := New(Config{StartMap: "m1", AOICellSize: 10}, testMaps(t), testMonsters, nopSaver{},
+				slog.New(slog.NewTextHandler(&buf, nil)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ch := char(1, "m1", 3.5, 4.5)
+			rows := goodItemRows()
+			rows[c.row].Gems = c.gems
+			ch.Level, ch.Items = 10, rows
+			got := w.knownItems(ch)
+			want := goodInventory()
+			if c.want != nil {
+				want.Worn[0].Gems = c.want
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("inventory\n%+v\nwant\n%+v", got, want)
+			}
+			if n := strings.Count(buf.String(), "stored gems"); n != c.warns || strings.Contains(buf.String(), "dropped stored item") {
+				t.Fatalf("%d gem warnings, want %d and nothing dropped:\n%s", n, c.warns, buf.String())
 			}
 		})
 	}
@@ -901,9 +949,14 @@ func TestEnterCarriesItemsAndXu(t *testing.T) {
 		inv.Bag[1].Item.Count != 999 || inv.Equipped[0].Item.Element != pb.CharClass_CHAR_CLASS_THUY || inv.Equipped[1].Slot != 8 {
 		t.Fatalf("inventory %v", inv)
 	}
-	gear := combat.Bonus{PhysAttack: 25 + 5, HP: 43, MagicDefense: 3}
+	if w := inv.Equipped[0].Item; w.GetHoles() != 3 || !slices.Equal(w.GetGems(), []string{"gem_hp_1", "", "gem_defense_1"}) {
+		t.Fatalf("worn sword %v, want 3 holes with gem_hp_1, empty, gem_defense_1", w)
+	}
+	// The gems add 86 HP and 1 to both defenses.
+	gear := combat.Bonus{PhysAttack: 25 + 5, HP: 43 + 86, PhysDefense: 1, MagicDefense: 3 + 1}
 	if want := combat.Compute(false, 10, combat.Points{}, gear, combat.Passive{}); r.Stats.PhysAttack != int32(want.PhysAttack) ||
-		r.Stats.MaxHp != int32(want.MaxHP) || r.Stats.MagicDefense != int32(want.MagicDefense) {
-		t.Fatalf("stats %v, want %+v from the sword alone", r.Stats, want)
+		r.Stats.MaxHp != int32(want.MaxHP) || r.Stats.MagicDefense != int32(want.MagicDefense) ||
+		r.Stats.PhysDefense != int32(want.PhysDefense) {
+		t.Fatalf("stats %v, want %+v from the sword and its gems", r.Stats, want)
 	}
 }

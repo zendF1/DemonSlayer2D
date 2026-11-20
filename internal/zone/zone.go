@@ -583,7 +583,8 @@ func itemRows(inv *items.Inventory) []store.ItemRow {
 		}
 		rows = append(rows, store.ItemRow{Equipped: equipped, Slot: slot, Code: it.Code, Count: it.Count,
 			Quality: it.Quality, Element: it.Element, Enhance: it.Enhance,
-			Lines: storeLines(it.Lines), Hidden: storeLines(it.Hidden), Pity: storePity(it.Pity)})
+			Lines: storeLines(it.Lines), Hidden: storeLines(it.Hidden), Pity: storePity(it.Pity),
+			Gems: slices.Clone(it.Gems)})
 	}
 	for i, it := range inv.Bag {
 		add(false, i, it)
@@ -619,10 +620,11 @@ func (z *Zone) bagSize() int {
 	return z.area.Items.BagSize
 }
 
-// itemInfo is it on the wire (phase 3a spec 5).
+// itemInfo is it on the wire (phase 3a spec 5, phase 3c spec 5).
 func itemInfo(it *items.Item) *pb.ItemInfo {
 	return &pb.ItemInfo{Code: it.Code, Count: int32(it.Count), Quality: int32(it.Quality),
-		Element: classes.ToPB(it.Element), Enhance: int32(it.Enhance), Lines: pbLines(it.Lines), Hidden: pbLines(it.Hidden)}
+		Element: classes.ToPB(it.Element), Enhance: int32(it.Enhance), Lines: pbLines(it.Lines), Hidden: pbLines(it.Hidden),
+		Holes: int32(len(it.Gems)), Gems: slices.Clone(it.Gems)}
 }
 
 func pbLines(ls []items.Line) []*pb.ItemLine {

@@ -340,7 +340,8 @@ func (w *World) knownSkills(c store.Character) map[string]int {
 // a line of an unknown stat. A worn piece c may not wear (level, class) is
 // kept and simply adds nothing. A kept row whose pity is not empty or 15
 // entries in 0-99, or that is a stackable with a pity, keeps the item with a
-// zero pity and one warning (phase 3b spec 3).
+// zero pity and one warning (phase 3b spec 3). Its holes are fixed by
+// knownGems (phase 3c spec 3).
 func (w *World) knownItems(c store.Character) *items.Inventory {
 	inv := items.NewInventory(w.items.BagSize)
 	for _, r := range c.Items {
@@ -358,6 +359,7 @@ func (w *World) knownItems(c store.Character) *items.Inventory {
 		} else {
 			copy(it.Pity[:], r.Pity)
 		}
+		it.Gems = w.knownGems(c, r)
 		if r.Equipped {
 			inv.Worn[r.Slot] = it
 		} else {
@@ -390,6 +392,39 @@ func (w *World) badItem(inv *items.Inventory, r store.ItemRow) string {
 		return "unknown line stat"
 	}
 	return ""
+}
+
+// knownGems is the holes of a kept row r with one warning per fix: holes on
+// a stackable are dropped, holes past sockets.max are cut, and a hole with an
+// unknown code, a stackable that is not a gem or a gem above the piece's
+// tier / 10 is left empty. No holes is nil.
+func (w *World) knownGems(c store.Character, r store.ItemRow) []string {
+	if len(r.Gems) == 0 {
+		return nil
+	}
+	warn := func(msg string, args ...any) {
+		w.log.Warn(msg, append([]any{"char", c.ID, "equipped", r.Equipped, "slot", r.Slot, "code", r.Code}, args...)...)
+	}
+	e, isEquip := w.items.Equipment[r.Code]
+	if !isEquip {
+		warn("dropped stored gems of a stackable", "gems", r.Gems)
+		return nil
+	}
+	gems := slices.Clone(r.Gems)
+	if max := w.items.Sockets.Max; len(gems) > max {
+		warn("cut stored gems", "holes", len(gems), "max", max)
+		gems = gems[:max]
+	}
+	for i, g := range gems {
+		if g == "" {
+			continue
+		}
+		if gd := w.items.Stackables[g].Gem; gd == nil || gd.Level > e.Tier/gamedata.TierStep {
+			warn("emptied a hole of stored gems", "hole", i, "gem", g)
+			gems[i] = ""
+		}
+	}
+	return gems
 }
 
 // goodPity reports whether p is empty or one entry per target level, each in

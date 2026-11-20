@@ -352,22 +352,24 @@ func TestMigrationAddsXuAndItems(t *testing.T) {
 	}
 }
 
-// testItems has a worn Vàng weapon with an element, lines, hidden lines and
-// a hidden enhancement pity, two Xanh pieces (one line each, so a decoder
-// reusing the previous row's slice would show; one with its own pity) and a
-// stone stack in the bag.
+// testItems has a worn Vàng weapon with an element, lines, hidden lines, a
+// hidden enhancement pity and three holes, the middle one empty; two Xanh
+// pieces (one line each, so a decoder reusing the previous row's slice would
+// show; one with its own pity and one empty hole) and a stone stack in the
+// bag.
 func testItems() []store.ItemRow {
 	return []store.ItemRow{
 		{Equipped: false, Slot: 0, Code: "eq10_boots", Count: 1, Quality: 1,
 			Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{}},
 		{Equipped: false, Slot: 2, Code: "eq10_bracers", Count: 1, Quality: 1, Enhance: 4,
 			Lines: []store.ItemLine{{Stat: "phys_defense", Value: 2}}, Hidden: []store.ItemLine{},
-			Pity: []int{0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+			Pity: []int{0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, Gems: []string{""}},
 		{Equipped: false, Slot: 7, Code: "stone_enhance", Count: 250, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
 		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Quality: 2, Element: "thuy",
 			Lines:   []store.ItemLine{{Stat: "phys_attack", Value: 5}, {Stat: "hp", Value: 43}, {Stat: "magic_defense", Value: 3}},
 			Hidden:  []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_defense", Value: 4}},
-			Enhance: 9, Pity: []int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 90}},
+			Enhance: 9, Pity: []int{0, 0, 0, 0, 1, 2, 3, 0, 7, 12, 30, 75, 80, 85, 90},
+			Gems: []string{"gem_hp_1", "", `odd "code", \{}`}},
 	}
 }
 
@@ -419,6 +421,54 @@ func TestMigrationAddsPity(t *testing.T) {
 	}
 }
 
+// The sockets migration gives 3b-era item rows no holes, which load as nil,
+// and its Down drops the column again.
+func TestMigrationAddsGems(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	db := stdlib.OpenDB(*schemaConfig(t, url, schema))
+	defer db.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	var acc, char int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO accounts (username, password_hash) VALUES ('old', 'h') RETURNING id`).Scan(&acc); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `INSERT INTO characters (account_id, slot, name, name_key, class, level, map_id, pos_x, pos_y)
+		VALUES ($1, 1, 'old', 'old', 'viem', 7, 'kumotori_1', 5.5, 5.5) RETURNING id`, acc).Scan(&char); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO character_items (character_id, equipped, slot, code, count, enhance, pity)
+		VALUES ($1, true, 0, 'eq10_weapon_viem', 1, 6, '{0,0,0,0,0,0,4,0,0,0,0,0,0,0,0}')`, char); err != nil {
+		t.Fatal(err)
+	}
+
+	st := openMigrated(t, url, schema)
+	c, err := st.GetCharacter(ctx, acc, char)
+	want := []store.ItemRow{{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Enhance: 6,
+		Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}, Pity: []int{0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0}}}
+	if err != nil || !reflect.DeepEqual(c.Items, want) {
+		t.Fatalf("migrated items %+v, %v, want the weapon with no holes", c.Items, err)
+	}
+
+	if _, err := p.DownTo(ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	var cols int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM information_schema.columns
+		WHERE table_schema = $1 AND table_name = 'character_items' AND column_name = 'gems'`, schema).Scan(&cols); err != nil || cols != 0 {
+		t.Fatalf("after down: %d gems columns, %v", cols, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSaveAndLoadItems(t *testing.T) {
 	url, schema := storetest.Schema(t)
 	st := openMigrated(t, url, schema)
@@ -463,9 +513,9 @@ func TestSaveAndLoadItems(t *testing.T) {
 		t.Fatalf("other character %+v, want its own Xu and items untouched", list[1])
 	}
 
-	// Nil lines save as empty lists, an empty pity loads as nil; an empty
-	// item list deletes every row.
-	state.Items = []store.ItemRow{{Slot: 1, Code: "stone_enhance", Count: 1, Pity: []int{}}}
+	// Nil lines save as empty lists, an empty pity and no holes load as nil;
+	// an empty item list deletes every row.
+	state.Items = []store.ItemRow{{Slot: 1, Code: "stone_enhance", Count: 1, Pity: []int{}, Gems: []string{}}}
 	if err := st.SaveCharacterState(ctx, state); err != nil {
 		t.Fatal(err)
 	}

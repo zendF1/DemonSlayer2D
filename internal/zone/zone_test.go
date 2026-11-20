@@ -1155,16 +1155,18 @@ func TestJoinWithoutItems(t *testing.T) {
 }
 
 // state saves Xu and the items as rows that share nothing with the player;
-// an all-zero pity saves as none.
+// an all-zero pity and no holes save as none.
 func TestStateSavesItemsAndXu(t *testing.T) {
 	z, p, _, _ := gearZone(t, gearInventory())
 	p.xu = 1234
 	p.inv.Worn[0].Enhance, p.inv.Worn[0].Pity[7], p.inv.Worn[0].Pity[14] = 8, 4, 90
+	p.inv.Bag[0].Gems = []string{"", "gem_hp_1"}
 	st := z.state(p)
 	want := []store.ItemRow{
 		{Slot: 0, Code: "eq10_boots", Count: 1, Quality: 2, Element: "thuy",
 			Lines:  []store.ItemLine{{Stat: "hp", Value: 43}, {Stat: "phys_defense", Value: 3}, {Stat: "magic_attack", Value: 4}},
-			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}}},
+			Hidden: []store.ItemLine{{Stat: "hp", Value: 86}, {Stat: "phys_attack", Value: 5}},
+			Gems:   []string{"", "gem_hp_1"}},
 		{Slot: 3, Code: "stone_enhance", Count: 12, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
 		{Equipped: true, Slot: 0, Code: "eq10_weapon_viem", Count: 1, Enhance: 8, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{},
 			Pity: []int{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 90}},
@@ -1173,24 +1175,28 @@ func TestStateSavesItemsAndXu(t *testing.T) {
 		t.Fatalf("saved xu %d items %+v\nwant %+v", st.Xu, st.Items, want)
 	}
 	// Changing the saved copy leaves the player alone, and the other way round.
-	st.Items[0].Lines[0].Value, st.Items[0].Hidden[1].Stat, st.Items[2].Pity[7] = 1, "mp", 5
-	if p.inv.Bag[0].Lines[0].Value != 43 || p.inv.Bag[0].Hidden[1].Stat != "phys_attack" || p.inv.Worn[0].Pity[7] != 4 {
+	st.Items[0].Lines[0].Value, st.Items[0].Hidden[1].Stat, st.Items[2].Pity[7], st.Items[0].Gems[0] = 1, "mp", 5, "gem_hp_1"
+	if p.inv.Bag[0].Lines[0].Value != 43 || p.inv.Bag[0].Hidden[1].Stat != "phys_attack" || p.inv.Worn[0].Pity[7] != 4 ||
+		p.inv.Bag[0].Gems[0] != "" {
 		t.Fatal("the saved rows share lines with the player")
 	}
 	st = z.state(p)
-	p.inv.Bag[0].Lines[1].Value, p.inv.Bag[3].Count = 9, 13
-	if st.Items[0].Lines[1].Value != 3 || st.Items[1].Count != 12 {
+	p.inv.Bag[0].Lines[1].Value, p.inv.Bag[3].Count, p.inv.Bag[0].Gems[1] = 9, 13, ""
+	if st.Items[0].Lines[1].Value != 3 || st.Items[1].Count != 12 || st.Items[0].Gems[1] != "gem_hp_1" {
 		t.Fatal("the player shares lines or items with the saved rows")
 	}
 }
 
-// inventoryUpdate lists the asked slots as they are; an empty one has no item.
+// inventoryUpdate lists the asked slots as they are, holes and gems
+// included; an empty one has no item.
 func TestInventoryUpdate(t *testing.T) {
 	inv := gearInventory()
+	inv.Worn[0].Gems = []string{"gem_attack_1", ""}
 	got := inventoryUpdate(inv, []int{3, 1}, []int{0, 9})
 	want := &pb.InventoryUpdate{
-		Bag:      []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 12}}, {Slot: 1}},
-		Equipped: []*pb.ItemSlot{{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_weapon_viem", Count: 1}}, {Slot: 9}},
+		Bag: []*pb.ItemSlot{{Slot: 3, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 12}}, {Slot: 1}},
+		Equipped: []*pb.ItemSlot{{Slot: 0, Item: &pb.ItemInfo{Code: "eq10_weapon_viem", Count: 1,
+			Holes: 2, Gems: []string{"gem_attack_1", ""}}}, {Slot: 9}},
 	}
 	if !proto.Equal(got, want) {
 		t.Fatalf("update %v, want %v", got, want)
