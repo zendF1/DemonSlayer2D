@@ -147,7 +147,7 @@ Chính xác, né tránh và tỷ lệ chí mạng chỉ hiển thị ở Giai đ
   1. Mỗi đòn trúng quái cho EXP ngay: EXP = sát thương × EXP gốc / HP tối đa của quái. Ví dụ quái 1.000 HP, 100 EXP: đòn 100 sát thương cho 10 EXP.
   2. Sát thương thừa không tính: sát thương tính EXP tối đa bằng HP còn lại của quái trước đòn, nên một con không trả quá EXP gốc. `Hit.damage` vẫn gửi đủ sát thương.
   3. Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và EXP đã trả cho từng người chơi. Mỗi đòn trả floor(EXP gốc × tổng sát thương / HP tối đa) − EXP đã trả. Một người tự hạ quái cấp 1 (56 HP, 10 EXP, mỗi nhát 14) nhận đúng 10 EXP, lần lượt 2, 3, 2, 3.
-  4. Quái về chỗ và hồi đầy HP (kéo quá xa rồi về, hoặc kẹt rồi được đặt lại chỗ cũ): EXP đã trả giữ nguyên, bảng sát thương và EXP đã trả của con quái về 0.
+  4. ~~Quái về chỗ và hồi đầy HP (kéo quá xa rồi về, hoặc kẹt rồi được đặt lại chỗ cũ): EXP đã trả giữ nguyên, bảng sát thương và EXP đã trả của con quái về 0.~~ Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 4.5: quái về vùng không hồi máu, bảng sát thương và EXP đã trả giữ nguyên.
   5. Đồ rơi (Giai đoạn 3) vẫn thuộc người kết liễu (game-design mục 5.8). Thưởng 5% tổ đội định lại ở Giai đoạn 5; Giai đoạn 1 chưa có tổ đội.
 - EXP cần để lên từ cấp L: 10 × L × (10 + 2 × (L − 1)^1,5) × hệ số cấp, làm tròn đến 10. Hệ số cấp: 4 × L / 3 khi L ≤ 9; 10 + 0,5 × (L − 10) khi L ≥ 10 (mục 2.2).
 - EXP lưu theo tổng tích lũy trong cấp hiện tại (`exp` là EXP đã có của cấp hiện tại). Đủ EXP thì lên cấp, trừ phần đã dùng, phần dư giữ lại; đủ thì lên nhiều cấp liền.
@@ -279,7 +279,7 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 | `internal/gateway` | Chuyển ba lệnh mới vào zone kèm kênh reply; rate limit `AttackReq` |
 | `internal/config`, `internal/app` | Biến `DATA_DIR`; nạp `gamedata` sau map |
 
-Ràng buộc ở `internal/world`: kích thước ô lưới tầm nhìn (AOI) phải không nhỏ hơn `aggro_range` lớn nhất của các loại quái, vì quái chỉ tìm người trong các ô lưới quanh nó; vi phạm thì `world.New` báo lỗi khi khởi động.
+Ràng buộc ở `internal/world`: kích thước ô lưới tầm nhìn (AOI) phải không nhỏ hơn `detect_range` lớn nhất của các loại quái (trước là `aggro_range`, đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 2.3), vì quái chỉ tìm người trong các ô lưới quanh nó; vi phạm thì `world.New` báo lỗi khi khởi động.
 | `cmd/botclient` | Chế độ `-fight N`: đi tới quái gần nhất, đánh cho tới khi hạ N con, in EXP và cấp |
 
 ### 6.2. Tick
@@ -358,7 +358,7 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
   - `GainExp`: lên nhiều cấp liền, giữ EXP dư, dừng ở cấp 90.
   - Sát thương tối thiểu 1.
 - `mapdata`, `gamedata`: mỗi lỗi dữ liệu ở mục 2.1 và 2.2 bị bắt; `data/monsters.json` khớp đầu ra của `monster_stats.py`.
-- `zone` (đồng hồ giả, số ngẫu nhiên cố định):
+- `zone` (đồng hồ giả, số ngẫu nhiên cố định). Các dòng về bãi, lang thang, nhận người, kéo về chỗ và đổi mục tiêu đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 8.1:
   - mở zone sinh đủ quái mỗi bãi, đúng khoảng cấp, đúng ô hợp lệ;
   - quái rảnh đi lang thang trong 2 ô quanh điểm sinh;
   - quái nhận người trong 4 ô, không nhận người trong khu an toàn;

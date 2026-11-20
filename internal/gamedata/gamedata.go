@@ -37,7 +37,13 @@ type Kind struct {
 	// SafeWaitSec is how long a chasing monster waits at the edge for a
 	// target that stays in a safe zone.
 	SafeWaitSec float64 `json:"safe_wait_sec"`
-	RespawnSec  float64 `json:"respawn_sec"`
+	// MarginGraceSec is how long a target may stay beyond the region margin
+	// before the monster gives up the chase.
+	MarginGraceSec float64 `json:"margin_grace_sec"`
+	// GrudgeSec is how long a monster remembers a player who hit it, and
+	// chases them on sight instead of shooting.
+	GrudgeSec  float64 `json:"grudge_sec"`
+	RespawnSec float64 `json:"respawn_sec"`
 }
 
 // Level holds the monster stats of one level. Defense serves as both
@@ -80,6 +86,7 @@ func Parse(b []byte) (*Data, error) {
 			"attack_range": k.AttackRange, "attack_sec": k.AttackSec, "speed": k.Speed,
 			"detect_range": k.DetectRange, "chase_range": k.ChaseRange, "shoot_sec": k.ShootSec,
 			"shoot_windup_sec": k.ShootWindupSec, "chase_speed": k.ChaseSpeed, "safe_wait_sec": k.SafeWaitSec,
+			"margin_grace_sec": k.MarginGraceSec, "grudge_sec": k.GrudgeSec,
 			"respawn_sec": k.RespawnSec,
 		} {
 			// The negated comparison also rejects NaN.

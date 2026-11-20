@@ -55,6 +55,7 @@ type monster struct {
 	target     uint64            // player it chases or attacks; 0 when none
 	chaseFrom  Vec2              // where the current chase started
 	safeSince  uint32            // tick its target was first seen in a safe zone this time; 0 while outside
+	outSince   uint32            // tick its target was first seen beyond the region margin this time; 0 while inside
 	attackers  map[uint64]uint32 // the last tick each player hit it
 	nextAttack uint32            // first tick it may hit again
 	stuck      uint32            // consecutive ticks a monster going back could not move
@@ -79,14 +80,17 @@ func (z *Zone) thinkMonsters() {
 			continue
 		}
 		switch m.state {
-		case wander:
-			if z.nearestShootable(m) != nil {
+		case wander, shoot:
+			if p := z.grudgeTarget(m); p != nil {
+				z.startChase(m, p.id)
+				z.fight(m)
+			} else if m.state == shoot {
+				z.shoot(m)
+			} else if z.nearestShootable(m) != nil {
 				z.startShoot(m)
 			} else {
 				z.wander(m)
 			}
-		case shoot:
-			z.shoot(m)
 		case chase, attack:
 			z.fight(m)
 		case back:
@@ -170,15 +174,41 @@ func (z *Zone) startWander(m *monster) {
 
 // startChase sets m on player id, the chase starting where m stands.
 func (z *Zone) startChase(m *monster, id uint64) {
-	m.target, m.state, m.chaseFrom, m.stuck, m.safeSince = id, chase, m.pos, 0, 0
+	m.target, m.state, m.chaseFrom, m.stuck, m.safeSince, m.outSince = id, chase, m.pos, 0, 0, 0
+}
+
+// grudgeTarget is the nearest player m bears a grudge against (spec 4.2): one
+// who hit it within GrudgeSec, is a valid target, and is within the detect
+// range with a clear line. Such a player is chased on sight, not shot.
+func (z *Zone) grudgeTarget(m *monster) *player {
+	z.forgetOldAttackers(m)
+	reach := float32(m.region.Kind.DetectRange)
+	var best *player
+	for id := range m.attackers {
+		p := z.validTarget(id)
+		if p != nil && distance(m.pos, p.pos) <= reach && !lineBlocked(z.area.Grid, m.pos, p.pos) && nearer(m, p, best) {
+			best = p
+		}
+	}
+	return best
+}
+
+// forgetOldAttackers drops the players who last hit m more than GrudgeSec ago.
+func (z *Zone) forgetOldAttackers(m *monster) {
+	old := z.ticks(m.region.Kind.GrudgeSec)
+	for id, at := range m.attackers {
+		if z.tickNo-at > old {
+			delete(m.attackers, id)
+		}
+	}
 }
 
 // chaseTarget returns m's target if m keeps chasing it (spec 4.4), and
 // whether m may hit it now. The target is let go when it is dead or gone,
 // when m is beyond the chase range of where the chase started, when it has
-// stayed in a safe zone for SafeWaitSec, or, outside a safe zone, when it is
-// beyond the region margin. While the target is in a safe zone m keeps it
-// but may not hit it, and the margin does not count.
+// stayed in a safe zone for SafeWaitSec, or, outside a safe zone, when it has
+// stayed beyond the region margin for MarginGraceSec. While the target is in
+// a safe zone m keeps it but may not hit it, and the margin does not count.
 func (z *Zone) chaseTarget(m *monster) (*player, bool) {
 	p := z.players[m.target]
 	k := &m.region.Kind
@@ -195,24 +225,28 @@ func (z *Zone) chaseTarget(m *monster) (*player, bool) {
 		return p, false
 	}
 	m.safeSince = 0
-	if !m.region.nearMargin(p.pos, float32(k.RegionMargin)) {
+	if m.region.nearMargin(p.pos, float32(k.RegionMargin)) {
+		m.outSince = 0
+		return p, true
+	}
+	if m.outSince == 0 {
+		m.outSince = z.tickNo
+	}
+	if z.tickNo-m.outSince >= z.ticks(k.MarginGraceSec) {
 		return nil, false
 	}
 	return p, true
 }
 
-// fallback picks who m chases once it lets its target go: the nearest valid
-// player other than the old target who hit it within recentHitSec and stands
-// within the region margin. Older hits are forgotten.
+// fallback picks who m chases instead of its target: the nearest valid
+// player other than that target who hit it within recentHitSec and stands
+// within the region margin.
 func (z *Zone) fallback(m *monster, old uint64) *player {
+	z.forgetOldAttackers(m)
 	recent := z.ticks(recentHitSec)
 	var best *player
 	for id, at := range m.attackers {
-		if z.tickNo-at > recent {
-			delete(m.attackers, id)
-			continue
-		}
-		if id == old {
+		if id == old || z.tickNo-at > recent {
 			continue
 		}
 		if p := z.validTarget(id); p != nil && m.region.nearMargin(p.pos, float32(m.region.Kind.RegionMargin)) && nearer(m, p, best) {
@@ -224,22 +258,25 @@ func (z *Zone) fallback(m *monster, old uint64) *player {
 
 // fight runs a monster in chase or attack. First it lets its target go as
 // chaseTarget says; it then turns on a recent attacker, or goes back to its
-// region. A target waiting in a safe zone is walked up to as close as the
-// monster grid allows, so the monster stands at the edge. Otherwise it walks
-// up to the target and hits it every AttackSec once in range with a clear
-// line, the same line of sight a player's slash needs. It never shoots.
+// region. While the target waits in a safe zone, a recent attacker outside
+// is turned on at once; with none, the monster walks up to the target as
+// close as the monster grid allows, so it stands at the edge. Otherwise it
+// walks up to the target and hits it every AttackSec once in range with a
+// clear line, the same line of sight a player's slash needs. It never shoots.
 func (z *Zone) fight(m *monster) {
 	t, hittable := z.chaseTarget(m)
-	if t == nil {
-		if t = z.fallback(m, m.target); t == nil {
+	if !hittable {
+		if f := z.fallback(m, m.target); f != nil {
+			t = f
+			z.startChase(m, t.id) // fallback only picks hittable players
+		} else if t == nil {
 			z.startBack(m)
 			return
+		} else {
+			m.state = chase
+			z.chaseStep(m, t)
+			return
 		}
-		z.startChase(m, t.id) // fallback only picks hittable players
-	} else if !hittable {
-		m.state = chase
-		z.chaseStep(m, t)
-		return
 	}
 	k := &m.region.Kind
 	if m.state == attack && !z.canHit(m, t) {

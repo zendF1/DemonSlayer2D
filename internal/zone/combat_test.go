@@ -666,7 +666,7 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 	z.area.Grid = gridFrom(rows...)
 	z.mgrid = z.area.monsterGrid()
 	joinNow(t, z, 1, 49.3, 33.5)
-	m.pos = Vec2{48.5, 34.3}
+	m.pos = Vec2{47.6, 34.4} // far enough back that it needs more than a tick to see round the corner
 	z.updateCell(&m.entity)
 	engage(m, 1)
 	p := z.players[1]
@@ -689,7 +689,7 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 	if hitAt == 0 {
 		t.Fatalf("never hit: %v at %v, %.2f tiles away", m.state, m.pos, distance(m.pos, p.pos))
 	}
-	if m.pos == start {
+	if hitAt == 1 || m.pos == start {
 		t.Fatalf("hit on tick %d from %v, want it to walk round the corner from %v first", hitAt, m.pos, start)
 	}
 	if m.state != attack || p.hp != 480 {
@@ -793,7 +793,7 @@ func boxRegion(t *testing.T, k gamedata.Kind) (*Zone, *monster) {
 func chasing(m *monster) bool { return m.state == chase || m.state == attack }
 
 // A player who leads a chase more than region_margin tiles beyond the region's
-// rects is let go within a tick. The monster keeps its HP, walks back onto
+// rects is let go once it has stayed there for margin_grace_sec. The monster keeps its HP, walks back onto
 // the region and wanders (spec 4.4, 4.5).
 func TestChaseGivesUpOutsideRegionMargin(t *testing.T) {
 	k := testKind
@@ -807,9 +807,11 @@ func TestChaseGivesUpOutsideRegionMargin(t *testing.T) {
 	hp := m.hp
 	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}}) // east, faster than it walks
 	edge := float32(25 + 11 + k.RegionMargin)       // x where the expanded rect ends
+	grace := z.ticks(k.MarginGraceSec)
 	p := z.players[1]
 	now := time.Now()
 	gaveUp := false
+	var outAt uint32
 	for i := 0; i < 100 && !gaveUp; i++ {
 		z.advance(now)
 		for _, c := range hpChangesIn(a.take()) {
@@ -817,12 +819,17 @@ func TestChaseGivesUpOutsideRegionMargin(t *testing.T) {
 				t.Fatalf("tick %d: HpChange %v for the monster, want its HP untouched", i, c)
 			}
 		}
+		if p.pos.X >= edge && outAt == 0 {
+			outAt = z.tickNo
+		}
 		switch {
-		case p.pos.X < edge && !chasing(m):
-			t.Fatalf("tick %d: player at x %.2f, inside the margin, but state %v", i, p.pos.X, m.state)
-		case p.pos.X >= edge:
+		case outAt == 0 || z.tickNo < outAt+grace:
+			if !chasing(m) || m.target != 1 {
+				t.Fatalf("tick %d: player at x %.2f, out since tick %d, but state %v target %d", z.tickNo, p.pos.X, outAt, m.state, m.target)
+			}
+		default:
 			if chasing(m) || m.target != 0 {
-				t.Fatalf("tick %d: player at x %.2f, beyond the margin, but state %v target %d", i, p.pos.X, m.state, m.target)
+				t.Fatalf("tick %d: player beyond the margin for %d ticks, but state %v target %d", z.tickNo, grace, m.state, m.target)
 			}
 			gaveUp = true
 		}
@@ -1050,6 +1057,284 @@ func TestSafeZoneWaitResets(t *testing.T) {
 	}
 }
 
+// ______________________TEST ANTI-KITE_____________________
+
+// bot drives one player tick by tick and counts the hits it gives and takes.
+type bot struct {
+	z             *Zone
+	id            uint64
+	seq           uint32
+	slashes       int
+	melee, ranged int // hits taken
+}
+
+// newBot makes player id unkillable, so a run measures hits, not deaths.
+func newBot(z *Zone, id uint64) *bot {
+	z.players[id].hp, z.players[id].maxHP = 1<<30, 1<<30
+	return &bot{z: z, id: id, seq: 100}
+}
+
+func (b *bot) p() *player { return b.z.players[b.id] }
+
+// slashReady reports whether a slash sent now is off cooldown next tick.
+func (b *bot) slashReady() bool {
+	p := b.p()
+	return p.lastAttack == 0 || b.z.tickNo+1-p.lastAttack >= b.z.ticks(combat.SlashCooldown.Seconds())
+}
+
+// canSlash reports whether a slash at m sent now would be accepted.
+func (b *bot) canSlash(m *monster) bool {
+	p := b.p()
+	return !b.z.area.InSafe(p.pos) && b.slashReady() && distance(p.pos, m.pos) <= combat.SlashRange+attackRangeSlack &&
+		!lineBlocked(b.z.area.Grid, p.pos, m.pos)
+}
+
+// act sets the bot's direction for the next tick and, if slash is set, slashes it.
+func (b *bot) act(dir Vec2, slash uint64) {
+	b.seq++
+	b.z.move(moveCmd{id: b.id, seq: b.seq, dir: dir})
+	if slash != 0 {
+		b.seq++
+		b.z.Attack(b.id, b.seq, slash)
+	}
+}
+
+// tickBots runs one tick and counts its hits for the bots.
+func tickBots(z *Zone, bots ...*bot) {
+	z.advance(time.Now())
+	for _, h := range z.events.hits {
+		for _, b := range bots {
+			if h.TargetId == b.id && h.Ranged {
+				b.ranged++
+			} else if h.TargetId == b.id {
+				b.melee++
+			}
+			if h.AttackerId == b.id {
+				b.slashes++
+			}
+		}
+	}
+}
+
+func unit(a, b Vec2) Vec2 {
+	d := distance(a, b)
+	if d == 0 {
+		return Vec2{}
+	}
+	return Vec2{(b.X - a.X) / d, (b.Y - a.Y) / d}
+}
+
+// A player who slashes near the region edge and runs straight out is hit:
+// the monster reaches as far as a slash (2.0 tiles), and a target beyond the
+// margin is chased on for margin_grace_sec (spec 4.4).
+func TestMarginKiteGetsHit(t *testing.T) {
+	for _, c := range []struct {
+		name            string
+		monster, player float32 // x on row 30.5; the box region ends at x 36, its margin at 39
+	}{
+		{"from 1.4 tiles outside the region", 35.5, 37.4},
+		{"from beyond the margin", 37.6, 39.5},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m := boxRegion(t, testKind)
+			m.pos = Vec2{c.monster, 30.5}
+			z.updateCell(&m.entity)
+			joinNow(t, z, 1, c.player, 30.5)
+			b := newBot(z, 1)
+			b.act(Vec2{1, 0}, m.id) // slash and run east
+			tickBots(z, b)
+			if b.slashes != 1 {
+				t.Fatalf("setup: the slash did not land")
+			}
+			for i := 0; i < 30 && b.melee == 0; i++ {
+				b.act(Vec2{1, 0}, 0)
+				tickBots(z, b)
+			}
+			if b.melee == 0 {
+				t.Fatalf("the player ran off unhit: state %v target %d, monster at %v, player at %v", m.state, m.target, m.pos, b.p().pos)
+			}
+		})
+	}
+}
+
+// The review's corner poke at r1's safe-zone corner (11,11): the player waits
+// inside, walks out, slashes the first tick it can and walks back to its
+// start, again and again. Over about 2000 starts, directions and monster
+// positions, no run may kill the monster without the player taking a hit.
+func TestCornerPokeGetsHit(t *testing.T) {
+	dirs := []Vec2{{0.4472, 0.8944}, {0.8944, 0.4472}, {0.7071, 0.7071}, {0, 1}, {1, 0}}
+	tries, kills, free := 0, 0, 0
+	for _, ms := range []Vec2{{11.3, 9.5}, {11.3, 6.5}, {9.5, 11.3}, {6.5, 11.3}} {
+		for sx := float32(6.0); sx < 11; sx += 0.5 {
+			for sy := float32(6.0); sy < 11; sy += 0.5 {
+				for _, d := range dirs {
+					z, _ := lRegion(t, 1, 1)
+					var m *monster
+					for _, mm := range z.monsters {
+						m = mm
+					}
+					m.pos = ms
+					z.updateCell(&m.entity)
+					joinNow(t, z, 1, sx, sy)
+					b := newBot(z, 1)
+					if !z.area.InSafe(b.p().pos) {
+						continue
+					}
+					start := Vec2{sx, sy}
+					engage(m, 1)
+					m.attackers[1] = 1
+					tries++
+					out := true
+					for i := 0; i < 3000 && !m.dead && b.melee == 0; i++ {
+						p := b.p()
+						var dir Vec2
+						var s uint64
+						switch {
+						case !z.area.InSafe(p.pos) && b.canSlash(m):
+							s, dir, out = m.id, Vec2{-d.X, -d.Y}, false
+						case !out && distance(p.pos, start) > 0.21:
+							dir = unit(p.pos, start)
+						case !out:
+							if b.slashReady() {
+								out, dir = true, d
+							}
+						default:
+							dir = d
+						}
+						b.act(dir, s)
+						tickBots(z, b)
+					}
+					if m.dead {
+						kills++
+						if b.melee+b.ranged == 0 {
+							free++
+							if free <= 3 {
+								t.Errorf("killed with no hit taken: monster at %v, start %v, dir %v, %d slashes", ms, start, d, b.slashes)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	t.Logf("%d corner pokes, %d kills, %d without a hit taken", tries, kills, free)
+	if tries < 1000 {
+		t.Fatalf("only %d tries", tries)
+	}
+}
+
+// pokeRun is the review's poke from inside the safe edge: wait inside until
+// ready says so, step out, slash on the first tick it can, step back in.
+func pokeRun(t *testing.T, ready func(z *Zone, m *monster, b *bot) bool) (*monster, *bot) {
+	t.Helper()
+	z, m := safeEdgeZone(t)
+	joinNow(t, z, 1, 10.9, 5.5)
+	b := newBot(z, 1)
+	in, out := Vec2{-1, 0}, Vec2{1, 0}
+	waiting := true
+	for i := 0; i < 3000 && !m.dead; i++ {
+		inSafe := z.area.InSafe(b.p().pos)
+		switch {
+		case !inSafe && b.canSlash(m):
+			b.act(in, m.id)
+			waiting = true
+		case !inSafe:
+			b.act(in, 0)
+			waiting = true
+		case waiting && b.slashReady() && ready(z, m, b):
+			b.act(out, 0)
+			waiting = false
+		default:
+			b.act(Vec2{}, 0)
+		}
+		tickBots(z, b)
+	}
+	return m, b
+}
+
+// A player who hides until the monster gives up waiting, then pokes again,
+// is chased and hit at once: the monster bears a grudge (spec 4.2).
+func TestWaitOutPokeGetsHit(t *testing.T) {
+	m, b := pokeRun(t, func(z *Zone, m *monster, b *bot) bool { return m.target == 0 })
+	if b.slashes == 0 {
+		t.Fatal("the player never slashed")
+	}
+	if b.melee == 0 {
+		t.Fatalf("%d slashes (dead %v, %d HP) without the player taking a hit", b.slashes, m.dead, m.hp)
+	}
+}
+
+// While a monster waits at the safe edge for A, B's slash turns it on B,
+// who is hit (spec 4.4).
+func TestBaitDoesNotProtectSecondPlayer(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
+	joinNow(t, z, 1, 11.6, 5.5)
+	a := newBot(z, 1)
+	a.act(Vec2{-1, 0}, m.id) // A slashes and runs into the safe rect (0,0,10,10)
+	tickBots(z, a)
+	for i := 0; i < 10; i++ {
+		a.act(Vec2{-1, 0}, 0)
+		tickBots(z, a)
+	}
+	if !z.area.InSafe(a.p().pos) || m.target != 1 || !chasing(m) {
+		t.Fatalf("setup: A at %v, target %d state %v, want the monster waiting for A in the safe zone", a.p().pos, m.target, m.state)
+	}
+	a.act(Vec2{}, 0)
+	joinNow(t, z, 2, m.pos.X+1.2, m.pos.Y+1.2)
+	b := newBot(z, 2)
+	b.act(Vec2{}, m.id)
+	tickBots(z, a, b)
+	if b.slashes != 1 || m.target != 2 || !chasing(m) {
+		t.Fatalf("B slashes %d, target %d state %v, want the monster on B", b.slashes, m.target, m.state)
+	}
+	for i := 0; i < 20 && b.melee == 0; i++ {
+		b.act(Vec2{}, 0)
+		tickBots(z, a, b)
+	}
+	if b.melee == 0 {
+		t.Fatal("B was never hit")
+	}
+}
+
+// A grudge lasts grudge_sec from the player's last hit: within it, the player
+// stepping into sight is chased at once; after it, the player is shot again
+// like any passer-by (spec 4.2).
+func TestGrudgeExpires(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		after float64 // seconds from the hit to stepping out
+		chase bool
+	}{{"within the grudge", 7, true}, {"after the grudge", 10.1, false}} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
+			joinNow(t, z, 1, 12.5, 5.5)
+			attackNow(t, z, 1, 1, m.id)
+			hitAt := z.tickNo
+			teleport(z, 1, Vec2{5.5, 5.5}) // deep in the safe zone
+			now := time.Now()
+			for z.tickNo < hitAt+z.ticks(c.after)-1 {
+				z.advance(now)
+			}
+			if m.state != wander {
+				t.Fatalf("state %v before stepping out, want it wandering after the safe-zone wait", m.state)
+			}
+			teleport(z, 1, Vec2{m.pos.X + 1, m.pos.Y + 3.5}) // in sight, out of its reach
+			z.advance(now)
+			if c.chase && (!chasing(m) || m.target != 1) {
+				t.Fatalf("state %v target %d, want an instant chase", m.state, m.target)
+			}
+			if !c.chase {
+				if chasing(m) || m.state != shoot {
+					t.Fatalf("state %v target %d, want it shooting, not chasing", m.state, m.target)
+				}
+				if hs := nextShot(t, z); len(hs) != 1 || hs[0].TargetId != 1 {
+					t.Fatalf("shots %v, want player 1 shot", hs)
+				}
+			}
+		})
+	}
+}
+
 // Once chasing, a monster keeps its target when someone else hits it, but
 // remembers when each one last hit it.
 func TestChaseKeepsTargetWhenOthersHit(t *testing.T) {
@@ -1099,7 +1384,7 @@ func TestChaseFallsBackToRecentAttacker(t *testing.T) {
 			if m.target != 1 {
 				t.Fatalf("target %d, want A", m.target)
 			}
-			teleport(z, 1, Vec2{50.5, 30.5}) // beyond the margin
+			z.damagePlayer(z.players[1], 0, 10000, false) // A dies: the monster lets it go
 			if c.bOut {
 				teleport(z, 2, Vec2{30.5, 50.5})
 			}
@@ -1135,7 +1420,9 @@ func TestDeadAttackerIsNotFallenBackOn(t *testing.T) {
 		t.Fatalf("B dead %v valid %v, target %d: want B back and valid, A still chased", b.dead, z.validTarget(2) != nil, m.target)
 	}
 	teleport(z, 1, Vec2{50.5, 30.5}) // A leaves the margin
-	z.advance(time.Now())
+	for i := 0; i < 40 && chasing(m) && m.target == 1; i++ {
+		z.advance(time.Now())
+	}
 	if m.target != 0 || chasing(m) {
 		t.Fatalf("target %d state %v, want the chase given up, not B chased", m.target, m.state)
 	}
@@ -1151,7 +1438,7 @@ func TestGiveUpOnRegionTileWandersAtOnce(t *testing.T) {
 	z.updateCell(&m.entity)
 	joinNow(t, z, 1, 31.7, 30.3)
 	engage(m, 1)
-	teleport(z, 1, Vec2{50.5, 30.5}) // beyond the margin
+	z.damagePlayer(z.players[1], 0, 10000, false) // the target dies: the monster lets it go
 	z.advance(time.Now())
 	if m.state != wander || m.target != 0 || m.pos != (Vec2{30.7, 30.3}) || m.dir != (Vec2{}) {
 		t.Fatalf("state %v target %d at %v dir %v, want wandering where it stood", m.state, m.target, m.pos, m.dir)
@@ -1384,7 +1671,7 @@ func TestAttackHitsAndAggro(t *testing.T) {
 	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
 	// Too short-sighted to notice the attacker by itself: only the hit can make it chase.
 	m.region.Kind.DetectRange = 0.5
-	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range with the slack, out of its attack range
+	a := joinNow(t, z, 1, 32.4, 30.5) // 1.9 tiles: in slash range with the slack, and so in its 2.0 attack range
 	v := joinNow(t, z, 2, 30.5, 36.5) // a viewer
 	a.take()
 	v.take()
@@ -1403,14 +1690,14 @@ func TestAttackHitsAndAggro(t *testing.T) {
 	if m.hp != 56-14 {
 		t.Fatalf("monster hp %d, want 42", m.hp)
 	}
-	// The monster, chasing faster than 1.9-1.5 tiles a tick, may hit back on
-	// the same tick; only the slash is checked here.
-	slashes := func(hs []*pb.Hit) []*pb.Hit {
-		return slices.DeleteFunc(hs, func(h *pb.Hit) bool { return h.AttackerId != 1 })
+	// The slash turns the monster on its attacker, who stands within its
+	// reach, so it hits back on the same tick: 30*(1-10/30) = 20.
+	want := []*pb.Hit{
+		{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42},
+		{AttackerId: m.id, TargetId: 1, Damage: 20, HpAfter: 480},
 	}
-	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: 14, HpAfter: 42}
-	for name, got := range map[string][]*pb.Hit{"attacker": slashes(hitsIn(envs)), "viewer": slashes(hitsIn(v.take()))} {
-		if len(got) != 1 || got[0].String() != want.String() {
+	for name, got := range map[string][]*pb.Hit{"attacker": hitsIn(envs), "viewer": hitsIn(v.take())} {
+		if len(got) != len(want) || got[0].String() != want[0].String() || got[1].String() != want[1].String() {
 			t.Fatalf("%s hits %v, want %v", name, got, want)
 		}
 	}
