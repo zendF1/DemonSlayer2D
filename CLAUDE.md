@@ -40,6 +40,7 @@ Config comes only from environment variables (see `README.md`). The Makefile als
 - Renaming an item code or shrinking `bag_size` in `item_stats.py` deletes the affected stored items at the next login (`world.knownItems` drops them); such a change needs a data migration.
 - Monster EXP is `HP × r(L)`, so the level-up table depends on monster HP. When monster HP changes, run `monster_stats.py` and `exp_table.py` together. `item_stats.py` and `monster_stats.py` (its reference gear) both read `equipment_balance.py`, so when gear stats change, run `item_stats.py`, `monster_stats.py` and `exp_table.py`.
 - Combat formulas live only in `internal/combat`.
+- Enhancement attempts, their costs, the hidden pity and the regen milestones live only in `internal/items`; the enhancement table, the regen milestones and `charm_protect` come from `item_stats.py`. Pity is stored per item (`character_items.pity`) and never sent to clients. The zone enhances only inside a safe zone, regenerates once a second in `runPlayerTimers` and sends the worn weapon's enhance level as `weapon_enhance`/`LookChange`.
 - EXP is paid per hit by damage share (`internal/zone/progression.go`), only when player and monster are within 10 levels. Xu and drops go to the killer only: Xu straight into the wallet, items on the ground, seen and picked up only by the killer's character, gone after 60 s.
 - Proto names must stay valid in GDScript (no field named `message` or `class`, no message named `Error`) because the client generates code with godobuf.
 

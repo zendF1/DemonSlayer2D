@@ -337,6 +337,8 @@ Mỗi món đạt mốc cường hóa cố định sẽ kích hoạt hồi theo 
 - **Món hồi MP:** Vũ khí, Dây chuyền, Ngọc bội, Nhẫn trái, Nhẫn phải.
 - Đủ 10 món +15: hồi **1,5% HP tối đa và 25 MP mỗi giây**.
 - Hồi cả khi đang giao chiến, mỗi giây một lần. Không hồi khi đã chết.
+- Phần lẻ của HP hồi được cộng dồn sang giây sau, nên món +7 ở cấp thấp vẫn có hồi: ví dụ 0,05% của 1.640 HP là 0,82 HP mỗi giây, giây đầu chưa hồi, giây thứ hai hồi 1 HP, sau 10 giây hồi 8 HP. HP đầy thì bỏ phần lẻ đang cộng dồn.
+- Chỉ tính món đang mặc đủ điều kiện mặc (đủ cấp, vũ khí đúng class).
 - HP hồi theo phần trăm vì HP tăng mạnh theo trang bị. MP hồi theo số cố định vì trang bị không cộng MP và chi phí MP của kỹ năng giống nhau cho mọi class. Nếu MP cũng hồi theo phần trăm thì class phép, vốn có nhiều MP hơn nhờ INT, sẽ được lợi thêm.
 - Tham chiếu: quái thường cùng cấp đánh mỗi 1,5 giây, mỗi đòn khoảng 4% HP, tức khoảng 2,7% HP mỗi giây. Đủ bộ +15 bù được khoảng một nửa sát thương của một con.
 
@@ -471,7 +473,7 @@ Giá trị mỗi dòng ẩn so với một dòng phụ cùng loại/cùng bậc:
 
 | Tính năng | Thiết kế hiện tại |
 | --- | --- |
-| Cường hóa | +1 đến +15, tiêu hao đá và Xu; +1 đến +4 thành công 100%; từ +5 tỷ lệ giảm, thất bại có thể tụt cấp; bùa bảo vệ chống tụt cấp; mỗi lần thất bại cộng ẩn +1% tỷ lệ cho lần sau; mốc +7/+10/+12/+15 kích hoạt hồi HP/MP theo mục 2.7 |
+| Cường hóa | +1 đến +15, tiêu hao đá và Xu theo bảng chi phí dưới đây; +1 đến +4 thành công 100%; từ +5 tỷ lệ giảm, thất bại có thể tụt cấp; bùa bảo vệ chống tụt cấp; mỗi lần thất bại cộng ẩn +1% tỷ lệ cho lần sau; mốc +7/+10/+12/+15 kích hoạt hồi HP/MP theo mục 2.7 |
 | Khảm ngọc | Đục tối đa ba lỗ để khảm ngọc công, HP, xuyên giáp, kháng choáng… |
 | Tẩy luyện | Dùng đá tẩy và Xu để làm mới dòng phụ trên đồ Vàng/Cam/Đỏ |
 
@@ -576,6 +578,31 @@ Chỉ số nguyên từng món của cả năm dòng đồ thường ở mọi m
 | +15 | 10% | Giảm 1 cấp |
 
 Bùa bảo vệ chống tụt cấp, không tăng tỷ lệ thành công. Thất bại vẫn tiêu Xu, đá và bùa đã sử dụng; không phá hủy trang bị.
+
+**Chi phí mỗi lần thử** (bộ số ban đầu, cân chỉnh sau chơi thử; sinh bằng `docs/balance/item_stats.py`): mỗi lần thử tốn số đá cường hóa của cấp đích và Xu = hệ số của cấp đích × bậc món (Lữ Hành bậc 10, Xích Cương bậc 50).
+
+| Cấp đích | Đá | Hệ số Xu | Xu với Lữ Hành (bậc 10) | Xu với Xích Cương (bậc 50) |
+| --- | --- | --- | --- | --- |
+| +1 | 1 | 10 | 100 | 500 |
+| +2 | 1 | 15 | 150 | 750 |
+| +3 | 1 | 20 | 200 | 1.000 |
+| +4 | 1 | 25 | 250 | 1.250 |
+| +5 | 2 | 40 | 400 | 2.000 |
+| +6 | 2 | 50 | 500 | 2.500 |
+| +7 | 2 | 60 | 600 | 3.000 |
+| +8 | 3 | 80 | 800 | 4.000 |
+| +9 | 3 | 100 | 1.000 | 5.000 |
+| +10 | 3 | 120 | 1.200 | 6.000 |
+| +11 | 4 | 150 | 1.500 | 7.500 |
+| +12 | 4 | 180 | 1.800 | 9.000 |
+| +13 | 5 | 220 | 2.200 | 11.000 |
+| +14 | 5 | 260 | 2.600 | 13.000 |
+| +15 | 5 | 300 | 3.000 | 15.000 |
+
+- **Bùa bảo vệ** (`charm_protect`) là vật phẩm chồng, một lá mỗi lần thử, chỉ dùng được khi cấp đích từ +8, nơi thất bại có thể tụt cấp; dưới +8 server không lấy bùa. Tạp hóa bán bùa từ Giai đoạn 4.
+- **Cường hóa liên tục:** một lệnh thử tối đa 100 lần liên tiếp, dừng khi thành công, khi tụt cấp, khi hết đá, bùa hoặc Xu, hoặc khi đủ số lần. Mỗi lần thử vẫn độc lập và tốn đủ chi phí.
+- **Nơi cường hóa:** đứng bất cứ đâu trong khu an toàn, với món đang mặc hoặc trong hành trang, cho tới khi có NPC thợ rèn (Giai đoạn 4).
+- Chi phí trung bình từ +0 (mô phỏng): lên +10 khoảng 24 lượt, 56 đá và 83.000 Xu với đồ bậc 50 khi không dùng bùa; lên +15 có bùa từ +8 khoảng 37 lượt, 140 đá, 320.000 Xu và 30 bùa.
 
 **Tỷ lệ ẩn tích lũy khi thất bại:** kết quả vẫn ngẫu nhiên theo từng lần.
 - Mỗi lần thất bại cộng **+1 điểm phần trăm** vào tỷ lệ thành công thật của lần thử sau, tích lũy đến khi tỷ lệ thật đạt **100%**. Thất bại càng nhiều thì tỷ lệ thành công càng cao. Ví dụ lên +15 có tỷ lệ gốc 10%: sau 90 lần thất bại ở cấp đích này, lần thử tiếp theo chắc chắn thành công.

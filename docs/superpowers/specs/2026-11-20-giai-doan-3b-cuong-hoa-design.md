@@ -1,6 +1,6 @@
 # Giai đoạn 3b — Cường hóa và hồi theo mốc
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Server đã triển khai (kế hoạch 3b, Task 1–9); client chờ triển khai.
 
 Phần thứ hai của Giai đoạn 3 (xem bảng chia ở [spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.7 (hồi theo mốc cường hóa) và 3.3 (cường hóa, tỷ lệ ẩn, vũ khí phát sáng); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như spec 3a. 3b chạy sau khi 3a đã triển khai.
 
