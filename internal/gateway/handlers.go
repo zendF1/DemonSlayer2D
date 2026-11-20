@@ -70,6 +70,17 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.zoneBusyIfDropped(seq, c.member.Attack(seq, p.AttackReq.TargetId))
+	case *pb.Envelope_CastReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		if !c.casts.Allow() {
+			c.fail(seq, pb.ErrorCode_ERROR_CODE_RATE_LIMITED, "too many casts")
+			return
+		}
+		r := p.CastReq
+		// The zone turns a non-finite direction into zero.
+		c.zoneBusyIfDropped(seq, c.member.Cast(seq, r.SkillId, r.TargetId, r.DirX, r.DirY))
 	case *pb.Envelope_AllocatePointsReq:
 		if !c.inWorld(seq) {
 			return

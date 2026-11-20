@@ -3,6 +3,7 @@ package zone
 import (
 	"maps"
 	"math"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -2871,5 +2872,381 @@ func TestRestDoesNothingWhenFull(t *testing.T) {
 	if p.mp != p.stats.MaxMP || len(selfStatsIn(envs)) != 1 || len(hpChangesIn(envs)) != 0 {
 		t.Fatalf("mp %d/%d SelfStats %d HpChanges %v, want MP restored with only a SelfStats push",
 			p.mp, p.stats.MaxMP, len(selfStatsIn(envs)), hpChangesIn(envs))
+	}
+}
+
+// ______________________TEST CAST_____________________
+
+// repoSkills is the real skill data, data/skills.json.
+var repoSkills = func() map[string]gamedata.Skill {
+	b, err := os.ReadFile("../../data/skills.json")
+	if err != nil {
+		panic(err)
+	}
+	s, err := gamedata.ParseSkills(b)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}()
+
+// castSkills are what castZone's player has learned, all at level 1: two
+// actives of each Task 8 shape, a cone, and the passive.
+var castSkills = map[string]int{"thuy_1": 1, "thuy_2": 1, "thuy_3": 1, "thuy_4": 1}
+
+// castZone is newFightZone with the repo skills and a level-12 monster at
+// home that does not notice players by itself, so only hits make it chase.
+// Player 1, a level-12 Thủy with castSkills, joins at pos.
+func castZone(t *testing.T, home, pos Vec2) (*Zone, *monster, *player, *fakeOut) {
+	t.Helper()
+	z, m := newFightZone(t, 12, home)
+	z.area.Skills = repoSkills
+	m.region.Kind.DetectRange = 0.5
+	a := joinCaster(t, z, 1, pos)
+	a.take()
+	return z, m, z.players[1], a
+}
+
+// joinCaster joins a level-12 Thủy with castSkills at pos.
+func joinCaster(t *testing.T, z *Zone, id uint64, pos Vec2) *fakeOut {
+	t.Helper()
+	in := info(id, pos.X, pos.Y)
+	in.Class, in.Level, in.Skills = pb.CharClass_CHAR_CLASS_THUY, 12, castSkills
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// castNow queues a cast by id with seq and runs one tick.
+func castNow(t *testing.T, z *Zone, id uint64, seq uint32, skillID string, target uint64, dir Vec2) {
+	t.Helper()
+	if !z.Cast(id, seq, skillID, target, dir) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+func castRespAt(envs []*pb.Envelope, seq uint32) int {
+	for i, e := range envs {
+		if e.GetCastResp() != nil && e.Seq == seq {
+			return i
+		}
+	}
+	return -1
+}
+
+func castsIn(envs []*pb.Envelope) []*pb.Cast {
+	var cs []*pb.Cast
+	for _, wt := range ticksIn(envs) {
+		cs = append(cs, wt.Casts...)
+	}
+	return cs
+}
+
+// hitsBy are the hits by attacker in envs.
+func hitsBy(envs []*pb.Envelope, attacker uint64) []*pb.Hit {
+	var hs []*pb.Hit
+	for _, h := range hitsIn(envs) {
+		if h.AttackerId == attacker {
+			hs = append(hs, h)
+		}
+	}
+	return hs
+}
+
+// skillDamage is what p's skill s at level 1 does to a monster of level lv.
+func skillDamage(p *player, s gamedata.Skill, lv int) int {
+	base := combat.SkillBase(p.stats, s.Damage == gamedata.DamageMagic, s.CoefPct[0])
+	return combat.Damage(base, testLevels[lv].Defense, p.level)
+}
+
+// Each check of phase 2 spec 4.2 in order: a case breaks every later check
+// too, so the first failing one is answered. No error spends MP, starts a
+// cooldown or lands.
+func TestCastValidation(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	near := Vec2{32.5, 30.5} // 2 tiles from home: within thuy_1's 3 + 0.5
+	for _, c := range []struct {
+		name   string
+		player Vec2
+		skill  string
+		setup  func(z *Zone, m *monster, p *player) uint64 // returns the target id
+		code   pb.ErrorCode
+	}{
+		{"dead in a safe zone, no MP, unknown skill", Vec2{5.5, 5.5}, "nope", func(z *Zone, m *monster, p *player) uint64 {
+			p.dead, p.deadUntil, p.mp = true, z.tickNo+100, 0
+			return 999999
+		}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"in a safe zone, no MP, unknown skill", Vec2{5.5, 5.5}, "nope", func(z *Zone, m *monster, p *player) uint64 {
+			p.mp = 0
+			return 999999
+		}, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+		{"unknown skill", near, "nope", func(z *Zone, m *monster, p *player) uint64 { return m.id },
+			pb.ErrorCode_ERROR_CODE_SKILL_NOT_LEARNED},
+		{"another class's skill", near, "viem_1", func(z *Zone, m *monster, p *player) uint64 {
+			p.skills["viem_1"] = 1 // even if somehow learned
+			return m.id
+		}, pb.ErrorCode_ERROR_CODE_SKILL_NOT_LEARNED},
+		{"not learned", near, "thuy_5", func(z *Zone, m *monster, p *player) uint64 { return m.id },
+			pb.ErrorCode_ERROR_CODE_SKILL_NOT_LEARNED},
+		{"a passive", near, "thuy_3", func(z *Zone, m *monster, p *player) uint64 { return m.id },
+			pb.ErrorCode_ERROR_CODE_SKILL_NOT_LEARNED},
+		{"on cooldown, no MP, bad target", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
+			p.skillReady["thuy_1"] = z.tickNo + 5
+			p.mp = 0
+			return 999999
+		}, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN},
+		{"one MP short, bad target", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
+			p.mp = repoSkills["thuy_1"].MP[0] - 1
+			return 999999
+		}, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_MP},
+		{"unknown target", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { return 999999 },
+			pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"a player target", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
+			joinNow(t, z, 2, 31.5, 31.5)
+			return 2
+		}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"a dead monster", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { m.dead = true; return m.id },
+			pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"3.6 tiles away", Vec2{34.1, 30.5}, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { return m.id },
+			pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"a wall in between", Vec2{28.5, 30.5}, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
+			rows := make([]string, 60)
+			for y := range rows {
+				r := []byte(strings.Repeat(".", 60))
+				if y == 30 {
+					r[29] = '#'
+				}
+				rows[y] = string(r)
+			}
+			z.area.Grid = gridFrom(rows...)
+			z.mgrid = z.area.monsterGrid()
+			return m.id
+		}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		// Cone, line and target circles come in a later task; until then
+		// they are refused before anything is spent.
+		{"a shape not yet cast", near, "thuy_2", func(z *Zone, m *monster, p *player) uint64 { return m.id },
+			pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m, p, a := castZone(t, home, c.player)
+			target := c.setup(z, m, p)
+			mp, ready, hp := p.mp, maps.Clone(p.skillReady), m.hp
+			castNow(t, z, 1, 42, c.skill, target, Vec2{1, 0})
+			envs := a.take()
+			if er := errorFor(envs, 42); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v with seq 42", er, c.code)
+			}
+			if castRespAt(envs, 42) >= 0 || len(castsIn(envs)) != 0 || m.hp != hp {
+				t.Fatalf("a rejected cast must not land: hp %d want %d, casts %v", m.hp, hp, castsIn(envs))
+			}
+			if p.mp != mp || !maps.Equal(p.skillReady, ready) {
+				t.Fatalf("mp %d ready %v, want %d %v: a rejected cast spends nothing", p.mp, p.skillReady, mp, ready)
+			}
+		})
+	}
+}
+
+// A single-target skill hits for its own damage, names itself on the Hit,
+// spends MP, pays EXP and turns the monster on the caster; the reply comes
+// ahead of the WorldTick, which carries the Cast, and SelfStats follows.
+func TestCastSingleHitsAndAggro(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m, p, a := castZone(t, home, Vec2{33.99, 30.5}) // 3.49 tiles: in range with the slack
+	s := repoSkills["thuy_1"]
+	mp, exp := p.mp, p.exp
+	castNow(t, z, 1, 9, "thuy_1", m.id, Vec2{})
+	envs := a.take()
+	ri, wi := castRespAt(envs, 9), indexOfTick(envs)
+	if ri < 0 || wi < 0 || ri > wi {
+		t.Fatalf("CastResp at %d, WorldTick at %d (error %v): the reply must come first", ri, wi, errorFor(envs, 9))
+	}
+	dmg := skillDamage(p, s, 12)
+	if dmg <= 1 || m.hp != testLevels[12].HP-dmg {
+		t.Fatalf("monster hp %d, want %d - %d", m.hp, testLevels[12].HP, dmg)
+	}
+	want := &pb.Hit{AttackerId: 1, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp), SkillId: "thuy_1"}
+	if hs := hitsBy(envs, 1); len(hs) != 1 || hs[0].String() != want.String() {
+		t.Fatalf("hits %v, want %v", hs, want)
+	}
+	wantCast := &pb.Cast{CasterId: 1, SkillId: "thuy_1", TargetId: m.id, DirX: -1}
+	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != wantCast.String() {
+		t.Fatalf("casts %v, want %v: dir points at the target", cs, wantCast)
+	}
+	if p.mp != mp-s.MP[0] || p.skillReady["thuy_1"] != z.tickNo+z.ticks(1.5) {
+		t.Fatalf("mp %d ready %d, want %d and %d", p.mp, p.skillReady["thuy_1"], mp-s.MP[0], z.tickNo+z.ticks(1.5))
+	}
+	si := slices.IndexFunc(envs, func(e *pb.Envelope) bool { return e.GetSelfStats() != nil })
+	if ss := selfStatsIn(envs); len(ss) != 1 || ss[0].Mp != int32(p.mp) || si < wi {
+		t.Fatalf("self stats %v, want one after the tick with mp %d", ss, p.mp)
+	}
+	if p.exp <= exp {
+		t.Fatalf("exp %d, want more than %d: a skill hit pays its EXP share", p.exp, exp)
+	}
+	if !chasing(m) || m.target != 1 || m.attackers[1] != z.tickNo {
+		t.Fatalf("state %v target %d attackers %v, want the monster chasing its caster", m.state, m.target, m.attackers)
+	}
+}
+
+// A slash and a skill both land in one tick: their cooldowns are separate.
+// The slash resolves first.
+func TestSlashAndCastSameTick(t *testing.T) {
+	z, m, p, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
+	z.Attack(1, 1, m.id)
+	castNow(t, z, 1, 2, "thuy_1", m.id, Vec2{})
+	envs := a.take()
+	if attackRespAt(envs, 1) < 0 || castRespAt(envs, 2) < 0 {
+		t.Fatalf("attack %v cast %v, want both accepted", errorFor(envs, 1), errorFor(envs, 2))
+	}
+	hs := hitsBy(envs, 1)
+	if len(hs) != 2 || hs[0].SkillId != "" || hs[1].SkillId != "thuy_1" {
+		t.Fatalf("hits %v, want the slash then the skill", hs)
+	}
+	if p.lastAttack != z.tickNo || p.skillReady["thuy_1"] <= z.tickNo {
+		t.Fatalf("lastAttack %d ready %v, want both cooldowns started", p.lastAttack, p.skillReady)
+	}
+}
+
+// A skill is on cooldown for z.ticks(cooldown_ms/1000) ticks, and other
+// skills are not held up by it.
+func TestCastCooldown(t *testing.T) {
+	z, m, p, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
+	castNow(t, z, 1, 1, "thuy_1", m.id, Vec2{})
+	cd := z.ticks(float64(repoSkills["thuy_1"].CooldownMS[0]) / 1000)
+	for i := uint32(1); i < cd-1; i++ {
+		z.advance(time.Now())
+	}
+	a.take()
+	castNow(t, z, 1, 2, "thuy_1", m.id, Vec2{}) // cd-1 ticks after the first
+	if er := errorFor(a.take(), 2); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("cast %d ticks later got %v, want ON_COOLDOWN", cd-1, er)
+	}
+	p.hp = p.maxHP                              // the monster has been hitting back
+	castNow(t, z, 1, 3, "thuy_1", m.id, Vec2{}) // cd ticks after the first
+	if envs := a.take(); castRespAt(envs, 3) < 0 {
+		t.Fatalf("cast %d ticks later refused: %v", cd, errorFor(envs, 3))
+	}
+	castNow(t, z, 1, 4, "thuy_4", 0, Vec2{})
+	if envs := a.take(); castRespAt(envs, 4) < 0 {
+		t.Fatalf("another skill refused: %v", errorFor(envs, 4))
+	}
+}
+
+func TestNewerCastReplacesPending(t *testing.T) {
+	z, m, _, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
+	z.Cast(1, 5, "thuy_1", m.id, Vec2{})
+	castNow(t, z, 1, 6, "thuy_1", m.id, Vec2{})
+	envs := a.take()
+	if er := errorFor(envs, 5); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("the replaced cast got %v, want ON_COOLDOWN", er)
+	}
+	if castRespAt(envs, 6) < 0 || len(hitsBy(envs, 1)) != 1 {
+		t.Fatalf("the newer cast must land once: %v", hitsBy(envs, 1))
+	}
+}
+
+// Liệt Oa (radius 2.5) hits a monster 2.4 tiles from the caster and not one
+// 2.6 away; it needs no target and its Cast has none and no direction.
+func TestCastCircleSelf(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m, p, a := castZone(t, home, Vec2{28.1, 30.5}) // m is 2.4 tiles east
+	if !z.spawn(m.region, Vec2{28.1, 33.1}) {         // 2.6 tiles south
+		t.Fatal("spawn failed")
+	}
+	var far *monster
+	for _, o := range z.monsters {
+		if o != m {
+			far = o
+		}
+	}
+	s := repoSkills["thuy_4"]
+	mp := p.mp
+	castNow(t, z, 1, 1, "thuy_4", 0, Vec2{0, 1})
+	envs := a.take()
+	if castRespAt(envs, 1) < 0 {
+		t.Fatalf("cast refused: %v", errorFor(envs, 1))
+	}
+	hs := hitsBy(envs, 1)
+	if len(hs) != 1 || hs[0].TargetId != m.id || hs[0].SkillId != "thuy_4" || int(hs[0].Damage) != skillDamage(p, s, 12) {
+		t.Fatalf("hits %v, want one thuy_4 hit on %d only", hs, m.id)
+	}
+	if far.hp != far.maxHP {
+		t.Fatal("the monster 2.6 tiles away was hit")
+	}
+	want := &pb.Cast{CasterId: 1, SkillId: "thuy_4"}
+	if cs := castsIn(envs); len(cs) != 1 || cs[0].String() != want.String() {
+		t.Fatalf("casts %v, want %v", cs, want)
+	}
+	if p.mp != mp-s.MP[0] {
+		t.Fatalf("mp %d, want %d", p.mp, mp-s.MP[0])
+	}
+}
+
+// A self-centred skill with nobody in reach is still a cast: MP, cooldown
+// and the Cast event, but no hits.
+func TestCastCircleSelfAlone(t *testing.T) {
+	z, _, p, a := castZone(t, Vec2{30.5, 30.5}, Vec2{40.5, 40.5})
+	mp := p.mp
+	castNow(t, z, 1, 1, "thuy_4", 0, Vec2{})
+	envs := a.take()
+	if castRespAt(envs, 1) < 0 || len(hitsIn(envs)) != 0 || len(castsIn(envs)) != 1 {
+		t.Fatalf("resp %d hits %v casts %v, want an accepted cast with no hits", castRespAt(envs, 1), hitsIn(envs), castsIn(envs))
+	}
+	if p.mp != mp-repoSkills["thuy_4"].MP[0] || p.skillReady["thuy_4"] != z.tickNo+z.ticks(4) {
+		t.Fatalf("mp %d ready %v, want MP spent and the cooldown started", p.mp, p.skillReady)
+	}
+}
+
+// The Cast goes to the caster and to whoever sees the caster, not further.
+func TestCastSeenByViewers(t *testing.T) {
+	z, m, _, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
+	v := joinNow(t, z, 2, 30.5, 36.5) // same AOI cell
+	f := joinNow(t, z, 3, 5.5, 5.5)   // three cells away
+	v.take()
+	f.take()
+	castNow(t, z, 1, 1, "thuy_1", m.id, Vec2{})
+	for name, o := range map[string]*fakeOut{"caster": a, "viewer": v} {
+		if cs := castsIn(o.take()); len(cs) != 1 || cs[0].CasterId != 1 {
+			t.Fatalf("%s casts %v, want the cast", name, cs)
+		}
+	}
+	if cs := castsIn(f.take()); len(cs) != 0 {
+		t.Fatalf("a far player got casts %v", cs)
+	}
+}
+
+// A non-finite cast direction reaches the zone as zero.
+func TestCastSanitisesDir(t *testing.T) {
+	z, m, p, _ := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
+	z.Cast(1, 1, "thuy_1", m.id, Vec2{float32(math.NaN()), 1})
+	z.drain()
+	if p.pendingCast == nil || p.pendingCast.dir != (Vec2{}) {
+		t.Fatalf("pending cast %+v, want a zero dir", p.pendingCast)
+	}
+	z.Cast(1, 2, "thuy_1", m.id, Vec2{3, 4})
+	z.drain()
+	if p.pendingCast.dir != (Vec2{0.6, 0.8}) {
+		t.Fatalf("dir %v, want (0.6, 0.8)", p.pendingCast.dir)
+	}
+}
+
+// monstersInBox finds the monsters inside a box across every AOI cell it
+// overlaps, not only the 3x3 around one cell.
+func TestMonstersInBox(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{9, 9})
+	for _, pos := range []Vec2{{41, 11}, {43, 11}, {25, 13}} {
+		if !z.spawn(m.region, pos) {
+			t.Fatal("spawn failed")
+		}
+	}
+	var got []Vec2
+	for _, o := range z.monstersInBox(Vec2{8, 8}, Vec2{42, 12}) {
+		got = append(got, o.pos)
+	}
+	slices.SortFunc(got, func(a, b Vec2) int { return int(a.X - b.X) })
+	if want := []Vec2{{9, 9}, {41, 11}}; !slices.Equal(got, want) {
+		t.Fatalf("in box %v, want %v", got, want)
 	}
 }

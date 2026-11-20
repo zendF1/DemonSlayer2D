@@ -19,12 +19,13 @@ const (
 // tickEvents are the combat events of one tick. syncView sends each viewer the
 // ones about entities it can see.
 //
-// Hits, deaths and level-ups are snapshots taken when they happen. An HP
+// Casts, hits, deaths and level-ups are snapshots taken when they happen. An HP
 // change records only the entity id, once per tick, and addEvents fills in
 // the HP and max HP the entity has at the end of the tick: clients apply hits
 // first and hp_changes last, so a heal recorded before a later hit in the
 // same tick cannot leave them showing too much HP.
 type tickEvents struct {
+	casts     []*pb.Cast
 	hits      []*pb.Hit
 	deaths    []*pb.Death
 	hpChanges []uint64 // entity ids, without duplicates
@@ -86,14 +87,20 @@ func (z *Zone) entityByID(id uint64) *entity {
 	return nil
 }
 
-// addEvents puts into wt the events p may see: hits whose attacker or target
-// is visible to p, and deaths, HP changes and level-ups of visible entities.
+// addEvents puts into wt the events p may see: casts by visible casters, hits
+// whose attacker or target is visible to p, and deaths, HP changes and
+// level-ups of visible entities.
 // A player always sees its own events. A Hit can name an entity p has had no
 // EntityEnter for (only one side in view); the client ignores unknown ids.
 func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
 	sees := func(id uint64) bool {
 		_, ok := p.visible[id]
 		return ok || id == p.id
+	}
+	for _, c := range z.events.casts {
+		if sees(c.CasterId) {
+			wt.Casts = append(wt.Casts, c)
+		}
 	}
 	for _, h := range z.events.hits {
 		if sees(h.AttackerId) || sees(h.TargetId) {
@@ -132,25 +139,33 @@ func (z *Zone) queueAttack(c attackCmd) {
 	p.pendingAttack = &c
 }
 
-// resolveAttacks resolves each player's pending attack, in id order, before
-// anyone moves (spec 6.2). Replies go out at once, ahead of the WorldTick.
+// resolveAttacks resolves each player's pending slash and then its pending
+// cast, player by player in id order, before anyone moves (spec 6.2, phase 2
+// spec 4.1). Replies go out at once, ahead of the WorldTick.
 func (z *Zone) resolveAttacks() {
 	for _, id := range slices.Sorted(maps.Keys(z.players)) {
 		p := z.players[id]
-		c := p.pendingAttack
-		if c == nil {
-			continue
+		if c := p.pendingAttack; c != nil {
+			p.pendingAttack = nil
+			z.resolveAttack(p, c)
 		}
-		p.pendingAttack = nil
-		m, code := z.checkAttack(p, c.target)
-		if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
-			z.replyError(p, c.seq, code)
-			continue
+		if c := p.pendingCast; c != nil {
+			p.pendingCast = nil
+			z.resolveCast(p, c)
 		}
-		p.lastAttack = z.tickNo
-		p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AttackResp{AttackResp: &pb.AttackResp{}}})
-		z.slash(p, m)
 	}
+}
+
+// resolveAttack checks p's slash c and lands it if it passes.
+func (z *Zone) resolveAttack(p *player, c *attackCmd) {
+	m, code := z.checkAttack(p, c.target)
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		z.replyError(p, c.seq, code)
+		return
+	}
+	p.lastAttack = z.tickNo
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AttackResp{AttackResp: &pb.AttackResp{}}})
+	z.slash(p, m)
 }
 
 // checkAttack validates an attack by p on target in the order of spec 5.1.
@@ -175,14 +190,20 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// slash lands p's default slash on m: p earns its EXP share of the hit, a
-// monster not already chasing turns on its attacker (spec 4.4), and one
-// brought to 0 HP dies.
+// slash lands p's default slash on m.
 func (z *Zone) slash(p *player, m *monster) {
-	dmg := combat.Damage(combat.SlashBase(p.stats), z.area.Levels[m.level].Defense, p.level)
+	z.strike(p, m, combat.SlashBase(p.stats), p.level, "")
+}
+
+// strike lands one hit by p on m of base damage before m's defense, from an
+// attacker of the given level; skillID names the skill, empty for the slash.
+// p earns its EXP share of the hit, a monster not already chasing turns on
+// its attacker (spec 4.4), and one brought to 0 HP dies.
+func (z *Zone) strike(p *player, m *monster, base, level int, skillID string) {
+	dmg := combat.Damage(base, z.area.Levels[m.level].Defense, level)
 	counted := min(dmg, m.hp) // overkill earns no EXP
 	m.hp -= counted
-	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: p.id, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp)})
+	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: p.id, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp), SkillId: skillID})
 	m.attackers[p.id] = z.tickNo
 	z.payExpShare(p, m, counted)
 	if m.state != chase && m.state != attack {

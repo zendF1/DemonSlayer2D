@@ -224,6 +224,13 @@ func (m *Membership) Learn(seq uint32, skillID string) bool {
 	return m.z.Learn(m.EntityID, seq, skillID)
 }
 
+// Cast queues casting skillID at target or along (dirX, dirY); the zone
+// sanitises the direction and answers seq on the outbox. It reports false if
+// the zone's inbox is full.
+func (m *Membership) Cast(seq uint32, skillID string, target uint64, dirX, dirY float32) bool {
+	return m.z.Cast(m.EntityID, seq, skillID, target, zone.Vec2{X: dirX, Y: dirY})
+}
+
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 

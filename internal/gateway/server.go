@@ -32,6 +32,7 @@ const (
 	packetsPerSec  = 30
 	movesPerSec    = 20
 	attacksPerSec  = 5
+	castsPerSec    = 5         // same as attacks (phase 2 spec 4.7)
 	maxPointsTotal = 1_000_000 // guards the zone's int arithmetic against overflow
 	dropStreakKick = 5         // consecutive seconds with dropped packets before kicking
 )

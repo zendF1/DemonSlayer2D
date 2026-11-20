@@ -517,17 +517,33 @@ func TestCombatProgressSurvivesLogout(t *testing.T) {
 	}
 }
 
-// AttackReq is limited to 5 per second with a burst of 5, so the 6th of six
-// written back to back is refused by the gateway. The first five reach the
-// zone, which may refuse them for its own reasons; only the 6th must be
-// RATE_LIMITED. Raw seqs are used so the replies can be matched by seq.
+// AttackReq and CastReq are each limited to 5 per second with a burst of 5,
+// so the 6th of six written back to back is refused by the gateway. The first
+// five reach the zone, which may refuse them for its own reasons; only the
+// 6th must be RATE_LIMITED.
 func TestAttackRateLimit(t *testing.T) {
+	sixthRateLimited(t, "ivan01", "Ivan", func(seq uint32) *pb.Envelope {
+		return &pb.Envelope{Seq: seq, Payload: &pb.Envelope_AttackReq{AttackReq: &pb.AttackReq{TargetId: 1}}}
+	})
+}
+
+func TestCastRateLimit(t *testing.T) {
+	sixthRateLimited(t, "ivan02", "Ivanka", func(seq uint32) *pb.Envelope {
+		return &pb.Envelope{Seq: seq, Payload: &pb.Envelope_CastReq{CastReq: &pb.CastReq{SkillId: "viem_1", TargetId: 1}}}
+	})
+}
+
+// sixthRateLimited writes six requests from req back to back and checks that
+// only the 6th is RATE_LIMITED. Raw seqs are used so the replies can be
+// matched by seq.
+func sixthRateLimited(t *testing.T, username, charName string, req func(seq uint32) *pb.Envelope) {
+	t.Helper()
 	s := startServer(t)
-	p := newPlayer(t, s, "ivan01", "Ivan", pb.CharClass_CHAR_CLASS_VIEM)
+	p := newPlayer(t, s, username, charName, pb.CharClass_CHAR_CLASS_VIEM)
 	ctx := ctxT(t)
 	const first, n = 1001, 6
 	for seq := uint32(first); seq < first+n; seq++ {
-		data, err := proto.Marshal(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_AttackReq{AttackReq: &pb.AttackReq{TargetId: 1}}})
+		data, err := proto.Marshal(req(seq))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -544,10 +560,10 @@ func TestAttackRateLimit(t *testing.T) {
 	})
 	for seq := uint32(first); seq < first+n-1; seq++ {
 		if code := replies[seq].GetError().GetCode(); code == pb.ErrorCode_ERROR_CODE_RATE_LIMITED {
-			t.Errorf("attack %d was rate limited, want only the 6th", seq-first+1)
+			t.Errorf("request %d was rate limited, want only the 6th", seq-first+1)
 		}
 	}
 	if code := replies[first+n-1].GetError().GetCode(); code != pb.ErrorCode_ERROR_CODE_RATE_LIMITED {
-		t.Fatalf("6th attack: %v, want RATE_LIMITED", replies[first+n-1])
+		t.Fatalf("6th request: %v, want RATE_LIMITED", replies[first+n-1])
 	}
 }

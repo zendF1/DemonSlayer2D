@@ -215,6 +215,14 @@ func (c *Client) Attack(ctx context.Context, target uint64) error {
 	return err
 }
 
+// Cast casts skillID at target or along (dirX, dirY) and waits for the
+// zone's reply.
+func (c *Client) Cast(ctx context.Context, skillID string, target uint64, dirX, dirY float32) error {
+	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_CastReq{CastReq: &pb.CastReq{
+		SkillId: skillID, TargetId: target, DirX: dirX, DirY: dirY}}})
+	return err
+}
+
 // AllocatePoints spends free potential points and returns the resulting stats.
 func (c *Client) AllocatePoints(ctx context.Context, p combat.Points) (*pb.SelfStats, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_AllocatePointsReq{AllocatePointsReq: &pb.AllocatePointsReq{

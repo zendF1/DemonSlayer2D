@@ -98,7 +98,10 @@ type player struct {
 	restTicks     uint32     // consecutive ticks standing still, alive, on a rest point
 	lastAttack    uint32     // tick of the last accepted attack; 0 means never
 	pendingAttack *attackCmd // this tick's attack, resolved after drain
-	statsDirty    bool       // send SelfStats after this tick's WorldTick
+	pendingCast   *castCmd   // this tick's cast, resolved after the attack
+	// skillReady maps a skill id to the first tick it may be cast again.
+	skillReady map[string]uint32
+	statsDirty bool // send SelfStats after this tick's WorldTick
 }
 
 type joinCmd struct {
@@ -420,6 +423,8 @@ func (z *Zone) handle(c any) {
 		z.respawn(c)
 	case learnCmd:
 		z.learn(c)
+	case castCmd:
+		z.queueCast(c)
 	}
 }
 
@@ -437,7 +442,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		},
 		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
-		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills),
+		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{},
 	}
 	if p.skills == nil {
 		p.skills = map[string]int{}

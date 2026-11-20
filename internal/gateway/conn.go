@@ -47,6 +47,7 @@ type conn struct {
 	packets     *rate.Limiter
 	moves       *rate.Limiter
 	attacks     *rate.Limiter
+	casts       *rate.Limiter
 	lastDropSec int64
 	dropStreak  int
 }
@@ -61,6 +62,7 @@ func (s *Server) newConn(ws *websocket.Conn, ip string) *conn {
 		packets: rate.NewLimiter(packetsPerSec, packetsPerSec),
 		moves:   rate.NewLimiter(movesPerSec, movesPerSec),
 		attacks: rate.NewLimiter(attacksPerSec, attacksPerSec),
+		casts:   rate.NewLimiter(castsPerSec, castsPerSec),
 	}
 	c.log = s.log.With("conn_id", c.id)
 	c.out = newOutbox(outboxSize, c.Kick)
