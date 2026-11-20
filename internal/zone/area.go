@@ -35,15 +35,16 @@ type Region struct {
 // the monsters that live there, the EXP table, the skills and the item data.
 // Levels, Exp, Skills and Items are shared between zones and read-only.
 type Area struct {
-	Grid    Grid
-	Safe    []Rect
-	Rests   []Circle
-	Respawn Vec2
-	Regions []Region
-	Levels  map[int]gamedata.Level
-	Exp     combat.ExpTable
-	Skills  map[string]gamedata.Skill
-	Items   *gamedata.Items
+	Grid  Grid
+	Safe  []Rect
+	Rests []Circle
+	// Respawns are the map's respawn points in id order (spec 3.6).
+	Respawns []Vec2
+	Regions  []Region
+	Levels   map[int]gamedata.Level
+	Exp      combat.ExpTable
+	Skills   map[string]gamedata.Skill
+	Items    *gamedata.Items
 }
 
 // InSafe reports whether the tile containing p is in a safe zone.
@@ -75,4 +76,19 @@ type monsterGrid struct{ a *Area }
 
 func (g monsterGrid) Blocked(tx, ty int) bool {
 	return g.a.Grid.Blocked(tx, ty) || g.a.safeTile(tx, ty)
+}
+
+// nearestRespawn is the respawn point closest to p; a tie goes to the earlier
+// point. An area without respawn points answers the origin.
+func (a *Area) nearestRespawn(p Vec2) Vec2 {
+	if len(a.Respawns) == 0 {
+		return Vec2{}
+	}
+	best, bestD := a.Respawns[0], distance(p, a.Respawns[0])
+	for _, r := range a.Respawns[1:] {
+		if d := distance(p, r); d < bestD {
+			best, bestD = r, d
+		}
+	}
+	return best
 }

@@ -491,13 +491,13 @@ func newMonsterZone(t *testing.T, tiles ...Vec2) (*Zone, *counterID) {
 	cfg := testConfig(10)
 	cfg.NewID = ids.id
 	area := Area{
-		Grid:    openGrid(60, 60),
-		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
-		Rests:   []Circle{{C: Vec2{3.5, 3.5}, R: 1.5}},
-		Respawn: Vec2{5.5, 5.5},
-		Regions: []Region{{ID: "r1", Tiles: tiles, Nest: tiles[0], Count: 3, MinLevel: 1, MaxLevel: 2, Kind: testKind}},
-		Levels:  testLevels,
-		Exp:     testExp,
+		Grid:     openGrid(60, 60),
+		Safe:     []Rect{{X: 0, Y: 0, W: 10, H: 10}},
+		Rests:    []Circle{{C: Vec2{3.5, 3.5}, R: 1.5}},
+		Respawns: []Vec2{{5.5, 5.5}},
+		Regions:  []Region{{ID: "r1", Tiles: tiles, Nest: tiles[0], Count: 3, MinLevel: 1, MaxLevel: 2, Kind: testKind}},
+		Levels:   testLevels,
+		Exp:      testExp,
 	}
 	return New(cfg, area, &fakeSaver{}, quietLog()), ids
 }
@@ -740,12 +740,12 @@ func newRegionZone(t *testing.T, seed uint64, regions ...Region) (*Zone, *counte
 	cfg.NewID = ids.id
 	cfg.Rand = rand.New(rand.NewPCG(seed, 2))
 	area := Area{
-		Grid:    openGrid(60, 60),
-		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
-		Respawn: Vec2{5.5, 5.5},
-		Regions: regions,
-		Levels:  testLevels,
-		Exp:     testExp,
+		Grid:     openGrid(60, 60),
+		Safe:     []Rect{{X: 0, Y: 0, W: 10, H: 10}},
+		Respawns: []Vec2{{5.5, 5.5}},
+		Regions:  regions,
+		Levels:   testLevels,
+		Exp:      testExp,
 	}
 	return New(cfg, area, &fakeSaver{}, quietLog()), ids
 }

@@ -30,11 +30,11 @@ func (z *Zone) respawn(c respawnCmd) {
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_RespawnResp{RespawnResp: &pb.RespawnResp{X: p.pos.X, Y: p.pos.Y}}})
 }
 
-// respawnPlayer brings dead p back at the map's respawn point with full HP and
-// MP. Viewers jump it there instead of interpolating.
+// respawnPlayer brings dead p back at the respawn point nearest to where it
+// died, with full HP and MP. Viewers jump it there instead of interpolating.
 func (z *Zone) respawnPlayer(p *player) {
 	p.dead, p.deadUntil, p.restTicks = false, 0, 0
-	p.pos = z.area.Respawn
+	p.pos = z.area.nearestRespawn(p.pos)
 	p.hp, p.mp = p.maxHP, p.stats.MaxMP
 	p.changed, p.snap = true, true
 	z.updateCell(&p.entity)

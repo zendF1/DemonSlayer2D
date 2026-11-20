@@ -527,6 +527,31 @@ func TestTakeoverGivesUpWhileQueued(t *testing.T) {
 
 // ______________________TEST AREA_____________________
 
+// Every respawn point of the map reaches the area, in id order.
+func TestAreaOfRespawns(t *testing.T) {
+	rows := make([]string, 20)
+	for i := range rows {
+		rows[i] = strings.Repeat(".", 20)
+	}
+	data, _ := json.Marshal(map[string]any{
+		"id": "m1", "name": "M1", "type": "training", "width": 20, "height": 20, "min_zones": 1, "collision": rows,
+		"spawn_points": []map[string]any{
+			{"id": "default", "x": 2.5, "y": 2.5, "respawn": true},
+			{"id": "arrive", "x": 10.5, "y": 10.5},
+			{"id": "camp_b", "x": 16.5, "y": 16.5, "respawn": true},
+		},
+		"safe_zones": []map[string]any{{"id": "camp", "x": 0, "y": 0, "w": 5, "h": 5}, {"id": "b", "x": 15, "y": 15, "w": 5, "h": 5}},
+	})
+	m, err := mapdata.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := areaOf(m, testMonsters)
+	if want := []zone.Vec2{{X: 16.5, Y: 16.5}, {X: 2.5, Y: 2.5}}; !slices.Equal(a.Respawns, want) {
+		t.Fatalf("respawns = %v, want %v", a.Respawns, want)
+	}
+}
+
 func TestAreaOf(t *testing.T) {
 	m := triggerMap(t)
 	a := areaOf(m, testMonsters)
@@ -539,8 +564,8 @@ func TestAreaOf(t *testing.T) {
 	if !slices.Equal(a.Rests, []zone.Circle{{C: zone.Vec2{X: 2.5, Y: 2.5}, R: 1.5}}) {
 		t.Fatalf("rests = %v", a.Rests)
 	}
-	if a.Respawn != (zone.Vec2{X: 2.5, Y: 2.5}) {
-		t.Fatalf("respawn = %v", a.Respawn)
+	if !slices.Equal(a.Respawns, []zone.Vec2{{X: 2.5, Y: 2.5}}) {
+		t.Fatalf("respawns = %v", a.Respawns)
 	}
 	if len(a.Regions) != 1 {
 		t.Fatalf("regions = %v", a.Regions)
@@ -631,7 +656,7 @@ func TestKumotoriSpawnSpreadsOut(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go z.Run(ctx)
 		out := newRecOut()
-		if err := z.Join(ctx, zone.PlayerInfo{EntityID: 1, CharID: 1, Name: "p", Level: 1, Pos: a.Respawn, HP: -1, MP: -1}, out); err != nil {
+		if err := z.Join(ctx, zone.PlayerInfo{EntityID: 1, CharID: 1, Name: "p", Level: 1, Pos: a.Respawns[0], HP: -1, MP: -1}, out); err != nil {
 			t.Fatal(err)
 		}
 		// The join's tick sends the EntityEnters. Before the first rest of

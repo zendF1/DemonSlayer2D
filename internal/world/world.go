@@ -108,8 +108,9 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 // view of the map. Region tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
 	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items}
-	sp := m.Spawns["default"]
-	a.Respawn = zone.Vec2{X: sp.X, Y: sp.Y}
+	for _, sp := range m.Respawns {
+		a.Respawns = append(a.Respawns, zone.Vec2{X: sp.X, Y: sp.Y})
+	}
 	for _, r := range m.SafeZones {
 		a.Safe = append(a.Safe, zone.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H})
 	}

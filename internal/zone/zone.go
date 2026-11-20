@@ -508,9 +508,10 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	}
 	z.recompute(p)
 	p.hp, p.mp = info.HP, info.MP // -1 = full
-	// HP 0: logged out dead, so back at the respawn point with full HP/MP (spec 3.6).
+	// HP 0: logged out dead, so back at the respawn point nearest to the saved
+	// position with full HP/MP (spec 3.6).
 	if p.hp == 0 {
-		p.pos, p.hp, p.mp = z.area.Respawn, -1, -1
+		p.pos, p.hp, p.mp = z.area.nearestRespawn(p.pos), -1, -1
 	}
 	if p.hp < 0 || p.hp > p.maxHP {
 		p.hp = p.maxHP

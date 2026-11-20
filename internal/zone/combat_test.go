@@ -33,9 +33,9 @@ func newFightZoneOf(t *testing.T, kind gamedata.Kind, level int, home Vec2) (*Zo
 	t.Helper()
 	cfg := testConfig(10)
 	area := Area{
-		Grid:    openGrid(60, 60),
-		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
-		Respawn: Vec2{5.5, 5.5},
+		Grid:     openGrid(60, 60),
+		Safe:     []Rect{{X: 0, Y: 0, W: 10, H: 10}},
+		Respawns: []Vec2{{5.5, 5.5}},
 		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Rects: []Rect{{X: 0, Y: 0, W: 60, H: 60}}, Nest: home,
 			Count: 1, MinLevel: level, MaxLevel: level, Kind: kind}},
 		Levels: testLevels,
@@ -340,7 +340,7 @@ func TestShotKillsPlayer(t *testing.T) {
 		t.Fatal("inbox full")
 	}
 	z.advance(now)
-	if r, _ := respawnRespFor(a.take(), 3); r == nil || p.dead || p.pos != z.area.Respawn || p.hp != p.maxHP {
+	if r, _ := respawnRespFor(a.take(), 3); r == nil || p.dead || p.pos != z.area.Respawns[0] || p.hp != p.maxHP {
 		t.Fatalf("respawn %v dead %v at %v hp %d, want alive and full at the respawn point", r, p.dead, p.pos, p.hp)
 	}
 }
@@ -1597,7 +1597,7 @@ func TestDeadAttackerIsNotFallenBackOn(t *testing.T) {
 	k := testKind
 	k.ChaseRange = 100
 	z, m := boxRegion(t, k)
-	z.area.Respawn = Vec2{28.5, 30.5} // inside the region, outside any safe zone
+	z.area.Respawns = []Vec2{{28.5, 30.5}} // inside the region, outside any safe zone
 	joinNow(t, z, 1, 31.5, 30.5)
 	joinNow(t, z, 2, 29.5, 30.5)
 	attackNow(t, z, 1, 1, m.id)  // A first: the target
@@ -2169,8 +2169,8 @@ func TestLevelUp(t *testing.T) {
 func TestLevelUpThenHitSameTick(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	area := Area{
-		Grid:    openGrid(60, 60),
-		Respawn: Vec2{5.5, 5.5},
+		Grid:     openGrid(60, 60),
+		Respawns: []Vec2{{5.5, 5.5}},
 		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Rects: []Rect{{X: 0, Y: 0, W: 60, H: 60}}, Nest: home,
 			Count: 2, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
 		Levels: testLevels,
@@ -2434,14 +2434,14 @@ func TestJoinDeadPlayerRespawns(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := z.players[1]
-	if p.pos != z.area.Respawn || p.cell != z.cellOf(z.area.Respawn) || p.dead {
-		t.Fatalf("at %v cell %v dead %v, want alive at the respawn point %v", p.pos, p.cell, p.dead, z.area.Respawn)
+	if p.pos != z.area.Respawns[0] || p.cell != z.cellOf(z.area.Respawns[0]) || p.dead {
+		t.Fatalf("at %v cell %v dead %v, want alive at the respawn point %v", p.pos, p.cell, p.dead, z.area.Respawns[0])
 	}
 	if p.hp != p.maxHP || p.mp != p.stats.MaxMP {
 		t.Fatalf("hp %d/%d mp %d/%d, want full", p.hp, p.maxHP, p.mp, p.stats.MaxMP)
 	}
 	r := out.take()[0].GetEnterWorldResp()
-	if r.X != z.area.Respawn.X || r.Y != z.area.Respawn.Y {
+	if r.X != z.area.Respawns[0].X || r.Y != z.area.Respawns[0].Y {
 		t.Fatalf("EnterWorldResp at %v,%v, want the respawn point", r.X, r.Y)
 	}
 }
@@ -2740,14 +2740,14 @@ func TestRespawnRequest(t *testing.T) {
 		t.Fatal("inbox full")
 	}
 	z.advance(time.Now())
-	if p.dead || p.pos != z.area.Respawn || p.cell != z.cellOf(z.area.Respawn) || p.hp != p.maxHP || p.mp != p.stats.MaxMP {
+	if p.dead || p.pos != z.area.Respawns[0] || p.cell != z.cellOf(z.area.Respawns[0]) || p.hp != p.maxHP || p.mp != p.stats.MaxMP {
 		t.Fatalf("after respawn dead %v at %v cell %v hp %d/%d mp %d/%d, want alive and full at %v",
-			p.dead, p.pos, p.cell, p.hp, p.maxHP, p.mp, p.stats.MaxMP, z.area.Respawn)
+			p.dead, p.pos, p.cell, p.hp, p.maxHP, p.mp, p.stats.MaxMP, z.area.Respawns[0])
 	}
 	envs := a.take()
 	r, ri := respawnRespFor(envs, 5)
-	if r == nil || r.X != z.area.Respawn.X || r.Y != z.area.Respawn.Y {
-		t.Fatalf("RespawnResp %v, want the respawn point %v", r, z.area.Respawn)
+	if r == nil || r.X != z.area.Respawns[0].X || r.Y != z.area.Respawns[0].Y {
+		t.Fatalf("RespawnResp %v, want the respawn point %v", r, z.area.Respawns[0])
 	}
 	if ti := indexOfTick(envs); ti < ri {
 		t.Fatalf("RespawnResp at %d after the WorldTick at %d", ri, ti)
@@ -2758,7 +2758,7 @@ func TestRespawnRequest(t *testing.T) {
 	ev := v.take()
 	wt := lastTick(ev)
 	mv := moveFor(wt, 1)
-	if mv == nil || !mv.Snap || mv.X != z.area.Respawn.X || mv.Y != z.area.Respawn.Y {
+	if mv == nil || !mv.Snap || mv.X != z.area.Respawns[0].X || mv.Y != z.area.Respawns[0].Y {
 		t.Fatalf("viewer move %v, want a snap to the respawn point", mv)
 	}
 	if cs := hpChangesIn(ev); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != int32(p.maxHP) {
@@ -2767,7 +2767,7 @@ func TestRespawnRequest(t *testing.T) {
 
 	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{0, 1}})
 	z.advance(time.Now())
-	if p.pos == z.area.Respawn {
+	if p.pos == z.area.Respawns[0] {
 		t.Fatal("a respawned player must be able to move")
 	}
 	if mv := moveFor(lastTick(v.take()), 1); mv == nil || mv.Snap {
@@ -2793,7 +2793,7 @@ func TestAutoRespawnAfter60s(t *testing.T) {
 	a.take()
 	v.take()
 	z.advance(now)
-	if p.dead || p.pos != z.area.Respawn || p.hp != p.maxHP {
+	if p.dead || p.pos != z.area.Respawns[0] || p.hp != p.maxHP {
 		t.Fatalf("tick %d: dead %v at %v hp %d, want respawned 60 s after death", z.tickNo, p.dead, p.pos, p.hp)
 	}
 	envs := a.take()
@@ -2843,8 +2843,8 @@ func TestMonsterDropsDeadTarget(t *testing.T) {
 func TestRespawnedPlayerIsNotChased(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	area := Area{
-		Grid:    openGrid(60, 60),
-		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside the detect range
+		Grid:     openGrid(60, 60),
+		Respawns: []Vec2{{24.5, 30.5}}, // 6 tiles from home: outside the detect range
 		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Rects: []Rect{{X: 0, Y: 0, W: 60, H: 60}}, Nest: home,
 			Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
 		Levels: testLevels,
@@ -2875,6 +2875,100 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 		if m.target == 1 {
 			t.Fatalf("tick %d: the monster chases the respawned player", i)
 		}
+	}
+}
+
+// ______________________TEST RESPAWN POINTS_____________________
+
+// newTwoCampZone is newFightZone with a second safe camp at (50,50) and the
+// respawn points (5.5, 5.5) and (55.5, 55.5), in that order.
+func newTwoCampZone(t *testing.T) *Zone {
+	t.Helper()
+	z, _ := newFightZone(t, 1, Vec2{30.5, 5.5})
+	z.area.Safe = append(z.area.Safe, Rect{X: 50, Y: 50, W: 10, H: 10})
+	z.area.Respawns = []Vec2{{5.5, 5.5}, {55.5, 55.5}}
+	return z
+}
+
+func TestNearestRespawn(t *testing.T) {
+	a := Area{Respawns: []Vec2{{5.5, 5.5}, {55.5, 55.5}}}
+	for _, c := range []struct{ at, want Vec2 }{
+		{Vec2{10, 10}, Vec2{5.5, 5.5}},
+		{Vec2{45.5, 45.5}, Vec2{55.5, 55.5}},
+		{Vec2{30.5, 30.5}, Vec2{5.5, 5.5}}, // a tie goes to the earlier point
+		{Vec2{55.5, 5.5}, Vec2{5.5, 5.5}},  // a tie the other way round too
+	} {
+		if got := a.nearestRespawn(c.at); got != c.want {
+			t.Errorf("nearestRespawn(%v) = %v, want %v", c.at, got, c.want)
+		}
+	}
+	if got := (&Area{}).nearestRespawn(Vec2{3, 3}); got != (Vec2{}) {
+		t.Errorf("no respawn points: %v, want the origin", got)
+	}
+}
+
+// A player dying nearer the second camp comes back there, both by request and
+// by the automatic respawn after 60 s; one dying halfway comes back at the first.
+func TestRespawnAtNearestPoint(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		at   Vec2
+		auto bool
+		want Vec2
+	}{
+		{"request near the second", Vec2{45.5, 45.5}, false, Vec2{55.5, 55.5}},
+		{"automatic near the second", Vec2{45.5, 45.5}, true, Vec2{55.5, 55.5}},
+		{"request halfway", Vec2{30.5, 30.5}, false, Vec2{5.5, 5.5}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z := newTwoCampZone(t)
+			a := joinNow(t, z, 1, c.at.X, c.at.Y)
+			p := z.players[1]
+			now := time.Now()
+			z.advance(now)
+			z.damagePlayer(p, 0, 10000, false)
+			if !p.dead {
+				t.Fatal("the player must be dead")
+			}
+			a.take()
+			if c.auto {
+				diedAt := z.tickNo
+				for z.tickNo < diedAt+z.ticks(autoRespawnSec) {
+					z.advance(now)
+				}
+			} else {
+				if !z.Respawn(1, 7) {
+					t.Fatal("inbox full")
+				}
+				z.advance(now)
+				if r, _ := respawnRespFor(a.take(), 7); r == nil || r.X != c.want.X || r.Y != c.want.Y {
+					t.Fatalf("RespawnResp %v, want %v", r, c.want)
+				}
+			}
+			if p.dead || p.pos != c.want || p.cell != z.cellOf(c.want) || p.hp != p.maxHP {
+				t.Fatalf("dead %v at %v hp %d/%d, want alive and full at %v", p.dead, p.pos, p.hp, p.maxHP, c.want)
+			}
+		})
+	}
+}
+
+// Joining with HP 0 from a saved position near the second camp puts the
+// player at the second camp with full HP and MP.
+func TestJoinDeadAtNearestRespawn(t *testing.T) {
+	z := newTwoCampZone(t)
+	in := info(1, 50.5, 40.5)
+	in.HP, in.MP = 0, 3
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	p, want := z.players[1], Vec2{55.5, 55.5}
+	if p.pos != want || p.cell != z.cellOf(want) || p.dead || p.hp != p.maxHP || p.mp != p.stats.MaxMP {
+		t.Fatalf("at %v dead %v hp %d/%d mp %d/%d, want alive and full at %v",
+			p.pos, p.dead, p.hp, p.maxHP, p.mp, p.stats.MaxMP, want)
+	}
+	if r := out.take()[0].GetEnterWorldResp(); r.X != want.X || r.Y != want.Y {
+		t.Fatalf("EnterWorldResp at %v,%v, want %v", r.X, r.Y, want)
 	}
 }
 
