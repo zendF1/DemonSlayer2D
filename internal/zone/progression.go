@@ -50,8 +50,9 @@ func (z *Zone) payExpShare(p *player, m *monster, counted int) {
 }
 
 // gainExp adds gain to p's EXP and pushes p its new stats. Each level gained
-// brings PointsPerLevel free points, one skill point (phase 2 spec 3.1) and
-// full HP and MP, and is saved at once (spec 6.3). A player at MaxLevel, or a gain of 0, changes nothing.
+// brings PointsPerLevel free points and one skill point (phase 2 spec 3.1);
+// a level-up also restores full HP and MP and is saved at once (spec 6.3). A
+// player at MaxLevel, or a gain of 0, changes nothing.
 func (z *Zone) gainExp(p *player, gain int64) {
 	if gain <= 0 {
 		return

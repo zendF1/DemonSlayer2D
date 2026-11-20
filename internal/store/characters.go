@@ -120,7 +120,9 @@ func (s *Store) GetCharacter(ctx context.Context, accountID, charID int64) (Char
 		return Character{}, ErrNotFound
 	}
 	if err == nil {
-		err = s.loadSkills(ctx, []Character{c})
+		chars := []Character{c}
+		err = s.loadSkills(ctx, chars)
+		c = chars[0]
 	}
 	if err != nil {
 		return Character{}, fmt.Errorf("store: get character: %w", err)

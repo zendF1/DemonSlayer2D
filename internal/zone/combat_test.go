@@ -2188,6 +2188,27 @@ func TestGiveUpKeepsExpTracking(t *testing.T) {
 
 // A player at the level cap gains nothing and gets no SelfStats push, even
 // from a monster close enough in level to pay EXP.
+// One gain that crosses two levels pays the points of both.
+func TestMultiLevelGain(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	in := info(1, 5.5, 5.5)
+	in.SkillPoints, in.FreePoints = 1, 3
+	if err := z.join(in, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	p := z.players[1]
+	z.gainExp(p, testExp.ToNext(1)+testExp.ToNext(2)+5)
+	if p.level != 3 || p.exp != 5 {
+		t.Fatalf("level %d exp %d, want 3 and 5", p.level, p.exp)
+	}
+	if p.skillPoints != 3 || p.freePoints != 23 {
+		t.Fatalf("skill points %d free points %d, want 1+2 and 3+20", p.skillPoints, p.freePoints)
+	}
+	if saves := sv.all(); len(saves) != 1 || saves[0].Level != 3 || saves[0].SkillPoints != 3 || saves[0].FreePoints != 23 {
+		t.Fatalf("saves %+v, want one save at level 3", saves)
+	}
+}
+
 func TestNoExpAtMaxLevel(t *testing.T) {
 	z, m := newFightZone(t, 85, Vec2{30.5, 30.5})
 	if !combat.ExpEligible(combat.MaxLevel, m.level) {
