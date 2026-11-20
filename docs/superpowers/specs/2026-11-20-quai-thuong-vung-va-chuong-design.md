@@ -165,6 +165,7 @@ Bốn trạng thái: **Lang thang**, **Bắn**, **Đuổi**, **Về vùng**. Qu�
 - **Ở ngoài vùng:** quái đi với `speed` tới ô gần nhất của vùng.
 - **Máu:** quái **không hồi máu**. Dữ liệu chia EXP giữ nguyên.
 - **Không bắn:** quái đang về không bắn chưởng, kể cả khi có người trong tầm; về tới ô của vùng và vào **Lang thang** thì mới tìm người để bắn.
+- **Nhớ thù:** mỗi tick, trước khi đi tiếp, quái đang về cũng xét nhớ thù như ở **Lang thang** và **Bắn** (mục 4.2): có người đã đánh nó trong `grudge_sec`, hợp lệ, trong `detect_range` và không bị tường che thì quái vào **Đuổi** người gần nhất ngay, không chờ độ trễ, và đánh luôn trong tick đó nếu đã trong tầm và hết hồi chiêu. Nhờ vậy người chơi không chọc được quái lúc nó vừa bỏ cuộc chờ ở mép khu an toàn và đang đi về.
 - **Bị đánh:** quái đang về vẫn đánh được, bị đánh thì vào lại **Đuổi**. Mã lỗi `INVALID_TARGET` không còn dùng cho quái đang về; mã này vẫn dùng cho mục tiêu không tồn tại hoặc đã chết.
 - **Bị kẹt:** kẹt quá 2 giây thì quái dịch chuyển tới ổ quỷ, gửi `EntityMove` với `snap = true`.
 

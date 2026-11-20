@@ -94,7 +94,12 @@ func (z *Zone) thinkMonsters() {
 		case chase, attack:
 			z.fight(m)
 		case back:
-			z.goBack(m)
+			if p := z.grudgeTarget(m); p != nil {
+				z.startChase(m, p.id)
+				z.fight(m)
+			} else {
+				z.goBack(m)
+			}
 		}
 	}
 }
@@ -177,7 +182,8 @@ func (z *Zone) startChase(m *monster, id uint64) {
 	m.target, m.state, m.chaseFrom, m.stuck, m.safeSince, m.outSince = id, chase, m.pos, 0, 0, 0
 }
 
-// grudgeTarget is the nearest player m bears a grudge against (spec 4.2): one
+// grudgeTarget is the nearest player m bears a grudge against (spec 4.2,
+// checked in wander, shoot and back): one
 // who hit it within GrudgeSec, is a valid target, and is within the detect
 // range with a clear line. Such a player is chased on sight, not shot.
 func (z *Zone) grudgeTarget(m *monster) *player {

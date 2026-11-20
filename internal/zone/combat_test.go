@@ -1335,6 +1335,39 @@ func TestGrudgeExpires(t *testing.T) {
 	}
 }
 
+// A monster going back after the safe-zone wait still bears its grudge: a
+// player who steps out in sight to poke it is chased and hit at once, before
+// the slash and the step back in (spec 4.5).
+func TestBackMonsterTurnsOnRecentAttacker(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{13.5, 5.5}) // its one region tile, well off the safe edge
+	joinNow(t, z, 1, 12.0, 5.5)
+	b := newBot(z, 1)
+	b.act(Vec2{-1, 0}, m.id) // slash and head into the safe rect (0,0,10,10), to x 9.6
+	tickBots(z, b)
+	for i := 0; i < 5; i++ {
+		b.act(Vec2{-1, 0}, 0)
+		tickBots(z, b)
+	}
+	b.act(Vec2{}, 0)
+	for i := 0; i < 100 && m.state != back; i++ {
+		tickBots(z, b)
+	}
+	if m.state != back || !z.area.InSafe(b.p().pos) || m.region.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
+		t.Fatalf("setup: state %v at %v, player at %v; want the monster going back from off its region", m.state, m.pos, b.p().pos)
+	}
+	hits := b.melee
+	b.act(Vec2{1, 0}, 0) // step out, in sight
+	tickBots(z, b)
+	if z.area.InSafe(b.p().pos) {
+		t.Fatalf("setup: the player did not step out, at %v", b.p().pos)
+	}
+	b.act(Vec2{-1, 0}, m.id) // slash and step back in
+	tickBots(z, b)
+	if b.melee == hits {
+		t.Fatalf("poked a monster going back without being hit: state %v target %d at %v", m.state, m.target, m.pos)
+	}
+}
+
 // Once chasing, a monster keeps its target when someone else hits it, but
 // remembers when each one last hit it.
 func TestChaseKeepsTargetWhenOthersHit(t *testing.T) {

@@ -434,7 +434,8 @@ The fix implements the user's choice A (spec §1.3 "Chống lách, vòng 2", §2
   - A player qualifies if they hit the monster within `GrudgeSec`, are valid, are within `DetectRange` and have line of sight.
   - If any player qualifies, start chasing the nearest of them at once, with no windup. If one is in reach and the cooldown is ready, the monster hits on that same tick.
   - `attackers` must keep entries for at least `GrudgeSec`. Prune entries older than that, not older than 5 s. The 5 s window stays the fallback's own filter.
-- **Unchanged:** `killPlayer` still deletes the player from `attackers`, and `back` does not check the grudge. The grudge applies from `wander` and `shoot` only.
+- **Unchanged:** `killPlayer` still deletes the player from `attackers`.
+- **Back (follow-up after the Task 7c review):** `back` checks the grudge too, every tick before walking. A grudge target is chased at once and `fight` runs on the same tick. Without this, a player could poke a monster for free while it walks back after the safe-zone wait.
 
 **TODO / tests** (section MONSTER AI, `exploit` style). Each test must fail on HEAD 585ba70:
 - [ ] `TestMarginKiteGetsHit`: slash at 1.9 tiles from about 1.4 tiles outside the region, then run straight out. The player takes a hit.
