@@ -499,6 +499,7 @@ func TestKumotoriSpawnSpreadsOut(t *testing.T) {
 		// The join's tick sends the EntityEnters. Before the first rest of
 		// 2 s (in ticks) ends, no monster has taken a step, so they show the
 		// spawn positions. A join any later would make the test meaningless.
+		// The 2 s must stay in step with zone.restMinSec.
 		if ew := out.enterResp(t); ew.ServerTick >= uint32(2*tickRate) {
 			t.Fatalf("seed %d: joined at tick %d, after the monsters may have started walking", seed, ew.ServerTick)
 		}

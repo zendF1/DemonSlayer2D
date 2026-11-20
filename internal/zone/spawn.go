@@ -33,6 +33,11 @@ func (r *regionState) hasTile(tx, ty int) bool {
 	return ok
 }
 
+// regionGrid is a Grid on which every tile outside r's region tiles is blocked.
+type regionGrid struct{ r *regionState }
+
+func (g regionGrid) Blocked(tx, ty int) bool { return !g.r.hasTile(tx, ty) }
+
 // spawnAll fills every region to its Count, spreading the monsters over the
 // region by best-candidate placement (spec 4.1). It runs once, when the zone
 // opens.

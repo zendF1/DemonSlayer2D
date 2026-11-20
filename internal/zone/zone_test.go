@@ -545,9 +545,11 @@ func TestMonstersNeverEnterSafeZone(t *testing.T) {
 	}
 }
 
-// A wall through the region: walks towards tiles behind it end at the wall.
-// Each walk must end soon, and a walking monster must really move every tick.
-func TestWanderStopsAtWalls(t *testing.T) {
+// A wall splits the region in two. A wander target behind the wall is never
+// picked, so every walk arrives at its target instead of sticking at the
+// wall, a walking monster really moves every tick, and no monster ever gets
+// to the other side.
+func TestWanderDoesNotWalkIntoWalls(t *testing.T) {
 	rows := make([]string, 60)
 	for y := range rows {
 		r := []byte(strings.Repeat(".", 60))
@@ -556,32 +558,41 @@ func TestWanderStopsAtWalls(t *testing.T) {
 		}
 		rows[y] = string(r)
 	}
-	z, _ := newMonsterZone(t, Vec2{31.5, 30.5}, Vec2{33.5, 29.5}, Vec2{31.5, 31.5}, Vec2{33.5, 31.5})
+	var tiles []Vec2
+	for y := 26; y <= 35; y++ {
+		tiles = append(tiles, Vec2{31.5, float32(y) + 0.5}, Vec2{33.5, float32(y) + 0.5})
+	}
+	z, _ := newMonsterZone(t, tiles...)
 	z.area.Grid = gridFrom(rows...)
 	z.mgrid = z.area.monsterGrid()
 	step := 0.5 * testKind.Speed * 4 / 10
 	prev := map[uint64]Vec2{}
-	walk := map[uint64]int{}
+	west := map[uint64]bool{}
+	walking := map[uint64]bool{}
 	walks := 0
 	now := time.Now()
 	for id, m := range z.monsters {
-		prev[id] = m.pos
+		prev[id], west[id] = m.pos, m.pos.X < 32
 	}
 	for i := 0; i < 2000; i++ {
 		z.advance(now)
 		for id, m := range z.monsters {
+			if (m.pos.X < 32) != west[id] {
+				t.Fatalf("tick %d: monster %d got to the other side of the wall, at %v", i, id, m.pos)
+			}
 			if m.dir == (Vec2{}) {
-				if walk[id] > 0 {
+				if walking[id] {
 					walks++
+					if m.pos != m.wanderTo {
+						t.Fatalf("tick %d: monster %d stopped at %v short of its target %v", i, id, m.pos, m.wanderTo)
+					}
 				}
-				walk[id] = 0
+				walking[id] = false
 			} else {
 				if d := dist(m.pos, prev[id]); d < 0.1*step-1e-4 {
 					t.Fatalf("tick %d: monster %d walks (dir %v) but moved only %.5f tiles", i, id, m.dir, d)
 				}
-				if walk[id]++; walk[id] > 30 {
-					t.Fatalf("tick %d: monster %d has been walking for %d ticks", i, id, walk[id])
-				}
+				walking[id] = true
 			}
 			prev[id] = m.pos
 		}

@@ -333,12 +333,15 @@ func (z *Zone) wander(m *monster) {
 }
 
 // wanderTarget picks a random tile of m's region within wanderReach of m,
-// other than the tile m stands on.
+// other than the tile m stands on, whose straight line from m crosses only
+// region tiles. The walk there then stays in the region, even round the
+// inside corner of an L-shaped region, and never heads into a wall.
 func (z *Zone) wanderTarget(m *monster) (Vec2, bool) {
 	tx, ty := floor(m.pos.X), floor(m.pos.Y)
+	inside := regionGrid{m.region}
 	var opts []Vec2
 	for _, c := range m.region.Tiles {
-		if (floor(c.X) == tx && floor(c.Y) == ty) || distance(c, m.pos) > wanderReach {
+		if (floor(c.X) == tx && floor(c.Y) == ty) || distance(c, m.pos) > wanderReach || lineBlocked(inside, m.pos, c) {
 			continue
 		}
 		opts = append(opts, c)

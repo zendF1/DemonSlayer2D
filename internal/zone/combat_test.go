@@ -431,6 +431,124 @@ func TestWanderStaysInRegion(t *testing.T) {
 	}
 }
 
+// lRegion is r1 of kumotori_1 on an open grid: rects {12,1,20,19} and
+// {1,12,11,8} round the safe zone {1,1,10,10}, without the safe zone and its
+// 1-tile margin.
+func lRegion(t *testing.T, seed uint64, count int) (*Zone, *regionState) {
+	t.Helper()
+	rects := []Rect{{X: 12, Y: 1, W: 20, H: 19}, {X: 1, Y: 12, W: 11, H: 8}}
+	margin := Rect{X: 0, Y: 0, W: 12, H: 12}
+	var tiles []Vec2
+	for y := 0; y < 60; y++ {
+		for x := 0; x < 60; x++ {
+			if margin.containsTile(x, y) || !rects[0].containsTile(x, y) && !rects[1].containsTile(x, y) {
+				continue
+			}
+			tiles = append(tiles, Vec2{float32(x) + 0.5, float32(y) + 0.5})
+		}
+	}
+	z, _ := newRegionZone(t, seed, Region{ID: "r1", Tiles: tiles, Rects: rects, Nest: Vec2{22.5, 10.5},
+		Count: count, MinLevel: 1, MaxLevel: 2, Kind: testKind})
+	z.area.Safe = []Rect{{X: 1, Y: 1, W: 10, H: 10}}
+	z.mgrid = z.area.monsterGrid()
+	return z, z.regions[0]
+}
+
+// Round the inside corner of an L-shaped region, wanderers keep to its tiles
+// instead of cutting across the safe zone's margin.
+func TestWanderStaysInLRegion(t *testing.T) {
+	for seed := uint64(1); seed <= 4; seed++ {
+		z, r := lRegion(t, seed, 8)
+		now := time.Now()
+		for i := 0; i < 2500; i++ {
+			z.advance(now)
+			for id, m := range z.monsters {
+				if !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
+					t.Fatalf("seed %d tick %d: monster %d at %v is off the region (walking to %v)", seed, i, id, m.pos, m.wanderTo)
+				}
+			}
+		}
+	}
+}
+
+// segmentOnTiles reports whether every point of the segment a-b lies on one
+// of r's tiles, sampled every 0.01 tiles.
+func segmentOnTiles(r *regionState, a, b Vec2) bool {
+	n := int(dist(a, b)/0.01) + 1
+	for i := 0; i <= n; i++ {
+		f := float32(i) / float32(n)
+		p := Vec2{a.X + (b.X-a.X)*f, a.Y + (b.Y-a.Y)*f}
+		if !r.hasTile(floor(p.X), floor(p.Y)) {
+			return false
+		}
+	}
+	return true
+}
+
+// Wander targets are other region tiles at most 6 tiles away, reached by a
+// straight line over region tiles only; some lie beyond 5 tiles.
+func TestWanderTargets(t *testing.T) {
+	t.Run("inside corner", func(t *testing.T) {
+		z, r := lRegion(t, 1, 1)
+		m := &monster{entity: entity{pos: Vec2{12.5, 9.5}}, region: r}
+		for i := 0; i < 1000; i++ {
+			to, ok := z.wanderTarget(m)
+			if !ok || to == m.pos || !r.hasTile(floor(to.X), floor(to.Y)) || dist(to, m.pos) > wanderReach {
+				t.Fatalf("target %v ok=%v, want another region tile within %d", to, ok, wanderReach)
+			}
+			if !segmentOnTiles(r, m.pos, to) {
+				t.Fatalf("target %v: the way there from %v leaves the region", to, m.pos)
+			}
+		}
+	})
+	t.Run("reach", func(t *testing.T) {
+		open := Rect{X: 10, Y: 10, W: 40, H: 40}
+		z, _ := newRegionZone(t, 1, Region{ID: "open", Tiles: rectTiles(open), Rects: []Rect{open}, Nest: Vec2{30.5, 30.5},
+			Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind})
+		m := &monster{entity: entity{pos: Vec2{30.5, 30.5}}, region: z.regions[0]}
+		beyond5 := 0
+		for i := 0; i < 1000; i++ {
+			to, ok := z.wanderTarget(m)
+			d := dist(to, m.pos)
+			if !ok || d > wanderReach || to == m.pos {
+				t.Fatalf("target %v ok=%v at %.2f tiles, want within %d", to, ok, d, wanderReach)
+			}
+			if d > 5 {
+				beyond5++
+			}
+		}
+		if beyond5 == 0 {
+			t.Fatal("no target beyond 5 tiles: the reach is shorter than 6")
+		}
+	})
+}
+
+// A monster that sees someone to shoot while it walks stops at once, and
+// viewers are told it has stopped.
+func TestStartShootStopsWalkingMonster(t *testing.T) {
+	open := Rect{X: 20, Y: 20, W: 20, H: 20}
+	z, _ := newRegionZone(t, 1, Region{ID: "open", Tiles: rectTiles(open), Rects: []Rect{open}, Nest: Vec2{30.5, 30.5},
+		Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind})
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	m.pos = Vec2{25.5, 25.5}
+	z.updateCell(&m.entity)
+	a := joinNow(t, z, 1, 25.5, 32.5) // in view, out of range
+	z.advance(time.Now())
+	a.take()
+	m.wanderTo, m.dir, m.nextWander = Vec2{30.5, 25.5}, Vec2{1, 0}, 0 // mid-walk east
+	teleport(z, 1, Vec2{25.5, 29.5})
+	z.advance(time.Now())
+	if m.state != shoot || m.dir != (Vec2{}) {
+		t.Fatalf("state %v dir %v, want shooting and stopped", m.state, m.dir)
+	}
+	if mv := moveFor(lastTick(a.take()), m.id); mv == nil || mv.DirX != 0 || mv.DirY != 0 {
+		t.Fatalf("viewer move %v, want one with a zero direction", mv)
+	}
+}
+
 // One monster in a big region gets well beyond 6 tiles from its spawn point
 // over time, resting 2-5 s between walks.
 func TestWanderReachesAcrossRegion(t *testing.T) {
