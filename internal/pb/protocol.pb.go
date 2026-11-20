@@ -73,6 +73,14 @@ const (
 	ErrorCode_ERROR_CODE_ENHANCE_MAXED ErrorCode = 32
 	// The action needs the character to stand in a safe zone.
 	ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE ErrorCode = 33
+	// The item already has the most holes.
+	ErrorCode_ERROR_CODE_HOLES_MAXED ErrorCode = 34
+	// The gem's level is above the item's tier / 10.
+	ErrorCode_ERROR_CODE_GEM_TOO_HIGH ErrorCode = 35
+	// Only Vàng, Cam and Đỏ items can be refined.
+	ErrorCode_ERROR_CODE_NOT_REFINABLE ErrorCode = 36
+	// There is no refine result waiting for a choice.
+	ErrorCode_ERROR_CODE_NO_PENDING_REFINE ErrorCode = 37
 )
 
 // Enum value maps for ErrorCode.
@@ -112,6 +120,10 @@ var (
 		31: "ERROR_CODE_NOT_ENOUGH_MATERIALS",
 		32: "ERROR_CODE_ENHANCE_MAXED",
 		33: "ERROR_CODE_NOT_IN_SAFE_ZONE",
+		34: "ERROR_CODE_HOLES_MAXED",
+		35: "ERROR_CODE_GEM_TOO_HIGH",
+		36: "ERROR_CODE_NOT_REFINABLE",
+		37: "ERROR_CODE_NO_PENDING_REFINE",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":          0,
@@ -148,6 +160,10 @@ var (
 		"ERROR_CODE_NOT_ENOUGH_MATERIALS": 31,
 		"ERROR_CODE_ENHANCE_MAXED":        32,
 		"ERROR_CODE_NOT_IN_SAFE_ZONE":     33,
+		"ERROR_CODE_HOLES_MAXED":          34,
+		"ERROR_CODE_GEM_TOO_HIGH":         35,
+		"ERROR_CODE_NOT_REFINABLE":        36,
+		"ERROR_CODE_NO_PENDING_REFINE":    37,
 	}
 )
 
@@ -410,6 +426,16 @@ type Envelope struct {
 	//	*Envelope_SortBagResp
 	//	*Envelope_EnhanceReq
 	//	*Envelope_EnhanceResp
+	//	*Envelope_PunchReq
+	//	*Envelope_PunchResp
+	//	*Envelope_SocketReq
+	//	*Envelope_SocketResp
+	//	*Envelope_UnsocketReq
+	//	*Envelope_UnsocketResp
+	//	*Envelope_RefineReq
+	//	*Envelope_RefineResp
+	//	*Envelope_RefineChooseReq
+	//	*Envelope_RefineChooseResp
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -864,6 +890,96 @@ func (x *Envelope) GetEnhanceResp() *EnhanceResp {
 	return nil
 }
 
+func (x *Envelope) GetPunchReq() *PunchReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PunchReq); ok {
+			return x.PunchReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPunchResp() *PunchResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PunchResp); ok {
+			return x.PunchResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSocketReq() *SocketReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SocketReq); ok {
+			return x.SocketReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSocketResp() *SocketResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SocketResp); ok {
+			return x.SocketResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetUnsocketReq() *UnsocketReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_UnsocketReq); ok {
+			return x.UnsocketReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetUnsocketResp() *UnsocketResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_UnsocketResp); ok {
+			return x.UnsocketResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetRefineReq() *RefineReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RefineReq); ok {
+			return x.RefineReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetRefineResp() *RefineResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RefineResp); ok {
+			return x.RefineResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetRefineChooseReq() *RefineChooseReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RefineChooseReq); ok {
+			return x.RefineChooseReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetRefineChooseResp() *RefineChooseResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RefineChooseResp); ok {
+			return x.RefineChooseResp
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1048,6 +1164,46 @@ type Envelope_EnhanceResp struct {
 	EnhanceResp *EnhanceResp `protobuf:"bytes,72,opt,name=enhance_resp,json=enhanceResp,proto3,oneof"`
 }
 
+type Envelope_PunchReq struct {
+	PunchReq *PunchReq `protobuf:"bytes,73,opt,name=punch_req,json=punchReq,proto3,oneof"`
+}
+
+type Envelope_PunchResp struct {
+	PunchResp *PunchResp `protobuf:"bytes,74,opt,name=punch_resp,json=punchResp,proto3,oneof"`
+}
+
+type Envelope_SocketReq struct {
+	SocketReq *SocketReq `protobuf:"bytes,75,opt,name=socket_req,json=socketReq,proto3,oneof"`
+}
+
+type Envelope_SocketResp struct {
+	SocketResp *SocketResp `protobuf:"bytes,76,opt,name=socket_resp,json=socketResp,proto3,oneof"`
+}
+
+type Envelope_UnsocketReq struct {
+	UnsocketReq *UnsocketReq `protobuf:"bytes,77,opt,name=unsocket_req,json=unsocketReq,proto3,oneof"`
+}
+
+type Envelope_UnsocketResp struct {
+	UnsocketResp *UnsocketResp `protobuf:"bytes,78,opt,name=unsocket_resp,json=unsocketResp,proto3,oneof"`
+}
+
+type Envelope_RefineReq struct {
+	RefineReq *RefineReq `protobuf:"bytes,79,opt,name=refine_req,json=refineReq,proto3,oneof"`
+}
+
+type Envelope_RefineResp struct {
+	RefineResp *RefineResp `protobuf:"bytes,80,opt,name=refine_resp,json=refineResp,proto3,oneof"`
+}
+
+type Envelope_RefineChooseReq struct {
+	RefineChooseReq *RefineChooseReq `protobuf:"bytes,81,opt,name=refine_choose_req,json=refineChooseReq,proto3,oneof"`
+}
+
+type Envelope_RefineChooseResp struct {
+	RefineChooseResp *RefineChooseResp `protobuf:"bytes,82,opt,name=refine_choose_resp,json=refineChooseResp,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -1137,6 +1293,26 @@ func (*Envelope_SortBagResp) isEnvelope_Payload() {}
 func (*Envelope_EnhanceReq) isEnvelope_Payload() {}
 
 func (*Envelope_EnhanceResp) isEnvelope_Payload() {}
+
+func (*Envelope_PunchReq) isEnvelope_Payload() {}
+
+func (*Envelope_PunchResp) isEnvelope_Payload() {}
+
+func (*Envelope_SocketReq) isEnvelope_Payload() {}
+
+func (*Envelope_SocketResp) isEnvelope_Payload() {}
+
+func (*Envelope_UnsocketReq) isEnvelope_Payload() {}
+
+func (*Envelope_UnsocketResp) isEnvelope_Payload() {}
+
+func (*Envelope_RefineReq) isEnvelope_Payload() {}
+
+func (*Envelope_RefineResp) isEnvelope_Payload() {}
+
+func (*Envelope_RefineChooseReq) isEnvelope_Payload() {}
+
+func (*Envelope_RefineChooseResp) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -3807,14 +3983,17 @@ func (x *CastImpact) GetImpactMs() int32 {
 
 // An item in the bag, worn or on the ground.
 type ItemInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
-	Count         int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`                          // 1 for equipment
-	Quality       int32                  `protobuf:"varint,3,opt,name=quality,proto3" json:"quality,omitempty"`                      // 0 Trắng … 4 Đỏ
-	Element       CharClass              `protobuf:"varint,4,opt,name=element,proto3,enum=ds.v1.CharClass" json:"element,omitempty"` // UNSPECIFIED: no element
-	Enhance       int32                  `protobuf:"varint,5,opt,name=enhance,proto3" json:"enhance,omitempty"`
-	Lines         []*ItemLine            `protobuf:"bytes,6,rep,name=lines,proto3" json:"lines,omitempty"`
-	Hidden        []*ItemLine            `protobuf:"bytes,7,rep,name=hidden,proto3" json:"hidden,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Code    string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	Count   int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`                          // 1 for equipment
+	Quality int32                  `protobuf:"varint,3,opt,name=quality,proto3" json:"quality,omitempty"`                      // 0 Trắng … 4 Đỏ
+	Element CharClass              `protobuf:"varint,4,opt,name=element,proto3,enum=ds.v1.CharClass" json:"element,omitempty"` // UNSPECIFIED: no element
+	Enhance int32                  `protobuf:"varint,5,opt,name=enhance,proto3" json:"enhance,omitempty"`
+	Lines   []*ItemLine            `protobuf:"bytes,6,rep,name=lines,proto3" json:"lines,omitempty"`
+	Hidden  []*ItemLine            `protobuf:"bytes,7,rep,name=hidden,proto3" json:"hidden,omitempty"`
+	Holes   int32                  `protobuf:"varint,8,opt,name=holes,proto3" json:"holes,omitempty"`
+	// One entry per hole: a gem code, or "" for an empty hole.
+	Gems          []string `protobuf:"bytes,9,rep,name=gems,proto3" json:"gems,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3894,6 +4073,20 @@ func (x *ItemInfo) GetLines() []*ItemLine {
 func (x *ItemInfo) GetHidden() []*ItemLine {
 	if x != nil {
 		return x.Hidden
+	}
+	return nil
+}
+
+func (x *ItemInfo) GetHoles() int32 {
+	if x != nil {
+		return x.Holes
+	}
+	return 0
+}
+
+func (x *ItemInfo) GetGems() []string {
+	if x != nil {
+		return x.Gems
 	}
 	return nil
 }
@@ -4774,11 +4967,546 @@ func (x *EnhanceResp) GetStats() *SelfStats {
 	return nil
 }
 
+// Punches one more empty hole in an equipment piece in a safe zone.
+type PunchReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Item          *ItemRef               `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PunchReq) Reset() {
+	*x = PunchReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PunchReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PunchReq) ProtoMessage() {}
+
+func (x *PunchReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PunchReq.ProtoReflect.Descriptor instead.
+func (*PunchReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *PunchReq) GetItem() *ItemRef {
+	if x != nil {
+		return x.Item
+	}
+	return nil
+}
+
+// update holds the item's slot; stats carries the new Xu.
+type PunchResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PunchResp) Reset() {
+	*x = PunchResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PunchResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PunchResp) ProtoMessage() {}
+
+func (x *PunchResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PunchResp.ProtoReflect.Descriptor instead.
+func (*PunchResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *PunchResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *PunchResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Sockets the gem in bag slot gem_slot into the empty hole (0-based) of an
+// equipment piece in a safe zone.
+type SocketReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Item          *ItemRef               `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	Hole          int32                  `protobuf:"varint,2,opt,name=hole,proto3" json:"hole,omitempty"`
+	GemSlot       int32                  `protobuf:"varint,3,opt,name=gem_slot,json=gemSlot,proto3" json:"gem_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SocketReq) Reset() {
+	*x = SocketReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SocketReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SocketReq) ProtoMessage() {}
+
+func (x *SocketReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SocketReq.ProtoReflect.Descriptor instead.
+func (*SocketReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *SocketReq) GetItem() *ItemRef {
+	if x != nil {
+		return x.Item
+	}
+	return nil
+}
+
+func (x *SocketReq) GetHole() int32 {
+	if x != nil {
+		return x.Hole
+	}
+	return 0
+}
+
+func (x *SocketReq) GetGemSlot() int32 {
+	if x != nil {
+		return x.GemSlot
+	}
+	return 0
+}
+
+// update holds the item's slot and the gem's bag slot.
+type SocketResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SocketResp) Reset() {
+	*x = SocketResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SocketResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SocketResp) ProtoMessage() {}
+
+func (x *SocketResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SocketResp.ProtoReflect.Descriptor instead.
+func (*SocketResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *SocketResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *SocketResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Takes the gem out of a hole (0-based) into the bag in a safe zone; the hole
+// stays, empty.
+type UnsocketReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Item          *ItemRef               `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	Hole          int32                  `protobuf:"varint,2,opt,name=hole,proto3" json:"hole,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnsocketReq) Reset() {
+	*x = UnsocketReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnsocketReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnsocketReq) ProtoMessage() {}
+
+func (x *UnsocketReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnsocketReq.ProtoReflect.Descriptor instead.
+func (*UnsocketReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *UnsocketReq) GetItem() *ItemRef {
+	if x != nil {
+		return x.Item
+	}
+	return nil
+}
+
+func (x *UnsocketReq) GetHole() int32 {
+	if x != nil {
+		return x.Hole
+	}
+	return 0
+}
+
+// update holds the item's slot and the bag slots the gem went to.
+type UnsocketResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnsocketResp) Reset() {
+	*x = UnsocketResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnsocketResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnsocketResp) ProtoMessage() {}
+
+func (x *UnsocketResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnsocketResp.ProtoReflect.Descriptor instead.
+func (*UnsocketResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *UnsocketResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *UnsocketResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Refines the sub-lines of a Vàng+ equipment piece in a safe zone, keeping the
+// lines at the locked (0-based) indices. The result waits for a
+// RefineChooseReq; any other item command but a pickup drops it.
+type RefineReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Item          *ItemRef               `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	Locked        []int32                `protobuf:"varint,2,rep,packed,name=locked,proto3" json:"locked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefineReq) Reset() {
+	*x = RefineReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefineReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefineReq) ProtoMessage() {}
+
+func (x *RefineReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefineReq.ProtoReflect.Descriptor instead.
+func (*RefineReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *RefineReq) GetItem() *ItemRef {
+	if x != nil {
+		return x.Item
+	}
+	return nil
+}
+
+func (x *RefineReq) GetLocked() []int32 {
+	if x != nil {
+		return x.Locked
+	}
+	return nil
+}
+
+// lines is the whole candidate set in order; the item keeps its lines until
+// the choice. update holds the bag slots the stones came from.
+type RefineResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Lines         []*ItemLine            `protobuf:"bytes,1,rep,name=lines,proto3" json:"lines,omitempty"`
+	Update        *InventoryUpdate       `protobuf:"bytes,2,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,3,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefineResp) Reset() {
+	*x = RefineResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefineResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefineResp) ProtoMessage() {}
+
+func (x *RefineResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefineResp.ProtoReflect.Descriptor instead.
+func (*RefineResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *RefineResp) GetLines() []*ItemLine {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+func (x *RefineResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *RefineResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Takes the waiting refine result (accept) or keeps the old lines.
+type RefineChooseReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accept        bool                   `protobuf:"varint,1,opt,name=accept,proto3" json:"accept,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefineChooseReq) Reset() {
+	*x = RefineChooseReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefineChooseReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefineChooseReq) ProtoMessage() {}
+
+func (x *RefineChooseReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefineChooseReq.ProtoReflect.Descriptor instead.
+func (*RefineChooseReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *RefineChooseReq) GetAccept() bool {
+	if x != nil {
+		return x.Accept
+	}
+	return false
+}
+
+// update holds the item's slot.
+type RefineChooseResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefineChooseResp) Reset() {
+	*x = RefineChooseResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefineChooseResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefineChooseResp) ProtoMessage() {}
+
+func (x *RefineChooseResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefineChooseResp.ProtoReflect.Descriptor instead.
+func (*RefineChooseResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *RefineChooseResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *RefineChooseResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x83\x14\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xbc\x18\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -4840,7 +5568,22 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\rsort_bag_resp\x18F \x01(\v2\x12.ds.v1.SortBagRespH\x00R\vsortBagResp\x124\n" +
 	"\venhance_req\x18G \x01(\v2\x11.ds.v1.EnhanceReqH\x00R\n" +
 	"enhanceReq\x127\n" +
-	"\fenhance_resp\x18H \x01(\v2\x12.ds.v1.EnhanceRespH\x00R\venhanceRespB\t\n" +
+	"\fenhance_resp\x18H \x01(\v2\x12.ds.v1.EnhanceRespH\x00R\venhanceResp\x12.\n" +
+	"\tpunch_req\x18I \x01(\v2\x0f.ds.v1.PunchReqH\x00R\bpunchReq\x121\n" +
+	"\n" +
+	"punch_resp\x18J \x01(\v2\x10.ds.v1.PunchRespH\x00R\tpunchResp\x121\n" +
+	"\n" +
+	"socket_req\x18K \x01(\v2\x10.ds.v1.SocketReqH\x00R\tsocketReq\x124\n" +
+	"\vsocket_resp\x18L \x01(\v2\x11.ds.v1.SocketRespH\x00R\n" +
+	"socketResp\x127\n" +
+	"\funsocket_req\x18M \x01(\v2\x12.ds.v1.UnsocketReqH\x00R\vunsocketReq\x12:\n" +
+	"\runsocket_resp\x18N \x01(\v2\x13.ds.v1.UnsocketRespH\x00R\funsocketResp\x121\n" +
+	"\n" +
+	"refine_req\x18O \x01(\v2\x10.ds.v1.RefineReqH\x00R\trefineReq\x124\n" +
+	"\vrefine_resp\x18P \x01(\v2\x11.ds.v1.RefineRespH\x00R\n" +
+	"refineResp\x12D\n" +
+	"\x11refine_choose_req\x18Q \x01(\v2\x16.ds.v1.RefineChooseReqH\x00R\x0frefineChooseReq\x12G\n" +
+	"\x12refine_choose_resp\x18R \x01(\v2\x17.ds.v1.RefineChooseRespH\x00R\x10refineChooseRespB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -5044,7 +5787,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"CastImpact\x12\x1b\n" +
 	"\ttarget_id\x18\x01 \x01(\x04R\btargetId\x12\x1b\n" +
-	"\timpact_ms\x18\x02 \x01(\x05R\bimpactMs\"\xe4\x01\n" +
+	"\timpact_ms\x18\x02 \x01(\x05R\bimpactMs\"\x8e\x02\n" +
 	"\bItemInfo\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\x12\x18\n" +
@@ -5052,7 +5795,9 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\aelement\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\aelement\x12\x18\n" +
 	"\aenhance\x18\x05 \x01(\x05R\aenhance\x12%\n" +
 	"\x05lines\x18\x06 \x03(\v2\x0f.ds.v1.ItemLineR\x05lines\x12'\n" +
-	"\x06hidden\x18\a \x03(\v2\x0f.ds.v1.ItemLineR\x06hidden\"4\n" +
+	"\x06hidden\x18\a \x03(\v2\x0f.ds.v1.ItemLineR\x06hidden\x12\x14\n" +
+	"\x05holes\x18\b \x01(\x05R\x05holes\x12\x12\n" +
+	"\x04gems\x18\t \x03(\tR\x04gems\"4\n" +
 	"\bItemLine\x12\x12\n" +
 	"\x04stat\x18\x01 \x01(\tR\x04stat\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value\"C\n" +
@@ -5106,7 +5851,39 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05level\x18\x03 \x01(\x05R\x05level\x12.\n" +
 	"\x06update\x18\x04 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
-	"\x05stats\x18\x05 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats*\xf9\a\n" +
+	"\x05stats\x18\x05 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\".\n" +
+	"\bPunchReq\x12\"\n" +
+	"\x04item\x18\x01 \x01(\v2\x0e.ds.v1.ItemRefR\x04item\"c\n" +
+	"\tPunchResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"^\n" +
+	"\tSocketReq\x12\"\n" +
+	"\x04item\x18\x01 \x01(\v2\x0e.ds.v1.ItemRefR\x04item\x12\x12\n" +
+	"\x04hole\x18\x02 \x01(\x05R\x04hole\x12\x19\n" +
+	"\bgem_slot\x18\x03 \x01(\x05R\agemSlot\"d\n" +
+	"\n" +
+	"SocketResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"E\n" +
+	"\vUnsocketReq\x12\"\n" +
+	"\x04item\x18\x01 \x01(\v2\x0e.ds.v1.ItemRefR\x04item\x12\x12\n" +
+	"\x04hole\x18\x02 \x01(\x05R\x04hole\"f\n" +
+	"\fUnsocketResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"G\n" +
+	"\tRefineReq\x12\"\n" +
+	"\x04item\x18\x01 \x01(\v2\x0e.ds.v1.ItemRefR\x04item\x12\x16\n" +
+	"\x06locked\x18\x02 \x03(\x05R\x06locked\"\x8b\x01\n" +
+	"\n" +
+	"RefineResp\x12%\n" +
+	"\x05lines\x18\x01 \x03(\v2\x0f.ds.v1.ItemLineR\x05lines\x12.\n" +
+	"\x06update\x18\x02 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x03 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\")\n" +
+	"\x0fRefineChooseReq\x12\x16\n" +
+	"\x06accept\x18\x01 \x01(\bR\x06accept\"j\n" +
+	"\x10RefineChooseResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats*\xf2\b\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -5142,7 +5919,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x18ERROR_CODE_NOT_ENOUGH_XU\x10\x1e\x12#\n" +
 	"\x1fERROR_CODE_NOT_ENOUGH_MATERIALS\x10\x1f\x12\x1c\n" +
 	"\x18ERROR_CODE_ENHANCE_MAXED\x10 \x12\x1f\n" +
-	"\x1bERROR_CODE_NOT_IN_SAFE_ZONE\x10!*\x84\x02\n" +
+	"\x1bERROR_CODE_NOT_IN_SAFE_ZONE\x10!\x12\x1a\n" +
+	"\x16ERROR_CODE_HOLES_MAXED\x10\"\x12\x1b\n" +
+	"\x17ERROR_CODE_GEM_TOO_HIGH\x10#\x12\x1c\n" +
+	"\x18ERROR_CODE_NOT_REFINABLE\x10$\x12 \n" +
+	"\x1cERROR_CODE_NO_PENDING_REFINE\x10%*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -5180,7 +5961,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -5248,99 +6029,134 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*ItemRef)(nil),            // 63: ds.v1.ItemRef
 	(*EnhanceReq)(nil),         // 64: ds.v1.EnhanceReq
 	(*EnhanceResp)(nil),        // 65: ds.v1.EnhanceResp
+	(*PunchReq)(nil),           // 66: ds.v1.PunchReq
+	(*PunchResp)(nil),          // 67: ds.v1.PunchResp
+	(*SocketReq)(nil),          // 68: ds.v1.SocketReq
+	(*SocketResp)(nil),         // 69: ds.v1.SocketResp
+	(*UnsocketReq)(nil),        // 70: ds.v1.UnsocketReq
+	(*UnsocketResp)(nil),       // 71: ds.v1.UnsocketResp
+	(*RefineReq)(nil),          // 72: ds.v1.RefineReq
+	(*RefineResp)(nil),         // 73: ds.v1.RefineResp
+	(*RefineChooseReq)(nil),    // 74: ds.v1.RefineChooseReq
+	(*RefineChooseResp)(nil),   // 75: ds.v1.RefineChooseResp
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
-	5,  // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
-	6,  // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
-	7,  // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
-	8,  // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
-	9,  // 4: ds.v1.Envelope.login_resp:type_name -> ds.v1.LoginResp
-	11, // 5: ds.v1.Envelope.char_list_req:type_name -> ds.v1.CharListReq
-	12, // 6: ds.v1.Envelope.char_list_resp:type_name -> ds.v1.CharListResp
-	13, // 7: ds.v1.Envelope.create_char_req:type_name -> ds.v1.CreateCharReq
-	14, // 8: ds.v1.Envelope.create_char_resp:type_name -> ds.v1.CreateCharResp
-	15, // 9: ds.v1.Envelope.delete_char_req:type_name -> ds.v1.DeleteCharReq
-	16, // 10: ds.v1.Envelope.delete_char_resp:type_name -> ds.v1.DeleteCharResp
-	17, // 11: ds.v1.Envelope.enter_world_req:type_name -> ds.v1.EnterWorldReq
-	18, // 12: ds.v1.Envelope.enter_world_resp:type_name -> ds.v1.EnterWorldResp
-	19, // 13: ds.v1.Envelope.leave_world_req:type_name -> ds.v1.LeaveWorldReq
-	20, // 14: ds.v1.Envelope.leave_world_resp:type_name -> ds.v1.LeaveWorldResp
-	21, // 15: ds.v1.Envelope.move_input:type_name -> ds.v1.MoveInput
-	22, // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
-	23, // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
-	25, // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
-	27, // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
-	28, // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
-	29, // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
-	30, // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
-	31, // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
-	32, // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
-	33, // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
-	34, // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
-	35, // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
-	36, // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
-	41, // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
-	42, // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
-	43, // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
-	44, // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
-	53, // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
-	54, // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
-	55, // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
-	56, // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
-	57, // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
-	58, // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
-	59, // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
-	60, // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
-	61, // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
-	62, // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
-	64, // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
-	65, // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
-	0,  // 45: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,  // 46: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10, // 47: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,  // 48: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10, // 49: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	36, // 50: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	45, // 51: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	51, // 52: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	3,  // 53: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,  // 54: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	48, // 55: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	24, // 56: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	37, // 57: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	38, // 58: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	39, // 59: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	40, // 60: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	46, // 61: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	26, // 62: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,  // 63: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	36, // 64: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	36, // 65: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	45, // 66: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	47, // 67: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,  // 68: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	49, // 69: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	49, // 70: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	48, // 71: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	50, // 72: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	50, // 73: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	50, // 74: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	50, // 75: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	52, // 76: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	52, // 77: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	36, // 78: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	52, // 79: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	36, // 80: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	52, // 81: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	52, // 82: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	63, // 83: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	52, // 84: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	36, // 85: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	86, // [86:86] is the sub-list for method output_type
-	86, // [86:86] is the sub-list for method input_type
-	86, // [86:86] is the sub-list for extension type_name
-	86, // [86:86] is the sub-list for extension extendee
-	0,  // [0:86] is the sub-list for field type_name
+	5,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
+	6,   // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
+	7,   // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
+	8,   // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
+	9,   // 4: ds.v1.Envelope.login_resp:type_name -> ds.v1.LoginResp
+	11,  // 5: ds.v1.Envelope.char_list_req:type_name -> ds.v1.CharListReq
+	12,  // 6: ds.v1.Envelope.char_list_resp:type_name -> ds.v1.CharListResp
+	13,  // 7: ds.v1.Envelope.create_char_req:type_name -> ds.v1.CreateCharReq
+	14,  // 8: ds.v1.Envelope.create_char_resp:type_name -> ds.v1.CreateCharResp
+	15,  // 9: ds.v1.Envelope.delete_char_req:type_name -> ds.v1.DeleteCharReq
+	16,  // 10: ds.v1.Envelope.delete_char_resp:type_name -> ds.v1.DeleteCharResp
+	17,  // 11: ds.v1.Envelope.enter_world_req:type_name -> ds.v1.EnterWorldReq
+	18,  // 12: ds.v1.Envelope.enter_world_resp:type_name -> ds.v1.EnterWorldResp
+	19,  // 13: ds.v1.Envelope.leave_world_req:type_name -> ds.v1.LeaveWorldReq
+	20,  // 14: ds.v1.Envelope.leave_world_resp:type_name -> ds.v1.LeaveWorldResp
+	21,  // 15: ds.v1.Envelope.move_input:type_name -> ds.v1.MoveInput
+	22,  // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
+	23,  // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
+	25,  // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
+	27,  // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
+	28,  // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
+	29,  // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
+	30,  // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
+	31,  // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
+	32,  // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
+	33,  // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
+	34,  // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
+	35,  // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
+	36,  // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
+	41,  // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
+	42,  // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
+	43,  // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
+	44,  // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
+	53,  // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
+	54,  // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
+	55,  // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
+	56,  // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
+	57,  // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
+	58,  // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
+	59,  // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
+	60,  // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
+	61,  // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
+	62,  // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
+	64,  // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
+	65,  // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
+	66,  // 45: ds.v1.Envelope.punch_req:type_name -> ds.v1.PunchReq
+	67,  // 46: ds.v1.Envelope.punch_resp:type_name -> ds.v1.PunchResp
+	68,  // 47: ds.v1.Envelope.socket_req:type_name -> ds.v1.SocketReq
+	69,  // 48: ds.v1.Envelope.socket_resp:type_name -> ds.v1.SocketResp
+	70,  // 49: ds.v1.Envelope.unsocket_req:type_name -> ds.v1.UnsocketReq
+	71,  // 50: ds.v1.Envelope.unsocket_resp:type_name -> ds.v1.UnsocketResp
+	72,  // 51: ds.v1.Envelope.refine_req:type_name -> ds.v1.RefineReq
+	73,  // 52: ds.v1.Envelope.refine_resp:type_name -> ds.v1.RefineResp
+	74,  // 53: ds.v1.Envelope.refine_choose_req:type_name -> ds.v1.RefineChooseReq
+	75,  // 54: ds.v1.Envelope.refine_choose_resp:type_name -> ds.v1.RefineChooseResp
+	0,   // 55: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 56: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10,  // 57: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 58: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10,  // 59: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	36,  // 60: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	45,  // 61: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	51,  // 62: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	3,   // 63: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 64: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	48,  // 65: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	24,  // 66: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	37,  // 67: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	38,  // 68: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	39,  // 69: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	40,  // 70: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	46,  // 71: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	26,  // 72: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 73: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	36,  // 74: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	36,  // 75: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	45,  // 76: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	47,  // 77: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 78: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	49,  // 79: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	49,  // 80: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	48,  // 81: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	50,  // 82: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	50,  // 83: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	50,  // 84: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	50,  // 85: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	52,  // 86: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	52,  // 87: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 88: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	52,  // 89: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 90: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	52,  // 91: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	52,  // 92: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	63,  // 93: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	52,  // 94: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 95: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	63,  // 96: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	52,  // 97: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 98: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	63,  // 99: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	52,  // 100: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 101: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	63,  // 102: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	52,  // 103: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 104: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	63,  // 105: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	49,  // 106: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	52,  // 107: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 108: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	52,  // 109: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	36,  // 110: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	111, // [111:111] is the sub-list for method output_type
+	111, // [111:111] is the sub-list for method input_type
+	111, // [111:111] is the sub-list for extension type_name
+	111, // [111:111] is the sub-list for extension extendee
+	0,   // [0:111] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -5394,6 +6210,16 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_SortBagResp)(nil),
 		(*Envelope_EnhanceReq)(nil),
 		(*Envelope_EnhanceResp)(nil),
+		(*Envelope_PunchReq)(nil),
+		(*Envelope_PunchResp)(nil),
+		(*Envelope_SocketReq)(nil),
+		(*Envelope_SocketResp)(nil),
+		(*Envelope_UnsocketReq)(nil),
+		(*Envelope_UnsocketResp)(nil),
+		(*Envelope_RefineReq)(nil),
+		(*Envelope_RefineResp)(nil),
+		(*Envelope_RefineChooseReq)(nil),
+		(*Envelope_RefineChooseResp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -5401,7 +6227,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   62,
+			NumMessages:   72,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

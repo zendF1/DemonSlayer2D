@@ -65,6 +65,16 @@ message Envelope {
     SortBagResp sort_bag_resp = 70;
     EnhanceReq enhance_req = 71;
     EnhanceResp enhance_resp = 72;
+    PunchReq punch_req = 73;
+    PunchResp punch_resp = 74;
+    SocketReq socket_req = 75;
+    SocketResp socket_resp = 76;
+    UnsocketReq unsocket_req = 77;
+    UnsocketResp unsocket_resp = 78;
+    RefineReq refine_req = 79;
+    RefineResp refine_resp = 80;
+    RefineChooseReq refine_choose_req = 81;
+    RefineChooseResp refine_choose_resp = 82;
   }
 }
 
@@ -118,6 +128,14 @@ enum ErrorCode {
   ERROR_CODE_ENHANCE_MAXED = 32;
   // The action needs the character to stand in a safe zone.
   ERROR_CODE_NOT_IN_SAFE_ZONE = 33;
+  // The item already has the most holes.
+  ERROR_CODE_HOLES_MAXED = 34;
+  // The gem's level is above the item's tier / 10.
+  ERROR_CODE_GEM_TOO_HIGH = 35;
+  // Only Vàng, Cam and Đỏ items can be refined.
+  ERROR_CODE_NOT_REFINABLE = 36;
+  // There is no refine result waiting for a choice.
+  ERROR_CODE_NO_PENDING_REFINE = 37;
 }
 
 enum KickReason {
@@ -452,6 +470,9 @@ message ItemInfo {
   int32 enhance = 5;
   repeated ItemLine lines = 6;
   repeated ItemLine hidden = 7;
+  int32 holes = 8;
+  // One entry per hole: a gem code, or "" for an empty hole.
+  repeated string gems = 9;
 }
 
 message ItemLine {
@@ -549,4 +570,69 @@ message EnhanceResp {
   int32 level = 3;
   InventoryUpdate update = 4;
   SelfStats stats = 5;
+}
+
+// Punches one more empty hole in an equipment piece in a safe zone.
+message PunchReq {
+  ItemRef item = 1;
+}
+
+// update holds the item's slot; stats carries the new Xu.
+message PunchResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Sockets the gem in bag slot gem_slot into the empty hole (0-based) of an
+// equipment piece in a safe zone.
+message SocketReq {
+  ItemRef item = 1;
+  int32 hole = 2;
+  int32 gem_slot = 3;
+}
+
+// update holds the item's slot and the gem's bag slot.
+message SocketResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Takes the gem out of a hole (0-based) into the bag in a safe zone; the hole
+// stays, empty.
+message UnsocketReq {
+  ItemRef item = 1;
+  int32 hole = 2;
+}
+
+// update holds the item's slot and the bag slots the gem went to.
+message UnsocketResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Refines the sub-lines of a Vàng+ equipment piece in a safe zone, keeping the
+// lines at the locked (0-based) indices. The result waits for a
+// RefineChooseReq; any other item command but a pickup drops it.
+message RefineReq {
+  ItemRef item = 1;
+  repeated int32 locked = 2;
+}
+
+// lines is the whole candidate set in order; the item keeps its lines until
+// the choice. update holds the bag slots the stones came from.
+message RefineResp {
+  repeated ItemLine lines = 1;
+  InventoryUpdate update = 2;
+  SelfStats stats = 3;
+}
+
+// Takes the waiting refine result (accept) or keeps the old lines.
+message RefineChooseReq {
+  bool accept = 1;
+}
+
+// update holds the item's slot.
+message RefineChooseResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
 }

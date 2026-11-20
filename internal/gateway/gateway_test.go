@@ -368,6 +368,24 @@ func clientFixtures() map[string]*pb.Envelope {
 			},
 			Stats: &pb.SelfStats{Level: 15, Exp: 10, ExpNext: 3000, Hp: 1150, MaxHp: 1250, Mp: 150, MaxMp: 150,
 				PhysAttack: 230, PhysDefense: 95, MagicDefense: 90, Xu: 1232167, HpRegenBp: 5, MpRegen: 1}}}},
+		"item_with_gems": {Seq: 15, Payload: &pb.Envelope_EquipResp{EquipResp: &pb.EquipResp{
+			// A worn Vàng armour with three holes: two gems and an empty middle hole.
+			Update: &pb.InventoryUpdate{
+				Bag: []*pb.ItemSlot{{Slot: 2}},
+				Equipped: []*pb.ItemSlot{{Slot: 5, Item: &pb.ItemInfo{Code: "eq30_armor", Count: 1, Quality: 2,
+					Element: pb.CharClass_CHAR_CLASS_NHAM, Enhance: 3,
+					Lines:  []*pb.ItemLine{{Stat: "hp", Value: 200}, {Stat: "phys_defense", Value: 2}},
+					Hidden: []*pb.ItemLine{{Stat: "magic_defense", Value: 2}, {Stat: "hp", Value: 210}},
+					Holes:  3, Gems: []string{"gem_hp_2", "", "gem_defense_3"}}}},
+			},
+			Stats: &pb.SelfStats{Level: 30, Exp: 10, ExpNext: 9000, Hp: 2100, MaxHp: 2400, Mp: 300, MaxMp: 300,
+				PhysAttack: 400, PhysDefense: 150, MagicDefense: 140, Xu: 50000}}}},
+		"refine_resp": {Seq: 16, Payload: &pb.Envelope_RefineResp{RefineResp: &pb.RefineResp{
+			// Line 0 locked; lines 1 and 2 redrawn. Three stones left bag slot 7.
+			Lines:  []*pb.ItemLine{{Stat: "hp", Value: 200}, {Stat: "magic_attack", Value: 12}, {Stat: "phys_attack", Value: 9}},
+			Update: &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 7}}},
+			Stats: &pb.SelfStats{Level: 30, Exp: 10, ExpNext: 9000, Hp: 2100, MaxHp: 2400, Mp: 300, MaxMp: 300,
+				PhysAttack: 400, PhysDefense: 150, MagicDefense: 140, Xu: 48800}}}},
 		"world_tick_look": {Payload: &pb.Envelope_WorldTick{WorldTick: &pb.WorldTick{
 			Tick: 48, Looks: []*pb.LookChange{{Id: 78, WeaponEnhance: 10}}}}},
 		"entity_enter_glow": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
@@ -378,8 +396,8 @@ func clientFixtures() map[string]*pb.Envelope {
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 7 {
-		t.Fatalf("ProtocolVersion = %d, want 7", ProtocolVersion)
+	if ProtocolVersion != 8 {
+		t.Fatalf("ProtocolVersion = %d, want 8", ProtocolVersion)
 	}
 }
 
@@ -458,6 +476,25 @@ func TestEnhanceFixturesRoundTrip(t *testing.T) {
 		len(up.GetEquipped()) != 1 || up.GetEquipped()[0].GetItem().GetEnhance() != 8 ||
 		resp.GetStats().GetXu() != 1232167 || resp.GetStats().GetHpRegenBp() != 5 || resp.GetStats().GetMpRegen() != 1 {
 		t.Fatalf("enhance resp %v", resp)
+	}
+}
+
+// The socket fixtures decode back to an item with three holes, an empty one in
+// the middle, and to a refine result with its lines in order.
+func TestSocketFixturesRoundTrip(t *testing.T) {
+	eq := readFixture(t, "item_with_gems").GetEquipResp().GetUpdate().GetEquipped()
+	if len(eq) != 1 {
+		t.Fatalf("equipped %v, want one slot", eq)
+	}
+	it := eq[0].GetItem()
+	if g := it.GetGems(); it.GetHoles() != 3 || len(g) != 3 || g[0] != "gem_hp_2" || g[1] != "" || g[2] != "gem_defense_3" ||
+		len(it.GetHidden()) != 2 {
+		t.Fatalf("item %v, want 3 holes with gem_hp_2, empty, gem_defense_3", it)
+	}
+	resp := readFixture(t, "refine_resp").GetRefineResp()
+	if l := resp.GetLines(); len(l) != 3 || l[0].GetStat() != "hp" || l[1].GetStat() != "magic_attack" ||
+		l[2].GetValue() != 9 || len(resp.GetUpdate().GetBag()) != 1 || resp.GetStats().GetXu() != 48800 {
+		t.Fatalf("refine resp %v", resp)
 	}
 }
 
