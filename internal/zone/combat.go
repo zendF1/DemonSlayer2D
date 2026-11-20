@@ -160,7 +160,7 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 		return nil, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE
 	}
 	m := z.monsters[target]
-	if m == nil || m.dead || m.state == returning {
+	if m == nil || m.dead {
 		return nil, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
 	}
 	if distance(p.pos, m.pos) > combat.SlashRange+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
@@ -173,17 +173,17 @@ func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
 }
 
 // slash lands p's default slash on m: p earns its EXP share of the hit, a
-// wandering or shooting monster turns on its attacker, and one brought to 0
-// HP dies.
+// monster not already chasing turns on its attacker (spec 4.4), and one
+// brought to 0 HP dies.
 func (z *Zone) slash(p *player, m *monster) {
 	dmg := combat.Damage(combat.SlashBase(p.stats), z.area.Levels[m.level].Defense, p.level)
 	counted := min(dmg, m.hp) // overkill earns no EXP
 	m.hp -= counted
 	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: p.id, TargetId: m.id, Damage: int32(dmg), HpAfter: int32(m.hp)})
-	m.attackers[p.id] = struct{}{}
+	m.attackers[p.id] = z.tickNo
 	z.payExpShare(p, m, counted)
-	if m.state == wander || m.state == shoot {
-		m.target, m.state = p.id, chase
+	if m.state != chase && m.state != attack {
+		z.startChase(m, p.id)
 	}
 	if m.hp == 0 {
 		z.killMonster(m)

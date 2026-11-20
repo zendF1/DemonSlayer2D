@@ -33,6 +33,30 @@ func (r *regionState) hasTile(tx, ty int) bool {
 	return ok
 }
 
+// nearestTile is the region tile nearest p, the first in Tiles order on a
+// tie. The region has at least one tile.
+func (r *regionState) nearestTile(p Vec2) Vec2 {
+	best, bestD := r.Tiles[0], distance(r.Tiles[0], p)
+	for _, c := range r.Tiles[1:] {
+		if d := distance(c, p); d < bestD {
+			best, bestD = c, d
+		}
+	}
+	return best
+}
+
+// nearMargin reports whether p lies inside one of the region's rects grown
+// by margin tiles on every side.
+func (r *regionState) nearMargin(p Vec2, margin float32) bool {
+	for _, rc := range r.Rects {
+		if p.X >= float32(rc.X)-margin && p.X < float32(rc.X+rc.W)+margin &&
+			p.Y >= float32(rc.Y)-margin && p.Y < float32(rc.Y+rc.H)+margin {
+			return true
+		}
+	}
+	return false
+}
+
 // regionGrid is a Grid on which every tile outside r's region tiles is blocked.
 type regionGrid struct{ r *regionState }
 
@@ -102,8 +126,7 @@ func (z *Zone) spawn(r *regionState, pos Vec2) bool {
 			maxHP: stats.HP,
 		},
 		region:     r,
-		home:       pos,
-		attackers:  make(map[uint64]struct{}),
+		attackers:  make(map[uint64]uint32),
 		dmgBy:      make(map[uint64]int),
 		expPaid:    make(map[uint64]int64),
 		state:      wander,

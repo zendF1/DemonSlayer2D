@@ -15,7 +15,9 @@ import (
 )
 
 // newFightZone builds a zone on a 60x60 open grid with the safe rect (0,0,10,10)
-// and a single testKind monster of the given level standing at home.
+// and a single testKind monster of the given level standing at home. Its
+// region has home as its only tile and nest, but its rect is the whole map,
+// so the region margin never ends a chase.
 func newFightZone(t *testing.T, level int, home Vec2) (*Zone, *monster) {
 	t.Helper()
 	return newFightZoneOf(t, testKind, level, home)
@@ -28,8 +30,9 @@ func newFightZoneOf(t *testing.T, kind gamedata.Kind, level int, home Vec2) (*Zo
 		Grid:    openGrid(60, 60),
 		Safe:    []Rect{{X: 0, Y: 0, W: 10, H: 10}},
 		Respawn: Vec2{5.5, 5.5},
-		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 1, MinLevel: level, MaxLevel: level, Kind: kind}},
-		Levels:  testLevels,
+		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Rects: []Rect{{X: 0, Y: 0, W: 60, H: 60}}, Nest: home,
+			Count: 1, MinLevel: level, MaxLevel: level, Kind: kind}},
+		Levels: testLevels,
 	}
 	z := New(cfg, area, &fakeSaver{}, quietLog())
 	if len(z.monsters) != 1 {
@@ -90,9 +93,10 @@ func hpChangesIn(envs []*pb.Envelope) []*pb.HpChange {
 
 // ______________________TEST MONSTER AI_____________________
 
-// engage puts m in a chase on player id, the way a slash does. Tests of melee
-// use it now that a passer-by is shot instead of chased.
-func engage(m *monster, id uint64) { m.target, m.state = id, chase }
+// engage puts m in a chase on player id from where it stands, the way a
+// slash does. Tests of melee use it now that a passer-by is shot instead of
+// chased.
+func engage(m *monster, id uint64) { m.target, m.state, m.chaseFrom = id, chase, m.pos }
 
 // teleport puts player id at pos, as if it had walked there.
 func teleport(z *Zone, id uint64, pos Vec2) {
@@ -616,109 +620,6 @@ func TestMonsterAttacksOnInterval(t *testing.T) {
 	}
 }
 
-func TestMonsterLeashesAndHeals(t *testing.T) {
-	home := Vec2{30.5, 30.5}
-	z, m := newFightZone(t, 1, home)
-	m.hp = 10
-	a := joinNow(t, z, 1, 33.5, 30.5)
-	engage(m, 1)
-	z.move(moveCmd{id: 1, seq: 1, dir: Vec2{1, 0}}) // lure it east, faster than it walks
-	step := testKind.Speed * 4 / 10
-	now := time.Now()
-	var far float64
-	returned, healed := false, false
-	for i := 0; i < 200; i++ {
-		z.advance(now)
-		far = max(far, dist(m.pos, home))
-		for _, c := range hpChangesIn(a.take()) {
-			if c.Id == m.id && c.Hp == 56 && c.MaxHp == 56 {
-				healed = true
-			}
-		}
-		if m.state == returning {
-			if m.target != 0 || len(m.attackers) != 0 {
-				t.Fatalf("tick %d: a returning monster keeps target %d attackers %v", i, m.target, m.attackers)
-			}
-			if !returned {
-				z.move(moveCmd{id: 1, seq: 2, dir: Vec2{}})
-				returned = true
-			}
-		}
-		if returned && m.state == wander {
-			break
-		}
-	}
-	if !returned || m.state != wander {
-		t.Fatalf("returned=%v state %v, want back home and wandering", returned, m.state)
-	}
-	if far <= 10 || far > 10+step+1e-3 {
-		t.Fatalf("farthest from home %.3f, want just beyond the chase range 10", far)
-	}
-	if m.pos != home || m.hp != 56 || !healed {
-		t.Fatalf("at %v hp %d healed event %v, want home with full HP and an HpChange", m.pos, m.hp, healed)
-	}
-	if m.nextWander <= z.tickNo {
-		t.Fatalf("nextWander %d, want a fresh one after tick %d", m.nextWander, z.tickNo)
-	}
-	if m.attackers == nil {
-		t.Fatal("attackers must stay allocated after a return")
-	}
-}
-
-func TestReturningMonsterStuckTeleportsHome(t *testing.T) {
-	home := Vec2{30.5, 30.5}
-	z, m := newFightZone(t, 1, home)
-	rows := make([]string, 60)
-	for y := range rows {
-		r := []byte(strings.Repeat(".", 60))
-		if y >= 20 && y <= 40 {
-			r[33] = '#' // between it and home, too long to slide around
-		}
-		rows[y] = string(r)
-	}
-	z.area.Grid = gridFrom(rows...)
-	z.mgrid = z.area.monsterGrid()
-	m.pos, m.hp, m.state = Vec2{35.5, 30.5}, 10, returning
-	m.dmgBy[1], m.expPaid[1] = 46, 8
-	z.updateCell(&m.entity)
-	v := joinNow(t, z, 1, 36.5, 36.5) // in view, out of detect range of home
-	now := time.Now()
-	idleAt := 0
-	var snap *pb.EntityMove
-	var heal *pb.HpChange
-	for i := 1; i <= 60 && idleAt == 0; i++ {
-		z.advance(now)
-		envs := v.take()
-		if mv := moveFor(lastTick(envs), m.id); mv != nil && mv.Snap {
-			snap = mv
-		}
-		for _, c := range hpChangesIn(envs) {
-			if c.Id == m.id {
-				heal = c
-			}
-		}
-		if m.state == wander {
-			idleAt = i
-		}
-	}
-	// About 4 ticks to reach the wall, then 20 ticks (2 s) stuck.
-	if idleAt < 20 || idleAt > 30 {
-		t.Fatalf("wandering at tick %d, want teleported home after 2 s stuck", idleAt)
-	}
-	if m.pos != home || m.hp != m.maxHP || m.snap {
-		t.Fatalf("at %v hp %d/%d snap %v, want home, full HP and snap cleared after the tick", m.pos, m.hp, m.maxHP, m.snap)
-	}
-	if snap == nil || snap.X != home.X || snap.Y != home.Y {
-		t.Fatalf("viewer move %v, want a snap to home", snap)
-	}
-	if heal == nil || heal.Hp != int32(m.maxHP) {
-		t.Fatalf("viewer HpChange %v, want full HP", heal)
-	}
-	if m.dmgBy == nil || m.expPaid == nil || len(m.dmgBy) != 0 || len(m.expPaid) != 0 {
-		t.Fatalf("dmgBy %v expPaid %v, want EXP tracking reset and still allocated", m.dmgBy, m.expPaid)
-	}
-}
-
 // The chase stops inside the attack range even when the range is not above
 // the 1.3-tile chase stop, so float error cannot leave it chasing forever.
 func TestMonsterHitsWithShortAttackRange(t *testing.T) {
@@ -765,8 +666,9 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 	z.area.Grid = gridFrom(rows...)
 	z.mgrid = z.area.monsterGrid()
 	joinNow(t, z, 1, 49.3, 33.5)
-	m.pos, m.state, m.target = Vec2{48.5, 34.3}, chase, 1
+	m.pos = Vec2{48.5, 34.3}
 	z.updateCell(&m.entity)
+	engage(m, 1)
 	p := z.players[1]
 	if d := distance(m.pos, p.pos); d > float32(testKind.AttackRange) || !lineBlocked(z.area.Grid, m.pos, p.pos) {
 		t.Fatalf("setup: %.2f tiles apart, blocked %v; want in reach behind the corner", d, lineBlocked(z.area.Grid, m.pos, p.pos))
@@ -792,70 +694,6 @@ func TestMonsterNeedsLineOfSight(t *testing.T) {
 	}
 	if m.state != attack || p.hp != 480 {
 		t.Fatalf("state %v hp %d, want attacking with one hit landed", m.state, p.hp)
-	}
-}
-
-func TestMonsterKeepsTargetWhenOthersPass(t *testing.T) {
-	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
-	a := joinNow(t, z, 1, 31.5, 30.5)
-	engage(m, 1)
-	z.advance(time.Now())
-	if m.target != 1 {
-		t.Fatalf("target %d, want 1", m.target)
-	}
-	b := joinNow(t, z, 2, 27.5, 30.8)
-	z.move(moveCmd{id: 2, seq: 1, dir: Vec2{1, 0}}) // walks right past the monster
-	now := time.Now()
-	for i := 0; i < 20; i++ {
-		z.advance(now)
-		if m.target != 1 {
-			t.Fatalf("tick %d: target switched to %d", i, m.target)
-		}
-		for _, h := range hitsIn(b.take()) {
-			if h.TargetId != 1 {
-				t.Fatalf("tick %d: hit %v, want only the first target hit", i, h)
-			}
-		}
-	}
-	if len(hitsIn(a.take())) == 0 {
-		t.Fatal("the first target should keep being hit")
-	}
-}
-
-func TestMonsterSwitchesToAttackerWhenTargetDies(t *testing.T) {
-	for _, c := range []struct {
-		name     string
-		attacker bool // B (3.5 tiles away) has hit the monster
-		near     bool // C (2.1 tiles away) stands within detect range
-		target   uint64
-		state    monsterState
-	}{
-		{"attacker before nearer player", true, true, 2, chase},
-		{"nearest in detect range", false, true, 3, chase},
-		{"nobody left", false, false, 0, returning},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
-			m.pos = Vec2{31, 30.5} // off home, so a return takes more than a tick
-			joinNow(t, z, 1, 31.5, 30.5)
-			engage(m, 1)
-			z.advance(time.Now())
-			if m.target != 1 {
-				t.Fatalf("target %d, want 1", m.target)
-			}
-			if c.attacker {
-				joinNow(t, z, 2, 30.5, 34.0)
-				m.attackers = map[uint64]struct{}{2: {}}
-			}
-			if c.near {
-				joinNow(t, z, 3, 30.5, 28.5)
-			}
-			z.damagePlayer(z.players[1], m.id, 10000, false)
-			z.advance(time.Now())
-			if m.target != c.target || m.state != c.state {
-				t.Fatalf("target %d state %v, want %d %v", m.target, m.state, c.target, c.state)
-			}
-		})
 	}
 }
 
@@ -934,6 +772,306 @@ func TestHitWithOnlyAttackerVisible(t *testing.T) {
 	}
 }
 
+// ______________________TEST CHASE_____________________
+
+// boxRegion builds a zone whose one region is the 11x11 rect (25,25)-(35,35),
+// with one monster of kind k moved to (30.5, 30.5).
+func boxRegion(t *testing.T, k gamedata.Kind) (*Zone, *monster) {
+	t.Helper()
+	box := Rect{X: 25, Y: 25, W: 11, H: 11}
+	z, _ := newRegionZone(t, 1, Region{ID: "box", Tiles: rectTiles(box), Rects: []Rect{box}, Nest: Vec2{30.5, 26.5},
+		Count: 1, MinLevel: 1, MaxLevel: 1, Kind: k})
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	m.pos = Vec2{30.5, 30.5}
+	z.updateCell(&m.entity)
+	return z, m
+}
+
+func chasing(m *monster) bool { return m.state == chase || m.state == attack }
+
+// A player who leads a chase more than region_margin tiles beyond the region's
+// rects is let go within a tick. The monster keeps its HP, walks back onto
+// the region and wanders (spec 4.4, 4.5).
+func TestChaseGivesUpOutsideRegionMargin(t *testing.T) {
+	k := testKind
+	k.ChaseRange = 100 // only the margin can end this chase
+	z, m := boxRegion(t, k)
+	a := joinNow(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	if !chasing(m) || m.target != 1 {
+		t.Fatalf("state %v target %d, want a chase", m.state, m.target)
+	}
+	hp := m.hp
+	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}}) // east, faster than it walks
+	edge := float32(25 + 11 + k.RegionMargin)       // x where the expanded rect ends
+	p := z.players[1]
+	now := time.Now()
+	gaveUp := false
+	for i := 0; i < 100 && !gaveUp; i++ {
+		z.advance(now)
+		for _, c := range hpChangesIn(a.take()) {
+			if c.Id == m.id {
+				t.Fatalf("tick %d: HpChange %v for the monster, want its HP untouched", i, c)
+			}
+		}
+		switch {
+		case p.pos.X < edge && !chasing(m):
+			t.Fatalf("tick %d: player at x %.2f, inside the margin, but state %v", i, p.pos.X, m.state)
+		case p.pos.X >= edge:
+			if chasing(m) || m.target != 0 {
+				t.Fatalf("tick %d: player at x %.2f, beyond the margin, but state %v target %d", i, p.pos.X, m.state, m.target)
+			}
+			gaveUp = true
+		}
+	}
+	if !gaveUp {
+		t.Fatal("the player never got beyond the margin")
+	}
+	teleport(z, 1, Vec2{55.5, 50.5}) // out of sight, so it is not shot
+	z.move(moveCmd{id: 1, seq: 3, dir: Vec2{}})
+	r := m.region
+	for i := 0; i < 60 && m.state != wander; i++ {
+		if m.state != back {
+			t.Fatalf("tick %d: state %v, want back until it reaches the region", i, m.state)
+		}
+		z.advance(now)
+	}
+	if m.state != wander || !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) || m.hp != hp {
+		t.Fatalf("state %v at %v hp %d, want wandering on the region with %d HP", m.state, m.pos, m.hp, hp)
+	}
+}
+
+// With the margin out of the way, a chase ends once the monster is more than
+// chase_range from where the chase started. It walks back at full speed
+// without healing.
+func TestChaseGivesUpBeyondChaseRange(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZone(t, 1, home)
+	a := joinNow(t, z, 1, 31.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	hp := m.hp
+	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{1, 0}})
+	step := testKind.Speed * 4 / 10
+	now := time.Now()
+	far := 0.0
+	for i := 0; i < 100 && chasing(m); i++ {
+		z.advance(now)
+		far = max(far, dist(m.pos, home))
+	}
+	if chasing(m) || m.target != 0 {
+		t.Fatalf("state %v target %d, want the chase over", m.state, m.target)
+	}
+	if far <= testKind.ChaseRange || far > testKind.ChaseRange+step+1e-3 {
+		t.Fatalf("farthest from the chase start %.3f, want just beyond the chase range %v", far, testKind.ChaseRange)
+	}
+	z.move(moveCmd{id: 1, seq: 3, dir: Vec2{}})
+	teleport(z, 1, Vec2{55.5, 55.5})
+	prev := m.pos
+	for i := 0; i < 60 && m.state == back; i++ {
+		z.advance(now)
+		if d := dist(m.pos, prev); m.state == back && d < step-1e-3 {
+			t.Fatalf("tick %d: walking back %.3f tiles a tick, want full speed %.3f", i, d, step)
+		}
+		prev = m.pos
+	}
+	if m.state != wander || floor(m.pos.X) != floor(home.X) || floor(m.pos.Y) != floor(home.Y) || m.hp != hp {
+		t.Fatalf("state %v at %v hp %d, want wandering on its tile with %d HP", m.state, m.pos, m.hp, hp)
+	}
+	for _, c := range hpChangesIn(a.take()) {
+		if c.Id == m.id {
+			t.Fatalf("HpChange %v for the monster, want no heal", c)
+		}
+	}
+}
+
+// The chase range counts from where the chase starts, not from the spawn
+// point: a monster that has wandered far from its spawn still chases.
+func TestChaseStartsWhereItWasHit(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.pos = Vec2{30.5 + float32(testKind.ChaseRange) + 5, 30.5}
+	z.updateCell(&m.entity)
+	a := joinNow(t, z, 1, m.pos.X+1, m.pos.Y)
+	attackNow(t, z, 1, 1, m.id)
+	now := time.Now()
+	melee := 0
+	for i := 0; i < 30; i++ {
+		z.advance(now)
+		if !chasing(m) || m.target != 1 {
+			t.Fatalf("tick %d: state %v target %d, want it chasing its attacker", i, m.state, m.target)
+		}
+		_, ms := rangedHits(a.take())
+		melee += len(ms)
+	}
+	if melee == 0 {
+		t.Fatal("no melee hit on the attacker")
+	}
+}
+
+// A target that steps into a safe zone is let go at once.
+func TestChaseGivesUpWhenTargetEntersSafeZone(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{13.5, 5.5})
+	joinNow(t, z, 1, 12.5, 5.5)
+	attackNow(t, z, 1, 1, m.id)
+	z.move(moveCmd{id: 1, seq: 2, dir: Vec2{-1, 0}}) // west into the safe rect (0,0,10,10)
+	p := z.players[1]
+	now := time.Now()
+	for i := 0; i < 40; i++ {
+		z.advance(now)
+		if z.area.InSafe(p.pos) {
+			break
+		}
+		if !chasing(m) {
+			t.Fatalf("tick %d: player at %v outside the safe zone, but state %v", i, p.pos, m.state)
+		}
+	}
+	if !z.area.InSafe(p.pos) {
+		t.Fatal("the player never reached the safe zone")
+	}
+	if chasing(m) || m.target != 0 {
+		t.Fatalf("state %v target %d, want the chase over the tick the player got in", m.state, m.target)
+	}
+}
+
+// Once chasing, a monster keeps its target when someone else hits it, but
+// remembers when each one last hit it.
+func TestChaseKeepsTargetWhenOthersHit(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	joinNow(t, z, 1, 31.5, 30.5)
+	joinNow(t, z, 2, 29.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	first := z.tickNo
+	z.advance(time.Now())
+	attackNow(t, z, 2, 1, m.id)
+	if m.target != 1 || !chasing(m) {
+		t.Fatalf("target %d state %v, want still on the first attacker", m.target, m.state)
+	}
+	if m.attackers[1] != first || m.attackers[2] != z.tickNo {
+		t.Fatalf("attackers %v, want 1 at %d and 2 at %d", m.attackers, first, z.tickNo)
+	}
+	for i := 0; i < 20; i++ {
+		z.advance(time.Now())
+		if m.target != 1 {
+			t.Fatalf("tick %d: target switched to %d", i, m.target)
+		}
+	}
+}
+
+// When the target is let go, the monster turns on the nearest player who hit
+// it in the last 5 s, chasing from where it stands; with nobody that recent it
+// gives up (spec 4.4).
+func TestChaseFallsBackToRecentAttacker(t *testing.T) {
+	k := testKind
+	k.ChaseRange = 100
+	for _, c := range []struct {
+		name  string
+		wait  int // ticks between B's hit and the tick before A leaves
+		fresh bool
+	}{{"recent", 0, true}, {"exactly 5 s ago", 49, true}, {"5.1 s ago", 50, false}} {
+		t.Run(c.name, func(t *testing.T) {
+			z, m := boxRegion(t, k)
+			joinNow(t, z, 1, 31.5, 30.5)
+			joinNow(t, z, 2, 29.5, 30.5)
+			attackNow(t, z, 1, 1, m.id) // A first: the target
+			attackNow(t, z, 2, 1, m.id)
+			for i := 0; i < c.wait; i++ {
+				z.advance(time.Now())
+			}
+			if m.target != 1 {
+				t.Fatalf("target %d, want A", m.target)
+			}
+			teleport(z, 1, Vec2{50.5, 30.5}) // beyond the margin
+			from := m.pos
+			z.advance(time.Now())
+			if c.fresh && (m.target != 2 || !chasing(m) || m.chaseFrom != from) {
+				t.Fatalf("target %d state %v chaseFrom %v at %v, want B chased from here", m.target, m.state, m.chaseFrom, m.pos)
+			}
+			if !c.fresh && (m.target != 0 || chasing(m)) {
+				t.Fatalf("target %d state %v, want the chase given up", m.target, m.state)
+			}
+		})
+	}
+}
+
+// A monster on its way back can be hit; the hit starts a new chase.
+func TestBackMonsterIsAttackable(t *testing.T) {
+	z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
+	m.pos, m.state = Vec2{33.5, 30.5}, back
+	z.updateCell(&m.entity)
+	a := joinNow(t, z, 1, 34.5, 30.5)
+	attackNow(t, z, 1, 1, m.id)
+	envs := a.take()
+	if attackRespAt(envs, 1) < 0 {
+		t.Fatalf("slash on a monster going back rejected: %v", errorFor(envs, 1))
+	}
+	if !chasing(m) || m.target != 1 || m.chaseFrom != (Vec2{33.5, 30.5}) {
+		t.Fatalf("state %v target %d chaseFrom %v, want a chase from where it was hit", m.state, m.target, m.chaseFrom)
+	}
+}
+
+// A monster that cannot get back is put at its region's nest after 2 s stuck,
+// with a snap and no heal (spec 4.5).
+func TestBackStuckSnapsToNest(t *testing.T) {
+	rows := make([]string, 60)
+	for y := range rows {
+		r := []byte(strings.Repeat(".", 60))
+		if y >= 15 && y <= 45 {
+			r[33] = '#' // between it and the region, too long to slide around
+		}
+		rows[y] = string(r)
+	}
+	var tiles []Vec2
+	for y := 20; y <= 40; y++ {
+		tiles = append(tiles, Vec2{30.5, float32(y) + 0.5})
+	}
+	nest := Vec2{30.5, 22.5}
+	z, _ := newRegionZone(t, 1, Region{ID: "col", Tiles: tiles, Rects: []Rect{{X: 30, Y: 20, W: 1, H: 21}}, Nest: nest,
+		Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind})
+	z.area.Grid = gridFrom(rows...)
+	z.mgrid = z.area.monsterGrid()
+	var m *monster
+	for _, mm := range z.monsters {
+		m = mm
+	}
+	m.pos, m.hp, m.state = Vec2{35.5, 30.5}, 10, back
+	m.dmgBy[1], m.expPaid[1] = 46, 8
+	z.updateCell(&m.entity)
+	v := joinNow(t, z, 1, 41.5, 36.5) // in view, out of range
+	now := time.Now()
+	doneAt := 0
+	var snap *pb.EntityMove
+	for i := 1; i <= 60 && doneAt == 0; i++ {
+		z.advance(now)
+		envs := v.take()
+		if mv := moveFor(lastTick(envs), m.id); mv != nil && mv.Snap {
+			snap = mv
+		}
+		for _, c := range hpChangesIn(envs) {
+			if c.Id == m.id {
+				t.Fatalf("tick %d: HpChange %v, want no heal", i, c)
+			}
+		}
+		if m.state == wander {
+			doneAt = i
+		}
+	}
+	// About 4 ticks to reach the wall, then 20 ticks (2 s) stuck.
+	if doneAt < 20 || doneAt > 30 {
+		t.Fatalf("wandering at tick %d, want snapped to the nest after 2 s stuck", doneAt)
+	}
+	if m.pos != nest || m.hp != 10 || m.snap {
+		t.Fatalf("at %v hp %d snap %v, want at the nest, 10 HP and snap cleared after the tick", m.pos, m.hp, m.snap)
+	}
+	if snap == nil || snap.X != nest.X || snap.Y != nest.Y {
+		t.Fatalf("viewer move %v, want a snap to the nest", snap)
+	}
+	if m.dmgBy[1] != 46 || m.expPaid[1] != 8 {
+		t.Fatalf("dmgBy %v expPaid %v, want the EXP tracking kept", m.dmgBy, m.expPaid)
+	}
+}
+
 // ______________________TEST COMBAT_____________________
 
 // attackNow queues an attack by id on target with seq and runs one tick.
@@ -984,7 +1122,7 @@ func TestAttackValidation(t *testing.T) {
 		{"dead attacker", func(z *Zone, m *monster) uint64 { z.players[1].dead = true; return m.id },
 			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_DEAD},
 		{"attacker in a safe zone", func(z *Zone, m *monster) uint64 {
-			m.pos, m.home = Vec2{11.0, 5.5}, Vec2{11.0, 5.5}
+			m.pos = Vec2{11.0, 5.5}
 			z.updateCell(&m.entity)
 			return m.id
 		}, Vec2{9.5, 5.5}, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
@@ -994,10 +1132,6 @@ func TestAttackValidation(t *testing.T) {
 			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"dead monster", func(z *Zone, m *monster) uint64 { m.dead = true; return m.id },
 			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
-		{"returning monster", func(z *Zone, m *monster) uint64 {
-			m.pos, m.state = Vec2{31.0, 30.5}, returning
-			return m.id
-		}, Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"2.1 tiles away", func(z *Zone, m *monster) uint64 { return m.id },
 			Vec2{32.6, 30.5}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
 		{"a wall in between", func(z *Zone, m *monster) uint64 {
@@ -1087,8 +1221,8 @@ func TestAttackHitsAndAggro(t *testing.T) {
 	if m.state != chase || m.target != 1 {
 		t.Fatalf("state %v target %d, want a wandering monster to chase its attacker", m.state, m.target)
 	}
-	if _, ok := m.attackers[1]; !ok {
-		t.Fatal("the attacker must be in the monster's attackers")
+	if at, ok := m.attackers[1]; !ok || at != z.tickNo || m.chaseFrom != (Vec2{30.5, 30.5}) {
+		t.Fatalf("attackers %v chaseFrom %v, want the hit's tick recorded and the chase starting where it stood", m.attackers, m.chaseFrom)
 	}
 
 	// The cooldown is 8 ticks: an attack 8 ticks after the last is accepted.
@@ -1307,8 +1441,9 @@ func TestLevelUpThenHitSameTick(t *testing.T) {
 	area := Area{
 		Grid:    openGrid(60, 60),
 		Respawn: Vec2{5.5, 5.5},
-		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 2, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
-		Levels:  testLevels,
+		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Rects: []Rect{{X: 0, Y: 0, W: 60, H: 60}}, Nest: home,
+			Count: 2, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
+		Levels: testLevels,
 	}
 	z := New(testConfig(10), area, &fakeSaver{}, quietLog())
 	ids := slices.Sorted(maps.Keys(z.monsters))
@@ -1405,37 +1540,35 @@ func TestOverkillEarnsNoExp(t *testing.T) {
 	}
 }
 
-// A monster that heals at home starts its damage tracking again; players
-// keep the EXP it paid.
-func TestLeashHealResetsExpTracking(t *testing.T) {
-	home := Vec2{30.5, 30.5}
+// A monster that gives up a chase keeps its HP and its damage tracking, so
+// the player who comes back and kills it is paid the rest of its EXP: no
+// more, no less (spec 4.5).
+func TestGiveUpKeepsExpTracking(t *testing.T) {
+	home := Vec2{13.5, 5.5}
 	z, m := newFightZone(t, 1, home)
-	joinNow(t, z, 1, 31.5, 30.5)
+	joinNow(t, z, 1, 12.5, 5.5)
 	p := z.players[1]
 	attackNow(t, z, 1, 1, m.id)
-	if p.exp != 2 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 {
-		t.Fatalf("exp %d dmgBy %v expPaid %v, want 2, 14, 2", p.exp, m.dmgBy, m.expPaid)
+	if p.exp != 2 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 || !chasing(m) {
+		t.Fatalf("exp %d dmgBy %v expPaid %v state %v, want 2, 14, 2 and a chase", p.exp, m.dmgBy, m.expPaid, m.state)
 	}
-	// Drag it past the chase range: it walks home and heals.
-	m.pos = Vec2{home.X + 11, home.Y}
-	z.updateCell(&m.entity)
+	teleport(z, 1, Vec2{8.5, 5.5}) // into the safe zone: the chase ends
 	now := time.Now()
-	for i := 0; i < 100 && !(m.state == wander && m.pos == home); i++ {
+	for i := 0; i < 20 && m.state != wander; i++ {
 		z.advance(now)
 	}
-	if m.pos != home || m.hp != m.maxHP {
-		t.Fatalf("at %v hp %d, want home with full HP", m.pos, m.hp)
+	if m.state != wander || m.hp != 42 || m.dmgBy[1] != 14 || m.expPaid[1] != 2 {
+		t.Fatalf("state %v hp %d dmgBy %v expPaid %v, want wandering with 42 HP and the tracking kept", m.state, m.hp, m.dmgBy, m.expPaid)
 	}
-	if p.exp != 2 {
-		t.Fatalf("exp %d, want the 2 already paid kept", p.exp)
+	teleport(z, 1, Vec2{m.pos.X - 1, m.pos.Y})
+	for seq := uint32(2); !m.dead && seq < 10; seq++ {
+		for i := 0; i < 8; i++ {
+			z.advance(now)
+		}
+		attackNow(t, z, 1, seq, m.id)
 	}
-	if m.dmgBy == nil || m.expPaid == nil || len(m.dmgBy) != 0 || len(m.expPaid) != 0 {
-		t.Fatalf("dmgBy %v expPaid %v, want empty and still allocated", m.dmgBy, m.expPaid)
-	}
-	// A fresh 14 pays 2 again, not the 3 that 28 summed would.
-	attackNow(t, z, 1, 2, m.id)
-	if p.exp != 4 {
-		t.Fatalf("exp %d, want 4", p.exp)
+	if !m.dead || p.exp != combat.MonsterExp(1) {
+		t.Fatalf("dead %v exp %d, want the kill to bring the total to the monster's %d EXP", m.dead, p.exp, combat.MonsterExp(1))
 	}
 }
 
@@ -1797,8 +1930,8 @@ func TestAutoRespawnAfter60s(t *testing.T) {
 	}
 }
 
-// A monster whose target is killed by its own hits picks another player, or
-// goes home when there is none (spec 4.2).
+// A monster whose target is killed by its own hits turns on another recent
+// attacker, or goes back to wandering when there is none (spec 4.4).
 func TestMonsterDropsDeadTarget(t *testing.T) {
 	for _, other := range []bool{true, false} {
 		z, m := newFightZone(t, 1, Vec2{30.5, 30.5})
@@ -1806,7 +1939,7 @@ func TestMonsterDropsDeadTarget(t *testing.T) {
 		engage(m, 1)
 		if other {
 			joinNow(t, z, 2, 30.5, 33.5)
-			m.attackers[2] = struct{}{}
+			m.attackers[2] = z.tickNo
 		}
 		now := time.Now()
 		for i := 0; i < 30 && !z.players[1].dead; i++ {
@@ -1816,11 +1949,11 @@ func TestMonsterDropsDeadTarget(t *testing.T) {
 			t.Fatal("the monster should have killed player 1")
 		}
 		z.advance(now)
-		if other && (m.target != 2 || m.state == returning) {
+		if other && (m.target != 2 || m.state != chase && m.state != attack) {
 			t.Fatalf("target %d state %v, want the monster on player 2", m.target, m.state)
 		}
-		if !other && (m.target != 0 || (m.state != returning && m.state != wander)) {
-			t.Fatalf("target %d state %v, want the monster going home", m.target, m.state)
+		if !other && (m.target != 0 || m.state != wander) {
+			t.Fatalf("target %d state %v, want the monster wandering again", m.target, m.state)
 		}
 	}
 }
@@ -1831,9 +1964,10 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 	home := Vec2{30.5, 30.5}
 	area := Area{
 		Grid:    openGrid(60, 60),
-		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside the detect range, inside the leash
-		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Nest: home, Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
-		Levels:  testLevels,
+		Respawn: Vec2{24.5, 30.5}, // 6 tiles from home: outside the detect range
+		Regions: []Region{{ID: "r1", Tiles: []Vec2{home}, Rects: []Rect{{X: 0, Y: 0, W: 60, H: 60}}, Nest: home,
+			Count: 1, MinLevel: 1, MaxLevel: 1, Kind: testKind}},
+		Levels: testLevels,
 	}
 	z := New(testConfig(10), area, &fakeSaver{}, quietLog())
 	var m *monster

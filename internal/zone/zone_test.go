@@ -760,8 +760,8 @@ func TestSpawnFillsRegions(t *testing.T) {
 		if m.id != id || m.kind != pb.EntityKind_ENTITY_KIND_MONSTER || m.name != testKind.Name {
 			t.Fatalf("monster %d: bad identity %+v", id, m.entity)
 		}
-		if !slices.Contains(r.Tiles, m.pos) || !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) || m.home != m.pos {
-			t.Fatalf("monster %d at %v (home %v), want on a tile of region %s", id, m.pos, m.home, r.ID)
+		if !slices.Contains(r.Tiles, m.pos) || !r.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
+			t.Fatalf("monster %d at %v, want on a tile of region %s", id, m.pos, r.ID)
 		}
 		if m.level < r.MinLevel || m.level > r.MaxLevel {
 			t.Fatalf("monster %d level %d outside region %s's %d-%d", id, m.level, r.ID, r.MinLevel, r.MaxLevel)
@@ -847,8 +847,8 @@ func TestRespawnAtNest(t *testing.T) {
 		if id == m.id || nm.dead || nm.region != r {
 			t.Fatalf("monster %d dead=%v region %v, want a new live monster of region r", id, nm.dead, nm.region)
 		}
-		if nm.pos != nest || nm.home != nest {
-			t.Fatalf("respawned at %v (home %v), want the nest %v", nm.pos, nm.home, nest)
+		if nm.pos != nest {
+			t.Fatalf("respawned at %v, want the nest %v", nm.pos, nest)
 		}
 		if nm.level < 1 || nm.level > 2 || nm.hp != testLevels[nm.level].HP || nm.maxHP != nm.hp {
 			t.Fatalf("respawned level %d hp %d/%d, want full HP at level 1-2", nm.level, nm.hp, nm.maxHP)
@@ -859,5 +859,35 @@ func TestRespawnAtNest(t *testing.T) {
 	}
 	if r.present != 1 || len(r.pending) != 0 {
 		t.Fatalf("region present %d pending %v, want 1 and none", r.present, r.pending)
+	}
+}
+
+// nearestTile is the region tile nearest a point, the first in (y, x) order
+// on a tie; nearMargin is whether a point lies within margin tiles of the
+// region's rects.
+func TestRegionNearestTileAndMargin(t *testing.T) {
+	rects := []Rect{{X: 10, Y: 10, W: 5, H: 5}, {X: 20, Y: 10, W: 2, H: 2}}
+	r := newRegionState(Region{ID: "r", Tiles: append(rectTiles(rects[0]), rectTiles(rects[1])...), Rects: rects})
+	for p, want := range map[Vec2]Vec2{
+		{12.2, 12.7}: {12.5, 12.5}, // on a tile
+		{5.0, 5.0}:   {10.5, 10.5},
+		{17.5, 10.5}: {14.5, 10.5}, // tie between 14.5 and 20.5: the first
+		{19.0, 11.9}: {20.5, 11.5},
+	} {
+		if got := r.nearestTile(p); got != want {
+			t.Errorf("nearestTile(%v) = %v, want %v", p, got, want)
+		}
+	}
+	for _, c := range []struct {
+		p    Vec2
+		want bool
+	}{
+		{Vec2{12, 12}, true}, {Vec2{7.01, 12}, true}, {Vec2{6.99, 12}, false}, // x edge 10 - 3 = 7
+		{Vec2{17.99, 16}, true}, {Vec2{18.0, 16}, false}, // x edge 15 + 3 = 18, exclusive (y 16 is past the second rect's margin)
+		{Vec2{24.9, 12}, true}, {Vec2{12, 17.9}, true}, {Vec2{12, 18.1}, false},
+	} {
+		if got := r.nearMargin(c.p, 3); got != c.want {
+			t.Errorf("nearMargin(%v, 3) = %v, want %v", c.p, got, c.want)
+		}
 	}
 }

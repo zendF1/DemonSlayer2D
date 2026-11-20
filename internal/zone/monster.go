@@ -12,11 +12,11 @@ type monsterState int
 
 // Monster states (spec 4). chase and attack together are the spec's chase.
 const (
-	wander    monsterState = iota // rests, then walks to a random region tile nearby
-	shoot                         // stands still, shooting the nearest player in sight
-	chase                         // walks to its target
-	attack                        // hits its target every AttackSec
-	returning                     // walks home, ignoring everyone
+	wander monsterState = iota // rests, then walks to a random region tile nearby
+	shoot                      // stands still, shooting the nearest player in sight
+	chase                      // walks to its target
+	attack                     // hits its target every AttackSec
+	back                       // walks back onto its region, ignoring everyone
 )
 
 const (
@@ -31,9 +31,12 @@ const (
 	minProgress = 0.1
 	// chaseStop is how close a chasing monster walks to its target.
 	chaseStop = 1.3
-	// returnStuckSec is how long a returning monster may stay stuck before it
-	// is put back home.
+	// returnStuckSec is how long a monster going back may stay stuck before
+	// it is put at its region's nest.
 	returnStuckSec = 2.0
+	// recentHitSec is how recently a player must have hit a monster to be
+	// chased once the monster lets its target go (spec 4.4).
+	recentHitSec = 5.0
 )
 
 type walkResult int
@@ -47,17 +50,17 @@ const (
 type monster struct {
 	entity
 	region *regionState
-	home   Vec2 // where it spawned
 	state  monsterState
 
-	target     uint64              // player it chases or attacks; 0 when none
-	attackers  map[uint64]struct{} // players who hit it since it last went home
-	nextAttack uint32              // first tick it may hit again
-	stuck      uint32              // consecutive ticks a returning monster could not move
-	diedAt     uint32              // tick it died at, while dead
+	target     uint64            // player it chases or attacks; 0 when none
+	chaseFrom  Vec2              // where the current chase started
+	attackers  map[uint64]uint32 // the last tick each player hit it
+	nextAttack uint32            // first tick it may hit again
+	stuck      uint32            // consecutive ticks a monster going back could not move
+	diedAt     uint32            // tick it died at, while dead
 
-	// Since it last healed at home: the damage each player has done to it
-	// that counts for EXP (overkill does not), and the EXP paid to each.
+	// Over its whole life: the damage each player has done to it that counts
+	// for EXP (overkill does not), and the EXP paid to each.
 	dmgBy   map[uint64]int
 	expPaid map[uint64]int64
 
@@ -85,8 +88,8 @@ func (z *Zone) thinkMonsters() {
 			z.shoot(m)
 		case chase, attack:
 			z.fight(m)
-		case returning:
-			z.goHome(m)
+		case back:
+			z.goBack(m)
 		}
 	}
 }
@@ -109,26 +112,6 @@ func nearer(m *monster, p, best *player) bool {
 	}
 	dp, db := distance(m.pos, p.pos), distance(m.pos, best.pos)
 	return dp < db || dp == db && p.id < best.id
-}
-
-// nearestInDetect is the nearest valid player within the kind's detect range.
-// Only the AOI cells around m are searched.
-func (z *Zone) nearestInDetect(m *monster) *player {
-	reach := float32(m.region.Kind.DetectRange)
-	var best *player
-	for dx := -1; dx <= 1; dx++ {
-		for dy := -1; dy <= 1; dy++ {
-			for id, e := range z.cells[cellKey{m.cell.X + dx, m.cell.Y + dy}] {
-				if e.kind != pb.EntityKind_ENTITY_KIND_PLAYER {
-					continue
-				}
-				if p := z.validTarget(id); p != nil && distance(m.pos, p.pos) <= reach && nearer(m, p, best) {
-					best = p
-				}
-			}
-		}
-	}
-	return best
 }
 
 // nearestShootable is the nearest valid player m may shoot (spec 3.2): within
@@ -184,39 +167,59 @@ func (z *Zone) startWander(m *monster) {
 	m.nextWander = z.tickNo + z.restDelay()
 }
 
-// retarget picks a new target once the old one is lost (spec 4.2): the nearest
-// valid player who has hit m, else the nearest valid player in detect range.
-func (z *Zone) retarget(m *monster) *player {
+// startChase sets m on player id, the chase starting where m stands.
+func (z *Zone) startChase(m *monster, id uint64) {
+	m.target, m.state, m.chaseFrom, m.stuck = id, chase, m.pos, 0
+}
+
+// keepsChasing reports whether m may go on chasing t (spec 4.4): t is within
+// the kind's region margin of the region's rects, and m is within the chase
+// range of where the chase started. t must already be a valid target.
+func (z *Zone) keepsChasing(m *monster, t *player) bool {
+	k := &m.region.Kind
+	return m.region.nearMargin(t.pos, float32(k.RegionMargin)) && distance(m.pos, m.chaseFrom) <= float32(k.ChaseRange)
+}
+
+// fallback picks who m chases once it lets its target go: the nearest valid
+// player other than the old target who hit it within recentHitSec and stands
+// within the region margin. Older hits are forgotten.
+func (z *Zone) fallback(m *monster, old uint64) *player {
+	recent := z.ticks(recentHitSec)
 	var best *player
-	for id := range m.attackers {
-		if p := z.validTarget(id); p != nil && nearer(m, p, best) {
+	for id, at := range m.attackers {
+		if z.tickNo-at > recent {
+			delete(m.attackers, id)
+			continue
+		}
+		if id == old {
+			continue
+		}
+		if p := z.validTarget(id); p != nil && m.region.nearMargin(p.pos, float32(m.region.Kind.RegionMargin)) && nearer(m, p, best) {
 			best = p
 		}
 	}
-	if best != nil {
-		return best
-	}
-	return z.nearestInDetect(m)
+	return best
 }
 
-// fight runs a monster in chase or attack: it keeps its target while the
-// target stays valid, goes home when lured past the chase range, walks up to
-// the target and hits it every AttackSec once in range with a clear line, the
-// same line of sight a player's slash needs.
+// fight runs a monster in chase or attack. First it lets its target go if
+// the target is no longer valid, has left the region margin, or has led it
+// beyond the chase range; it then turns on a recent attacker, or goes back to
+// its region. Otherwise it walks up to the target and hits it every AttackSec
+// once in range with a clear line, the same line of sight a player's slash
+// needs. It never shoots.
 func (z *Zone) fight(m *monster) {
 	t := z.validTarget(m.target)
+	if t != nil && !z.keepsChasing(m, t) {
+		t = nil
+	}
 	if t == nil {
-		if t = z.retarget(m); t == nil {
-			z.startReturn(m)
+		if t = z.fallback(m, m.target); t == nil {
+			z.startBack(m)
 			return
 		}
-		m.target = t.id
+		z.startChase(m, t.id)
 	}
 	k := &m.region.Kind
-	if distance(m.pos, m.home) > float32(k.ChaseRange) {
-		z.startReturn(m)
-		return
-	}
 	if m.state == attack && !z.canHit(m, t) {
 		m.state = chase
 	}
@@ -265,46 +268,34 @@ func (z *Zone) chaseStep(m *monster, t *player) {
 	z.walkTo(m, to, z.monsterStep(m))
 }
 
-// startReturn sends m home, forgetting its target and attackers.
-func (z *Zone) startReturn(m *monster) {
-	m.state, m.target, m.stuck = returning, 0, 0
-	clear(m.attackers)
-	z.goHome(m)
+// startBack sends m back to its region, forgetting its target (spec 4.5).
+func (z *Zone) startBack(m *monster) {
+	m.state, m.target, m.stuck = back, 0, 0
+	z.goBack(m)
 }
 
-// goHome walks a returning monster home at full speed. One stuck for
-// returnStuckSec in a row is put straight back home.
-func (z *Zone) goHome(m *monster) {
-	switch z.walkTo(m, m.home, z.monsterStep(m)) {
+// goBack runs a monster going back. On a region tile it wanders again; off
+// the region it walks at full speed to the nearest region tile. One stuck for
+// returnStuckSec in a row is put at the region's nest. It does not heal, and
+// its EXP tracking stays.
+func (z *Zone) goBack(m *monster) {
+	r := m.region
+	if r.hasTile(floor(m.pos.X), floor(m.pos.Y)) {
+		z.startWander(m)
+		return
+	}
+	switch z.walkTo(m, r.nearestTile(m.pos), z.monsterStep(m)) {
 	case walkArrived:
-		z.arriveHome(m)
+		z.startWander(m)
 	case walkStuck:
 		if m.stuck++; m.stuck >= z.ticks(returnStuckSec) {
-			m.pos, m.changed, m.snap = m.home, true, true
+			m.pos, m.changed, m.snap = r.Nest, true, true
 			z.updateCell(&m.entity)
-			z.arriveHome(m)
+			z.startWander(m)
 		}
 	default:
 		m.stuck = 0
 	}
-}
-
-// arriveHome makes a returned monster wander from home with full HP. Players keep
-// the EXP it paid them, and its damage tracking starts again.
-func (z *Zone) arriveHome(m *monster) {
-	if m.pos != m.home {
-		m.pos, m.changed = m.home, true
-		z.updateCell(&m.entity)
-	}
-	z.stopMonster(m)
-	if m.hp != m.maxHP {
-		m.hp = m.maxHP
-		z.hpChanged(&m.entity)
-	}
-	clear(m.dmgBy)
-	clear(m.expPaid)
-	m.stuck = 0
-	z.startWander(m)
 }
 
 // monsterStep is how far m walks in one tick at full speed.
