@@ -396,13 +396,27 @@ func clientFixtures() map[string]*pb.Envelope {
 		"entity_enter_glow": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
 			Id: 78, Kind: pb.EntityKind_ENTITY_KIND_PLAYER, Name: "Mai", CharClass: pb.CharClass_CHAR_CLASS_MINH,
 			Level: 20, X: 7.5, Y: 8.5, DirY: -1, Hp: 1500, MaxHp: 1500, WeaponEnhance: 12}}},
+		"use_portal_req": {Seq: 17, Payload: &pb.Envelope_UsePortalReq{UsePortalReq: &pb.UsePortalReq{
+			PortalId: "to_ubuyashiki"}}},
+		"zone_list_resp": {Seq: 18, Payload: &pb.Envelope_ZoneListResp{ZoneListResp: &pb.ZoneListResp{
+			Zones: []*pb.ZoneInfo{
+				{Zone: 1, Players: 12, Capacity: 50},
+				{Zone: 2, Players: 3, Capacity: 50},
+			}}}},
+		"enter_world_resp_cooldowns": {Seq: 19, Payload: &pb.Envelope_EnterWorldResp{EnterWorldResp: &pb.EnterWorldResp{
+			SelfEntityId: 77, MapId: "ubuyashiki", Zone: 1, X: 4.5, Y: 24,
+			ServerTick: 1300, MoveSpeed: 4, TickRate: 10,
+			Cooldowns: []*pb.Cooldown{
+				{Key: "viem_1", RemainingMs: 2000},
+				{Key: "zone_change", RemainingMs: 9500},
+			}}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 8 {
-		t.Fatalf("ProtocolVersion = %d, want 8", ProtocolVersion)
+	if ProtocolVersion != 9 {
+		t.Fatalf("ProtocolVersion = %d, want 9", ProtocolVersion)
 	}
 }
 
@@ -456,6 +470,29 @@ func TestItemFixturesRoundTrip(t *testing.T) {
 	if eq := up.GetUpdate().GetEquipped(); len(eq) != 1 || eq[0].GetSlot() != 5 || eq[0].GetItem().GetCode() != "eq10_armor" ||
 		up.GetStats().GetMaxHp() != 1200 {
 		t.Fatalf("equip resp %v", up)
+	}
+}
+
+// The transfer fixtures decode back to the portal request, a two-zone list and
+// an EnterWorldResp carrying a skill and a zone-change cooldown.
+func TestTransferFixturesRoundTrip(t *testing.T) {
+	env := readFixture(t, "use_portal_req")
+	if env.GetSeq() != 17 || env.GetUsePortalReq().GetPortalId() != "to_ubuyashiki" {
+		t.Fatalf("use portal %v", env)
+	}
+	zones := readFixture(t, "zone_list_resp").GetZoneListResp().GetZones()
+	if len(zones) != 2 || zones[0].GetZone() != 1 || zones[0].GetPlayers() != 12 || zones[0].GetCapacity() != 50 ||
+		zones[1].GetZone() != 2 || zones[1].GetPlayers() != 3 {
+		t.Fatalf("zones %v, want 1 (12/50) and 2 (3/50)", zones)
+	}
+	ew := readFixture(t, "enter_world_resp_cooldowns").GetEnterWorldResp()
+	cd := ew.GetCooldowns()
+	if ew.GetMapId() != "ubuyashiki" || len(cd) != 2 || cd[0].GetKey() != "viem_1" || cd[0].GetRemainingMs() != 2000 ||
+		cd[1].GetKey() != "zone_change" || cd[1].GetRemainingMs() != 9500 {
+		t.Fatalf("enter world %v, want viem_1 2000 ms and zone_change 9500 ms", ew)
+	}
+	if readFixture(t, "enter_world_resp").GetEnterWorldResp().GetCooldowns() != nil {
+		t.Fatal("a login EnterWorldResp carries cooldowns")
 	}
 }
 

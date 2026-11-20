@@ -75,6 +75,11 @@ message Envelope {
     RefineResp refine_resp = 80;
     RefineChooseReq refine_choose_req = 81;
     RefineChooseResp refine_choose_resp = 82;
+
+    UsePortalReq use_portal_req = 83;
+    ChangeZoneReq change_zone_req = 84;
+    ZoneListReq zone_list_req = 85;
+    ZoneListResp zone_list_resp = 86;
   }
 }
 
@@ -136,6 +141,8 @@ enum ErrorCode {
   ERROR_CODE_NOT_REFINABLE = 36;
   // There is no refine result waiting for a choice.
   ERROR_CODE_NO_PENDING_REFINE = 37;
+  // The current map has no running zone with that number.
+  ERROR_CODE_ZONE_NOT_FOUND = 38;
 }
 
 enum KickReason {
@@ -224,6 +231,8 @@ message EnterWorldReq {
   int64 char_id = 1;
 }
 
+// The reply to EnterWorldReq, and also to UsePortalReq and ChangeZoneReq: a
+// transfer puts the character in a new zone exactly as entering the world does.
 message EnterWorldResp {
   uint64 self_entity_id = 1;
   string map_id = 2;
@@ -241,6 +250,16 @@ message EnterWorldResp {
   repeated SkillLevel skills = 10;
   // The bag and the worn items.
   Inventory inventory = 11;
+  // Cooldowns still running, sorted by key; empty when entering from the
+  // character screen.
+  repeated Cooldown cooldowns = 12;
+}
+
+// Time left on a cooldown when entering a zone. key: a skill id, "slash",
+// "zone_change"; phase 4b adds "potion_hp" and "potion_mp".
+message Cooldown {
+  string key = 1;
+  int32 remaining_ms = 2;
 }
 
 message LeaveWorldReq {}
@@ -635,4 +654,29 @@ message RefineChooseReq {
 message RefineChooseResp {
   InventoryUpdate update = 1;
   SelfStats stats = 2;
+}
+
+// Sent by the client when the character walks into a portal. Accepted within
+// 1 tile of the portal rectangle; the reply is an EnterWorldResp.
+message UsePortalReq {
+  string portal_id = 1;
+}
+
+// Moves the character to another running zone of the same map, keeping its
+// position. The reply is an EnterWorldResp.
+message ChangeZoneReq {
+  int32 zone = 1;
+}
+
+message ZoneListReq {}
+
+// The running zones of the current map, by zone number.
+message ZoneListResp {
+  repeated ZoneInfo zones = 1;
+}
+
+message ZoneInfo {
+  int32 zone = 1;
+  int32 players = 2;
+  int32 capacity = 3;
 }
