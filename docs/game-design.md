@@ -71,9 +71,9 @@ Tốc độ di chuyển 1 là mức chuẩn cho mọi class. Các nguồn khác 
 
 #### EXP lên cấp
 
-Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** lên **L + 1** bằng EXP của **(10 + 2 × (L − 1)^1,5) × hệ số cấp** quái thường cùng cấp, mỗi con cho 10 × L EXP (mục 5.12):
+Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** lên **L + 1** bằng EXP của **kills(L) = (10 + 2 × (L − 1)^1,5) × hệ số cấp** quái thường cùng cấp, mỗi con cho EXP gốc **exp(L) = HP × r(L)** của quái cấp L (mục 5.8, 5.12):
 
-**EXP lên cấp kế tiếp = 10 × L × (10 + 2 × (L − 1)^1,5) × hệ số cấp**, làm tròn đến 10.
+**EXP lên cấp kế tiếp = kills(L) × exp(L)**, làm tròn đến 10.
 
 | Cấp hiện tại | Hệ số cấp | Mục đích |
 | --- | --- | --- |
@@ -82,18 +82,20 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 
 | Cấp hiện tại | EXP lên cấp kế tiếp | Số quái thường cùng cấp | Tổng EXP từ cấp 1 | Giờ đánh quái ước tính |
 | --- | --- | --- | --- | --- |
-| 1 | 130 | 13 | 130 | ~0 |
-| 5 | 8.670 | 173 | 15.670 | 0,5 |
-| 9 | 59.680 | 663 | 156.760 | 3,0 |
-| 10 | 64.000 | 640 | 220.760 | 3,9 |
-| 20 | 526.910 | 2.635 | 2.876.490 | 26,2 |
-| 30 | 1.934.040 | 6.447 | 14.842.000 | 89,6 |
-| 40 | 4.971.100 | 12.428 | 49.226.980 | 222,2 |
-| 50 | 10.440.000 | 20.880 | 126.652.560 | 456,3 |
-| 60 | 19.243.880 | 32.073 | 276.325.610 | 828,6 |
-| 70 | 32.376.790 | 46.253 | 536.991.700 | 1.378,8 |
-| 80 | 50.916.050 | 63.645 | 957.800.360 | 2.150,2 |
-| 89 | 73.176.520 | 82.221 | 1.523.087.240 | 3.071,9 |
+| 1 | 80 | 13 | 80 | ~0 |
+| 5 | 6.240 | 173 | 10.910 | 0,5 |
+| 9 | 56.360 | 663 | 136.760 | 3,0 |
+| 10 | 80.000 | 640 | 216.760 | 3,9 |
+| 20 | 1.541.220 | 2.635 | 6.660.150 | 26,2 |
+| 30 | 7.613.660 | 6.447 | 49.542.690 | 89,6 |
+| 40 | 24.606.940 | 12.428 | 206.580.590 | 222,2 |
+| 50 | 62.118.000 | 20.880 | 636.993.420 | 456,3 |
+| 60 | 133.937.400 | 32.073 | 1.618.393.850 | 828,6 |
+| 70 | 258.135.560 | 46.253 | 3.588.744.780 | 1.378,8 |
+| 80 | 456.780.610 | 63.645 | 7.190.998.800 | 2.150,2 |
+| 89 | 723.131.970 | 82.221 | 12.566.282.520 | 3.071,9 |
+
+- Mỗi điểm HP của quái cho r(L) EXP và r(L) tăng theo cấp quái (mục 5.8), nên EXP lên cấp cao hơn nhiều so với bảng cũ khi mỗi quái cho 10 × L EXP. Số quái cần hạ và thời gian lên cấp giữ nguyên.
 
 - Hệ số tăng 0,5 mỗi cấp nên không có bước nhảy: cấp 9→10 và cấp 10→11 đều mất khoảng 0,9–1,1 giờ đánh quái. Cấp 1–10 là giai đoạn làm quen; từ cấp 10 bắt đầu luyện cấp dài hạn.
 - Nhiệm vụ hàng ngày, chính tuyến, phụ tuyến và bang hội là nguồn EXP chính bổ sung ngoài đánh quái, nên thời gian lên cấp thực tế ngắn hơn bảng.
@@ -105,11 +107,11 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 | Tổ đội 5 người cùng đánh | ×1,2 | ~2,5 giờ | ~380 giờ | ~2.560 giờ |
 
 Tổ đội ×1,2 giả định cả năm người hạ quái nhanh như nhau. Trên thực tế, năm người chung một vùng 7–8 quái hồi sinh 8 giây có thể không đủ quái cho cả nhóm.
-- Tổng EXP lên cấp 90 khoảng 1,5 tỷ, gần giới hạn số nguyên 32-bit có dấu (khoảng 2,1 tỷ). Server và database lưu EXP bằng số nguyên 64-bit.
+- Tổng EXP lên cấp 90 khoảng 12,6 tỷ, vượt giới hạn số nguyên 32-bit có dấu (khoảng 2,1 tỷ); EXP lên một cấp lớn nhất là khoảng 723 triệu ở cấp 89. Server và database lưu EXP bằng số nguyên 64-bit.
 
 - Cột "Tổng EXP từ cấp 1" là tổng EXP đến khi lên được cấp kế tiếp. Ví dụ ở dòng cấp 89, đó là tổng EXP từ cấp 1 lên cấp 90.
 - Cột giờ ước tính giả định đánh một mình, 5 giây mỗi quái thường cùng cấp, chưa tính nhiệm vụ, tinh anh, thủ lĩnh, sự kiện và EXP tổ đội. Thời gian thực tế sẽ ngắn hơn khi có các nguồn này.
-- Bảng đầy đủ từng cấp nằm trong [CSV EXP lên cấp](balance/exp-table.csv), xuất bằng [script EXP](balance/exp_table.py).
+- Bảng đầy đủ từng cấp nằm trong [CSV EXP lên cấp](balance/exp-table.csv). [Script EXP](balance/exp_table.py) xuất CSV này và `data/exp.json` mà server đọc; script lấy exp(L) từ [script chỉ số quái](balance/monster_stats.py), nên đổi HP quái thì chạy lại cả hai script.
 
 #### Công thức phòng thủ và sát thương PvP ban đầu
 
@@ -187,7 +189,17 @@ Tầm đánh dùng **ô bản đồ** làm đơn vị, đo trên mặt đất t�
 | 7–9 | 4 |
 | 10 | 5 |
 
-Áp dụng cho tất cả kỹ năng nhiều mục tiêu. Chỉ đánh các mục tiêu hợp lệ nằm trong vùng ảnh hưởng; không mặc định đánh đủ số lượng nếu vùng có ít mục tiêu hơn. Cộng điểm tăng hệ số và số mục tiêu theo bảng, không tăng tầm đánh hoặc kích thước vùng. Khi vượt giới hạn, chọn theo thứ tự tại mục 2.5: mục tiêu đang khóa nếu hợp lệ trong vùng, rồi các mục tiêu gần tâm vùng chiêu nhất.
+Áp dụng cho tất cả kỹ năng nhiều mục tiêu. Chỉ đánh các mục tiêu hợp lệ nằm trong vùng ảnh hưởng; không mặc định đánh đủ số lượng nếu vùng có ít mục tiêu hơn. Cộng điểm tăng hệ số và số mục tiêu theo bảng, và tăng tầm của kỹ năng nhiều mục tiêu ở cấp kỹ năng 4 và 7 (mục "Tầm đánh chung" bên dưới); bán kính vùng, góc quạt và bề rộng dải không đổi. Khi vượt giới hạn, chọn theo thứ tự tại mục 2.5: mục tiêu đang khóa nếu hợp lệ trong vùng, rồi các mục tiêu gần tâm vùng chiêu nhất.
+
+#### Tầm đánh chung
+
+| Kiểu kỹ năng | Cấp kỹ năng 1–3 | Cấp kỹ năng 4–6 | Cấp kỹ năng 7–10 |
+| --- | --- | --- | --- |
+| Đơn mục tiêu, kể cả lao/lướt tới | 5 ô | 5 ô | 5 ô |
+| Nhiều mục tiêu: độ vươn của hình quạt, độ dài của dải thẳng, tầm chọn mục tiêu của vùng tròn quanh mục tiêu | 4 ô | 5 ô | 6 ô |
+| Vùng tròn quanh bản thân | Không có tầm, chỉ có bán kính theo bảng class | | |
+
+Năm class dùng chung tầm này thay cho tầm riêng từng chiêu, để không class nào có tầm xa hơn mà thả diều được class khác (đánh từ ngoài tầm của đối phương rồi lùi). Trong bảng class, "4/5/6 ô" là tầm ở cấp kỹ năng 1–3/4–6/7–10. Bán kính vùng, góc quạt và bề rộng dải không đổi theo cấp kỹ năng. Chém mặc định giữ tầm 1,5 ô.
 
 #### Chém mặc định — chung cho năm class
 
@@ -201,18 +213,18 @@ Tầm đánh dùng **ô bản đồ** làm đơn vị, đo trên mặt đất t�
 
 | Kỹ năng | Cấp học | Phân loại | Tầm đánh / vùng ảnh hưởng | Công dụng | Hệ số / hiệu quả theo cấp n | Cấp kỹ năng 1 | Cấp kỹ năng 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| I — Bất Tri Hỏa | 10 | Chủ động · Đơn mục tiêu | Chọn mục tiêu trong 4 ô | Lao tới mục tiêu và chém lửa | 150% + 15% × (n − 1) công vật lý | 150% | 285% |
-| II — Thăng Viêm Thiên | 20 | Chủ động · Nhiều mục tiêu | Hình quạt 120°, vươn 2 ô phía trước | Chém vòng cung, gây sát thương các mục tiêu trong vùng | 110% + 10% × (n − 1) công vật lý / mục tiêu | 110% | 200% |
+| I — Bất Tri Hỏa | 10 | Chủ động · Đơn mục tiêu | Chọn mục tiêu trong 5 ô | Lao tới mục tiêu và chém lửa | 150% + 15% × (n − 1) công vật lý | 150% | 285% |
+| II — Thăng Viêm Thiên | 20 | Chủ động · Nhiều mục tiêu | Hình quạt 120°, vươn 4/5/6 ô phía trước | Chém vòng cung, gây sát thương các mục tiêu trong vùng | 110% + 10% × (n − 1) công vật lý / mục tiêu | 110% | 200% |
 | IV — Thịnh Viêm Lãng Triều | 30 | Bị động | Chỉ bản thân | Tăng thủ vật lý và thủ phép, hình tượng vòng lửa bảo vệ | +2% × n thủ vật lý và thủ phép | +2% mỗi loại | +20% mỗi loại |
-| V — Viêm Hổ | 40 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 5 ô; vùng tròn bán kính 1,5 ô quanh mục tiêu | Phóng hình hổ lửa, gây sát thương trong vùng quanh mục tiêu chính | 160% + 15% × (n − 1) công vật lý / mục tiêu | 160% | 295% |
+| V — Viêm Hổ | 40 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 4/5/6 ô; vùng tròn bán kính 1,5 ô quanh mục tiêu | Phóng hình hổ lửa, gây sát thương trong vùng quanh mục tiêu chính | 160% + 15% × (n − 1) công vật lý / mục tiêu | 160% | 295% |
 | IX — Luyện Ngục | 50 | Chủ động · Đơn mục tiêu | Chọn mục tiêu trong 5 ô | Đòn sát thương lớn hình rồng lửa lên mục tiêu đang chọn | 250% + 25% × (n − 1) công vật lý | 250% | 475% |
 
 #### Hơi thở Thủy — Sát thương phép
 
 | Kỹ năng | Cấp học | Phân loại | Tầm đánh / vùng ảnh hưởng | Công dụng | Hệ số / hiệu quả theo cấp n | Cấp kỹ năng 1 | Cấp kỹ năng 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| I — Thủy Diện Trảm | 10 | Chủ động · Đơn mục tiêu | 3 ô | Chém ngang bằng lưỡi nước vào mục tiêu đang chọn | 150% + 15% × (n − 1) công phép | 150% | 285% |
-| IV — Đả Triều | 20 | Chủ động · Nhiều mục tiêu | Hình quạt 120°, vươn 4 ô phía trước | Tạo sóng nước gây sát thương các mục tiêu trong vùng | 110% + 10% × (n − 1) công phép / mục tiêu | 110% | 200% |
+| I — Thủy Diện Trảm | 10 | Chủ động · Đơn mục tiêu | 5 ô | Chém ngang bằng lưỡi nước vào mục tiêu đang chọn | 150% + 15% × (n − 1) công phép | 150% | 285% |
+| IV — Đả Triều | 20 | Chủ động · Nhiều mục tiêu | Hình quạt 120°, vươn 4/5/6 ô phía trước | Tạo sóng nước gây sát thương các mục tiêu trong vùng | 110% + 10% × (n − 1) công phép / mục tiêu | 110% | 200% |
 | XI — Lặng | 30 | Bị động | Chỉ bản thân | Tăng né tránh, thể hiện khả năng hóa giải đòn đánh | +3% × n chỉ số né tránh | +3% | +30% |
 | VI — Liệt Oa | 40 | Chủ động · Nhiều mục tiêu | Vòng tròn bán kính 2,5 ô quanh bản thân | Tạo xoáy nước gây sát thương xung quanh | 160% + 15% × (n − 1) công phép / mục tiêu | 160% | 295% |
 | X — Sinh Sinh Lưu Chuyển | 50 | Chủ động · Đơn mục tiêu | 5 ô | Đòn sát thương lớn hình rồng nước lên mục tiêu đang chọn; không tăng sát thương nhờ dùng chiêu trước đó | 250% + 25% × (n − 1) công phép | 250% | 475% |
@@ -224,8 +236,8 @@ Tầm đánh dùng **ô bản đồ** làm đơn vị, đo trên mặt đất t�
 | I — Phích Lịch Nhất Thiểm | 10 | Chủ động · Đơn mục tiêu | Chọn mục tiêu trong 5 ô | Lướt tới mục tiêu, gây sát thương bằng nhát chém chớp nhoáng | 150% + 15% × (n − 1) công vật lý | 150% | 285% |
 | III — Tụ Văn Thành Lôi | 20 | Chủ động · Nhiều mục tiêu | Vòng tròn bán kính 2 ô quanh bản thân | Phát vòng sét gây sát thương xung quanh | 110% + 10% × (n − 1) công vật lý / mục tiêu | 110% | 200% |
 | V — Nhiệt Giới Lôi | 30 | Bị động | Chỉ bản thân | Tăng tỷ lệ chí mạng; công dụng chuyển thể cho game | +n điểm phần trăm tỷ lệ chí mạng | +1 điểm % | +10 điểm % |
-| IV — Viễn Lôi | 40 | Chủ động · Nhiều mục tiêu | Dải thẳng dài 6 ô, rộng 1,5 ô, hướng về mục tiêu | Phóng luồng sét gây sát thương các mục tiêu trên đường | 160% + 15% × (n − 1) công vật lý / mục tiêu | 160% | 295% |
-| VII — Hỏa Lôi Thần | 50 | Chủ động · Đơn mục tiêu | 6 ô | Đòn sát thương lớn hình rồng sét lên mục tiêu đang chọn | 250% + 25% × (n − 1) công vật lý | 250% | 475% |
+| IV — Viễn Lôi | 40 | Chủ động · Nhiều mục tiêu | Dải thẳng dài 4/5/6 ô, rộng 1,5 ô, hướng về mục tiêu | Phóng luồng sét gây sát thương các mục tiêu trên đường | 160% + 15% × (n − 1) công vật lý / mục tiêu | 160% | 295% |
+| VII — Hỏa Lôi Thần | 50 | Chủ động · Đơn mục tiêu | 5 ô | Đòn sát thương lớn hình rồng sét lên mục tiêu đang chọn | 250% + 25% × (n − 1) công vật lý | 250% | 475% |
 
 #### Hơi thở Nham — Sát thương vật lý
 
@@ -233,21 +245,21 @@ Giữ đủ năm thức. Vũ khí riêng của class Nham là rìu và chùy n�
 
 | Kỹ năng | Cấp học | Phân loại | Tầm đánh / vùng ảnh hưởng | Công dụng | Hệ số / hiệu quả theo cấp n | Cấp kỹ năng 1 | Cấp kỹ năng 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| I — Xà Văn Nham · Song Cực | 10 | Chủ động · Đơn mục tiêu | 3 ô | Đánh kẹp bằng rìu và chùy, gây sát thương tập trung | 150% + 15% × (n − 1) công vật lý | 150% | 285% |
-| II — Thiên Diện Toái | 20 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 4 ô; vùng tròn bán kính 1,5 ô quanh mục tiêu | Đập chùy xuống vị trí mục tiêu chính, gây sát thương vùng | 110% + 10% × (n − 1) công vật lý / mục tiêu | 110% | 200% |
+| I — Xà Văn Nham · Song Cực | 10 | Chủ động · Đơn mục tiêu | 5 ô | Đánh kẹp bằng rìu và chùy, gây sát thương tập trung | 150% + 15% × (n − 1) công vật lý | 150% | 285% |
+| II — Thiên Diện Toái | 20 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 4/5/6 ô; vùng tròn bán kính 1,5 ô quanh mục tiêu | Đập chùy xuống vị trí mục tiêu chính, gây sát thương vùng | 110% + 10% × (n − 1) công vật lý / mục tiêu | 110% | 200% |
 | III — Nham Phu Khu | 30 | Bị động | Chỉ bản thân | Tăng HP tối đa và thủ vật lý | +2% × n HP tối đa và thủ vật lý | +2% mỗi loại | +20% mỗi loại |
 | IV — Lưu Văn Nham · Tốc Chinh | 40 | Chủ động · Nhiều mục tiêu | Vòng tròn bán kính 3 ô quanh bản thân | Quét rìu và chùy gây sát thương xung quanh | 160% + 15% × (n − 1) công vật lý / mục tiêu | 160% | 295% |
-| V — Ngõa Hình Luân Bộ | 50 | Chủ động · Đơn mục tiêu | 4 ô | Đòn sát thương lớn khi rìu và chùy cùng đánh mục tiêu | 250% + 25% × (n − 1) công vật lý | 250% | 475% |
+| V — Ngõa Hình Luân Bộ | 50 | Chủ động · Đơn mục tiêu | 5 ô | Đòn sát thương lớn khi rìu và chùy cùng đánh mục tiêu | 250% + 25% × (n − 1) công vật lý | 250% | 475% |
 
 #### Hơi thở Phong — Sát thương phép
 
 | Kỹ năng | Cấp học | Phân loại | Tầm đánh / vùng ảnh hưởng | Công dụng | Hệ số / hiệu quả theo cấp n | Cấp kỹ năng 1 | Cấp kỹ năng 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| I — Trần Toàn Phong · Tước | 10 | Chủ động · Nhiều mục tiêu | Dải thẳng dài 5 ô, rộng 1,5 ô, hướng về mục tiêu | Phóng gió xoáy gây sát thương các mục tiêu trên đường | 110% + 10% × (n − 1) công phép / mục tiêu | 110% | 200% |
+| I — Trần Toàn Phong · Tước | 10 | Chủ động · Nhiều mục tiêu | Dải thẳng dài 4/5/6 ô, rộng 1,5 ô, hướng về mục tiêu | Phóng gió xoáy gây sát thương các mục tiêu trên đường | 110% + 10% × (n − 1) công phép / mục tiêu | 110% | 200% |
 | II — Trảo · Khoa Hộ Phong | 20 | Chủ động · Đơn mục tiêu | 5 ô | Tập trung các vệt chém hình móng vuốt lên mục tiêu đang chọn | 150% + 15% × (n − 1) công phép | 150% | 285% |
 | III — Tình Lam Phong Thụ | 30 | Bị động | Chỉ bản thân | Tăng chính xác và công phép | +2% × n chính xác; +1% × n công phép | +2% / +1% | +20% / +10% |
-| V — Mộc Khô Lạp Phong | 40 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 5 ô; vùng tròn bán kính 2 ô quanh mục tiêu | Tạo bão kiếm gây sát thương vùng | 160% + 15% × (n − 1) công phép / mục tiêu | 160% | 295% |
-| IX — Vi Đà Thiên Đài Phong | 50 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 6 ô; vùng tròn bán kính 3 ô quanh mục tiêu | Tạo cuồng phong diện rộng | 200% + 20% × (n − 1) công phép / mục tiêu | 200% | 380% |
+| V — Mộc Khô Lạp Phong | 40 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 4/5/6 ô; vùng tròn bán kính 2 ô quanh mục tiêu | Tạo bão kiếm gây sát thương vùng | 160% + 15% × (n − 1) công phép / mục tiêu | 160% | 295% |
+| IX — Vi Đà Thiên Đài Phong | 50 | Chủ động · Nhiều mục tiêu | Chọn mục tiêu trong 4/5/6 ô; vùng tròn bán kính 3 ô quanh mục tiêu | Tạo cuồng phong diện rộng | 200% + 20% × (n − 1) công phép / mục tiêu | 200% | 380% |
 
 #### MP và hồi chiêu
 
@@ -703,8 +715,10 @@ Khi chết, người chơi chọn một trong hai cách:
 
 - **Tổ đội tối đa 5 người.**
 - **EXP chia theo sát thương, trả ngay mỗi đòn trúng**: EXP = sát thương × EXP gốc của quái / HP tối đa của quái. Ví dụ quái 1.000 HP, 100 EXP: đòn 100 sát thương cho 10 EXP. Ai cùng đánh một con đều nhận EXP theo phần sát thương của mình, không chỉ người hạ quái.
+- **EXP gốc của quái thường = HP × r(L)**, với L là cấp quái và **r(L) = 0,1 × (1 + 0,1 × (L − 1))**; làm tròn nửa lên, tối thiểu 1. r(L) là EXP trên mỗi điểm sát thương: cấp 1 là 0,1 (100 sát thương được 10 EXP), cấp 10 là 0,19, cấp 50 là 0,59, cấp 90 là 0,99. Quái cấp cao đánh đau hơn nên cho nhiều EXP hơn trên mỗi điểm sát thương. EXP gốc từng cấp nằm trong `data/monsters.json`, sinh bằng [script chỉ số quái](balance/monster_stats.py) cùng HP.
+- **Cửa sổ cấp ±10**: một đòn chỉ trả EXP khi cấp nhân vật và cấp quái chênh nhau không quá 10. Đòn ngoài cửa sổ vẫn gây sát thương nhưng không trả EXP và không được ghi vào bảng sát thương tính EXP của con quái. Áp dụng cho cả chém mặc định và kỹ năng.
 - Sát thương thừa không tính: sát thương tính EXP của một đòn tối đa bằng HP còn lại của quái trước đòn đó, nên một con quái không trả quá EXP gốc của nó.
-- Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và số EXP đã trả cho từng người. Mỗi đòn trả floor(EXP gốc × tổng sát thương của người đó / HP tối đa) − EXP đã trả. Ví dụ quái cấp 1 (56 HP, 10 EXP), mỗi nhát 14: một người tự đánh nhận đúng 10 EXP, trả lần lượt 2, 3, 2, 3.
+- Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và số EXP đã trả cho từng người. Mỗi đòn trả floor(EXP gốc × tổng sát thương của người đó / HP tối đa) − EXP đã trả. Ví dụ quái cấp 1 (56 HP, 6 EXP), mỗi nhát 14: một người tự đánh nhận đúng 6 EXP, trả lần lượt 1, 2, 1, 2.
 - Quái thường bỏ đuổi rồi về vùng thì **không hồi máu**: EXP đã trả giữ nguyên cho người chơi, bảng sát thương và EXP đã trả của con quái cũng giữ nguyên, nên người đánh tiếp nhận đúng phần còn lại, không hơn không kém.
 - Mỗi đồng đội trong tổ đội đủ điều kiện bên dưới nhận **thêm 5% EXP gốc**, không khấu trừ từ EXP người hạ quái. Luật 5% này sẽ được định lại ở Giai đoạn 5 cho khớp với luật EXP theo sát thương; các dòng ví dụ và điều kiện bên dưới là bản cũ.
 - Ví dụ quái cho 100 EXP, tổ đội năm người: người hạ nhận **100 EXP**, bốn đồng đội mỗi người nhận **5 EXP**, tổng phát ra 120 EXP.
@@ -791,7 +805,7 @@ Chiêu vùng của tinh anh đánh tối đa **3 người**, thủ lĩnh tối �
 
 | Phần thưởng | Thường | Tinh anh | Thủ lĩnh |
 | --- | --- | --- | --- |
-| EXP | 10 × cấp quái | 6 lần thường | 25 lần thường |
+| EXP | HP × r(L), với r(L) = 0,1 × (1 + 0,1 × (L − 1)) và L là cấp quái (mục 5.8) | 6 lần thường | 25 lần thường |
 | Xu | Ngẫu nhiên 3–5 × cấp quái | 6 lần thường | 25 lần thường |
 | Trang bị | 5% rơi 1 món | Chắc chắn 1 món | Chắc chắn 2 món |
 | Phẩm chất khi rơi trang bị | Trắng 80%, Xanh 17%, Vàng 3% | Xanh 75%, Vàng 25% | Xanh 20%, Vàng 75%, Cam 5% |

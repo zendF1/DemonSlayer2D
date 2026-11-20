@@ -143,13 +143,15 @@ Chính xác, né tránh và tỷ lệ chí mạng chỉ hiển thị ở Giai đ
 
 ### 3.4. EXP và lên cấp
 
-- EXP gốc của quái là 10 × cấp quái (mục 5.12), chia theo sát thương (game-design mục 5.8):
+> Đã thay bằng [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) mục 2.4 (EXP gốc `HP × r(L)`, cửa sổ ±10 cấp, bảng EXP lên cấp trong `data/exp.json`).
+
+- EXP gốc của quái là 10 × cấp quái (mục 5.12), chia theo sát thương (game-design mục 5.8). (Đã thay bằng [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) mục 2.4: EXP gốc là `HP × r(L)`, quái cấp 1 có 56 HP, 6 EXP; cách chia theo sát thương giữ nguyên.)
   1. Mỗi đòn trúng quái cho EXP ngay: EXP = sát thương × EXP gốc / HP tối đa của quái. Ví dụ quái 1.000 HP, 100 EXP: đòn 100 sát thương cho 10 EXP.
   2. Sát thương thừa không tính: sát thương tính EXP tối đa bằng HP còn lại của quái trước đòn, nên một con không trả quá EXP gốc. `Hit.damage` vẫn gửi đủ sát thương.
   3. Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và EXP đã trả cho từng người chơi. Mỗi đòn trả floor(EXP gốc × tổng sát thương / HP tối đa) − EXP đã trả. Một người tự hạ quái cấp 1 (56 HP, 10 EXP, mỗi nhát 14) nhận đúng 10 EXP, lần lượt 2, 3, 2, 3.
   4. ~~Quái về chỗ và hồi đầy HP (kéo quá xa rồi về, hoặc kẹt rồi được đặt lại chỗ cũ): EXP đã trả giữ nguyên, bảng sát thương và EXP đã trả của con quái về 0.~~ Đã thay bằng [spec 2026-11-20](2026-11-20-quai-thuong-vung-va-chuong-design.md) mục 4.5: quái về vùng không hồi máu, bảng sát thương và EXP đã trả giữ nguyên.
   5. Đồ rơi (Giai đoạn 3) vẫn thuộc người kết liễu (game-design mục 5.8). Thưởng 5% tổ đội định lại ở Giai đoạn 5; Giai đoạn 1 chưa có tổ đội.
-- EXP cần để lên từ cấp L: 10 × L × (10 + 2 × (L − 1)^1,5) × hệ số cấp, làm tròn đến 10. Hệ số cấp: 4 × L / 3 khi L ≤ 9; 10 + 0,5 × (L − 10) khi L ≥ 10 (mục 2.2).
+- EXP cần để lên từ cấp L: 10 × L × (10 + 2 × (L − 1)^1,5) × hệ số cấp, làm tròn đến 10. Hệ số cấp: 4 × L / 3 khi L ≤ 9; 10 + 0,5 × (L − 10) khi L ≥ 10 (mục 2.2). (Đã thay bằng [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) mục 2.4: `10 × L` đổi thành EXP gốc `exp(L)`; `ExpToNext` đọc `data/exp.json` do `exp_table.py` sinh, không tính bằng công thức trong Go.)
 - EXP lưu theo tổng tích lũy trong cấp hiện tại (`exp` là EXP đã có của cấp hiện tại). Đủ EXP thì lên cấp, trừ phần đã dùng, phần dư giữ lại; đủ thì lên nhiều cấp liền.
 - Cấp tối đa 90. Ở cấp 90 không nhận thêm EXP.
 - Mỗi lần lên cấp: +10 điểm tiềm năng, hồi đầy HP/MP.
@@ -273,7 +275,7 @@ Dung sai 0,5 ô vì client thấy quái chậm 2 tick: quái đang đuổi đi �
 | --- | --- |
 | `internal/mapdata` | Đọc `safe_zones`, `rest_points`, `camps`; kiểm tra mục 2.1; `InSafeZone(x, y)`, `RestPointAt(x, y)` |
 | `internal/gamedata` (mới) | Nạp `data/monsters.json`, kiểm tra mục 2.2 với các map đã nạp |
-| `internal/combat` (mới, thuần) | `Compute(class, level, points) Stats`, `Damage(base, def, attackerLevel)`, `ExpToNext(level)`, `GainExp(level, exp, gain) (level, exp, levelsGained)`, hằng số chém mặc định. Không phụ thuộc zone hay `pb` |
+| `internal/combat` (mới, thuần) | `Compute(class, level, points) Stats`, `Damage(base, def, attackerLevel)`, `ExpToNext(level)`, `GainExp(level, exp, gain) (level, exp, levelsGained)`, hằng số chém mặc định. Không phụ thuộc zone hay `pb`. (`ExpToNext` đã thay bằng [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) mục 2.4: đọc bảng `data/exp.json`.) |
 | `internal/zone` | `monster.go` (trạng thái, hành vi), `spawn.go` (bãi, hẹn giờ sinh lại), `combat.go` (đánh, chết, EXP, cộng điểm, hồi sinh, điểm nghỉ). `zone.go` giữ vòng tick |
 | `internal/store`, `internal/saver`, `internal/world` | Đọc và ghi cột mới; `SaveCharacter` mang thêm điểm tiềm năng, `free_points`, `hp`, `mp` |
 | `internal/gateway` | Chuyển ba lệnh mới vào zone kèm kênh reply; rate limit `AttackReq` |
@@ -366,7 +368,7 @@ Mỗi package hoặc thư mục có 1–2 file test, chia đoạn bằng dòng `
   - mất mục tiêu thì chuyển sang người đã đánh nó, rồi người gần trong 4 ô;
   - quái không bước vào khu an toàn;
   - mỗi lỗi `AttackReq` trả đúng mã; đòn hợp lệ trừ đúng HP;
-  - mỗi đòn trúng trả EXP theo sát thương (2, 3, 2, 3 khi tự hạ quái cấp 1), sát thương thừa không tính, hai người cùng đánh đều nhận phần mình, quái về chỗ thì bảng sát thương về 0;
+  - mỗi đòn trúng trả EXP theo sát thương (2, 3, 2, 3 khi tự hạ quái cấp 1; đã thay bằng [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) mục 2.4: 1, 2, 1, 2 với 6 EXP), sát thương thừa không tính, hai người cùng đánh đều nhận phần mình, quái về chỗ thì bảng sát thương về 0;
   - EXP từ một đòn đủ lên cấp thì lên cấp, +10 điểm, đầy HP/MP và có yêu cầu lưu ngay;
   - cộng điểm đúng, sai thì trả lỗi;
   - người chết không đi được, được tự hồi sinh sau 60 giây ở spawn `default` với `snap`;
