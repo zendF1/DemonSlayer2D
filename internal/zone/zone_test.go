@@ -2871,6 +2871,32 @@ func TestDepartMonsterLosesTarget(t *testing.T) {
 	}
 }
 
+// A slash and a cast queued in the tick of a departure are answered
+// ON_COOLDOWN before the player leaves, so no request of the client is left
+// without a reply (the client takes an unanswered one for a dead link).
+func TestDepartAnswersPendingAttackAndCast(t *testing.T) {
+	z, m, _, a := castZone(t, Vec2{30.5, 30.5}, Vec2{31.5, 30.5})
+	z.inbox <- attackCmd{id: 1, seq: 77, target: m.id}
+	z.inbox <- castCmd{id: 1, seq: 78, skillID: "thuy_4", target: m.id}
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || r.err != nil {
+		t.Fatalf("result %+v, want a departure", r)
+	}
+	got := map[uint32]pb.ErrorCode{}
+	for _, e := range a.take() {
+		if e.Seq == 77 || e.Seq == 78 {
+			got[e.Seq] = e.GetError().GetCode()
+		}
+	}
+	want := map[uint32]pb.ErrorCode{77: pb.ErrorCode_ERROR_CODE_ON_COOLDOWN, 78: pb.ErrorCode_ERROR_CODE_ON_COOLDOWN}
+	if !maps.Equal(got, want) {
+		t.Fatalf("replies %v, want ON_COOLDOWN for the slash and the cast", got)
+	}
+	if m.hp != m.maxHP {
+		t.Fatalf("monster HP %d of %d: nothing may hit after the departure", m.hp, m.maxHP)
+	}
+}
+
 // A fresh login has no cooldowns; a skill cast 1 s before leaving is still on
 // cooldown in the next zone for the 2 s left, and EnterWorldResp says so.
 func TestDepartCarriesSkillCooldown(t *testing.T) {

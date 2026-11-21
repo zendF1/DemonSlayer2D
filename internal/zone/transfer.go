@@ -99,8 +99,9 @@ func (z *Zone) Depart(ctx context.Context, id uint64, d Departure) (info PlayerI
 // depart runs a departure on the zone goroutine. On success it removes the
 // player as leaving does, makes monsters let it go as killPlayer does, drops
 // the monster shots flying at it, and saves it at the destination. Its own
-// attacks in flight land without it, as after a logout; its pending slash,
-// cast and refine result are not handed over.
+// attacks in flight land without it, as after a logout; its pending slash
+// and cast are refused ON_COOLDOWN, and they and its refine result are not
+// handed over.
 func (z *Zone) depart(c departCmd) departResult {
 	p, ok := z.players[c.id]
 	if !ok {
@@ -131,6 +132,15 @@ func (z *Zone) depart(c departCmd) departResult {
 		delete(m.attackers, p.id)
 	}
 	z.impacts = slices.DeleteFunc(z.impacts, func(im impact) bool { return im.byMonster && im.target == p.id })
+	// The pending slash and cast are answered before the player goes: the
+	// client counts an unanswered request as a dead link. ON_COOLDOWN is what
+	// a replaced request gets, and the client's loops just retry on it.
+	if c := p.pendingAttack; c != nil {
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN)
+	}
+	if c := p.pendingCast; c != nil {
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN)
+	}
 	p.pendingAttack, p.pendingCast, p.refine = nil, nil, nil
 
 	st := z.state(p)
