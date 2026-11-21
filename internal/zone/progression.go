@@ -107,6 +107,27 @@ func (z *Zone) payExpShare(p *player, m *monster, counted int) {
 	gain := share - m.expPaid[p.id]
 	m.expPaid[p.id] = share
 	z.gainExp(p, gain)
+	z.payPartyBonus(p, m, gain)
+}
+
+// payPartyBonus pays every teammate of a in this zone, whatever its HP, the
+// party bonus of a's gain of EXP from m, if it is within the level window of
+// m (phase 5b spec 4.6). The bonus is not counted against m and pays no
+// bonus in turn. Players are visited by id so that carries are deterministic.
+func (z *Zone) payPartyBonus(a *player, m *monster, gain int64) {
+	pid := a.partyID()
+	if gain <= 0 || pid == 0 {
+		return
+	}
+	for _, id := range slices.Sorted(maps.Keys(z.players)) {
+		t := z.players[id]
+		if t == a || t.partyID() != pid || !combat.ExpEligible(t.level, m.level) {
+			continue
+		}
+		var bonus int64
+		bonus, t.partyCarry = combat.PartyBonus(t.partyCarry, gain)
+		z.gainExp(t, bonus)
+	}
 }
 
 // gainExp adds gain to p's EXP and pushes p its new stats. Each level gained

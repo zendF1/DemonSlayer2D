@@ -290,17 +290,22 @@ func (z *Zone) checkPlayerTarget(a *player, id uint64) (*player, pb.ErrorCode) {
 // pvpCheck is steps 2 to 4 of phase 5a spec 4.2 for a hitting b, which area
 // skills also apply to each player in their area: PK_FORBIDDEN when the area
 // allows no PvP, IN_SAFE_ZONE when b stands in a safe zone, PK_FORBIDDEN
-// when the PK table does not let a hit b. Parties come with phase 5b.
+// when the PK table does not let a hit b, which it never does for a teammate.
 func (z *Zone) pvpCheck(a, b *player) pb.ErrorCode {
 	switch {
 	case !z.area.PvP:
 		return pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN
 	case z.area.InSafe(b.pos):
 		return pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE
-	case !combat.PvPAllowed(a.pkOn, b.pkOn, false):
+	case !combat.PvPAllowed(a.pkOn, b.pkOn, sameParty(a, b)):
 		return pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN
 	}
 	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// sameParty is true when a and b are in one party (phase 5b spec 4.7).
+func sameParty(a, b *player) bool {
+	return a.partyID() != 0 && a.partyID() == b.partyID()
 }
 
 // slash starts p's default slash on f (attack phases spec 2): its damage is

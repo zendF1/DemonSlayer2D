@@ -158,6 +158,9 @@ type player struct {
 	statsDirty bool // send SelfStats after this tick's WorldTick
 	// party is the session's party-id cell, read only (PlayerInfo.Party).
 	party *atomic.Uint64
+	// partyCarry is the remainder, in hundredths of an EXP, of the party bonus
+	// paid to p (combat.PartyBonus).
+	partyCarry int64
 	// deathNotice is set by killPlayer and sent, then cleared, after this
 	// tick's WorldTick and before SelfStats.
 	deathNotice *pb.DeathNotice

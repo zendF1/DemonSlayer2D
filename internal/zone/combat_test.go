@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -5442,5 +5443,151 @@ func TestPkDeathRespawnKeepsLoss(t *testing.T) {
 	B := z.players[2]
 	if B.dead || B.exp != 1000-pkLoss10 {
 		t.Fatalf("dead %v exp %d, want alive at %d", B.dead, B.exp, 1000-pkLoss10)
+	}
+}
+
+// ____TEST PARTY EXP____
+
+// partied puts the players of ids into one party cell with id pid.
+func partied(z *Zone, pid uint64, ids ...uint64) {
+	cell := new(atomic.Uint64)
+	cell.Store(pid)
+	for _, id := range ids {
+		z.players[id].party = cell
+	}
+}
+
+// partyExpZone is pvpZone with three level-12 fighters: 1 and 2 in party 7,
+// 3 in no party. Their EXP is cleared.
+func partyExpZone(t *testing.T) (*Zone, *monster) {
+	z, m := pvpZone(t)
+	for id := uint64(1); id <= 3; id++ {
+		joinFighter(t, z, id, Vec2{30.5 + float32(id), 30.5}, pb.CharClass_CHAR_CLASS_VIEM, false, nil)
+	}
+	partied(z, 7, 1, 2)
+	return z, m
+}
+
+// A teammate who never attacked gets 5% of the whole EXP, and the killer all
+// of it; the bonus is not counted against the monster.
+func TestPartyExpBonus(t *testing.T) {
+	z, m := partyExpZone(t)
+	total := testLevels[12].Exp
+	z.payExpShare(z.players[1], m, m.maxHP)
+	if p := z.players[1]; p.exp != total {
+		t.Fatalf("killer exp %d, want %d", p.exp, total)
+	}
+	if want := 5 * total / 100; z.players[2].exp != want || want == 0 {
+		t.Fatalf("teammate exp %d, want %d", z.players[2].exp, want)
+	}
+	if z.players[3].exp != 0 {
+		t.Fatalf("player with no party got %d", z.players[3].exp)
+	}
+	if _, ok := m.dmgBy[2]; ok || len(m.expPaid) != 1 || m.expPaid[1] != total {
+		t.Fatalf("bonus touched the tables: dmgBy %v expPaid %v", m.dmgBy, m.expPaid)
+	}
+}
+
+// Another party, no party, and a teammate 11 levels from the monster get
+// nothing.
+func TestPartyExpWhoGetsNothing(t *testing.T) {
+	z, m := partyExpZone(t)
+	joinFighter(t, z, 4, Vec2{40.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, false, nil)
+	joinFighter(t, z, 5, Vec2{41.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, false, nil)
+	partied(z, 7, 4)
+	partied(z, 8, 5)
+	z.players[4].level = 1 // 11 levels from the monster
+	z.payExpShare(z.players[1], m, m.maxHP)
+	for _, id := range []uint64{3, 4, 5} {
+		if z.players[id].exp != 0 || z.players[id].level != map[uint64]int{3: 12, 4: 1, 5: 12}[id] {
+			t.Fatalf("player %d level %d exp %d, want nothing", id, z.players[id].level, z.players[id].exp)
+		}
+	}
+}
+
+// A dead teammate still gets the bonus and stays at 0 HP.
+func TestPartyExpDeadTeammate(t *testing.T) {
+	z, m := partyExpZone(t)
+	T := z.players[2]
+	T.dead, T.hp = true, 0
+	z.payExpShare(z.players[1], m, m.maxHP)
+	if T.exp != 5*testLevels[12].Exp/100 || T.hp != 0 || !T.dead {
+		t.Fatalf("exp %d hp %d dead %v, want the bonus at 0 HP", T.exp, T.hp, T.dead)
+	}
+}
+
+// A hit outside the level window pays nobody, teammates included.
+func TestPartyExpNoGainNoBonus(t *testing.T) {
+	z, m := partyExpZone(t)
+	z.players[1].level = 1
+	z.payExpShare(z.players[1], m, m.maxHP)
+	if z.players[1].exp != 0 || z.players[2].exp != 0 {
+		t.Fatalf("exp %d and %d, want 0 and 0", z.players[1].exp, z.players[2].exp)
+	}
+}
+
+// Two teammates who both hit each get their own share plus 5% of the
+// other's, with the remainders carried.
+func TestPartyExpBothHit(t *testing.T) {
+	z, m := partyExpZone(t)
+	A, T := z.players[1], z.players[2]
+	var carryA, carryT, wantA, wantT int64
+	var paidA, paidT int64
+	for _, c := range []struct {
+		p       *player
+		counted int
+	}{{A, 100}, {T, 60}, {A, 50}, {T, 70}} {
+		z.payExpShare(c.p, m, c.counted)
+		share := combat.ExpShare(testLevels[12].Exp, m.maxHP, m.dmgBy[c.p.id])
+		var gain, bonus int64
+		if c.p == A {
+			gain, paidA = share-paidA, share
+			wantA += gain
+			bonus, carryT = combat.PartyBonus(carryT, gain)
+			wantT += bonus
+		} else {
+			gain, paidT = share-paidT, share
+			wantT += gain
+			bonus, carryA = combat.PartyBonus(carryA, gain)
+			wantA += bonus
+		}
+	}
+	if A.exp != wantA || T.exp != wantT || A.partyCarry != carryA || T.partyCarry != carryT {
+		t.Fatalf("exp %d/%d carry %d/%d, want exp %d/%d carry %d/%d", A.exp, T.exp, A.partyCarry, T.partyCarry, wantA, wantT, carryA, carryT)
+	}
+	if A.exp <= m.expPaid[1] || T.exp <= m.expPaid[2] {
+		t.Fatalf("exp %d/%d not above own shares %d/%d", A.exp, T.exp, m.expPaid[1], m.expPaid[2])
+	}
+}
+
+// ____TEST PARTY PK____
+
+// Two teammates with PK on cannot hit each other with a slash or a single
+// skill; a self circle skips the teammate and hits a PK-on stranger.
+func TestPartyPKForbidden(t *testing.T) {
+	z, _ := pvpZone(t)
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, true, castSkills)
+	joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	joinFighter(t, z, 3, Vec2{30.5, 31.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	partied(z, 7, 1, 2)
+	hp2, hp3 := z.players[2].hp, z.players[3].hp
+	a.take()
+	attackNow(t, z, 1, 5, 2)
+	if er := errorFor(a.take(), 5); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN {
+		t.Fatalf("slash error %v, want PK_FORBIDDEN", er)
+	}
+	castNow(t, z, 1, 6, "thuy_1", 2, Vec2{})
+	if er := errorFor(a.take(), 6); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN {
+		t.Fatalf("single error %v, want PK_FORBIDDEN", er)
+	}
+	castNow(t, z, 1, 7, "thuy_4", 0, Vec2{})
+	envs := a.take()
+	settle(z)
+	envs = append(envs, a.take()...)
+	if castRespAt(envs, 7) < 0 {
+		t.Fatalf("circle refused: %v", errorFor(envs, 7))
+	}
+	if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), []uint64{3}) || z.players[2].hp != hp2 || z.players[3].hp >= hp3 {
+		t.Fatalf("hits %v hp %d/%d, want only player 3 hit", targetIDs(hs), z.players[2].hp, z.players[3].hp)
 	}
 }
