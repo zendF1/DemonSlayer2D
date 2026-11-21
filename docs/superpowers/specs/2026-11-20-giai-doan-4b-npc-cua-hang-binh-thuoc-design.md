@@ -29,7 +29,7 @@ Người dùng đã ủy quyền chọn phương án khuyên dùng cho mọi quy
 | Nơi rèn đồ | Đứng gần NPC Thợ rèn, thay luật "trong khu an toàn" của 3b và 3c | Spec 3b đã hẹn; game-design 4.1 |
 | Cửa hàng | Hai cửa hàng Xu khai báo trong `items.json`: `general` (Tạp hóa) và `apothecary` (Dược sư); chỉ bán vật phẩm chồng | Một nguồn dữ liệu với vật phẩm, kiểm tra chéo khi nạp |
 | Hàng và giá | Bình theo đúng bảng game-design 2.7; giấy về thành 50 Xu; bùa bảo vệ 5.000 Xu chỉ ở Tạp hóa | 3b hẹn bán bùa ở tạp hóa; với bùa, lên +15 bậc 50 tốn thêm khoảng 150.000 Xu, vẫn thấp hơn nhiều so với 36 triệu Xu không bùa |
-| Đá cường hóa, đá tẩy luyện | Không bán bằng Xu | Giữ giá trị của rơi đồ (game-design 5.12) |
+| Đá cường hóa, đá tẩy luyện | Cửa hàng không bán (không mua được bằng Xu); người chơi vẫn bán được cho cửa hàng | Giữ giá trị của rơi đồ (game-design 5.12) |
 | Số lượng mua | 1 tới `stack_max` mỗi lệnh; đủ chỗ và đủ Xu cho cả lô, không thì không mua gì | Như luật nhặt của 3a |
 | Bán đồ | Mọi NPC `shop` đều mua. Trang bị: bậc × hệ số phẩm chất 5/10/20/40/80 (Trắng … Đỏ). Vật phẩm chồng: giá `sell` mỗi viên; 0 là không bán được. Mức cường hóa, ngọc, dòng không cộng giá; client hỏi lại với món quý | Đơn giản; đồ rơi tạo một khoản Xu nhỏ, không thay Xu từ quái (bậc 50 Vàng = 1.000 Xu, khoảng 5 con cấp 50) |
 | Bán đồ đang mặc | Không; tháo ra trước | Tránh bán nhầm |

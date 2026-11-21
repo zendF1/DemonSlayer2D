@@ -1040,7 +1040,7 @@ Danh mục được đề xuất, chưa chốt số lượng: Xu, EXP, đá cư�
 - Giao dịch trực tiếp 1–1 có khóa/xác nhận.
 - Mở sạp tự động ở khu an toàn trong thành.
 - NPC đấu giá/treo đồ ở Vô Hạn Thành theo thiết kế thành chủ.
-- Bán đồ cho NPC cửa hàng: trang bị = bậc × 5/10/20/40/80 Xu theo phẩm chất (Trắng … Đỏ); vật phẩm chồng theo giá bán của từng loại (bình và giấy = giá mua / 5, đá cường hóa 5, đá tẩy luyện 50, bùa 1.000, ngọc cấp g là 200 × g). Mức cường hóa, ngọc và dòng phụ không cộng giá. Không bán đồ đang mặc; đá cường hóa và đá tẩy luyện không bán bằng Xu ở cửa hàng.
+- Bán đồ cho NPC cửa hàng: trang bị = bậc × 5/10/20/40/80 Xu theo phẩm chất (Trắng … Đỏ); vật phẩm chồng theo giá bán của từng loại (bình và giấy = giá mua / 5, đá cường hóa 5, đá tẩy luyện 50, bùa 1.000, ngọc cấp g là 200 × g). Mức cường hóa, ngọc và dòng phụ không cộng giá. Không bán đồ đang mặc; cửa hàng không bán đá cường hóa và đá tẩy luyện cho người chơi (chỉ có từ rơi đồ), nhưng người chơi bán được hai loại đá này cho cửa hàng.
 - Đề xuất an toàn giao dịch: khóa nội dung rồi xác nhận; thay đổi món hoặc số tiền phải hủy xác nhận cũ. Chi tiết giao diện chưa chốt.
 
 Các khoản tiêu hao Xu như bình thuốc, mở kho, cường hóa và tẩy luyện giúp loại tiền khỏi lưu thông. **Thuế giao dịch chuyển vào quỹ bang**, theo cơ chế thành chủ đã có; khoản này vẫn nằm trong nền kinh tế. Không bổ sung phí chợ hệ thống riêng trong thiết kế bản đầu.
