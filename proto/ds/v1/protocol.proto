@@ -118,6 +118,8 @@ message Envelope {
     QuestTurnInReq quest_turn_in_req = 121;
     QuestTurnInResp quest_turn_in_resp = 122;
     QuestProgress quest_progress = 123;
+    // Pushed with seq 0 when the quest day changes (protocol 15).
+    QuestLog quest_log = 124;
   }
 }
 
@@ -994,6 +996,9 @@ message QuestEntry {
 // Every quest entry of the character.
 message QuestLog {
   repeated QuestEntry quests = 1;
+  // Milliseconds from sending to the next daily reset, 00:00 UTC+7
+  // (protocol 15).
+  int64 daily_reset_ms = 2;
 }
 
 message QuestAcceptReq {

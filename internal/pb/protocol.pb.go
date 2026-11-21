@@ -669,6 +669,7 @@ type Envelope struct {
 	//	*Envelope_QuestTurnInReq
 	//	*Envelope_QuestTurnInResp
 	//	*Envelope_QuestProgress
+	//	*Envelope_QuestLog
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1582,6 +1583,15 @@ func (x *Envelope) GetQuestProgress() *QuestProgress {
 	return nil
 }
 
+func (x *Envelope) GetQuestLog() *QuestLog {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_QuestLog); ok {
+			return x.QuestLog
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1970,6 +1980,11 @@ type Envelope_QuestProgress struct {
 	QuestProgress *QuestProgress `protobuf:"bytes,123,opt,name=quest_progress,json=questProgress,proto3,oneof"`
 }
 
+type Envelope_QuestLog struct {
+	// Pushed with seq 0 when the quest day changes (protocol 15).
+	QuestLog *QuestLog `protobuf:"bytes,124,opt,name=quest_log,json=questLog,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -2161,6 +2176,8 @@ func (*Envelope_QuestTurnInReq) isEnvelope_Payload() {}
 func (*Envelope_QuestTurnInResp) isEnvelope_Payload() {}
 
 func (*Envelope_QuestProgress) isEnvelope_Payload() {}
+
+func (*Envelope_QuestLog) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -8521,8 +8538,11 @@ func (x *QuestEntry) GetProgress() int32 {
 
 // Every quest entry of the character.
 type QuestLog struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Quests        []*QuestEntry          `protobuf:"bytes,1,rep,name=quests,proto3" json:"quests,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Quests []*QuestEntry          `protobuf:"bytes,1,rep,name=quests,proto3" json:"quests,omitempty"`
+	// Milliseconds from sending to the next daily reset, 00:00 UTC+7
+	// (protocol 15).
+	DailyResetMs  int64 `protobuf:"varint,2,opt,name=daily_reset_ms,json=dailyResetMs,proto3" json:"daily_reset_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8562,6 +8582,13 @@ func (x *QuestLog) GetQuests() []*QuestEntry {
 		return x.Quests
 	}
 	return nil
+}
+
+func (x *QuestLog) GetDailyResetMs() int64 {
+	if x != nil {
+		return x.DailyResetMs
+	}
+	return 0
 }
 
 type QuestAcceptReq struct {
@@ -8837,7 +8864,7 @@ var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x9a,\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xca,\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -8959,7 +8986,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x11quest_accept_resp\x18x \x01(\v2\x16.ds.v1.QuestAcceptRespH\x00R\x0fquestAcceptResp\x12B\n" +
 	"\x11quest_turn_in_req\x18y \x01(\v2\x15.ds.v1.QuestTurnInReqH\x00R\x0equestTurnInReq\x12E\n" +
 	"\x12quest_turn_in_resp\x18z \x01(\v2\x16.ds.v1.QuestTurnInRespH\x00R\x0fquestTurnInResp\x12=\n" +
-	"\x0equest_progress\x18{ \x01(\v2\x14.ds.v1.QuestProgressH\x00R\rquestProgressB\t\n" +
+	"\x0equest_progress\x18{ \x01(\v2\x14.ds.v1.QuestProgressH\x00R\rquestProgress\x12.\n" +
+	"\tquest_log\x18| \x01(\v2\x0f.ds.v1.QuestLogH\x00R\bquestLogB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -9390,9 +9418,10 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"QuestEntry\x12\x19\n" +
 	"\bquest_id\x18\x01 \x01(\tR\aquestId\x12'\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x11.ds.v1.QuestStateR\x05state\x12\x1a\n" +
-	"\bprogress\x18\x03 \x01(\x05R\bprogress\"5\n" +
+	"\bprogress\x18\x03 \x01(\x05R\bprogress\"[\n" +
 	"\bQuestLog\x12)\n" +
-	"\x06quests\x18\x01 \x03(\v2\x11.ds.v1.QuestEntryR\x06quests\"B\n" +
+	"\x06quests\x18\x01 \x03(\v2\x11.ds.v1.QuestEntryR\x06quests\x12$\n" +
+	"\x0edaily_reset_ms\x18\x02 \x01(\x03R\fdailyResetMs\"B\n" +
 	"\x0eQuestAcceptReq\x12\x15\n" +
 	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x19\n" +
 	"\bquest_id\x18\x02 \x01(\tR\aquestId\":\n" +
@@ -9744,95 +9773,96 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	122, // 93: ds.v1.Envelope.quest_turn_in_req:type_name -> ds.v1.QuestTurnInReq
 	123, // 94: ds.v1.Envelope.quest_turn_in_resp:type_name -> ds.v1.QuestTurnInResp
 	124, // 95: ds.v1.Envelope.quest_progress:type_name -> ds.v1.QuestProgress
-	0,   // 96: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,   // 97: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	12,  // 98: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,   // 99: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	12,  // 100: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	39,  // 101: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	48,  // 102: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	54,  // 103: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	21,  // 104: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
-	119, // 105: ds.v1.EnterWorldResp.quests:type_name -> ds.v1.QuestLog
-	3,   // 106: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,   // 107: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	51,  // 108: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	27,  // 109: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	40,  // 110: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	41,  // 111: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	42,  // 112: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	43,  // 113: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	49,  // 114: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	29,  // 115: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,   // 116: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	39,  // 117: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	39,  // 118: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	48,  // 119: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	55,  // 120: ds.v1.LearnSkillResp.update:type_name -> ds.v1.InventoryUpdate
-	50,  // 121: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,   // 122: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	52,  // 123: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	52,  // 124: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	51,  // 125: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	53,  // 126: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	53,  // 127: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	53,  // 128: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	53,  // 129: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	55,  // 130: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	55,  // 131: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 132: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	55,  // 133: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 134: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	55,  // 135: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	55,  // 136: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	66,  // 137: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	55,  // 138: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 139: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	66,  // 140: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
-	55,  // 141: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 142: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
-	66,  // 143: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
-	55,  // 144: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 145: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
-	66,  // 146: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
-	55,  // 147: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 148: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
-	66,  // 149: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
-	52,  // 150: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
-	55,  // 151: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 152: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
-	55,  // 153: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 154: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
-	83,  // 155: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
-	55,  // 156: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 157: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
-	55,  // 158: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 159: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
-	55,  // 160: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 161: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 162: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
-	92,  // 163: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
-	55,  // 164: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 165: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
-	55,  // 166: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 167: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
-	39,  // 168: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 169: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
-	2,   // 170: ds.v1.PartyMember.char_class:type_name -> ds.v1.CharClass
-	2,   // 171: ds.v1.PartyInvite.from_class:type_name -> ds.v1.CharClass
-	106, // 172: ds.v1.PartyState.members:type_name -> ds.v1.PartyMember
-	4,   // 173: ds.v1.PartyNotice.kind:type_name -> ds.v1.PartyNoticeKind
-	5,   // 174: ds.v1.QuestEntry.state:type_name -> ds.v1.QuestState
-	118, // 175: ds.v1.QuestLog.quests:type_name -> ds.v1.QuestEntry
-	118, // 176: ds.v1.QuestAcceptResp.quest:type_name -> ds.v1.QuestEntry
-	55,  // 177: ds.v1.QuestTurnInResp.update:type_name -> ds.v1.InventoryUpdate
-	39,  // 178: ds.v1.QuestTurnInResp.stats:type_name -> ds.v1.SelfStats
-	118, // 179: ds.v1.QuestProgress.quests:type_name -> ds.v1.QuestEntry
-	180, // [180:180] is the sub-list for method output_type
-	180, // [180:180] is the sub-list for method input_type
-	180, // [180:180] is the sub-list for extension type_name
-	180, // [180:180] is the sub-list for extension extendee
-	0,   // [0:180] is the sub-list for field type_name
+	119, // 96: ds.v1.Envelope.quest_log:type_name -> ds.v1.QuestLog
+	0,   // 97: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 98: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	12,  // 99: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 100: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	12,  // 101: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	39,  // 102: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	48,  // 103: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	54,  // 104: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	21,  // 105: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
+	119, // 106: ds.v1.EnterWorldResp.quests:type_name -> ds.v1.QuestLog
+	3,   // 107: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 108: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	51,  // 109: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	27,  // 110: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	40,  // 111: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	41,  // 112: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	42,  // 113: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	43,  // 114: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	49,  // 115: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	29,  // 116: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 117: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	39,  // 118: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	39,  // 119: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	48,  // 120: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	55,  // 121: ds.v1.LearnSkillResp.update:type_name -> ds.v1.InventoryUpdate
+	50,  // 122: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 123: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	52,  // 124: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	52,  // 125: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	51,  // 126: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	53,  // 127: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	53,  // 128: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	53,  // 129: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	53,  // 130: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	55,  // 131: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	55,  // 132: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 133: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 134: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 135: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 136: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	55,  // 137: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	66,  // 138: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	55,  // 139: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 140: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 141: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	55,  // 142: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 143: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 144: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	55,  // 145: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 146: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 147: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	55,  // 148: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 149: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 150: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	52,  // 151: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	55,  // 152: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 153: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 154: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 155: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	83,  // 156: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
+	55,  // 157: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 158: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 159: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 160: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 161: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 162: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 163: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
+	92,  // 164: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
+	55,  // 165: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 166: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
+	55,  // 167: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 168: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
+	39,  // 169: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 170: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
+	2,   // 171: ds.v1.PartyMember.char_class:type_name -> ds.v1.CharClass
+	2,   // 172: ds.v1.PartyInvite.from_class:type_name -> ds.v1.CharClass
+	106, // 173: ds.v1.PartyState.members:type_name -> ds.v1.PartyMember
+	4,   // 174: ds.v1.PartyNotice.kind:type_name -> ds.v1.PartyNoticeKind
+	5,   // 175: ds.v1.QuestEntry.state:type_name -> ds.v1.QuestState
+	118, // 176: ds.v1.QuestLog.quests:type_name -> ds.v1.QuestEntry
+	118, // 177: ds.v1.QuestAcceptResp.quest:type_name -> ds.v1.QuestEntry
+	55,  // 178: ds.v1.QuestTurnInResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 179: ds.v1.QuestTurnInResp.stats:type_name -> ds.v1.SelfStats
+	118, // 180: ds.v1.QuestProgress.quests:type_name -> ds.v1.QuestEntry
+	181, // [181:181] is the sub-list for method output_type
+	181, // [181:181] is the sub-list for method input_type
+	181, // [181:181] is the sub-list for extension type_name
+	181, // [181:181] is the sub-list for extension extendee
+	0,   // [0:181] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -9937,6 +9967,7 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_QuestTurnInReq)(nil),
 		(*Envelope_QuestTurnInResp)(nil),
 		(*Envelope_QuestProgress)(nil),
+		(*Envelope_QuestLog)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

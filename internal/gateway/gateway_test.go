@@ -575,13 +575,17 @@ func clientFixtures() map[string]*pb.Envelope {
 				{QuestId: "m01", State: pb.QuestState_QUEST_STATE_DONE, Progress: 5},
 				{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 3}}},
 			SkillBookWaiver: 10}}},
+		// Phase 6d: the push when the quest day changes, with one daily active.
+		"quest_log": {Seq: 0, Payload: &pb.Envelope_QuestLog{QuestLog: &pb.QuestLog{
+			Quests:       []*pb.QuestEntry{{QuestId: "d_kill", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 12}},
+			DailyResetMs: 3600000}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 14 {
-		t.Fatalf("ProtocolVersion = %d, want 14", ProtocolVersion)
+	if ProtocolVersion != 15 {
+		t.Fatalf("ProtocolVersion = %d, want 15", ProtocolVersion)
 	}
 }
 
@@ -743,7 +747,8 @@ func TestPartyFixturesRoundTrip(t *testing.T) {
 }
 
 // The quest fixtures decode back to their request, the turn-in reply with a
-// book and a weapon, a progress push and the quest log of a login.
+// book and a weapon, a progress push, the quest log of a login and the quest
+// log push of a new quest day.
 func TestQuestFixturesRoundTrip(t *testing.T) {
 	acc := readFixture(t, "quest_accept_req")
 	if a := acc.GetQuestAcceptReq(); acc.GetSeq() != 28 || a.GetNpcId() != "chi_huy" || a.GetQuestId() != "m11" {
@@ -765,6 +770,12 @@ func TestQuestFixturesRoundTrip(t *testing.T) {
 	q := ew.GetQuests().GetQuests()
 	if len(q) != 2 || q[0].GetState() != pb.QuestState_QUEST_STATE_DONE || q[1].GetProgress() != 3 || ew.GetSkillBookWaiver() != 10 {
 		t.Fatalf("enter world %v", ew)
+	}
+	ql := readFixture(t, "quest_log")
+	l := ql.GetQuestLog()
+	if q := l.GetQuests(); ql.GetSeq() != 0 || len(q) != 1 || q[0].GetQuestId() != "d_kill" ||
+		q[0].GetState() != pb.QuestState_QUEST_STATE_ACTIVE || q[0].GetProgress() != 12 || l.GetDailyResetMs() != 3600000 {
+		t.Fatalf("quest log %v", ql)
 	}
 }
 
