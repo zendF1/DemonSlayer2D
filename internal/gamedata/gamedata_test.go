@@ -1075,7 +1075,7 @@ func TestRepoItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	it := d.Items
-	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 26 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
+	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 26+25 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
 		t.Fatalf("items: %d equipment, %d stackables, %d drops", len(it.Equipment), len(it.Stackables), len(it.Drops))
 	}
 	perTier := map[int]int{}
@@ -1437,7 +1437,7 @@ func TestRepoShopsData(t *testing.T) {
 		t.Fatal(err)
 	}
 	it := d.Items
-	if len(it.Stackables) != 26 || len(it.StackOrder) != 26 || len(it.Shops) != 3 {
+	if len(it.Stackables) != 26+25 || len(it.StackOrder) != 26+25 || len(it.Shops) != 3 {
 		t.Fatalf("%d stackables, %d shops", len(it.Stackables), len(it.Shops))
 	}
 	if len(it.Shops["general"].Goods) != 9 || len(it.Shops["apothecary"].Goods) != 8 {
@@ -1633,5 +1633,242 @@ func TestValidateRejectsAnywhereShopNPC(t *testing.T) {
 	}
 	if err := d.Validate(maps); err == nil || !strings.Contains(err.Error(), `shop "luong" is an anywhere shop`) {
 		t.Fatalf("want anywhere shop error, got %v", err)
+	}
+}
+
+// ______________________TEST QUESTS_____________________
+
+// questsObj is the committed quests.json as a mutable tree.
+func questsObj(t *testing.T) obj {
+	t.Helper()
+	b, err := os.ReadFile("../../data/quests.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var o obj
+	if err := json.Unmarshal(b, &o); err != nil {
+		t.Fatal(err)
+	}
+	return o
+}
+
+// quest returns quest i (0 is m01) of a questsObj tree.
+func quest(o obj, i int) obj { return o["quests"].([]any)[i].(obj) }
+
+func TestRepoQuests(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Quests) != 25 || len(d.QuestByID) != 25 {
+		t.Fatalf("%d quests, %d by id", len(d.Quests), len(d.QuestByID))
+	}
+	for i, q := range d.Quests {
+		if d.QuestByID[q.ID] != &d.Quests[i] || q.Line != "main" {
+			t.Fatalf("quest %d %q: index or line wrong", i, q.ID)
+		}
+	}
+	q := d.QuestByID["m02"]
+	if q.Requires != "m01" || q.Objective.Type != ObjCollect || q.Objective.Need() != 6 || q.Objective.ChanceBP != 5000 ||
+		q.Objective.ItemName != "Nanh quỷ" || q.Objective.Map != "kumotori_1" || q.Objective.Region != "r2" ||
+		q.Giver != (NPCRef{Map: "kumotori_1", NPC: "tho_san"}) {
+		t.Fatalf("m02 = %+v", q)
+	}
+	if q := d.QuestByID["m11"]; q.Objective.Need() != 1 || q.Reward.SkillBook != 1 || q.Reward.Exp != 9150 ||
+		q.TurnIn != (NPCRef{Map: "ubuyashiki", NPC: "chi_huy"}) ||
+		len(q.Reward.Equipment) != 1 || q.Reward.Equipment[0] != (EquipReward{Tier: 10, Slot: "weapon"}) ||
+		len(q.Reward.Items) != 2 || q.Reward.Items[0] != (StackReward{Code: "potion_hp_10", Count: 10}) {
+		t.Fatalf("m11 = %+v", q)
+	}
+	for _, id := range []string{"m23", "m24", "m25"} {
+		if q := d.QuestByID[id]; q.Requires != "" || q.Reward.SkillBook == 0 {
+			t.Fatalf("%s = %+v", id, q)
+		}
+	}
+	maps, err := mapdata.LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Validate(maps); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRepoQuestsMatchScript(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	got, err := exec.Command(py, "../../docs/balance/quest_data.py", "--print-json").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile("../../data/quests.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("data/quests.json differs from quest_data.py output; run it with --write-json")
+	}
+}
+
+// Every skill has exactly one book, book_<skill id>, that cannot be sold or used.
+func TestRepoSkillBooks(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	books := 0
+	for _, code := range d.Items.StackOrder {
+		if strings.HasPrefix(code, "book_") {
+			books++
+			if s := d.Items.Stackables[code]; s.Sell != 0 || s.Use != nil || s.Gem != nil {
+				t.Fatalf("%s = %+v", code, s)
+			}
+		}
+	}
+	if books != 25 || len(d.Skills) != 25 {
+		t.Fatalf("%d books, %d skills", books, len(d.Skills))
+	}
+	for id, s := range d.Skills {
+		if b, ok := d.Items.Stackables["book_"+id]; !ok || b.Name != "Sách "+s.Name {
+			t.Fatalf("skill %s: book %+v, %v", id, b, ok)
+		}
+	}
+	if got := d.Items.StackOrder[len(d.Items.StackOrder)-25:]; got[0] != "book_viem_1" || got[5] != "book_thuy_1" || got[24] != "book_phong_5" {
+		t.Fatalf("books out of order: %v", got)
+	}
+	if d.Validate(mustMaps(t)) != nil {
+		t.Fatal("real data must validate")
+	}
+	delete(d.Items.Stackables, "book_viem_3")
+	if err := d.Validate(mustMaps(t)); err == nil || !strings.Contains(err.Error(), `skill "viem_3" has no book`) {
+		t.Fatalf("missing book: %v", err)
+	}
+	d.Items.Stackables["book_viem_3"] = Stackable{Code: "book_viem_3", Name: "x"}
+	d.Items.Stackables["book_zzz_9"] = Stackable{Code: "book_zzz_9", Name: "x"}
+	if err := d.Validate(mustMaps(t)); err == nil || !strings.Contains(err.Error(), `book "book_zzz_9" has no skill`) {
+		t.Fatalf("extra book: %v", err)
+	}
+}
+
+func mustMaps(t *testing.T) map[string]*mapdata.Map {
+	t.Helper()
+	maps, err := mapdata.LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return maps
+}
+
+func TestParseQuestsRejects(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := func(i int, path ...any) func(o obj) {
+		// path is keys then the value: set(0, "objective", "count", 0).
+		return func(o obj) {
+			cur := quest(o, i)
+			for _, k := range path[:len(path)-2] {
+				cur = cur[k.(string)].(obj)
+			}
+			cur[path[len(path)-2].(string)] = path[len(path)-1]
+		}
+	}
+	del := func(i int, key, sub string) func(o obj) {
+		return func(o obj) { delete(quest(o, i)[key].(obj), sub) }
+	}
+	cases := []struct {
+		name string
+		mut  func(o obj)
+		want string
+	}{
+		{"unknown field", set(0, "extra", 1), "unknown field"},
+		{"unknown objective field", set(0, "objective", "extra", 1), "unknown field"},
+		{"duplicate id", set(1, "id", "m01"), `quest "m01": duplicate id`},
+		{"empty id", set(1, "id", ""), "quest with empty id"},
+		{"bad line", set(1, "line", "daily"), `quest "m02": line "daily"`},
+		{"empty name", set(1, "name", ""), `quest "m02": name is empty`},
+		{"requires a later quest", set(1, "requires", "m03"), `quest "m02": requires "m03"`},
+		{"requires an unknown quest", set(1, "requires", "zz"), `quest "m02": requires "zz"`},
+		{"requires itself", set(1, "requires", "m02"), `quest "m02": requires "m02"`},
+		{"min level 0", set(1, "min_level", 0), `quest "m02": min_level 0`},
+		{"min level 91", set(1, "min_level", 91), `quest "m02": min_level 91`},
+		{"empty text", set(1, "text", "done", ""), `quest "m02": text done is empty`},
+		{"unknown objective type", set(1, "objective", "type", "escort"), `quest "m02": objective type "escort"`},
+		{"unknown monster", set(0, "objective", "monster", "dragon"), `quest "m01": unknown monster "dragon"`},
+		{"count 0", set(0, "objective", "count", 0), `quest "m01": count 0`},
+		{"count 1000", set(0, "objective", "count", 1000), `quest "m01": count 1000`},
+		{"kill without region", del(0, "objective", "region"), `quest "m01": objective needs map and region`},
+		{"kill without map", del(0, "objective", "map"), `quest "m01": objective needs map and region`},
+		{"kill with chance", set(0, "objective", "chance_bp", 5000), `quest "m01": chance_bp and item_name are for collect`},
+		{"collect chance 0", set(1, "objective", "chance_bp", 0), `quest "m02": chance_bp 0`},
+		{"collect chance 10001", set(1, "objective", "chance_bp", 10001), `quest "m02": chance_bp 10001`},
+		{"collect without item name", set(1, "objective", "item_name", ""), `quest "m02": item_name is empty`},
+		{"talk with count", set(4, "objective", "count", 1), `quest "m05": talk objective has other fields`},
+		{"talk with region", set(4, "objective", "region", "r1"), `quest "m05": talk objective has other fields`},
+		{"negative exp", set(0, "reward", "exp", -1), `quest "m01": reward exp -1`},
+		{"negative xu", set(0, "reward", "xu", -1), `quest "m01": reward xu -1`},
+		{"book as an item reward", set(0, "reward", "items", []any{obj{"code": "book_viem_1", "count": 1}}), `quest "m01": reward item "book_viem_1"`},
+		{"unknown item reward", set(0, "reward", "items", []any{obj{"code": "nope", "count": 1}}), `quest "m01": reward item "nope"`},
+		{"equipment as an item reward", set(0, "reward", "items", []any{obj{"code": "eq10_armor", "count": 1}}), `quest "m01": reward item "eq10_armor"`},
+		{"item count 0", set(0, "reward", "items", []any{obj{"code": "potion_hp_1", "count": 0}}), `quest "m01": reward item "potion_hp_1" count 0`},
+		{"item count over stack max", set(0, "reward", "items", []any{obj{"code": "potion_hp_1", "count": 1000}}), `quest "m01": reward item "potion_hp_1" count 1000`},
+		{"equipment tier 15", set(0, "reward", "equipment", []any{obj{"tier": 15, "slot": "weapon"}}), `quest "m01": reward equipment tier 15`},
+		{"equipment unknown slot", set(0, "reward", "equipment", []any{obj{"tier": 10, "slot": "tail"}}), `quest "m01": reward equipment slot "tail"`},
+		{"skill book 6", set(0, "reward", "skill_book", 6), `quest "m01": skill_book 6`},
+		{"skill book -1", set(0, "reward", "skill_book", -1), `quest "m01": skill_book -1`},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			o := questsObj(t)
+			tt.mut(o)
+			b, err := json.Marshal(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := *d
+			err = c.ParseQuests(b)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+func TestValidateQuests(t *testing.T) {
+	cases := []struct {
+		name string
+		mut  func(d *Data, maps map[string]*mapdata.Map)
+		want string
+	}{
+		{"unknown objective map", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].Objective.Map = "nowhere" },
+			`quest "m01": unknown map "nowhere"`},
+		{"unknown region", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].Objective.Region = "r9" },
+			`quest "m01": map "kumotori_1" has no region "r9"`},
+		{"region of another monster", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].Objective.Region = "r3" },
+			`quest "m01": region "r3" holds "snow_ghoul", not "wanderer"`},
+		{"unknown giver map", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].Giver.Map = "nowhere" },
+			`quest "m01": giver map "nowhere"`},
+		{"unknown turn-in npc", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].TurnIn.NPC = "nobody" },
+			`quest "m01": turn_in npc "nobody"`},
+		{"giver is not a quest npc", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].Giver.NPC = "thu_kho" },
+			`quest "m01": giver npc "thu_kho" is not a quest npc`},
+		{"turn-in is a shop", func(d *Data, _ map[string]*mapdata.Map) { d.Quests[0].TurnIn.NPC = "duoc_su" },
+			`quest "m01": turn_in npc "duoc_su" is not a quest npc`},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := Load("../../data")
+			if err != nil {
+				t.Fatal(err)
+			}
+			maps := mustMaps(t)
+			tt.mut(d, maps)
+			if err := d.Validate(maps); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
 	}
 }

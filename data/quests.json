@@ -1,0 +1,882 @@
+{
+  "quests": [
+    {
+      "id": "m01",
+      "line": "main",
+      "name": "Quỷ lang thang trên đường tuyết",
+      "min_level": 1,
+      "requires": "",
+      "giver": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "turn_in": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "wanderer",
+        "count": 5,
+        "map": "kumotori_1",
+        "region": "r1"
+      },
+      "text": {
+        "offer": "Quỷ lang thang đang làm loạn đường tuyết. Cậu hạ giúp ta năm con nhé?",
+        "progress": "Quỷ lang thang còn lảng vảng ngoài kia, cố lên.",
+        "done": "Giỏi lắm! Đường tuyết yên ổn hơn rồi. Cầm lấy ít thuốc này."
+      },
+      "reward": {
+        "exp": 20,
+        "xu": 40,
+        "items": [
+          {
+            "code": "potion_hp_1",
+            "count": 5
+          }
+        ],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m02",
+      "line": "main",
+      "name": "Nanh quỷ",
+      "min_level": 2,
+      "requires": "m01",
+      "giver": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "turn_in": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "wanderer",
+        "count": 6,
+        "chance_bp": 5000,
+        "item_name": "Nanh quỷ",
+        "map": "kumotori_1",
+        "region": "r2"
+      },
+      "text": {
+        "offer": "Ta cần sáu chiếc nanh của quỷ lang thang để làm bùa hộ thân.",
+        "progress": "Chưa đủ nanh đâu, quỷ lang thang vẫn còn đầy ngoài kia.",
+        "done": "Đủ sáu chiếc nanh rồi. Cảm ơn cậu."
+      },
+      "reward": {
+        "exp": 70,
+        "xu": 96,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m03",
+      "line": "main",
+      "name": "Quỷ đói trong tuyết",
+      "min_level": 3,
+      "requires": "m02",
+      "giver": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "turn_in": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "snow_ghoul",
+        "count": 8,
+        "map": "kumotori_1",
+        "region": "r3"
+      },
+      "text": {
+        "offer": "Quỷ đói đã xuất hiện ở phía nam. Hãy hạ tám con để dân làng bớt sợ.",
+        "progress": "Quỷ đói vẫn đang lảng vảng ở phía nam.",
+        "done": "Tám con quỷ đói đã ngã xuống. Cậu khá hơn ta tưởng."
+      },
+      "reward": {
+        "exp": 240,
+        "xu": 192,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m04",
+      "line": "main",
+      "name": "Băng tinh",
+      "min_level": 4,
+      "requires": "m03",
+      "giver": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "turn_in": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "snow_ghoul",
+        "count": 6,
+        "chance_bp": 5000,
+        "item_name": "Băng tinh",
+        "map": "kumotori_1",
+        "region": "r4"
+      },
+      "text": {
+        "offer": "Quỷ đói mang trong người băng tinh. Mang về cho ta sáu viên.",
+        "progress": "Còn thiếu băng tinh, tiếp tục tìm quỷ đói nhé.",
+        "done": "Băng tinh đẹp lắm. Thuốc này là quà của ta."
+      },
+      "reward": {
+        "exp": 610,
+        "xu": 192,
+        "items": [
+          {
+            "code": "potion_hp_1",
+            "count": 5
+          }
+        ],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m05",
+      "line": "main",
+      "name": "Lên đường tới Tổng hành dinh",
+      "min_level": 5,
+      "requires": "m04",
+      "giver": {
+        "map": "kumotori_1",
+        "npc": "tho_san"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Cậu đã đủ sức rồi. Hãy tới Tổng hành dinh gặp Chỉ huy, nói rằng ta cử cậu đến.",
+        "progress": "Chỉ huy đang đợi ở Tổng hành dinh, qua cổng phía đông.",
+        "done": "Thợ săn già cử cậu tới ư? Tốt, Sát Quỷ Đoàn cần người như cậu."
+      },
+      "reward": {
+        "exp": 620,
+        "xu": 200,
+        "items": [
+          {
+            "code": "scroll_return",
+            "count": 2
+          }
+        ],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m06",
+      "line": "main",
+      "name": "Ngôi làng dưới chân núi",
+      "min_level": 6,
+      "requires": "m05",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "turn_in": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Ngôi làng Sagiri đang cầu cứu. Hãy tới gặp Trưởng làng ở đó.",
+        "progress": "Trưởng làng Sagiri ở phía đông Tổng hành dinh.",
+        "done": "Sát Quỷ Đoàn đã cử người tới! Làng ta mừng lắm."
+      },
+      "reward": {
+        "exp": 1220,
+        "xu": 240,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m07",
+      "line": "main",
+      "name": "Quỷ rừng núi",
+      "min_level": 6,
+      "requires": "m06",
+      "giver": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "turn_in": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "mountain_demon",
+        "count": 10,
+        "map": "sagiri_1",
+        "region": "r1"
+      },
+      "text": {
+        "offer": "Quỷ rừng núi hay xuống làng. Hạ mười con giúp làng ta.",
+        "progress": "Quỷ rừng núi còn nhiều lắm, đừng dừng lại.",
+        "done": "Làng ta biết ơn cậu. Nhưng chuyện chưa xong đâu."
+      },
+      "reward": {
+        "exp": 2430,
+        "xu": 480,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m08",
+      "line": "main",
+      "name": "Sừng quỷ",
+      "min_level": 7,
+      "requires": "m07",
+      "giver": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "turn_in": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "mountain_demon",
+        "count": 8,
+        "chance_bp": 5000,
+        "item_name": "Sừng quỷ núi",
+        "map": "sagiri_1",
+        "region": "r2"
+      },
+      "text": {
+        "offer": "Thầy lang cần sừng quỷ núi để bào chế thuốc. Cậu thu giúp tám chiếc.",
+        "progress": "Chưa đủ sừng quỷ núi, cậu tìm thêm nhé.",
+        "done": "Đúng thứ ta cần. Cảm ơn cậu."
+      },
+      "reward": {
+        "exp": 4340,
+        "xu": 448,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m09",
+      "line": "main",
+      "name": "Kẻ phục kích",
+      "min_level": 8,
+      "requires": "m08",
+      "giver": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "turn_in": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "ambusher",
+        "count": 10,
+        "map": "sagiri_1",
+        "region": "r3"
+      },
+      "text": {
+        "offer": "Kẻ phục kích núp trong bụi rậm hại người đi đường. Hạ mười tên.",
+        "progress": "Kẻ phục kích vẫn núp ngoài kia, cẩn thận.",
+        "done": "Đường đã an toàn hơn nhờ cậu."
+      },
+      "reward": {
+        "exp": 7130,
+        "xu": 640,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m10",
+      "line": "main",
+      "name": "Mảnh mặt nạ",
+      "min_level": 9,
+      "requires": "m09",
+      "giver": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "turn_in": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "ambusher",
+        "count": 8,
+        "chance_bp": 5000,
+        "item_name": "Mảnh mặt nạ",
+        "map": "sagiri_1",
+        "region": "r4"
+      },
+      "text": {
+        "offer": "Chúng đeo mặt nạ lạ. Thu về tám mảnh để Sát Quỷ Đoàn tra xét.",
+        "progress": "Còn thiếu mảnh mặt nạ, tìm tiếp đi.",
+        "done": "Mảnh mặt nạ này có dấu hiệu lạ. Hãy mang tin về Tổng hành dinh."
+      },
+      "reward": {
+        "exp": 11270,
+        "xu": 576,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m11",
+      "line": "main",
+      "name": "Báo cáo Chỉ huy",
+      "min_level": 10,
+      "requires": "m10",
+      "giver": {
+        "map": "sagiri_1",
+        "npc": "truong_lang"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Cậu hãy về báo cáo Chỉ huy những gì đã thấy ở Sagiri.",
+        "progress": "Chỉ huy đang đợi báo cáo của cậu ở Tổng hành dinh.",
+        "done": "Báo cáo rất hữu ích. Đây là sách chiêu thức và vũ khí cho cậu."
+      },
+      "reward": {
+        "exp": 9150,
+        "xu": 400,
+        "items": [
+          {
+            "code": "potion_hp_10",
+            "count": 10
+          },
+          {
+            "code": "potion_mp_10",
+            "count": 10
+          }
+        ],
+        "equipment": [
+          {
+            "tier": 10,
+            "slot": "weapon"
+          }
+        ],
+        "skill_book": 1
+      }
+    },
+    {
+      "id": "m12",
+      "line": "main",
+      "name": "Rừng sương mù",
+      "min_level": 11,
+      "requires": "m11",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "turn_in": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Phía sau Sagiri là rừng sương mù. Hãy gặp Kiếm sĩ trinh sát ở đó.",
+        "progress": "Kiếm sĩ trinh sát ở trại rừng sương mù, phía đông Sagiri.",
+        "done": "Chỉ huy cử cậu tới à? Rừng này nguy hiểm, theo ta."
+      },
+      "reward": {
+        "exp": 13460,
+        "xu": 440,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m13",
+      "line": "main",
+      "name": "Quỷ ẩn sương",
+      "min_level": 11,
+      "requires": "m12",
+      "giver": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "turn_in": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "mist_lurker",
+        "count": 12,
+        "map": "sagiri_2",
+        "region": "r1"
+      },
+      "text": {
+        "offer": "Quỷ ẩn trong sương rất khó thấy. Hạ mười hai con.",
+        "progress": "Quỷ ẩn sương còn đó, giữ bình tĩnh.",
+        "done": "Cậu có mắt tinh đấy."
+      },
+      "reward": {
+        "exp": 26920,
+        "xu": 1056,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m14",
+      "line": "main",
+      "name": "Sương độc",
+      "min_level": 12,
+      "requires": "m13",
+      "giver": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "turn_in": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "mist_lurker",
+        "count": 10,
+        "chance_bp": 5000,
+        "item_name": "Túi sương độc",
+        "map": "sagiri_2",
+        "region": "r2"
+      },
+      "text": {
+        "offer": "Túi sương độc của chúng dùng được làm thuốc giải. Thu mười túi.",
+        "progress": "Chưa đủ túi sương độc.",
+        "done": "Mười túi sương độc, đủ cho cả đội."
+      },
+      "reward": {
+        "exp": 39970,
+        "xu": 960,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m15",
+      "line": "main",
+      "name": "Quỷ vuốt dài",
+      "min_level": 13,
+      "requires": "m14",
+      "giver": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "turn_in": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "long_claw",
+        "count": 12,
+        "map": "sagiri_2",
+        "region": "r3"
+      },
+      "text": {
+        "offer": "Quỷ vuốt dài đã làm bị thương nhiều kiếm sĩ. Hạ mười hai con.",
+        "progress": "Quỷ vuốt dài vẫn còn trong rừng.",
+        "done": "Tốt lắm, các kiếm sĩ bớt nguy hiểm rồi."
+      },
+      "reward": {
+        "exp": 57410,
+        "xu": 1248,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m16",
+      "line": "main",
+      "name": "Vuốt gãy",
+      "min_level": 14,
+      "requires": "m15",
+      "giver": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "turn_in": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "long_claw",
+        "count": 10,
+        "chance_bp": 5000,
+        "item_name": "Vuốt quỷ",
+        "map": "sagiri_2",
+        "region": "r4"
+      },
+      "text": {
+        "offer": "Vuốt quỷ rèn được vũ khí tốt. Thu về mười chiếc.",
+        "progress": "Còn thiếu vuốt quỷ.",
+        "done": "Vuốt sắc thật. Cậu sẵn sàng cho kỳ tuyển chọn rồi."
+      },
+      "reward": {
+        "exp": 80170,
+        "xu": 1120,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m17",
+      "line": "main",
+      "name": "Kỳ tuyển chọn",
+      "min_level": 15,
+      "requires": "m16",
+      "giver": {
+        "map": "sagiri_2",
+        "npc": "trinh_sat"
+      },
+      "turn_in": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Kỳ tuyển chọn Sát Quỷ Đoàn sắp bắt đầu ở Fujikasane. Hãy gặp Giám khảo.",
+        "progress": "Giám khảo ở trại Fujikasane, phía đông rừng sương mù.",
+        "done": "Cậu tới đúng lúc. Kỳ tuyển chọn sắp bắt đầu."
+      },
+      "reward": {
+        "exp": 55950,
+        "xu": 600,
+        "items": [
+          {
+            "code": "scroll_return",
+            "count": 2
+          }
+        ],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m18",
+      "line": "main",
+      "name": "Quỷ Rừng",
+      "min_level": 16,
+      "requires": "m17",
+      "giver": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "turn_in": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "forest_demon",
+        "count": 15,
+        "map": "fujikasane_1",
+        "region": "r1"
+      },
+      "text": {
+        "offer": "Thử thách đầu tiên: hạ mười lăm Quỷ Rừng.",
+        "progress": "Thử thách chưa xong, Quỷ Rừng vẫn còn.",
+        "done": "Thử thách đầu tiên đã qua."
+      },
+      "reward": {
+        "exp": 149280,
+        "xu": 1920,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m19",
+      "line": "main",
+      "name": "Rễ cây quỷ",
+      "min_level": 17,
+      "requires": "m18",
+      "giver": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "turn_in": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "forest_demon",
+        "count": 12,
+        "chance_bp": 5000,
+        "item_name": "Rễ cây quỷ",
+        "map": "fujikasane_1",
+        "region": "r2"
+      },
+      "text": {
+        "offer": "Thử thách thứ hai: thu mười hai rễ cây quỷ.",
+        "progress": "Chưa đủ rễ cây quỷ.",
+        "done": "Đủ số rễ rồi. Cậu kiên trì đấy."
+      },
+      "reward": {
+        "exp": 197480,
+        "xu": 1632,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m20",
+      "line": "main",
+      "name": "Quỷ bị giam",
+      "min_level": 18,
+      "requires": "m19",
+      "giver": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "turn_in": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "objective": {
+        "type": "kill",
+        "monster": "captive_demon",
+        "count": 15,
+        "map": "fujikasane_1",
+        "region": "r3"
+      },
+      "text": {
+        "offer": "Thử thách thứ ba: hạ mười lăm quỷ bị giam.",
+        "progress": "Quỷ bị giam vẫn còn, tiếp tục.",
+        "done": "Cậu đã vượt qua thử thách này."
+      },
+      "reward": {
+        "exp": 255680,
+        "xu": 2160,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m21",
+      "line": "main",
+      "name": "Mảnh xiềng",
+      "min_level": 19,
+      "requires": "m20",
+      "giver": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "turn_in": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "objective": {
+        "type": "collect",
+        "monster": "captive_demon",
+        "count": 12,
+        "chance_bp": 5000,
+        "item_name": "Mảnh xiềng",
+        "map": "fujikasane_1",
+        "region": "r4"
+      },
+      "text": {
+        "offer": "Thử thách cuối: thu mười hai mảnh xiềng của quỷ bị giam.",
+        "progress": "Chưa đủ mảnh xiềng.",
+        "done": "Cậu đã hoàn thành mọi thử thách. Hãy về báo Chỉ huy."
+      },
+      "reward": {
+        "exp": 326580,
+        "xu": 1824,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "m22",
+      "line": "main",
+      "name": "Vượt qua tuyển chọn",
+      "min_level": 20,
+      "requires": "m21",
+      "giver": {
+        "map": "fujikasane_1",
+        "npc": "giam_khao"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Cậu đã vượt qua tuyển chọn. Hãy về Tổng hành dinh gặp Chỉ huy.",
+        "progress": "Chỉ huy đang đợi ở Tổng hành dinh.",
+        "done": "Chúc mừng, cậu là thành viên Sát Quỷ Đoàn. Nhận thức thứ hai và vũ khí mới."
+      },
+      "reward": {
+        "exp": 206550,
+        "xu": 800,
+        "items": [
+          {
+            "code": "potion_hp_10",
+            "count": 10
+          },
+          {
+            "code": "potion_mp_10",
+            "count": 10
+          }
+        ],
+        "equipment": [
+          {
+            "tier": 20,
+            "slot": "weapon"
+          }
+        ],
+        "skill_book": 2
+      }
+    },
+    {
+      "id": "m23",
+      "line": "main",
+      "name": "Thức thứ ba",
+      "min_level": 30,
+      "requires": "",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Cậu đã đủ sức học thức thứ ba. Đây là sách của nó.",
+        "progress": "Hãy đọc kỹ sách thức thứ ba.",
+        "done": "Thức thứ ba nay thuộc về cậu."
+      },
+      "reward": {
+        "exp": 1090150,
+        "xu": 1200,
+        "items": [],
+        "equipment": [],
+        "skill_book": 3
+      }
+    },
+    {
+      "id": "m24",
+      "line": "main",
+      "name": "Thức thứ tư",
+      "min_level": 40,
+      "requires": "",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Cậu đã đủ sức học thức thứ tư. Đây là sách của nó.",
+        "progress": "Hãy đọc kỹ sách thức thứ tư.",
+        "done": "Thức thứ tư nay thuộc về cậu."
+      },
+      "reward": {
+        "exp": 3800410,
+        "xu": 1600,
+        "items": [],
+        "equipment": [],
+        "skill_book": 4
+      }
+    },
+    {
+      "id": "m25",
+      "line": "main",
+      "name": "Thức thứ năm",
+      "min_level": 50,
+      "requires": "",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "chi_huy"
+      },
+      "objective": {
+        "type": "talk"
+      },
+      "text": {
+        "offer": "Cậu đã đủ sức học thức thứ năm. Đây là sách của nó.",
+        "progress": "Hãy đọc kỹ sách thức thứ năm.",
+        "done": "Thức thứ năm nay thuộc về cậu."
+      },
+      "reward": {
+        "exp": 10358570,
+        "xu": 2000,
+        "items": [],
+        "equipment": [],
+        "skill_book": 5
+      }
+    }
+  ]
+}

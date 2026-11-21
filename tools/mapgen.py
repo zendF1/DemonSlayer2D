@@ -11,7 +11,8 @@ to) and "npcs": the town has a general shop, a blacksmith and a carriage, each
 training map an apothecary and a carriage. A carriage has a route to every
 other map, 50 Xu to the town, otherwise max(50, 20 x the target's lowest region
 min_level). Before writing, the script checks the NPCs in safe zones, reachable
-and 1.5 tiles apart.
+and 1.5 tiles apart. Phase 6b (spec 2.5) adds the role "quest": one quest npc
+per map, 2-4 tiles from default, no shop and no routes.
 
 Rules (phase 4a spec 2.1-2.3): each map is declared with its size, wall
 rectangles (inside the border wall), safe zones, rest points, spawn points,
@@ -36,8 +37,12 @@ MAPS_DIR = Path(__file__).resolve().parents[1] / "maps"
 START_MAP = "kumotori_1"
 TYPES = ("town", "training", "battle", "instance")
 ARRIVAL_MIN_DISTANCE = 2  # tiles from every portal of the arrival's map
-ROLES = ("shop", "blacksmith", "carriage", "storage")
+ROLES = ("shop", "blacksmith", "carriage", "storage", "quest")
 STORAGE_MAX_DEFAULT_DISTANCE = 3.0  # phase 4c spec 2.2
+# Phase 6b spec 2.5: each map has one quest npc 2-4 tiles from default.
+QUEST_NPCS = {"kumotori_1": "tho_san", "ubuyashiki": "chi_huy", "sagiri_1": "truong_lang",
+              "sagiri_2": "trinh_sat", "fujikasane_1": "giam_khao"}
+QUEST_DEFAULT_DISTANCE = (2.0, 4.0)
 NPC_MIN_DISTANCE = 1.5  # tiles between two NPCs of a map
 MIN_FARE = 50  # Xu; a trip to a map costs 20 x its lowest region level, at least this
 FARE_PER_LEVEL = 20
@@ -100,14 +105,15 @@ def quarters(monsters, levels, counts, nests, walls=()):
     return out
 
 
-def camp_west():
+def camp_west(quest_id, quest_name):
     """The camp of a new training map (spec 2.3): a 10 x 10 safe zone against
     the west wall at mid height, holding the west portal and its arrival, the
     default (respawn) spawn point in its middle and a bonfire."""
     return [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True),
             npc("duoc_su", "Dược sư", "shop", 8.5, 21.5, shop="apothecary"),
             npc("xa_phu", "Xa phu", "carriage", 8.5, 27.5),
-            npc("thu_kho", "Thủ kho", "storage", 8.5, 24.5)]
+            npc("thu_kho", "Thủ kho", "storage", 8.5, 24.5),
+            npc(quest_id, quest_name, "quest", 4.5, 27.5)]
 
 
 # ______________________MAPS_____________________
@@ -127,6 +133,7 @@ MAPS = [
             npc("tho_ren", "Thợ rèn", "blacksmith", 17.5, 16.5),
             npc("xa_phu", "Xa phu", "carriage", 20.5, 19.5),
             npc("thu_kho", "Thủ kho", "storage", 20.5, 14.5),
+            npc("chi_huy", "Chỉ huy Sát Quỷ Đoàn", "quest", 18.5, 19.5),
             portal("west", "kumotori_1"),
             portal("east", "sagiri_1"),
         ],
@@ -143,6 +150,7 @@ MAPS = [
             npc("duoc_su", "Dược sư", "shop", 8.5, 3.5, shop="apothecary"),
             npc("xa_phu", "Xa phu", "carriage", 8.5, 7.5),
             npc("thu_kho", "Thủ kho", "storage", 3.5, 7.5),
+            npc("tho_san", "Thợ săn già", "quest", 5.5, 8.5),
             portal("east", "ubuyashiki"),
             gate_safe("east"),
             region("r1", "wanderer", 1, 2, 8, [(12, 1, 20, 19), (1, 12, 11, 8)], (22.5, 10.5)),
@@ -154,7 +162,7 @@ MAPS = [
     {
         "id": "sagiri_1", "name": "Sagiri – Chân núi, đường đến ngôi đền", "type": "training",
         "width": 64, "height": 48, "min_zones": 2,
-        "parts": camp_west() + [
+        "parts": camp_west("truong_lang", "Trưởng làng Sagiri") + [
             portal("west", "ubuyashiki"),
             portal("east", "sagiri_2"),
             gate_safe("east"),
@@ -169,7 +177,7 @@ MAPS = [
     {
         "id": "sagiri_2", "name": "Sagiri – Rừng sương mù", "type": "training",
         "width": 64, "height": 48, "min_zones": 2,
-        "parts": camp_west() + [
+        "parts": camp_west("trinh_sat", "Kiếm sĩ trinh sát") + [
             portal("west", "sagiri_1"),
             portal("east", "fujikasane_1"),
             gate_safe("east"),
@@ -183,7 +191,7 @@ MAPS = [
     {
         "id": "fujikasane_1", "name": "Fujikasane – Rừng tuyển chọn", "type": "training",
         "width": 64, "height": 48, "min_zones": 2,
-        "parts": camp_west() + [
+        "parts": camp_west("giam_khao", "Giám khảo tuyển chọn") + [
             portal("west", "sagiri_2"),
         ] + quarters(
             ("forest_demon", "captive_demon"), [(16, 17), (17, 18), (18, 19), (19, 20)], [8, 7, 7, 8],
@@ -478,6 +486,14 @@ def check_map(m):
         d = math.hypot(n["x"] - spawns["default"]["x"], n["y"] - spawns["default"]["y"])
         if d > STORAGE_MAX_DEFAULT_DISTANCE:
             err(f"npc {n['id']} is {d:.2f} tiles from default, more than {STORAGE_MAX_DEFAULT_DISTANCE}")
+    quest_ids = sorted(n["id"] for n in m["npcs"] if n["role"] == "quest")
+    if quest_ids != [QUEST_NPCS[m["id"]]]:
+        err(f"the map needs exactly one quest npc {QUEST_NPCS[m['id']]}, has {quest_ids}")
+    for n in m["npcs"]:
+        if n["role"] == "quest":
+            d = math.hypot(n["x"] - spawns["default"]["x"], n["y"] - spawns["default"]["y"])
+            if not QUEST_DEFAULT_DISTANCE[0] <= d <= QUEST_DEFAULT_DISTANCE[1]:
+                err(f"npc {n['id']} is {d:.2f} tiles from default, outside {QUEST_DEFAULT_DISTANCE}")
     for i, a in enumerate(m["npcs"]):
         for b in m["npcs"][i + 1:]:
             if math.hypot(a["x"] - b["x"], a["y"] - b["y"]) < NPC_MIN_DISTANCE:

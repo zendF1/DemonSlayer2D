@@ -867,8 +867,8 @@ func TestRepoMapsNPCs(t *testing.T) {
 	}
 	price := map[string]int64{"ubuyashiki": 50, "kumotori_1": 50, "sagiri_1": 120, "sagiri_2": 220, "fujikasane_1": 320}
 	town := loaded["ubuyashiki"]
-	if len(town.NPCs) != 4 {
-		t.Fatalf("ubuyashiki npcs %+v, want 4", town.NPCs)
+	if len(town.NPCs) != 5 {
+		t.Fatalf("ubuyashiki npcs %+v, want 5", town.NPCs)
 	}
 	if n, ok := town.NPC("tap_hoa"); !ok || n.Role != RoleShop || n.Shop != "general" || n.Name != "Tạp hóa" {
 		t.Errorf("tap_hoa = %+v, %v", n, ok)
@@ -883,8 +883,8 @@ func TestRepoMapsNPCs(t *testing.T) {
 	}
 	for _, id := range []string{"kumotori_1", "sagiri_1", "sagiri_2", "fujikasane_1"} {
 		m := loaded[id]
-		if len(m.NPCs) != 3 {
-			t.Errorf("%s npcs %+v, want 3", id, m.NPCs)
+		if len(m.NPCs) != 4 {
+			t.Errorf("%s npcs %+v, want 4", id, m.NPCs)
 		}
 		if n, ok := m.NPC("duoc_su"); !ok || n.Role != RoleShop || n.Shop != "apothecary" || n.Name != "Dược sư" {
 			t.Errorf("%s: duoc_su = %+v, %v", id, n, ok)
@@ -959,6 +959,72 @@ func TestRepoMapsStorage(t *testing.T) {
 	}
 	if n, _ := loaded["kumotori_1"].NPC("thu_kho"); n.Pos != (Point{3.5, 7.5}) {
 		t.Errorf("kumotori thu_kho at %v, want (3.5, 7.5)", n.Pos)
+	}
+}
+
+// Phase 6b spec 2.5: the quest role, and the quest NPC of each real map.
+func TestParseQuestNPC(t *testing.T) {
+	quest := func() map[string]any {
+		return map[string]any{"id": "giver", "name": "Thợ săn già", "role": "quest", "x": 1.5, "y": 3.5}
+	}
+	m, err := Parse(npcJSON(t, func(m map[string]any) {
+		m["npcs"] = append(m["npcs"].([]map[string]any), quest())
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := m.NPC("giver"); !ok || n.Role != RoleQuest || n.Shop != "" || len(n.Routes) != 0 {
+		t.Fatalf("giver = %+v, %v", n, ok)
+	}
+	cases := map[string]func(n map[string]any){
+		`"giver": shop set on a non-shop npc`:       func(n map[string]any) { n["shop"] = "general" },
+		`"giver": routes set on a non-carriage npc`: func(n map[string]any) { n["routes"] = []map[string]any{{"map": "a", "xu": 50}} },
+	}
+	for want, mut := range cases {
+		_, err := Parse(npcJSON(t, func(m map[string]any) {
+			n := quest()
+			mut(n)
+			m["npcs"] = append(m["npcs"].([]map[string]any), n)
+		}))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want error containing %q, got %v", want, err)
+		}
+	}
+}
+
+func TestRepoMapsQuestNPCs(t *testing.T) {
+	loaded, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct {
+		id, name string
+	}{
+		"kumotori_1":   {"tho_san", "Thợ săn già"},
+		"ubuyashiki":   {"chi_huy", "Chỉ huy Sát Quỷ Đoàn"},
+		"sagiri_1":     {"truong_lang", "Trưởng làng Sagiri"},
+		"sagiri_2":     {"trinh_sat", "Kiếm sĩ trinh sát"},
+		"fujikasane_1": {"giam_khao", "Giám khảo tuyển chọn"},
+	}
+	for id, m := range loaded {
+		var quests []NPC
+		for _, n := range m.NPCs {
+			if n.Role == RoleQuest {
+				quests = append(quests, n)
+			}
+		}
+		w := want[id]
+		if len(quests) != 1 || quests[0].ID != w.id || quests[0].Name != w.name || quests[0].Shop != "" || len(quests[0].Routes) != 0 {
+			t.Errorf("%s: quest npcs %+v, want %s %q", id, quests, w.id, w.name)
+			continue
+		}
+		def := m.Spawns["default"]
+		if d := math.Hypot(float64(quests[0].Pos.X-def.X), float64(quests[0].Pos.Y-def.Y)); d < 2 || d > 4 {
+			t.Errorf("%s: %s %.2f tiles from default", id, w.id, d)
+		}
+	}
+	if n, _ := loaded["kumotori_1"].NPC("tho_san"); n.Pos != (Point{5.5, 8.5}) {
+		t.Errorf("tho_san at %v, want (5.5, 8.5)", n.Pos)
 	}
 }
 

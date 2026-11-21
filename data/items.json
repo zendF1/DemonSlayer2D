@@ -7342,6 +7342,131 @@
         "level": 1,
         "group": ""
       }
+    },
+    {
+      "code": "book_viem_1",
+      "name": "Sách Bất Tri Hỏa",
+      "sell": 0
+    },
+    {
+      "code": "book_viem_2",
+      "name": "Sách Thăng Viêm Thiên",
+      "sell": 0
+    },
+    {
+      "code": "book_viem_3",
+      "name": "Sách Thịnh Viêm Lãng Triều",
+      "sell": 0
+    },
+    {
+      "code": "book_viem_4",
+      "name": "Sách Viêm Hổ",
+      "sell": 0
+    },
+    {
+      "code": "book_viem_5",
+      "name": "Sách Luyện Ngục",
+      "sell": 0
+    },
+    {
+      "code": "book_thuy_1",
+      "name": "Sách Thủy Diện Trảm",
+      "sell": 0
+    },
+    {
+      "code": "book_thuy_2",
+      "name": "Sách Đả Triều",
+      "sell": 0
+    },
+    {
+      "code": "book_thuy_3",
+      "name": "Sách Lặng",
+      "sell": 0
+    },
+    {
+      "code": "book_thuy_4",
+      "name": "Sách Liệt Oa",
+      "sell": 0
+    },
+    {
+      "code": "book_thuy_5",
+      "name": "Sách Sinh Sinh Lưu Chuyển",
+      "sell": 0
+    },
+    {
+      "code": "book_minh_1",
+      "name": "Sách Phích Lịch Nhất Thiểm",
+      "sell": 0
+    },
+    {
+      "code": "book_minh_2",
+      "name": "Sách Tụ Văn Thành Lôi",
+      "sell": 0
+    },
+    {
+      "code": "book_minh_3",
+      "name": "Sách Nhiệt Giới Lôi",
+      "sell": 0
+    },
+    {
+      "code": "book_minh_4",
+      "name": "Sách Viễn Lôi",
+      "sell": 0
+    },
+    {
+      "code": "book_minh_5",
+      "name": "Sách Hỏa Lôi Thần",
+      "sell": 0
+    },
+    {
+      "code": "book_nham_1",
+      "name": "Sách Xà Văn Nham · Song Cực",
+      "sell": 0
+    },
+    {
+      "code": "book_nham_2",
+      "name": "Sách Thiên Diện Toái",
+      "sell": 0
+    },
+    {
+      "code": "book_nham_3",
+      "name": "Sách Nham Phu Khu",
+      "sell": 0
+    },
+    {
+      "code": "book_nham_4",
+      "name": "Sách Lưu Văn Nham · Tốc Chinh",
+      "sell": 0
+    },
+    {
+      "code": "book_nham_5",
+      "name": "Sách Ngõa Hình Luân Bộ",
+      "sell": 0
+    },
+    {
+      "code": "book_phong_1",
+      "name": "Sách Trần Toàn Phong · Tước",
+      "sell": 0
+    },
+    {
+      "code": "book_phong_2",
+      "name": "Sách Trảo · Khoa Hộ Phong",
+      "sell": 0
+    },
+    {
+      "code": "book_phong_3",
+      "name": "Sách Tình Lam Phong Thụ",
+      "sell": 0
+    },
+    {
+      "code": "book_phong_4",
+      "name": "Sách Mộc Khô Lạp Phong",
+      "sell": 0
+    },
+    {
+      "code": "book_phong_5",
+      "name": "Sách Vi Đà Thiên Đài Phong",
+      "sell": 0
     }
   ],
   "drops": {

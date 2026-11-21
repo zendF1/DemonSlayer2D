@@ -81,6 +81,7 @@
   "npcs": [
     {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 21.5},
     {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 27.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "kumotori_1", "xu": 50}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}]},
-    {"id": "thu_kho", "name": "Thủ kho", "role": "storage", "x": 8.5, "y": 24.5}
+    {"id": "thu_kho", "name": "Thủ kho", "role": "storage", "x": 8.5, "y": 24.5},
+    {"id": "truong_lang", "name": "Trưởng làng Sagiri", "role": "quest", "x": 4.5, "y": 27.5}
   ]
 }

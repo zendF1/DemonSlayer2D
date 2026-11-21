@@ -21,6 +21,8 @@ Rules (phase 3a spec 2.1):
 - enhancement (phase 3b spec 2.1): success rates and level drops follow
   game-design 3.3, stones and Xu per attempt are the spec's table; regen
   milestones and each slot's regen kind follow game-design 2.7;
+- skill books (phase 6b spec 2.4): book_<skill id> for each of the 25 skills,
+  appended after the potions and the scroll, sell 0, no use block;
 - resonance, sockets and refining (phase 3c spec 2.1): the activator cycle
   and activating slots follow game-design 3.2; gem g of each kind is worth
   the line standard of tier 10 g, placed after the charm by kind then level.
@@ -214,6 +216,21 @@ def use_stackables():
             for code, name, level, effect, value, group, price in POTIONS + [SCROLL]]
 
 
+def books():
+    """Phase 6b spec 2.4: one skill book per skill of data/skills.json, class
+    by class (CLASS_IDS order) then slot 1-5 (learn order). They cannot be
+    sold and have no use block."""
+    path = Path(__file__).resolve().parents[2] / "data" / "skills.json"
+    skills = {s["id"]: s for s in json.loads(path.read_text(encoding="utf-8"))["skills"]}
+    out = []
+    for class_id in CLASS_IDS:
+        for n in range(1, 6):
+            skill = skills[f"{class_id}_{n}"]
+            out.append({"code": f"book_{skill['id']}", "name": f"Sách {skill['name']}", "sell": 0})
+    assert len(out) == len(skills) == 25, (len(out), len(skills))
+    return out
+
+
 def shops():
     potions = [{"code": p[0], "price": p[6]} for p in POTIONS]
     scroll = [{"code": SCROLL[0], "price": SCROLL[6]}]
@@ -264,7 +281,7 @@ def build():
         "equipment": equipment,
         "use_cooldown_sec": USE_COOLDOWN_SEC,
         "sell_equipment_xu_per_tier": SELL_EQUIPMENT_XU_PER_TIER,
-        "stackables": with_sell(STACKABLES + gems(tiers)) + use_stackables(),
+        "stackables": with_sell(STACKABLES + gems(tiers)) + use_stackables() + books(),
         "drops": DROPS,
         "enhance": {
             "pity_pct": PITY_PCT,
@@ -325,7 +342,7 @@ def check_shops(data):
     tiers = data["sell_equipment_xu_per_tier"]
     assert len(tiers) == 5 and all(v >= 0 for v in tiers), tiers
     by_code = {s["code"]: s for s in data["stackables"]}
-    assert len(data["stackables"]) == 26, len(data["stackables"])
+    assert len(data["stackables"]) == 26 + 25, len(data["stackables"])
     assert all(s["sell"] >= 0 for s in data["stackables"])
     for g in range(1, 6):
         assert by_code[f"gem_attack_{g}"]["sell"] == 200 * g
