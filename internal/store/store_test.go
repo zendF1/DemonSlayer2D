@@ -913,3 +913,72 @@ func TestSaveAndLoadAccountStash(t *testing.T) {
 		t.Fatalf("%d stash rows left after account delete, %v", n, err)
 	}
 }
+
+// ______________________TEST PK MODE_____________________
+
+func TestMigrationAddsPkOn(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	db := stdlib.OpenDB(*schemaConfig(t, url, schema))
+	defer db.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	var acc, char int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO accounts (username, password_hash) VALUES ('old', 'h') RETURNING id`).Scan(&acc); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `INSERT INTO characters (account_id, slot, name, name_key, class, level, map_id, pos_x, pos_y)
+		VALUES ($1, 1, 'old', 'old', 'viem', 7, 'kumotori_1', 5.5, 5.5) RETURNING id`, acc).Scan(&char); err != nil {
+		t.Fatal(err)
+	}
+
+	st := openMigrated(t, url, schema)
+	c, err := st.GetCharacter(ctx, acc, char)
+	if err != nil || c.PkOn {
+		t.Fatalf("migrated character %+v, %v, want PK off", c, err)
+	}
+
+	if _, err := p.DownTo(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'characters' AND column_name = 'pk_on'`,
+		schema).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("after down: %d pk_on columns left, %v", left, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveAndLoadPkOnAndNegativeExp(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil || c.PkOn {
+		t.Fatalf("new character %+v, %v, want PK off", c, err)
+	}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 5, Exp: -1400, HP: -1, MP: -1, PkOn: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || !got.PkOn || got.Exp != -1400 {
+		t.Fatalf("after save: PkOn %v Exp %d, %v", got.PkOn, got.Exp, err)
+	}
+	list, err := st.ListCharacters(ctx, acc)
+	if err != nil || len(list) != 1 || !list[0].PkOn {
+		t.Fatalf("list: %+v, %v", list, err)
+	}
+	if err := st.SaveCharacterState(ctx, store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 5, HP: -1, MP: -1}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = st.GetCharacter(ctx, acc, c.ID); got.PkOn {
+		t.Fatal("PK did not turn off")
+	}
+}

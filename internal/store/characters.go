@@ -37,6 +37,8 @@ type Character struct {
 	// bag first, then by slot; never nil on a loaded character.
 	Xu    int64
 	Items []ItemRow
+	// PkOn is whether PK mode is on.
+	PkOn bool
 	// Account is the account part (Lượng, stash); only GetCharacter fills it.
 	Account AccountState
 }
@@ -108,19 +110,21 @@ type CharState struct {
 	// Items replaces every stored item of the character; nil saves none.
 	Xu    int64
 	Items []ItemRow
+	// PkOn is saved with every state.
+	PkOn bool
 	// Account, when not nil, is saved in the same transaction; nil writes
 	// nothing to the account.
 	Account *AccountState
 }
 
 const charColumns = `id, account_id, slot, name, class, level, exp, map_id, pos_x, pos_y,
-	str, agi, vit, int, free_points, COALESCE(hp, -1), COALESCE(mp, -1), skill_points, xu`
+	str, agi, vit, int, free_points, COALESCE(hp, -1), COALESCE(mp, -1), skill_points, xu, pk_on`
 
 // scanCharacter reads charColumns; the skills and items come from loadExtras.
 func scanCharacter(row pgx.Row) (Character, error) {
 	c := Character{Skills: map[string]int{}, Items: []ItemRow{}}
 	err := row.Scan(&c.ID, &c.AccountID, &c.Slot, &c.Name, &c.Class, &c.Level, &c.Exp, &c.MapID, &c.X, &c.Y,
-		&c.Points.Str, &c.Points.Agi, &c.Points.Vit, &c.Points.Int, &c.FreePoints, &c.HP, &c.MP, &c.SkillPoints, &c.Xu)
+		&c.Points.Str, &c.Points.Agi, &c.Points.Vit, &c.Points.Int, &c.FreePoints, &c.HP, &c.MP, &c.SkillPoints, &c.Xu, &c.PkOn)
 	return c, err
 }
 
@@ -280,9 +284,9 @@ func saveState(ctx context.Context, tx pgx.Tx, st CharState) error {
 	tag, err := tx.Exec(ctx,
 		`UPDATE characters SET map_id = $2, pos_x = $3, pos_y = $4, level = $5, exp = $6,
 		 str = $7, agi = $8, vit = $9, int = $10, free_points = $11,
-		 hp = NULLIF($12::int, -1), mp = NULLIF($13::int, -1), skill_points = $14, xu = $15, updated_at = now() WHERE id = $1`,
+		 hp = NULLIF($12::int, -1), mp = NULLIF($13::int, -1), skill_points = $14, xu = $15, pk_on = $16, updated_at = now() WHERE id = $1`,
 		st.ID, st.MapID, st.X, st.Y, st.Level, st.Exp,
-		st.Points.Str, st.Points.Agi, st.Points.Vit, st.Points.Int, st.FreePoints, st.HP, st.MP, st.SkillPoints, st.Xu)
+		st.Points.Str, st.Points.Agi, st.Points.Vit, st.Points.Int, st.FreePoints, st.HP, st.MP, st.SkillPoints, st.Xu, st.PkOn)
 	if err != nil || tag.RowsAffected() == 0 {
 		return err // a deleted character has no skills or items to replace
 	}
