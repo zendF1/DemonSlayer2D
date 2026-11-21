@@ -8,8 +8,11 @@ import (
 
 // partyOutbox is a connection's outbox as the party service sees it: each
 // push becomes its envelope with seq 0 (phase 5b spec 5). The service calls
-// Send with its lock held; the connection's outbox never blocks and drops
-// the push when its queue is full, as zone pushes are dropped.
+// Send with its lock held; the connection's outbox never blocks. Party pushes
+// are one-shot state with no resync, so a push the full queue refuses kicks
+// the connection (SLOW_CONSUMER), as a full outbox does everywhere else.
+// Kick only takes the connection's kickOnce and outbox mutex, so it is safe
+// under the party lock; the unregister runs later on the read goroutine.
 type partyOutbox struct{ out zone.Outbox }
 
 func (o partyOutbox) Send(m party.Msg) bool {
@@ -17,7 +20,11 @@ func (o partyOutbox) Send(m party.Msg) bool {
 	if env == nil {
 		return false
 	}
-	return o.out.Send(env)
+	if o.out.Send(env) {
+		return true
+	}
+	o.out.Kick(pb.KickReason_KICK_REASON_SLOW_CONSUMER)
+	return false
 }
 
 // partyEnvelope is the envelope of a party push, or nil for an unknown one.

@@ -2286,3 +2286,21 @@ func TestFailedEnterRegistersNothing(t *testing.T) {
 		t.Fatalf("Invite the failed entry %d: %v, want INVALID_TARGET", id, code)
 	}
 }
+
+// ______________________TEST PARTY OUTBOX_____________________
+
+// fullOut is an outbox whose queue is always full.
+type fullOut struct{ kicked []pb.KickReason }
+
+func (o *fullOut) Send(*pb.Envelope) bool { return false }
+func (o *fullOut) Kick(r pb.KickReason)   { o.kicked = append(o.kicked, r) }
+
+func TestPartyOutboxKicksWhenFull(t *testing.T) {
+	o := &fullOut{}
+	if (partyOutbox{out: o}).Send(&party.Notice{Kind: party.NoticeDisbanded}) {
+		t.Fatal("Send into a full outbox reported success")
+	}
+	if !slices.Equal(o.kicked, []pb.KickReason{pb.KickReason_KICK_REASON_SLOW_CONSUMER}) {
+		t.Fatalf("kicked = %v, want one SLOW_CONSUMER", o.kicked)
+	}
+}

@@ -86,8 +86,9 @@ func (*State) isMsg()  {}
 func (*Notice) isMsg() {}
 
 // Outbox receives a player's pushes. Send is called with the service lock
-// held, so it must not block or call back into the service (the gateway
-// outbox drops the message when its queue is full).
+// held, so it must not block or call back into the service. A message the
+// outbox cannot take is not retried: the world's outbox kicks the slow
+// connection instead (party pushes have no resync).
 type Outbox interface {
 	Send(Msg) bool
 }
@@ -209,7 +210,8 @@ func (s *Service) Invite(from, to uint64) pb.ErrorCode {
 	return OK
 }
 
-// pending returns the unexpired invite to a player, dropping an expired one.
+// pending returns the unexpired invite to a player. A lapsed invite is
+// dropped on any lookup, whichever call made it.
 func (s *Service) pending(to uint64) (invite, bool) {
 	inv, ok := s.invites[to]
 	if !ok {
