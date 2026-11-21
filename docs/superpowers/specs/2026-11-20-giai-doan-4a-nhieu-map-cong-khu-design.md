@@ -1,6 +1,6 @@
 # Giai đoạn 4a — Nhiều map, cổng và đổi khu
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng); server đã triển khai, client đang chờ.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server (Task 1–9) và client (Task 10–13, client 5138fc9; sửa sau review tổng: server b298efc, 71afd80, client cc2d217); smoke OK.
 
 Spec này thiết kế phần đầu của Giai đoạn 4 (Thế giới) cho server (repo này) và client Godot (`../DemonSlayer2DGame`). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 5.1–5.5 và 5.7 (hồi sinh); khi hai tài liệu lệch nhau về luật chơi thì game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như các spec trước, nhất là [spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [3b](2026-11-20-giai-doan-3b-cuong-hoa-design.md) và [3c](2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md). Giai đoạn 3 được triển khai trước Giai đoạn 4, nên spec này viết trên giao thức 8 và migration 00006.
 
