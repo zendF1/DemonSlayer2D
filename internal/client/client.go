@@ -302,6 +302,19 @@ func (c *Client) AllocatePoints(ctx context.Context, p combat.Points) (*pb.SelfS
 	return r.Stats, nil
 }
 
+// SetPk turns PK mode on or off and returns the zone's reply.
+func (c *Client) SetPk(ctx context.Context, on bool) (*pb.SetPkResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_SetPkReq{SetPkReq: &pb.SetPkReq{On: on}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetSetPkResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to SetPkReq: %v", resp)
+	}
+	return r, nil
+}
+
 // Respawn asks to respawn (in place for 1 Lượng, else at the village) and
 // returns where the character stands.
 func (c *Client) Respawn(ctx context.Context, inPlace bool) (*pb.RespawnResp, error) {

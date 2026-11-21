@@ -239,6 +239,10 @@ func (m *Membership) Allocate(seq uint32, p combat.Points) bool {
 	return m.z.Allocate(m.EntityID, seq, p)
 }
 
+// SetPk queues turning PK mode on or off; the zone answers seq on the outbox.
+// It reports false if the zone's inbox is full.
+func (m *Membership) SetPk(seq uint32, on bool) bool { return m.z.SetPk(m.EntityID, seq, on) }
+
 // Respawn queues a respawn request; the zone answers seq on the outbox. It
 // reports false if the zone's inbox is full.
 func (m *Membership) Respawn(seq uint32, inPlace bool) bool {

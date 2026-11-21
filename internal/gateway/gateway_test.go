@@ -315,6 +315,19 @@ func TestTransferRequestsNotInWorld(t *testing.T) {
 	}
 }
 
+// SetPkReq needs a character in the world (phase 5a spec 4.8).
+func TestSetPkNotInWorld(t *testing.T) {
+	s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	c := s.newConn(nil, "127.0.0.1")
+	defer c.idle.Stop()
+	defer c.authTimer.Stop()
+	c.dispatch(context.Background(), &pb.Envelope{Seq: 4, Payload: &pb.Envelope_SetPkReq{SetPkReq: &pb.SetPkReq{On: true}}})
+	r := <-c.out.ch
+	if r.Seq != 4 || r.GetError().GetCode() != pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD {
+		t.Fatalf("reply %v, want NOT_IN_WORLD for seq 4", r)
+	}
+}
+
 // ______________________TEST CLIENT FIXTURES_____________________
 
 var updateFixtures = flag.Bool("update", false, "rewrite testdata/client")

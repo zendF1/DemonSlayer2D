@@ -1710,3 +1710,183 @@ func TestStashOverWebSocket(t *testing.T) {
 		t.Fatalf("re-opened %v, %v, want 40 slots", open, err)
 	}
 }
+
+// ______________________TEST PVP_____________________
+
+// pvpSpot finds two walkable tiles side by side east of the Kumotori camp and
+// outside every safe zone, for the PvP test.
+func pvpSpot(t *testing.T, m *mapdata.Map) (a, b mapdata.Point) {
+	t.Helper()
+	for x := 11; x < m.Width-1; x++ {
+		for y := 1; y < m.Height-1; y++ {
+			pa, pb2 := mapdata.Point{X: float32(x) + 0.5, Y: float32(y) + 0.5}, mapdata.Point{X: float32(x) + 1.5, Y: float32(y) + 0.5}
+			if m.Walkable(pa) && m.Walkable(pb2) && !m.InSafeZone(pa) && !m.InSafeZone(pb2) {
+				return pa, pb2
+			}
+		}
+	}
+	t.Fatal("kumotori_1 has no two walkable tiles outside the safe zones")
+	return
+}
+
+// attackRetry attacks target, waiting out the swing cooldown.
+func attackRetry(t *testing.T, c *client.Client, target uint64) error {
+	t.Helper()
+	for i := 0; i < 100; i++ {
+		err := c.Attack(ctxT(t), target)
+		if client.Code(err) != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+			return err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("attack stayed on cooldown")
+	return nil
+}
+
+// Phase 5a spec 8: two level 30 players stand next to each other just east of
+// the Kumotori camp. With PK off on both, a slash is PK_FORBIDDEN; once A
+// turns PK on, B sees the look change, A's slash lands, B (PK off) strikes
+// back and A cannot switch PK off during the fight. B then turns PK on and A
+// kills B: B is told who killed it and loses 5% of the EXP for level 31, which
+// stays after B leaves and enters again with PK still on.
+func TestPvPOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := gamedata.Load("../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spotA, spotB := pvpSpot(t, loaded["kumotori_1"])
+	ca, _ := offlinePlayer(t, s, "ren01", "Ren", pb.CharClass_CHAR_CLASS_VIEM)
+	cb, chB := offlinePlayer(t, s, "sora01", "Sora", pb.CharClass_CHAR_CLASS_THUY)
+	for _, u := range []struct {
+		name string
+		at   mapdata.Point
+	}{{"ren01", spotA}, {"sora01", spotB}} {
+		if _, err := s.store.DevSetLevel(ctx, u.name, 30); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.store.DevSetPlace(ctx, u.name, "kumotori_1", u.at.X, u.at.Y); err != nil {
+			t.Fatal(err)
+		}
+	}
+	chars, err := ca.ListChars(ctx)
+	if err != nil || len(chars) != 1 {
+		t.Fatalf("list chars: %v, %v", chars, err)
+	}
+	ewA, err := ca.EnterWorld(ctx, chars[0].Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ewB, err := cb.EnterWorld(ctx, chB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idA, idB := ewA.SelfEntityId, ewB.SelfEntityId
+	waitFor(t, ca, 5*time.Second, enterOf(idB))
+	waitFor(t, cb, 5*time.Second, enterOf(idA))
+	expect := func(err error, want pb.ErrorCode) {
+		t.Helper()
+		if got := client.Code(err); got != want {
+			t.Fatalf("error code = %v (%v), want %v", got, err, want)
+		}
+	}
+
+	expect(attackRetry(t, ca, idB), pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN)
+	if r, err := ca.SetPk(ctx, true); err != nil || !r.On {
+		t.Fatalf("SetPk(true) = %v, %v", r, err)
+	}
+	waitFor(t, cb, 5*time.Second, func(e *pb.Envelope) bool {
+		for _, l := range e.GetWorldTick().GetLooks() {
+			if l.Id == idA && l.PkOn {
+				return true
+			}
+		}
+		return false
+	})
+	isHit := func(from, to uint64) func(*pb.Envelope) bool {
+		return func(e *pb.Envelope) bool {
+			for _, h := range e.GetWorldTick().GetHits() {
+				if h.AttackerId == from && h.TargetId == to {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	if err := attackRetry(t, ca, idB); err != nil {
+		t.Fatalf("A slashes B: %v", err)
+	}
+	waitFor(t, cb, 5*time.Second, isHit(idA, idB))
+	if err := attackRetry(t, cb, idA); err != nil {
+		t.Fatalf("B strikes back with PK off: %v", err)
+	}
+	waitFor(t, ca, 5*time.Second, isHit(idB, idA))
+	_, err = ca.SetPk(ctx, false)
+	expect(err, pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT)
+
+	if r, err := cb.SetPk(ctx, true); err != nil || !r.On {
+		t.Fatalf("SetPk(true) for B = %v, %v", r, err)
+	}
+	expStart := ewB.Stats.GetExp()
+	var notice *pb.DeathNotice
+	var expNow int64
+	var gotExp bool
+	deadline := time.Now().Add(60 * time.Second)
+	for notice == nil && time.Now().Before(deadline) {
+		if err := attackRetry(t, ca, idB); err != nil {
+			// B may already be dead; the notice is then on its way.
+			if client.Code(err) != pb.ErrorCode_ERROR_CODE_INVALID_TARGET && client.Code(err) != pb.ErrorCode_ERROR_CODE_DEAD {
+				t.Fatalf("A attacks B: %v (A closed: %v)", err, ca.Err())
+			}
+		}
+		for drained := false; !drained; {
+			select {
+			case env := <-cb.Pushes():
+				if n := env.GetDeathNotice(); n != nil {
+					notice = n
+				}
+				if st := env.GetSelfStats(); st != nil {
+					expNow, gotExp = st.GetExp(), true
+				}
+			default:
+				drained = true
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if notice == nil {
+		t.Fatal("B was never told it died")
+	}
+	lost := data.Exp.ToNext(30) * 5 / 100
+	if notice.KillerId != idA || notice.KillerName != "Ren" || !notice.ByPlayer || notice.ExpLost != lost || lost <= 0 {
+		t.Fatalf("death notice %v, want killer %d Ren by a player, %d EXP lost", notice, idA, lost)
+	}
+	if !gotExp {
+		waitFor(t, cb, 5*time.Second, func(e *pb.Envelope) bool {
+			if st := e.GetSelfStats(); st != nil {
+				expNow, gotExp = st.GetExp(), true
+				return true
+			}
+			return false
+		})
+	}
+	if want := expStart - lost; expNow != want {
+		t.Fatalf("B's SelfStats exp = %d, want %d", expNow, want)
+	}
+
+	if err := cb.LeaveWorld(ctxT(t)); err != nil {
+		t.Fatal(err)
+	}
+	ew2, err := cb.EnterWorld(ctxT(t), chB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ew2.Stats.GetPkOn() || ew2.Stats.GetExp() != expStart-lost {
+		t.Fatalf("B re-entered with pk_on %v exp %d, want on and %d", ew2.Stats.GetPkOn(), ew2.Stats.GetExp(), expStart-lost)
+	}
+}

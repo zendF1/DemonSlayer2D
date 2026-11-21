@@ -94,6 +94,12 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 		}
 		pts := combat.Points{Str: int(r.Strength), Agi: int(r.Agility), Vit: int(r.Vitality), Int: int(r.Intellect)}
 		c.zoneBusyIfDropped(seq, c.member.Allocate(seq, pts))
+	case *pb.Envelope_SetPkReq:
+		// Only the packet limit applies (phase 5a spec 4.8).
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.SetPk(seq, p.SetPkReq.On))
 	case *pb.Envelope_RespawnReq:
 		if !c.inWorld(seq) {
 			return
