@@ -190,6 +190,19 @@ func ExpEligible(playerLevel, monsterLevel int) bool {
 	return d <= ExpLevelWindow && d >= -ExpLevelWindow
 }
 
+// PartyBonusPct is the percentage of each EXP payment that a party member in
+// the same zone earns on top (phase 5b spec 1.2).
+const PartyBonusPct = 5
+
+// PartyBonus pays a party member its share of a teammate's gain of EXP from one
+// hit. carry is that member's remainder in hundredths of an EXP; the result is
+// the whole EXP to pay and the new remainder, so no fraction is lost over many
+// payments (phase 5b spec 4.6).
+func PartyBonus(carry, gain int64) (bonus, newCarry int64) {
+	total := carry + gain*PartyBonusPct
+	return total / 100, total % 100
+}
+
 // ExpShare is the part of a monster's total EXP (gamedata Level.Exp) that
 // damage of its maxHP earns: floor(total * damage / maxHP), with damage capped
 // at maxHP so a monster never pays more than total (spec 3.4). Integer math

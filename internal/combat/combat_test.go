@@ -1,6 +1,7 @@
 package combat
 
 import (
+	"math/rand/v2"
 	"slices"
 	"testing"
 )
@@ -421,5 +422,38 @@ func TestPvPDamageMinimumOne(t *testing.T) {
 	}
 	if got := PvPDamage(0, 0, 1); got != 1 {
 		t.Fatalf("got %d", got)
+	}
+}
+
+// ______________________TEST PARTY BONUS_____________________
+
+func TestPartyBonusExample(t *testing.T) {
+	var carry, total int64
+	for _, g := range []int64{1, 2, 1, 2} {
+		var b int64
+		b, carry = PartyBonus(carry, g)
+		total += b
+	}
+	if total != 0 || carry != 30 {
+		t.Fatalf("after 1,2,1,2: bonus %d carry %d, want 0 and 30", total, carry)
+	}
+	b, carry := PartyBonus(carry, 143)
+	if b != 7 || carry != 45 {
+		t.Fatalf("143 from 30: bonus %d carry %d, want 7 and 45", b, carry)
+	}
+}
+
+func TestPartyBonusSumsExactly(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2))
+	var carry, bonus, gains int64
+	for i := 0; i < 10000; i++ {
+		g := r.Int64N(5000)
+		var b int64
+		b, carry = PartyBonus(carry, g)
+		bonus += b
+		gains += g
+		if want := PartyBonusPct * gains / 100; bonus != want {
+			t.Fatalf("step %d: summed bonus %d, want %d", i, bonus, want)
+		}
 	}
 }
