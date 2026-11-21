@@ -2,10 +2,10 @@
 
 Go game server for DemonSlayer2D. The Godot client lives in a separate repository and generates its protocol code from [`proto/`](proto/) and reads maps from [`maps/`](maps/).
 
-The protocol version is 12 (`gateway.ProtocolVersion`). A login with any other
+The protocol version is 13 (`gateway.ProtocolVersion`). A login with any other
 version fails with `ERROR_CODE_VERSION_MISMATCH`, so bump it together with the client.
 
-Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md).
+Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md), [Phase 5b parties and shared EXP spec](docs/superpowers/specs/2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md).
 
 ## Requirements
 
@@ -59,6 +59,7 @@ go run ./cmd/botclient register -u tanjiro -p password123
 go run ./cmd/botclient create   -u tanjiro -p password123 -slot 1 -name Tanjiro -class viem
 go run ./cmd/botclient chars    -u tanjiro -p password123
 go run ./cmd/botclient play     -u tanjiro -p password123 -id 1 -dir 1,0 -for 10s
+go run ./cmd/botclient partner  -for 60s
 ```
 
 Fight mode registers a new account (unless `-u`/`-p` are given), creates a
@@ -93,6 +94,14 @@ Players toggle PK mode with the PK button (`SetPkReq`); the state is saved with 
 - A PK-on player can hit anyone, a PK-off player can only hit PK-on players, so a PK-off victim can fight back without switching on. Two PK-off players cannot hit each other.
 - PK can be switched on anywhere, but not off for 10 seconds after a PvP hit lands (dealt or taken): `IN_PVP_COMBAT`.
 - Dying to a player while PK is on, on a training map, costs floor(5% of the EXP needed for the next level); EXP may go negative, level 90 loses nothing. The victim gets a `DeathNotice` with the killer's name and the EXP lost. The killer gets no reward.
+
+## Parties
+
+Up to 5 players form a party: touch a player, invite, and the invitee accepts or declines within 30 seconds. The leader can remove members; leaving or quitting the game leaves the party, and the last member disbanding it. Parties live in memory only (`internal/party`) and are lost on restart.
+
+- Each time a hit pays a member EXP, every teammate in the same zone (same map and instance) gets 5% of that payment on top, if the monster is within 10 levels of the teammate. Dead teammates are included; the bonus does not chain.
+- Teammates cannot hit each other, even with PK on (`PK_FORBIDDEN`).
+- `botclient partner` registers a character, enters the world, accepts the first party invite, prints `PARTNER <name>` and `PARTY OK` once the party has two members, and stands still. Use it as the second player when trying parties with one client.
 
 ## Dev characters
 

@@ -17,7 +17,7 @@ Server được làm theo giai đoạn. Mỗi giai đoạn có spec, kế hoạc
 | 2. Kỹ năng | 5 class, 4 chủ động và 1 bị động, MP, hồi chiêu, sách kỹ năng | Dùng chiêu theo class |
 | 3. Trang bị | Túi đồ, rơi đồ, mặc đồ, cường hóa, tương sinh, khảm ngọc, tẩy luyện | Săn và nâng đồ |
 | 4. Thế giới | Nhiều map, cổng, khu/kênh, NPC, cửa hàng bình, kho, Xu, Lượng | Đi lại giữa các vùng |
-| 5. PK và tổ đội | Bật/tắt PK, phạt EXP, tổ đội 5 người, EXP chia sẻ | Đánh người, đi theo nhóm |
+| 5. PK và tổ đội (xong với 5b) | Bật/tắt PK, phạt EXP, tổ đội 5 người, EXP chia sẻ | Đánh người, đi theo nhóm |
 | 6. Nhiệm vụ và auto | Nhiệm vụ, tự tìm đường (A*), click để đi tới điểm, auto đánh | Vòng chơi hằng ngày |
 | 7+. Xã hội | Giao dịch, bang hội, sự kiện, Vô Hạn Thành | Nội dung cộng đồng |
 
@@ -25,7 +25,7 @@ Ghi chú: Giai đoạn 3 chia thành 3a, 3b, 3c ([spec 3a](2026-11-20-giai-doan-
 
 Ghi chú: Giai đoạn 4 chia thành 4a (năm map, cổng, đổi khu, điểm hồi sinh theo map), 4b (NPC, cửa hàng Xu, bán đồ, bình thuốc, giấy về thành, xa phu, rèn đồ tại Thợ rèn) và 4c (kho chung tài khoản, Lượng, hồi sinh tại chỗ; Giai đoạn 4 đã gồm cả kho và Lượng ở 4c), theo [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) mục 1.1. Map sinh bằng `tools/mapgen.py`; mọi lần chuyển zone đi qua `World.Transfer`.
 
-Ghi chú: Giai đoạn 5 chia thành 5a (chế độ PK, đánh người chơi, phạt EXP; giao thức 12) và 5b (tổ đội 5 người, EXP chia sẻ); xem [spec 5a](2026-11-20-giai-doan-5a-pk-phat-exp-design.md).
+Ghi chú: Giai đoạn 5 chia thành 5a (chế độ PK, đánh người chơi, phạt EXP; giao thức 12) và 5b (tổ đội 5 người, EXP chia sẻ); xem [spec 5a](2026-11-20-giai-doan-5a-pk-phat-exp-design.md) và [spec 5b](2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md). Giai đoạn 5 xong khi 5b triển khai (giao thức 13).
 
 ### 1.2. Ràng buộc
 

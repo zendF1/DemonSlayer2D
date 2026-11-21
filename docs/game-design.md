@@ -46,6 +46,8 @@ Phần tăng thủ phép được chuyển sang VIT; INT không tăng thủ phé
 
 Ví dụ 100 STR tăng 200 công vật lý: Bất Tri Hỏa cấp kỹ năng 10 (285%) tăng 570 sát thương cơ sở; Luyện Ngục cấp kỹ năng 10 (475%) tăng 950. Với 100 INT, mức tăng tương ứng áp dụng cho kỹ năng phép cùng hệ số. 100 VIT tăng 2.000 HP với class vật lý hoặc 1.600 HP với class phép, cùng 200 mỗi loại phòng thủ. Đây là mức tăng từ tiềm năng, trước khi xét bị động và các hiệu ứng tăng chỉ số khác.
 
+Ghi chú tổ đội: khoản EXP thêm ×1,2 khi cả tổ năm người cùng đánh (4 đồng đội × 5%) đến từ luật EXP tổ đội ở mục 5.8.
+
 Chỉ số chiến đấu tổng hợp từ chỉ số nền theo cấp, tiềm năng, trang bị (gồm dòng phụ, dòng ẩn, cường hóa và ngọc khảm), kỹ năng bị động, thú cưỡi và linh thú/trợ thủ: HP, MP, công/thủ vật lý, công/thủ phép, chính xác, né tránh, tỷ lệ và sát thương chí mạng, tốc độ di chuyển.
 
 Các thuộc tính bổ sung gồm kháng sát thương theo hệ, kháng hiệu ứng hoặc giảm thời gian khống chế; danh vọng/công trạng phục vụ tiến trình nhân vật. PK dùng chế độ bật/tắt, không yêu cầu hệ thống ác danh. Người bật PK đánh được mọi người chơi, và mọi người chơi đều đánh được người bật PK; hai người cùng tắt PK không đánh được nhau (mục 5.7). Khi đang bật PK mà bị người chơi khác giết sẽ mất EXP theo mục 5.7; không có lính canh trừng phạt người bật PK.
@@ -810,6 +812,7 @@ Quy tắc **mở map theo tiến trình** và **Hạ Huyền/Thượng Huyền c
 | Bật PK | Được | Được |
 | Tắt PK | Được | Không |
 
+- **Đồng đội trong cùng tổ đội không đánh được nhau**, kể cả khi cả hai bật PK: bị từ chối `PK_FORBIDDEN` ở bước kiểm tra bảng PK; chiêu diện rộng bỏ đồng đội.
 - Bộ lọc mục tiêu tại mục 2.5, kỹ năng nhiều mục tiêu và auto-play dùng chung bảng trên. Người tắt PK bị người bật PK tấn công có thể phản công ngay mà không cần bật PK.
 - Chỉ tại **map luyện cấp**, nhân vật **đang bật PK bị người chơi khác giết** mất **5% EXP cần để lên cấp kế tiếp ở cấp hiện tại**, không phải 5% số EXP đang tích lũy.
 - Công thức: **EXP mất = floor(0,05 × EXP yêu cầu của cấp hiện tại)**, lấy theo bảng EXP lên cấp tại mục 2.2; **EXP sau chết = EXP đang có − EXP mất**. Làm tròn xuống số EXP bị mất, không làm tròn số EXP còn lại. Mỗi lần chết tính lại cùng quy tắc; EXP được phép âm, không chặn về 0. Nhân vật cấp 90 (hết bảng EXP) không mất EXP.
@@ -843,11 +846,11 @@ Khi chết, người chơi chọn một trong hai cách:
 - Sát thương thừa không tính: sát thương tính EXP của một đòn tối đa bằng HP còn lại của quái trước đòn đó, nên một con quái không trả quá EXP gốc của nó.
 - Không mất phần lẻ: mỗi con quái ghi tổng sát thương đã tính và số EXP đã trả cho từng người. Mỗi đòn trả floor(EXP gốc × tổng sát thương của người đó / HP tối đa) − EXP đã trả. Ví dụ quái cấp 1 (56 HP, 6 EXP), mỗi nhát 14: một người tự đánh nhận đúng 6 EXP, trả lần lượt 1, 2, 1, 2.
 - Quái thường bỏ đuổi rồi về vùng thì **không hồi máu**: EXP đã trả giữ nguyên cho người chơi, bảng sát thương và EXP đã trả của con quái cũng giữ nguyên, nên người đánh tiếp nhận đúng phần còn lại, không hơn không kém.
-- Mỗi đồng đội trong tổ đội đủ điều kiện bên dưới nhận **thêm 5% EXP gốc**, không khấu trừ từ EXP người hạ quái. Luật 5% này sẽ được định lại ở Giai đoạn 5 cho khớp với luật EXP theo sát thương; các dòng ví dụ và điều kiện bên dưới là bản cũ.
-- Ví dụ quái cho 100 EXP, tổ đội năm người: người hạ nhận **100 EXP**, bốn đồng đội mỗi người nhận **5 EXP**, tổng phát ra 120 EXP.
-- Đây là chủ đích: ai trong tổ đội hạ quái thì các thành viên còn lại đều nhận 5%. Nếu cả năm người cùng tự đánh quái với tốc độ như nhau, mỗi người nhận thêm khoảng **20%** so với EXP tự đánh (4 đồng đội × 5%).
-- Điều kiện nhận EXP chia sẻ: **cùng map, cùng khu** với người hạ quái; không giới hạn khoảng cách và không yêu cầu đồng đội phải trực tiếp gây sát thương.
-- **Không chia sẻ tiến độ nhiệm vụ** cho đồng đội. Nhận 5% EXP không đồng nghĩa được cộng số quái hoặc mục tiêu nhiệm vụ.
+- **EXP tổ đội = 5% của từng lần trả EXP.** Mỗi lần một thành viên được trả EXP từ một đòn trúng quái, mỗi đồng đội đủ điều kiện nhận thêm **5% số EXP vừa trả đó** (đòn trả 10 EXP cho đồng đội 0,5 EXP). Khoản thêm không khấu trừ từ EXP của người đánh và không ghi vào bảng sát thương của quái.
+- **Không mất phần lẻ**: mỗi người giữ một phần dư tính theo phần trăm của EXP; mỗi lần cộng dồn 5% rồi trả phần nguyên, giữ phần dư cho lần sau.
+- Điều kiện nhận: **cùng map, cùng khu** với người được trả EXP; cấp của đồng đội và cấp quái chênh nhau **không quá 10** (cùng cửa sổ ±10 ở trên). Đồng đội đang chết vẫn nhận; không giới hạn khoảng cách và không yêu cầu đồng đội gây sát thương. Khoản thêm **không chuyền tiếp**: đồng đội nhận 5% không kéo theo 5% cho người khác.
+- Ví dụ quái 100 EXP, tổ đội năm người cùng đứng một khu: người đánh nhận 100 EXP, bốn đồng đội mỗi người nhận thêm 5 EXP. Nếu cả năm người cùng tự đánh quái với tốc độ như nhau, mỗi người nhận thêm khoảng 20% so với đi một mình (4 đồng đội × 5%).
+- **Không chia sẻ tiến độ nhiệm vụ** cho đồng đội. Nhận EXP tổ đội không đồng nghĩa được cộng số quái hoặc mục tiêu nhiệm vụ.
 - **Đồ rơi thuộc người kết liễu**, kể cả khi đang ở tổ đội. Người kết liễu là người có đòn **trúng trước** làm HP về 0 (tính theo tick trúng, không theo tick bấm); đòn trúng sau lên con quái đã chết bị bỏ. Không chia quyền nhặt theo tổng sát thương hoặc theo người nhận EXP chia sẻ.
 - Quyền nhặt đồ tách biệt với điểm cá nhân/bang trong sự kiện và phần thưởng trao qua bảng tổng kết.
 ### 5.9. Chỉ số quái — bộ số bản đầu
