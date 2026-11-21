@@ -263,6 +263,10 @@ def main():
     if args.print_json:
         sys.stdout.write(text)
         return
+    if args.check:
+        path = ROOT / "data" / "quests.json"
+        if not path.exists() or path.read_bytes() != text.encode("utf-8"):
+            sys.exit(f"{path} differs from this script's output; run --write-json")
     got, total = exp_share(data)
     print(f"m01-m{LAST_CHAIN}: {got:,} of {total:,} EXP from level 1 to 20 ({pct:.1f}%)")
     if args.write_json:

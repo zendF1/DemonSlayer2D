@@ -5,7 +5,7 @@ Go game server for DemonSlayer2D. The Godot client lives in a separate repositor
 The protocol version is 14 (`gateway.ProtocolVersion`). A login with any other
 version fails with `ERROR_CODE_VERSION_MISMATCH`, so bump it together with the client.
 
-Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md), [Phase 5b parties and shared EXP spec](docs/superpowers/specs/2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md).
+Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md), [Phase 5b parties and shared EXP spec](docs/superpowers/specs/2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md), [Phase 6a click-to-move spec](docs/superpowers/specs/2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md), [Phase 6b quests and skill books spec](docs/superpowers/specs/2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md).
 
 ## Requirements
 
@@ -255,8 +255,8 @@ rerun `monster_stats.py`. Both `item_stats.py` and `monster_stats.py` (which
 builds monsters from level 10 against the best +0 gear) read the gear stats from
 `equipment_balance.py`, so after changing those, rerun `item_stats.py`,
 `monster_stats.py` and `exp_table.py`. A Go test checks that each committed JSON
-matches its script's output. The Godot client keeps copies of `skills.json` and
-`items.json`, refreshed by its `tools/sync_server.sh`.
+matches its script's output. The Godot client keeps copies of `skills.json`, `items.json`,
+`quests.json`, `monsters.json` and the maps, refreshed by its `tools/sync_server.sh`.
 
 ## Quests and skill books
 
