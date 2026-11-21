@@ -1703,12 +1703,16 @@ func forgeInventory() *items.Inventory {
 }
 
 // forgeZone is gearZoneAt for a level-19 Viêm with inv and 100,000 Xu,
-// standing inside a safe zone unless outside is set.
-func forgeZone(t *testing.T, inv *items.Inventory, outside bool) (*Zone, *player, *fakeSaver) {
+// standing 3 tiles from a blacksmith NPC unless far is set (then 15 tiles).
+func forgeZone(t *testing.T, inv *items.Inventory, far bool) (*Zone, *player, *fakeSaver) {
 	t.Helper()
 	z, p, _, sv := gearZoneAt(t, 19, inv)
-	if !outside {
-		z.area.Safe = []Rect{{X: 0, Y: 0, W: 10, H: 10}}
+	x := float32(8.5)
+	if far {
+		x = 20.5
+	}
+	z.area.NPCs = map[string]mapdata.NPC{
+		"smith": {ID: "smith", Role: mapdata.RoleBlacksmith, Pos: mapdata.Point{X: x, Y: 5.5}},
 	}
 	p.xu = 100000
 	return z, p, sv
@@ -1729,7 +1733,7 @@ func TestEnhanceErrors(t *testing.T) {
 	broke := func(p *player) { p.xu = 0 }
 	const (
 		dead      = pb.ErrorCode_ERROR_CODE_DEAD
-		notSafe   = pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE
+		tooFar    = pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR
 		bad       = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 		notFound  = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
 		maxed     = pb.ErrorCode_ERROR_CODE_ENHANCE_MAXED
@@ -1737,16 +1741,16 @@ func TestEnhanceErrors(t *testing.T) {
 		noXu      = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
 	)
 	for _, c := range []struct {
-		name          string
-		dead, outside bool
-		setup         func(*player)
-		ref           items.Ref
-		protect       bool
-		times         int
-		code          pb.ErrorCode
+		name      string
+		dead, far bool
+		setup     func(*player)
+		ref       items.Ref
+		protect   bool
+		times     int
+		code      pb.ErrorCode
 	}{
-		{"dead outside the safe zone, bad slot", true, true, broke, bag(60), false, 101, dead},
-		{"outside the safe zone, bad slot", false, true, broke, bag(60), false, 101, notSafe},
+		{"dead far from the blacksmith, bad slot", true, true, broke, bag(60), false, 101, dead},
+		{"far from the blacksmith, bad slot", false, true, broke, bag(60), false, 101, tooFar},
 		{"bag slot 60", false, false, broke, bag(60), false, 101, bad},
 		{"bag slot -1", false, false, broke, bag(-1), false, 1, bad},
 		{"worn slot 10", false, false, broke, worn(10), false, 1, bad},
@@ -1764,7 +1768,7 @@ func TestEnhanceErrors(t *testing.T) {
 		{"1 Xu short for the worn armour", false, false, func(p *player) { p.xu = 99 }, worn(armour), false, 100, noXu},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			z, p, sv := forgeZone(t, forgeInventory(), c.outside)
+			z, p, sv := forgeZone(t, forgeInventory(), c.far)
 			out := p.out.(*fakeOut)
 			c.setup(p)
 			if c.dead {
@@ -2207,13 +2211,13 @@ func socketInventory() *items.Inventory {
 }
 
 // forgeCase is one rejected forge command: the setup, whether the player is
-// dead or outside the safe zone, and the code it must get.
+// dead or far from the blacksmith, and the code it must get.
 type forgeCase struct {
-	name          string
-	dead, outside bool
-	setup         func(*player)
-	send          func(z *Zone) bool
-	code          pb.ErrorCode
+	name      string
+	dead, far bool
+	setup     func(*player)
+	send      func(z *Zone) bool
+	code      pb.ErrorCode
 }
 
 // runForgeErrors runs each case on socketInventory: the reply is only the
@@ -2222,7 +2226,7 @@ func runForgeErrors(t *testing.T, cases []forgeCase) {
 	t.Helper()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			z, p, sv := forgeZone(t, socketInventory(), c.outside)
+			z, p, sv := forgeZone(t, socketInventory(), c.far)
 			out := p.out.(*fakeOut)
 			if c.setup != nil {
 				c.setup(p)
@@ -2253,7 +2257,7 @@ func runForgeErrors(t *testing.T, cases []forgeCase) {
 
 const (
 	codeDead      = pb.ErrorCode_ERROR_CODE_DEAD
-	codeNotSafe   = pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE
+	codeTooFar    = pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR
 	codeBad       = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 	codeNotFound  = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
 	codeNoXu      = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
@@ -2272,8 +2276,8 @@ func TestPunchErrors(t *testing.T) {
 	broke := func(p *player) { p.xu = 0 }
 	punch := func(r items.Ref) func(*Zone) bool { return func(z *Zone) bool { return z.Punch(1, 9, r) } }
 	runForgeErrors(t, []forgeCase{
-		{"dead outside the safe zone, bad slot", true, true, broke, punch(bagRef(60)), codeDead},
-		{"outside the safe zone, bad slot", false, true, broke, punch(bagRef(60)), codeNotSafe},
+		{"dead far from the blacksmith, bad slot", true, true, broke, punch(bagRef(60)), codeDead},
+		{"far from the blacksmith, bad slot", false, true, broke, punch(bagRef(60)), codeTooFar},
 		{"bag slot 60", false, false, broke, punch(bagRef(60)), codeBad},
 		{"worn slot 10", false, false, broke, punch(wornRef(10)), codeBad},
 		{"empty bag slot", false, false, broke, punch(bagRef(7)), codeNotFound},
@@ -2291,8 +2295,8 @@ func TestSocketErrors(t *testing.T) {
 		return func(z *Zone) bool { return z.Socket(1, 9, r, hole, gemSlot) }
 	}
 	runForgeErrors(t, []forgeCase{
-		{"dead outside the safe zone, bad slot", true, true, nil, socket(bagRef(60), 9, 60), codeDead},
-		{"outside the safe zone, bad slot", false, true, nil, socket(bagRef(60), 9, 60), codeNotSafe},
+		{"dead far from the blacksmith, bad slot", true, true, nil, socket(bagRef(60), 9, 60), codeDead},
+		{"far from the blacksmith, bad slot", false, true, nil, socket(bagRef(60), 9, 60), codeTooFar},
 		{"bag slot 60", false, false, nil, socket(bagRef(60), 0, 4), codeBad},
 		{"gem slot 60", false, false, nil, socket(wornRef(armour), 0, 60), codeBad},
 		{"gem slot -1", false, false, nil, socket(wornRef(armour), 0, -1), codeBad},
@@ -2324,8 +2328,8 @@ func TestUnsocketErrors(t *testing.T) {
 		return func(z *Zone) bool { return z.Unsocket(1, 9, r, hole) }
 	}
 	runForgeErrors(t, []forgeCase{
-		{"dead outside the safe zone, bad slot", true, true, broke, unsocket(bagRef(60), 9), codeDead},
-		{"outside the safe zone, bad slot", false, true, broke, unsocket(bagRef(60), 9), codeNotSafe},
+		{"dead far from the blacksmith, bad slot", true, true, broke, unsocket(bagRef(60), 9), codeDead},
+		{"far from the blacksmith, bad slot", false, true, broke, unsocket(bagRef(60), 9), codeTooFar},
 		{"bag slot 60", false, false, broke, unsocket(bagRef(60), 1), codeBad},
 		{"empty bag slot", false, false, broke, unsocket(bagRef(7), 1), codeNotFound},
 		{"stones", false, false, broke, unsocket(bagRef(3), 0), codeBad},
@@ -2454,8 +2458,8 @@ func TestRefineErrors(t *testing.T) {
 		return func(z *Zone) bool { return z.Refine(1, 9, r, locked) }
 	}
 	runForgeErrors(t, []forgeCase{
-		{"dead outside the safe zone, bad slot", true, true, broke, refine(bagRef(60)), codeDead},
-		{"outside the safe zone, bad slot", false, true, broke, refine(bagRef(60)), codeNotSafe},
+		{"dead far from the blacksmith, bad slot", true, true, broke, refine(bagRef(60)), codeDead},
+		{"far from the blacksmith, bad slot", false, true, broke, refine(bagRef(60)), codeTooFar},
 		{"bag slot 60", false, false, broke, refine(bagRef(60)), codeBad},
 		{"empty bag slot", false, false, broke, refine(bagRef(7)), codeNotFound},
 		{"stones", false, false, broke, refine(bagRef(3)), codeBad},
@@ -2559,7 +2563,7 @@ func TestRefineChooseWithoutRefine(t *testing.T) {
 }
 
 // Taking the result of a worn piece recomputes the stats; the choice needs
-// neither the safe zone nor a live character (spec 4.5).
+// neither the blacksmith nor a live character (spec 4.5).
 func TestRefineChooseWornWhileDeadOutside(t *testing.T) {
 	inv := socketInventory()
 	boots := testItemData.Equipment["eq10_boots"].SlotIndex
@@ -2572,13 +2576,13 @@ func TestRefineChooseWornWhileDeadOutside(t *testing.T) {
 		t.Fatal("no RefineResp")
 	}
 	stats, maxHP := p.stats, p.maxHP
-	z.area.Safe = nil
+	z.area.NPCs = nil
 	z.damagePlayer(p, 0, 1<<30, false)
 	z.advance(time.Now())
 	out.take()
 	r, er := chooseNow(t, z, 10, true)
 	if er != nil || r == nil {
-		t.Fatalf("choose %v %v, want a reply while dead outside the safe zone", r, er)
+		t.Fatalf("choose %v %v, want a reply while dead far from the blacksmith", r, er)
 	}
 	if p.stats == stats && p.maxHP == maxHP {
 		t.Fatalf("stats %+v unchanged by the new lines %v", p.stats, p.inv.Worn[boots].Lines)
@@ -3499,5 +3503,43 @@ func TestUseItemKeepsPendingRefine(t *testing.T) {
 	itemNow(t, z, z.UseItem(1, 9, 0))
 	if p.refine == nil {
 		t.Fatal("drinking a potion dropped the refine result")
+	}
+}
+
+// ______________________TEST FORGE AT THE BLACKSMITH_____________________
+
+// The five forge commands need a blacksmith NPC in reach: 3.4 tiles away is
+// in, 3.6 is out, and a map without a blacksmith (or with only a shop) is out
+// too, with NPC_TOO_FAR.
+func TestForgeBlacksmithRange(t *testing.T) {
+	sends := map[string]func(z *Zone) bool{
+		"enhance":  func(z *Zone) bool { return z.Enhance(1, 9, bagRef(60), false, 1) },
+		"punch":    func(z *Zone) bool { return z.Punch(1, 9, bagRef(60)) },
+		"socket":   func(z *Zone) bool { return z.Socket(1, 9, bagRef(60), 9, 60) },
+		"unsocket": func(z *Zone) bool { return z.Unsocket(1, 9, bagRef(60), 9) },
+		"refine":   func(z *Zone) bool { return z.Refine(1, 9, bagRef(60), nil) },
+	}
+	for name, send := range sends {
+		for _, c := range []struct {
+			name string
+			npcs map[string]mapdata.NPC
+			want pb.ErrorCode
+		}{
+			{"3.4 tiles", map[string]mapdata.NPC{"s": {ID: "s", Role: mapdata.RoleBlacksmith, Pos: mapdata.Point{X: 8.9, Y: 5.5}}}, codeBad},
+			{"3.6 tiles", map[string]mapdata.NPC{"s": {ID: "s", Role: mapdata.RoleBlacksmith, Pos: mapdata.Point{X: 9.1, Y: 5.5}}}, codeTooFar},
+			{"no blacksmith", map[string]mapdata.NPC{"s": {ID: "s", Role: mapdata.RoleShop, Shop: "general", Pos: mapdata.Point{X: 6.5, Y: 5.5}}}, codeTooFar},
+			{"no NPCs", nil, codeTooFar},
+		} {
+			t.Run(name+" "+c.name, func(t *testing.T) {
+				z, p, _ := forgeZone(t, socketInventory(), false)
+				z.area.NPCs = c.npcs
+				out := p.out.(*fakeOut)
+				out.take()
+				itemNow(t, z, send(z))
+				if er := errorFor(out.take(), 9); er == nil || er.Code != c.want {
+					t.Fatalf("error %v, want %v", er, c.want)
+				}
+			})
+		}
 	}
 }

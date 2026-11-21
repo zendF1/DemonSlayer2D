@@ -2,6 +2,7 @@ package zone
 
 import (
 	"demonslayer2d/internal/items"
+	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 )
 
@@ -23,7 +24,7 @@ func (z *Zone) Enhance(id uint64, seq uint32, ref items.Ref, protect bool, times
 }
 
 // enhance runs an enhancement request (phase 3b spec 4.1): DEAD first, then
-// NOT_IN_SAFE_ZONE, then the item package's checks in the spec's order; a
+// NPC_TOO_FAR, then the item package's checks in the spec's order; a
 // rejected request costs nothing. Otherwise the stats are recomputed with the
 // HP rule of gearChanged if the item is worn, the character is saved at once
 // and the reply lists the item's slot and the bag slots materials came from.
@@ -92,7 +93,7 @@ func (z *Zone) Unsocket(id uint64, seq uint32, ref items.Ref, hole int) bool {
 	return z.offer(unsocketCmd{id: id, seq: seq, ref: ref, hole: hole})
 }
 
-// forgePlayer is itemPlayer (DEAD first) followed by NOT_IN_SAFE_ZONE, the
+// forgePlayer is itemPlayer (DEAD first) followed by NPC_TOO_FAR, the
 // first two checks of every forge command (phase 3b spec 4.1, phase 3c spec
 // 4.2-4.5).
 func (z *Zone) forgePlayer(id uint64, seq uint32) *player {
@@ -100,8 +101,8 @@ func (z *Zone) forgePlayer(id uint64, seq uint32) *player {
 	if p == nil {
 		return nil
 	}
-	if !z.area.InSafe(p.pos) {
-		z.replyError(p, seq, pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE)
+	if !z.nearRole(p, mapdata.RoleBlacksmith) {
+		z.replyError(p, seq, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR)
 		return nil
 	}
 	return p
@@ -122,7 +123,7 @@ func (z *Zone) forged(p *player, ref items.Ref, bag []int) *pb.InventoryUpdate {
 	return inventoryUpdate(p.inv, bag, worn)
 }
 
-// punch runs a punch request (phase 3c spec 4.2): DEAD, NOT_IN_SAFE_ZONE,
+// punch runs a punch request (phase 3c spec 4.2): DEAD, NPC_TOO_FAR,
 // then the item package's checks; a rejected request costs nothing.
 func (z *Zone) punch(c punchCmd) {
 	p := z.forgePlayer(c.id, c.seq)
@@ -234,7 +235,7 @@ func dropsRefine(c any) (uint64, bool) {
 	return 0, false
 }
 
-// refine runs a refine request (phase 3c spec 4.5): DEAD, NOT_IN_SAFE_ZONE,
+// refine runs a refine request (phase 3c spec 4.5): DEAD, NPC_TOO_FAR,
 // then the item package's checks; a rejected request costs nothing. The
 // stones and Xu are paid at the roll, so the character is saved at once; the
 // piece keeps its lines and the new set waits in p.refine. The reply lists
@@ -256,7 +257,7 @@ func (z *Zone) refine(c refineCmd) {
 }
 
 // refineChoose takes or declines the waiting refine result (phase 3c spec
-// 4.5): NO_PENDING_REFINE without one. It needs neither the safe zone nor a
+// 4.5): NO_PENDING_REFINE without one. It needs neither the blacksmith nor a
 // live character, as the result is already paid for. Either way the result
 // is cleared and the character saved; the reply holds the piece's slot.
 func (z *Zone) refineChoose(c refineChooseCmd) {

@@ -1013,10 +1013,10 @@ func TestItemsOverWebSocket(t *testing.T) {
 // ______________________TEST ENHANCE_____________________
 
 // Phase 3b spec 8: a level 10 Viêm given a Lữ Hành sword, 20 stones and
-// 10,000 Xu wears the sword at the camp (a safe zone) and enhances it to +4
+// 10,000 Xu wears the sword beside the Ubuyashiki blacksmith and enhances it to +4
 // with four requests (+1 to +4 always succeed): its attack rises each time,
-// 700 Xu are spent and its own glow level follows. Outside the camp the
-// request is refused with NOT_IN_SAFE_ZONE; after leaving and re-entering
+// 700 Xu are spent and its own glow level follows. Away from the blacksmith the
+// request is refused with NPC_TOO_FAR; after leaving and re-entering
 // the sword is still +4.
 func TestEnhanceOverWebSocket(t *testing.T) {
 	s := startServer(t)
@@ -1026,6 +1026,10 @@ func TestEnhanceOverWebSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := s.store.DevSetLevel(ctx, "kai01", 10); err != nil {
+		t.Fatal(err)
+	}
+	// Beside the Ubuyashiki blacksmith (tho_ren at 17.5, 16.5).
+	if _, err := s.store.DevSetPlace(ctx, "kai01", "ubuyashiki", 16.5, 16.5); err != nil {
 		t.Fatal(err)
 	}
 	give := func([]store.ItemRow) ([]store.ItemRow, error) {
@@ -1078,13 +1082,13 @@ func TestEnhanceOverWebSocket(t *testing.T) {
 		return false
 	})
 
-	// Walk right out of the camp (tiles x 1-10) and try again.
-	if _, err := p.c.Move(ctx, 1, 0); err != nil {
+	// Walk away from the blacksmith (more than 3.5 tiles) and try again.
+	if _, err := p.c.Move(ctx, -1, 0); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, p.c, 5*time.Second, func(e *pb.Envelope) bool {
 		for _, m := range e.GetWorldTick().GetMoves() {
-			if m.Id == self && m.X >= 12 {
+			if m.Id == self && m.X <= 12 {
 				return true
 			}
 		}
@@ -1093,8 +1097,8 @@ func TestEnhanceOverWebSocket(t *testing.T) {
 	if _, err := p.c.Move(ctx, 0, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.c.Enhance(ctx, weapon, false, 1); client.Code(err) != pb.ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE {
-		t.Fatalf("enhance outside the camp: %v, want NOT_IN_SAFE_ZONE", err)
+	if _, err := p.c.Enhance(ctx, weapon, false, 1); client.Code(err) != pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR {
+		t.Fatalf("enhance away from the blacksmith: %v, want NPC_TOO_FAR", err)
 	}
 
 	if err := p.c.LeaveWorld(ctx); err != nil {
@@ -1138,6 +1142,10 @@ func TestForgeOverWebSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := s.store.DevSetLevel(ctx, "rin01", 25); err != nil {
+		t.Fatal(err)
+	}
+	// Beside the Ubuyashiki blacksmith (tho_ren at 17.5, 16.5).
+	if _, err := s.store.DevSetPlace(ctx, "rin01", "ubuyashiki", 16.5, 16.5); err != nil {
 		t.Fatal(err)
 	}
 	lines := func(ls ...store.ItemLine) []store.ItemLine { return ls }
