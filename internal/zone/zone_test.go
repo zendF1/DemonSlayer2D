@@ -989,6 +989,7 @@ func learnZone(t *testing.T, level, points int, skills map[string]int) (*Zone, *
 	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Skills: testSkills}, sv, quietLog())
 	in := info(1, 5.5, 5.5)
 	in.Class, in.Level, in.SkillPoints, in.Skills = pb.CharClass_CHAR_CLASS_NHAM, level, points, skills
+	in.SkillBookWaiver = combat.MaxLevel // these tests are not about books
 	out := &fakeOut{}
 	if err := z.join(in, out); err != nil {
 		t.Fatal(err)
@@ -5154,4 +5155,80 @@ func TestQuestsJoinSaveAndHandoff(t *testing.T) {
 	if saves := sv.all(); len(saves) == 0 || !reflect.DeepEqual(saves[len(saves)-1].Quests, rows) || saves[len(saves)-1].SkillBookWaiver != 12 {
 		t.Fatalf("departure save %+v", saves)
 	}
+}
+
+// ____TEST SKILL BOOKS____
+
+// The first learn of a skill above the waiver takes a book from the lowest
+// matching slot; a refused learn costs nothing.
+func TestLearnNeedsBook(t *testing.T) {
+	setup := func(level, points, waiver int, skills map[string]int, book int) (*Zone, *player, *fakeOut, *fakeSaver) {
+		z, p, out, sv := learnZone(t, level, points, skills)
+		p.bookWaiver = waiver
+		p.inv = items.NewInventory(20)
+		p.inv.Bag[2] = &items.Item{Code: "stone_enhance", Count: 3}
+		if book > 0 {
+			p.inv.Bag[4] = &items.Item{Code: "book_nham_1", Count: book}
+			p.inv.Bag[6] = &items.Item{Code: "book_nham_1", Count: 1}
+		}
+		return z, p, out, sv
+	}
+	t.Run("no book", func(t *testing.T) {
+		z, p, out, sv := setup(10, 2, 0, nil, 0)
+		learnNow(t, z, 1, 3, "nham_1")
+		if er := errorFor(out.take(), 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_NO_SKILL_BOOK {
+			t.Fatalf("error %v, want NO_SKILL_BOOK", er)
+		}
+		if p.skillPoints != 2 || p.skills["nham_1"] != 0 || len(sv.all()) != 0 {
+			t.Fatalf("refused learn changed points %d skills %v", p.skillPoints, p.skills)
+		}
+	})
+	t.Run("no points and no book", func(t *testing.T) {
+		z, _, out, _ := setup(10, 0, 0, nil, 0)
+		learnNow(t, z, 1, 3, "nham_1")
+		if er := errorFor(out.take(), 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS {
+			t.Fatalf("error %v, want NOT_ENOUGH_POINTS", er)
+		}
+	})
+	t.Run("with a book", func(t *testing.T) {
+		z, p, out, sv := setup(10, 2, 0, nil, 2)
+		learnNow(t, z, 1, 3, "nham_1")
+		r := learnRespFor(out.take(), 3)
+		if r == nil || p.skills["nham_1"] != 1 || p.skillPoints != 1 {
+			t.Fatalf("resp %v skills %v points %d", r, p.skills, p.skillPoints)
+		}
+		if p.inv.Bag[4].Count != 1 || p.inv.Bag[6].Count != 1 {
+			t.Fatalf("books %v %v, want one fewer in the lowest slot", p.inv.Bag[4], p.inv.Bag[6])
+		}
+		if r.Update == nil || len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != 4 {
+			t.Fatalf("update %v, want slot 4", r.Update)
+		}
+		if len(sv.all()) != 1 {
+			t.Fatalf("%d saves, want 1", len(sv.all()))
+		}
+		// Raising the level needs no book.
+		p.level = 11
+		learnNow(t, z, 1, 4, "nham_1")
+		r = learnRespFor(out.take(), 4)
+		if r == nil || p.skills["nham_1"] != 2 || p.inv.Bag[4].Count != 1 || (r.Update != nil && len(r.Update.Bag) != 0) {
+			t.Fatalf("level 2: resp %v skills %v", r, p.skills)
+		}
+	})
+	t.Run("last book empties the slot", func(t *testing.T) {
+		z, p, out, _ := setup(10, 1, 0, nil, 0)
+		p.inv.Bag[4] = &items.Item{Code: "book_nham_1", Count: 1}
+		learnNow(t, z, 1, 3, "nham_1")
+		r := learnRespFor(out.take(), 3)
+		if r == nil || p.inv.Bag[4] != nil || r.Update == nil || len(r.Update.Bag) != 1 || r.Update.Bag[0].Item != nil {
+			t.Fatalf("resp %v slot %v", r, p.inv.Bag[4])
+		}
+	})
+	t.Run("waiver", func(t *testing.T) {
+		z, p, out, _ := setup(10, 1, 10, nil, 0)
+		learnNow(t, z, 1, 3, "nham_1")
+		r := learnRespFor(out.take(), 3)
+		if r == nil || p.skills["nham_1"] != 1 || (r.Update != nil && len(r.Update.Bag) != 0) {
+			t.Fatalf("waiver 10: resp %v skills %v", r, p.skills)
+		}
+	})
 }

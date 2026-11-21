@@ -554,6 +554,9 @@ func TestSkillsOverWebSocket(t *testing.T) {
 	if err != nil || res.Level != 20 || res.SkillPoints != 19 {
 		t.Fatalf("DevSetLevel: %+v, %v", res, err)
 	}
+	if err := s.store.DevSetWaiver(ctx, p.charID, 20); err != nil { // no books in this test
+		t.Fatal(err)
+	}
 	ew, err := p.c.EnterWorld(ctx, p.charID)
 	if err != nil {
 		t.Fatal(err)

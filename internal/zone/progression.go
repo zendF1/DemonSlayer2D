@@ -9,6 +9,7 @@ import (
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/quest"
 )
 
 // recompute derives p's stats from its class, level, points, worn gear and
@@ -235,7 +236,8 @@ func (z *Zone) pvpLocked(p *player) bool { return z.tickNo < p.pvpUntil }
 // learn spends a skill point to learn a skill of p's class or raise it a
 // level (phase 2 spec 3.1). Checks run in the spec's order and the first
 // failure is answered. A passive changes the stats; current HP and MP rise by
-// as much as their max. The new skill level is saved at once.
+// as much as their max. A first learn above the book waiver takes one skill
+// book (NO_SKILL_BOOK before anything changes). The new skill level is saved at once.
 func (z *Zone) learn(c learnCmd) {
 	p, ok := z.players[c.id]
 	if !ok {
@@ -243,6 +245,7 @@ func (z *Zone) learn(c learnCmd) {
 	}
 	s, known := z.area.Skills[c.skillID]
 	n := p.skills[c.skillID]
+	bookCode := "book_" + c.skillID
 	var code pb.ErrorCode
 	switch {
 	case p.dead:
@@ -255,10 +258,16 @@ func (z *Zone) learn(c learnCmd) {
 		code = pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
 	case p.skillPoints < 1:
 		code = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_POINTS
+	case quest.NeedsBook(s.LearnLevel, n, p.bookWaiver) && p.inv.Count(bookCode) == 0:
+		code = pb.ErrorCode_ERROR_CODE_NO_SKILL_BOOK
 	}
 	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 		z.replyError(p, c.seq, code)
 		return
+	}
+	var update *pb.InventoryUpdate
+	if quest.NeedsBook(s.LearnLevel, n, p.bookWaiver) {
+		update = inventoryUpdate(p.inv, p.inv.Take(bookCode, 1), nil)
 	}
 	p.skillPoints--
 	p.skills[c.skillID] = n + 1
@@ -271,7 +280,7 @@ func (z *Zone) learn(c learnCmd) {
 	}
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_LearnSkillResp{LearnSkillResp: &pb.LearnSkillResp{
-		Stats: z.selfStats(p), Skills: skillLevels(p)}}})
+		Stats: z.selfStats(p), Skills: skillLevels(p), Update: update}}})
 }
 
 // selfStats is p's own view of its progression and stats (spec 5.2).
