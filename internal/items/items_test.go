@@ -2038,3 +2038,32 @@ func TestHealAmount(t *testing.T) {
 		t.Fatalf("mp: %d %d", h, m)
 	}
 }
+
+func TestTakeSlotBadCount(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Bag[0] = stone(5)
+	for _, n := range []int{6, -1} {
+		if _, err := inv.TakeSlot(0, n); !errors.Is(err, ErrBadCount) {
+			t.Fatalf("count %d: %v", n, err)
+		}
+	}
+	if inv.Bag[0] == nil || inv.Bag[0].Count != 5 {
+		t.Fatalf("bag changed: %+v", inv.Bag[0])
+	}
+}
+
+func TestTakeSlotResultIndependent(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Bag[0] = &Item{Code: "eq10_weapon_viem", Count: 2, Gems: []string{"gem_attack_1"}}
+	got, err := inv.TakeSlot(0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.Gems[0] = "changed"
+	got.Count = 9
+	if inv.Bag[0].Gems[0] != "gem_attack_1" || inv.Bag[0].Count != 1 {
+		t.Fatalf("bag item affected: %+v", inv.Bag[0])
+	}
+}

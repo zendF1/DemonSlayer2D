@@ -138,22 +138,8 @@ func (inv *Inventory) Unequip(equipSlot int) (bagSlot int, err error) {
 // slot. Checks, in order: slot range, empty slot, count below 0 or above the
 // slot's count.
 func (inv *Inventory) Discard(bagSlot, count int) error {
-	if bagSlot < 0 || bagSlot >= len(inv.Bag) {
-		return ErrBadSlot
-	}
-	it := inv.Bag[bagSlot]
-	if it == nil {
-		return ErrNotFound
-	}
-	if count < 0 || count > it.Count {
-		return ErrBadCount
-	}
-	if count == 0 || count == it.Count {
-		inv.Bag[bagSlot] = nil
-		return nil
-	}
-	it.Count -= count
-	return nil
+	_, err := inv.TakeSlot(bagSlot, count)
+	return err
 }
 
 // Sort merges stacks of the same code (each up to stack_max) and lays the bag
