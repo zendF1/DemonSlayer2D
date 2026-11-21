@@ -19,7 +19,7 @@ func SellValue(d *gamedata.Items, it *Item) int64 {
 // TakeSlot removes count of the item in bagSlot and returns what was
 // removed; count 0 takes the whole slot. Checks, in order, as Discard: slot
 // range (ErrBadSlot), empty slot (ErrNotFound), count below 0 or above the
-// slot's count (ErrBadCount). Take is taken by the by-code remover.
+// slot's count (ErrBadCount). Take, the by-code remover, is a separate method.
 func (inv *Inventory) TakeSlot(bagSlot, count int) (Item, error) {
 	if bagSlot < 0 || bagSlot >= len(inv.Bag) {
 		return Item{}, ErrBadSlot
