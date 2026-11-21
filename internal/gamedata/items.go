@@ -179,9 +179,67 @@ type Equipment struct {
 // Stackable is an item that stacks in the bag (stones, charms, gems). Gem
 // is set on gems only.
 type Stackable struct {
+	Code string
+	Name string
+	Gem  *Gem
+	// Sell is the Xu one unit sells for; 0 means it cannot be sold.
+	Sell int64
+	// Use is set on potions and the return scroll.
+	Use *Use
+}
+
+// stackableFile is Stackable as written in items.json; Sell is a pointer so
+// a missing price is an error rather than a free item.
+type stackableFile struct {
 	Code string `json:"code"`
 	Name string `json:"name"`
 	Gem  *Gem   `json:"gem,omitempty"`
+	Sell *int64 `json:"sell"`
+	Use  *Use   `json:"use,omitempty"`
+}
+
+// Use effects (phase 4b spec 2.3).
+const (
+	EffectHPPct      = "hp_pct"
+	EffectMP         = "mp"
+	EffectReturnTown = "return_town"
+)
+
+// Use is what using a stackable does. Level is the character level it needs;
+// Group is the cooldown group (a key of Items.UseCooldownSec), empty for the
+// return scroll.
+type Use struct {
+	Effect string `json:"effect"`
+	Value  int    `json:"value"`
+	Level  int    `json:"level"`
+	Group  string `json:"group"`
+}
+
+// Shop currencies.
+const CurrencyXu = "xu"
+
+// Shop is an NPC shop (phase 4b spec 2.3).
+type Shop struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Currency string `json:"currency"`
+	Goods    []Good `json:"goods"`
+}
+
+// Good is one stackable a shop sells at Price.
+type Good struct {
+	Code  string `json:"code"`
+	Price int64  `json:"price"`
+}
+
+// Price returns the price of code in this shop.
+func (s Shop) Price(code string) (int64, bool) {
+	for _, g := range s.Goods {
+		if g.Code == code {
+			return g.Price, true
+		}
+	}
+	return 0, false
 }
 
 // Gem is what a socketed gem adds (phase 3c spec 2.1): Stats by line stat
@@ -267,6 +325,13 @@ type Items struct {
 	Resonance Resonance
 	Sockets   Sockets
 	Refine    Refine
+	// UseCooldownSec is the cooldown of each potion group in seconds.
+	UseCooldownSec map[string]float64
+	// SellEquipmentXuPerTier is the Xu per item tier an equipment piece of
+	// each quality sells for.
+	SellEquipmentXuPerTier [5]int64
+	// Shops is keyed by shop id.
+	Shops map[string]Shop
 
 	pieces map[pieceKey]string
 }
@@ -288,13 +353,16 @@ type itemsFile struct {
 	LineRollMinPct int                 `json:"line_roll_min_pct"`
 	Tiers          []Tier              `json:"tiers"`
 	Equipment      []Equipment         `json:"equipment"`
-	Stackables     []Stackable         `json:"stackables"`
+	Stackables     []stackableFile     `json:"stackables"`
 	Drops          map[string]dropFile `json:"drops"`
 	Enhance        EnhanceTable        `json:"enhance"`
 	Regen          []RegenStep         `json:"regen"`
 	Resonance      resonanceFile       `json:"resonance"`
 	Sockets        Sockets             `json:"sockets"`
 	Refine         Refine              `json:"refine"`
+	UseCooldownSec map[string]float64  `json:"use_cooldown_sec"`
+	SellEquipment  []int64             `json:"sell_equipment_xu_per_tier"`
+	Shops          []Shop              `json:"shops"`
 }
 
 type resonanceFile struct {
@@ -354,7 +422,7 @@ func ParseItems(b []byte) (*Items, error) {
 		Sockets: f.Sockets, Refine: f.Refine}
 	for _, step := range []func(*Items, *itemsFile) error{
 		parseScalars, parseSlots, parseLineStats, parseQualities, parseTiers, parseEquipment, parseStackables, parseDrops,
-		parseEnhance, parseRegen, parseResonance, parseSockets, parseRefine,
+		parseEnhance, parseRegen, parseResonance, parseSockets, parseRefine, parseUse, parseShops,
 	} {
 		if err := step(it, &f); err != nil {
 			return nil, fmt.Errorf("gamedata: items: %w", err)
@@ -597,7 +665,10 @@ func parseStackables(it *Items, f *itemsFile) error {
 		if s.Name == "" {
 			return fmt.Errorf("stackable %q: name is empty", s.Code)
 		}
-		it.Stackables[s.Code] = s
+		if s.Sell == nil || *s.Sell < 0 {
+			return fmt.Errorf("stackable %q: sell must be present and not negative", s.Code)
+		}
+		it.Stackables[s.Code] = Stackable{Code: s.Code, Name: s.Name, Gem: s.Gem, Sell: *s.Sell, Use: s.Use}
 		it.StackOrder = append(it.StackOrder, s.Code)
 	}
 	return parseGems(it)
@@ -909,4 +980,100 @@ func parseRefine(it *Items, _ *itemsFile) error {
 		return fmt.Errorf("stackables has no %q", StoneRefine)
 	}
 	return nil
+}
+
+// parseUse checks use_cooldown_sec, sell_equipment_xu_per_tier and every
+// stackable's use block (phase 4b spec 2.3).
+func parseUse(it *Items, f *itemsFile) error {
+	for _, g := range slices.Sorted(maps.Keys(f.UseCooldownSec)) {
+		// The negated comparison also rejects NaN.
+		if !(f.UseCooldownSec[g] > 0) {
+			return fmt.Errorf("use_cooldown_sec %q must be positive", g)
+		}
+	}
+	it.UseCooldownSec = f.UseCooldownSec
+	if len(f.SellEquipment) != len(it.SellEquipmentXuPerTier) {
+		return fmt.Errorf("sell_equipment_xu_per_tier has %d entries, want %d", len(f.SellEquipment), len(it.SellEquipmentXuPerTier))
+	}
+	for i, v := range f.SellEquipment {
+		if v < 0 {
+			return fmt.Errorf("sell_equipment_xu_per_tier[%d] %d must not be negative", i, v)
+		}
+		it.SellEquipmentXuPerTier[i] = v
+	}
+	for _, code := range it.StackOrder {
+		u := it.Stackables[code].Use
+		if u == nil {
+			continue
+		}
+		if u.Level < 1 || u.Level > 90 {
+			return fmt.Errorf("stackable %q: use level %d must be in 1-90", code, u.Level)
+		}
+		switch u.Effect {
+		case EffectHPPct:
+			if u.Value < 1 || u.Value > 100 {
+				return fmt.Errorf("stackable %q: hp_pct value %d must be in 1-100", code, u.Value)
+			}
+		case EffectMP:
+			if u.Value < 1 {
+				return fmt.Errorf("stackable %q: mp value %d must be at least 1", code, u.Value)
+			}
+		case EffectReturnTown:
+			if u.Value != 0 {
+				return fmt.Errorf("stackable %q: return_town value %d must be 0", code, u.Value)
+			}
+		default:
+			return fmt.Errorf("stackable %q: use effect %q is unknown", code, u.Effect)
+		}
+		if u.Effect == EffectReturnTown {
+			if u.Group != "" {
+				return fmt.Errorf("stackable %q: return_town group %q must be empty", code, u.Group)
+			}
+		} else if _, ok := it.UseCooldownSec[u.Group]; !ok {
+			return fmt.Errorf("stackable %q: use group %q is not in use_cooldown_sec", code, u.Group)
+		}
+	}
+	return nil
+}
+
+// parseShops checks the shops (phase 4b spec 2.3).
+func parseShops(it *Items, f *itemsFile) error {
+	it.Shops = make(map[string]Shop, len(f.Shops))
+	for _, s := range f.Shops {
+		if s.ID == "" {
+			return fmt.Errorf("shop with empty id")
+		}
+		if _, dup := it.Shops[s.ID]; dup {
+			return fmt.Errorf("shop %q is listed twice", s.ID)
+		}
+		if s.Name == "" {
+			return fmt.Errorf("shop %q: name is empty", s.ID)
+		}
+		if s.Currency != CurrencyXu {
+			return fmt.Errorf("shop %q: currency %q must be %q", s.ID, s.Currency, CurrencyXu)
+		}
+		if len(s.Goods) == 0 {
+			return fmt.Errorf("shop %q: goods is empty", s.ID)
+		}
+		seen := map[string]bool{}
+		for _, g := range s.Goods {
+			if _, ok := it.Stackables[g.Code]; !ok {
+				return fmt.Errorf("shop %q: %q is not a stackable", s.ID, g.Code)
+			}
+			if seen[g.Code] {
+				return fmt.Errorf("shop %q: %q is listed twice", s.ID, g.Code)
+			}
+			seen[g.Code] = true
+			if g.Price < 1 {
+				return fmt.Errorf("shop %q: %q price %d must be at least 1", s.ID, g.Code, g.Price)
+			}
+		}
+		it.Shops[s.ID] = s
+	}
+	return nil
+}
+
+func (it *Items) hasShop(id string) bool {
+	_, ok := it.Shops[id]
+	return ok
 }

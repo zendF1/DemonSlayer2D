@@ -754,8 +754,12 @@ func itemsWithTiers(tiers ...int) obj {
 		"line_roll_min_pct": 50,
 		"tiers":             tierList,
 		"equipment":         equipment,
-		"stackables": append([]any{obj{"code": "stone_enhance", "name": "Đá cường hóa"}, obj{"code": "stone_refine", "name": "Đá tẩy luyện"},
-			obj{"code": "charm_protect", "name": "Bùa bảo vệ"}}, gemList()...),
+		"stackables": append(append([]any{obj{"code": "stone_enhance", "name": "Đá cường hóa", "sell": 5},
+			obj{"code": "stone_refine", "name": "Đá tẩy luyện", "sell": 50},
+			obj{"code": "charm_protect", "name": "Bùa bảo vệ", "sell": 1000}}, gemList()...), useList()...),
+		"use_cooldown_sec":           obj{"hp": 10, "mp": 10},
+		"sell_equipment_xu_per_tier": []int{5, 10, 20, 40, 80},
+		"shops":                      shopList(),
 		"drops": obj{
 			RankNormal: drop(3, 5, 500, 1, []int{8000, 1700, 300, 0, 0}, stack("stone_enhance", 2000, 1)),
 			RankElite:  drop(18, 30, 10000, 1, []int{0, 7500, 2500, 0, 0}, stack("stone_enhance", 10000, 3), stack("stone_refine", 1000, 1)),
@@ -804,11 +808,38 @@ func gemList() []any {
 			for _, s := range k.stats {
 				stats[s] = lv
 			}
-			out = append(out, obj{"code": fmt.Sprintf("gem_%s_%d", k.kind, lv), "name": fmt.Sprintf("Ngọc %s %d", k.kind, lv),
+			out = append(out, obj{"code": fmt.Sprintf("gem_%s_%d", k.kind, lv), "name": fmt.Sprintf("Ngọc %s %d", k.kind, lv), "sell": 200 * lv,
 				"gem": obj{"kind": k.kind, "level": lv, "stats": stats}})
 		}
 	}
 	return out
+}
+
+// useList is the seven potions and the return scroll (phase 4b spec 2.3);
+// stackables[18+i] is useList()[i].
+func useList() []any {
+	potion := func(code, effect string, value, level int, group string, price int) obj {
+		return obj{"code": code, "name": code, "sell": price / 5,
+			"use": obj{"effect": effect, "value": value, "level": level, "group": group}}
+	}
+	return []any{
+		potion("potion_hp_1", EffectHPPct, 10, 1, "hp", 5), potion("potion_hp_10", EffectHPPct, 15, 10, "hp", 30),
+		potion("potion_hp_30", EffectHPPct, 20, 30, "hp", 100), potion("potion_hp_50", EffectHPPct, 25, 50, "hp", 200),
+		potion("potion_mp_10", EffectMP, 100, 10, "mp", 25), potion("potion_mp_30", EffectMP, 250, 30, "mp", 80),
+		potion("potion_mp_50", EffectMP, 400, 50, "mp", 160), potion("scroll_return", EffectReturnTown, 0, 1, "", 50),
+	}
+}
+
+// shopList is the two shops: general (9 goods, shops[0]) and apothecary (8).
+func shopList() []any {
+	var goods []any
+	for i, p := range []int{5, 30, 100, 200, 25, 80, 160, 50} {
+		goods = append(goods, obj{"code": useList()[i].(obj)["code"], "price": p})
+	}
+	return []any{
+		obj{"id": "general", "name": "Tạp hóa", "currency": "xu", "goods": append(slices.Clone(goods), obj{"code": "charm_protect", "price": 5000})},
+		obj{"id": "apothecary", "name": "Dược sư", "currency": "xu", "goods": goods},
+	}
 }
 
 // enhanceLevels is the phase 3b spec 2.1 table: entry i is target +i+1.
@@ -864,7 +895,7 @@ func TestParseItemsValid(t *testing.T) {
 	if !it.IsEquipment("eq10_ring_left") || it.IsEquipment("stone_enhance") {
 		t.Fatal("IsEquipment")
 	}
-	if !slices.Equal(it.StackOrder[:4], []string{"stone_enhance", "stone_refine", "charm_protect", "gem_attack_1"}) || len(it.StackOrder) != 18 ||
+	if !slices.Equal(it.StackOrder[:4], []string{"stone_enhance", "stone_refine", "charm_protect", "gem_attack_1"}) || len(it.StackOrder) != 26 ||
 		it.Stackables["stone_refine"].Name != "Đá tẩy luyện" {
 		t.Fatalf("stackables: %v %+v", it.StackOrder, it.Stackables)
 	}
@@ -1041,7 +1072,7 @@ func TestRepoItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	it := d.Items
-	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 18 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
+	if it == nil || len(it.Equipment) != 70 || len(it.Stackables) != 26 || len(it.Drops) != 3 || len(it.Tiers) != 5 {
 		t.Fatalf("items: %d equipment, %d stackables, %d drops", len(it.Equipment), len(it.Stackables), len(it.Drops))
 	}
 	perTier := map[int]int{}
@@ -1386,11 +1417,126 @@ func TestRepoForgeData(t *testing.T) {
 		}
 	}
 	// The gems follow the charm, attack then HP then defense, by level.
-	if got := it.StackOrder[3:]; len(got) != 15 || got[0] != "gem_attack_1" || got[5] != "gem_hp_1" || got[14] != "gem_defense_5" {
+	if got := it.StackOrder[3:18]; len(got) != 15 || got[0] != "gem_attack_1" || got[5] != "gem_hp_1" || got[14] != "gem_defense_5" {
 		t.Fatalf("gem order: %v", got)
 	}
 	if it.Stackables["gem_attack_1"].Name != "Ngọc Công cấp 1" || it.Stackables["gem_hp_2"].Name != "Ngọc Sinh Lực cấp 2" ||
 		it.Stackables["gem_defense_3"].Name != "Ngọc Hộ Thể cấp 3" {
 		t.Fatal("gem names")
+	}
+}
+
+// ______________________TEST SHOPS DATA_____________________
+
+func TestRepoShopsData(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := d.Items
+	if len(it.Stackables) != 26 || len(it.StackOrder) != 26 || len(it.Shops) != 2 {
+		t.Fatalf("%d stackables, %d shops", len(it.Stackables), len(it.Shops))
+	}
+	if len(it.Shops["general"].Goods) != 9 || len(it.Shops["apothecary"].Goods) != 8 {
+		t.Fatalf("goods: %d, %d", len(it.Shops["general"].Goods), len(it.Shops["apothecary"].Goods))
+	}
+	if p, ok := it.Shops["general"].Price("charm_protect"); !ok || p != 5000 {
+		t.Fatalf("charm_protect: %d %v", p, ok)
+	}
+	if _, ok := it.Shops["apothecary"].Price("charm_protect"); ok {
+		t.Fatal("apothecary sells the charm")
+	}
+	if u := it.Stackables["potion_mp_50"].Use; u == nil || *u != (Use{Effect: EffectMP, Value: 400, Level: 50, Group: "mp"}) {
+		t.Fatalf("potion_mp_50: %+v", u)
+	}
+	if u := it.Stackables["scroll_return"].Use; u == nil || *u != (Use{Effect: EffectReturnTown, Level: 1}) {
+		t.Fatalf("scroll_return: %+v", u)
+	}
+	if it.Stackables["stone_enhance"].Use != nil || it.Stackables["gem_hp_3"].Sell != 600 || it.Stackables["charm_protect"].Sell != 1000 {
+		t.Fatal("sell prices")
+	}
+	if it.UseCooldownSec["hp"] != 10 || it.UseCooldownSec["mp"] != 10 || it.SellEquipmentXuPerTier != [5]int64{5, 10, 20, 40, 80} {
+		t.Fatalf("%v %v", it.UseCooldownSec, it.SellEquipmentXuPerTier)
+	}
+	for _, code := range it.Shops["general"].Goods {
+		if code.Code != "charm_protect" && it.Stackables[code.Code].Sell != code.Price/5 {
+			t.Errorf("%s sells for %d, price %d", code.Code, it.Stackables[code.Code].Sell, code.Price)
+		}
+	}
+}
+
+func TestParseShopsRejects(t *testing.T) {
+	stack := func(i int, f string, v any) func(obj) {
+		return func(d obj) { d["stackables"].([]any)[i].(obj)[f] = v }
+	}
+	use := func(i int, f string, v any) func(obj) {
+		return func(d obj) { d["stackables"].([]any)[i].(obj)["use"].(obj)[f] = v }
+	}
+	shop := func(i int, f string, v any) func(obj) {
+		return func(d obj) { d["shops"].([]any)[i].(obj)[f] = v }
+	}
+	good := func(i, j int, f string, v any) func(obj) {
+		return func(d obj) { d["shops"].([]any)[i].(obj)["goods"].([]any)[j].(obj)[f] = v }
+	}
+	const hp1, mp10, scroll = 18, 22, 25
+	tests := []struct {
+		name   string
+		mutate func(obj)
+		want   string
+	}{
+		{"missing sell", func(d obj) { delete(d["stackables"].([]any)[0].(obj), "sell") }, `stackable "stone_enhance": sell must be present`},
+		{"negative sell", stack(0, "sell", -1), `stackable "stone_enhance": sell must be present and not negative`},
+		{"unknown effect", use(hp1, "effect", "poison"), `stackable "potion_hp_1": use effect "poison" is unknown`},
+		{"hp_pct 0", use(hp1, "value", 0), `hp_pct value 0 must be in 1-100`},
+		{"hp_pct 101", use(hp1, "value", 101), `hp_pct value 101 must be in 1-100`},
+		{"mp 0", use(mp10, "value", 0), `mp value 0 must be at least 1`},
+		{"return_town with a value", use(scroll, "value", 1), `return_town value 1 must be 0`},
+		{"group not in use_cooldown_sec", use(hp1, "group", "buff"), `use group "buff" is not in use_cooldown_sec`},
+		{"return_town with a group", use(scroll, "group", "hp"), `return_town group "hp" must be empty`},
+		{"use level 0", use(hp1, "level", 0), `use level 0 must be in 1-90`},
+		{"use level 91", use(hp1, "level", 91), `use level 91 must be in 1-90`},
+		{"cooldown 0", func(d obj) { d["use_cooldown_sec"].(obj)["hp"] = 0 }, `use_cooldown_sec "hp" must be positive`},
+		{"sell tiers of 4", func(d obj) { d["sell_equipment_xu_per_tier"] = []int{5, 10, 20, 40} }, "sell_equipment_xu_per_tier has 4 entries, want 5"},
+		{"negative sell tier", func(d obj) { d["sell_equipment_xu_per_tier"] = []int{5, -1, 20, 40, 80} }, "sell_equipment_xu_per_tier[1] -1 must not be negative"},
+		{"duplicate shop id", shop(1, "id", "general"), `shop "general" is listed twice`},
+		{"shop without name", shop(0, "name", ""), `shop "general": name is empty`},
+		{"unknown currency", shop(0, "currency", "luong"), `shop "general": currency "luong" must be "xu"`},
+		{"no goods", shop(1, "goods", []any{}), `shop "apothecary": goods is empty`},
+		{"shop selling equipment", good(0, 0, "code", "eq10_armor"), `shop "general": "eq10_armor" is not a stackable`},
+		{"unknown good", good(0, 0, "code", "potion_x"), `shop "general": "potion_x" is not a stackable`},
+		{"good listed twice", good(0, 1, "code", "potion_hp_1"), `shop "general": "potion_hp_1" is listed twice`},
+		{"price 0", good(0, 0, "price", 0), `shop "general": "potion_hp_1" price 0 must be at least 1`},
+		{"no shops key", func(d obj) { d["shops"] = []any{obj{"id": "", "name": "x", "currency": "xu", "goods": []any{}}} }, "shop with empty id"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := validItems()
+			tt.mutate(d)
+			_, err := ParseItems(itemsJSON(t, d))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+	if _, err := ParseItems(itemsJSON(t, validItems())); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidateRejectsUnknownShop(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	maps, err := mapdata.LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Validate(maps); err != nil {
+		t.Fatal(err)
+	}
+	delete(d.Items.Shops, "apothecary")
+	if err := d.Validate(maps); err == nil || !strings.Contains(err.Error(), `unknown shop "apothecary"`) {
+		t.Fatalf("want unknown shop error, got %v", err)
 	}
 }

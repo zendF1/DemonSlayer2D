@@ -7038,22 +7038,37 @@
       ]
     }
   ],
+  "use_cooldown_sec": {
+    "hp": 10,
+    "mp": 10
+  },
+  "sell_equipment_xu_per_tier": [
+    5,
+    10,
+    20,
+    40,
+    80
+  ],
   "stackables": [
     {
       "code": "stone_enhance",
-      "name": "Đá cường hóa"
+      "name": "Đá cường hóa",
+      "sell": 5
     },
     {
       "code": "stone_refine",
-      "name": "Đá tẩy luyện"
+      "name": "Đá tẩy luyện",
+      "sell": 50
     },
     {
       "code": "charm_protect",
-      "name": "Bùa bảo vệ"
+      "name": "Bùa bảo vệ",
+      "sell": 1000
     },
     {
       "code": "gem_attack_1",
       "name": "Ngọc Công cấp 1",
+      "sell": 200,
       "gem": {
         "kind": "attack",
         "level": 1,
@@ -7066,6 +7081,7 @@
     {
       "code": "gem_attack_2",
       "name": "Ngọc Công cấp 2",
+      "sell": 400,
       "gem": {
         "kind": "attack",
         "level": 2,
@@ -7078,6 +7094,7 @@
     {
       "code": "gem_attack_3",
       "name": "Ngọc Công cấp 3",
+      "sell": 600,
       "gem": {
         "kind": "attack",
         "level": 3,
@@ -7090,6 +7107,7 @@
     {
       "code": "gem_attack_4",
       "name": "Ngọc Công cấp 4",
+      "sell": 800,
       "gem": {
         "kind": "attack",
         "level": 4,
@@ -7102,6 +7120,7 @@
     {
       "code": "gem_attack_5",
       "name": "Ngọc Công cấp 5",
+      "sell": 1000,
       "gem": {
         "kind": "attack",
         "level": 5,
@@ -7114,6 +7133,7 @@
     {
       "code": "gem_hp_1",
       "name": "Ngọc Sinh Lực cấp 1",
+      "sell": 200,
       "gem": {
         "kind": "hp",
         "level": 1,
@@ -7125,6 +7145,7 @@
     {
       "code": "gem_hp_2",
       "name": "Ngọc Sinh Lực cấp 2",
+      "sell": 400,
       "gem": {
         "kind": "hp",
         "level": 2,
@@ -7136,6 +7157,7 @@
     {
       "code": "gem_hp_3",
       "name": "Ngọc Sinh Lực cấp 3",
+      "sell": 600,
       "gem": {
         "kind": "hp",
         "level": 3,
@@ -7147,6 +7169,7 @@
     {
       "code": "gem_hp_4",
       "name": "Ngọc Sinh Lực cấp 4",
+      "sell": 800,
       "gem": {
         "kind": "hp",
         "level": 4,
@@ -7158,6 +7181,7 @@
     {
       "code": "gem_hp_5",
       "name": "Ngọc Sinh Lực cấp 5",
+      "sell": 1000,
       "gem": {
         "kind": "hp",
         "level": 5,
@@ -7169,6 +7193,7 @@
     {
       "code": "gem_defense_1",
       "name": "Ngọc Hộ Thể cấp 1",
+      "sell": 200,
       "gem": {
         "kind": "defense",
         "level": 1,
@@ -7181,6 +7206,7 @@
     {
       "code": "gem_defense_2",
       "name": "Ngọc Hộ Thể cấp 2",
+      "sell": 400,
       "gem": {
         "kind": "defense",
         "level": 2,
@@ -7193,6 +7219,7 @@
     {
       "code": "gem_defense_3",
       "name": "Ngọc Hộ Thể cấp 3",
+      "sell": 600,
       "gem": {
         "kind": "defense",
         "level": 3,
@@ -7205,6 +7232,7 @@
     {
       "code": "gem_defense_4",
       "name": "Ngọc Hộ Thể cấp 4",
+      "sell": 800,
       "gem": {
         "kind": "defense",
         "level": 4,
@@ -7217,6 +7245,7 @@
     {
       "code": "gem_defense_5",
       "name": "Ngọc Hộ Thể cấp 5",
+      "sell": 1000,
       "gem": {
         "kind": "defense",
         "level": 5,
@@ -7224,6 +7253,94 @@
           "phys_defense": 5,
           "magic_defense": 5
         }
+      }
+    },
+    {
+      "code": "potion_hp_1",
+      "name": "Bình HP cấp 1",
+      "sell": 1,
+      "use": {
+        "effect": "hp_pct",
+        "value": 10,
+        "level": 1,
+        "group": "hp"
+      }
+    },
+    {
+      "code": "potion_hp_10",
+      "name": "Bình HP cấp 10",
+      "sell": 6,
+      "use": {
+        "effect": "hp_pct",
+        "value": 15,
+        "level": 10,
+        "group": "hp"
+      }
+    },
+    {
+      "code": "potion_hp_30",
+      "name": "Bình HP cấp 30",
+      "sell": 20,
+      "use": {
+        "effect": "hp_pct",
+        "value": 20,
+        "level": 30,
+        "group": "hp"
+      }
+    },
+    {
+      "code": "potion_hp_50",
+      "name": "Bình HP cấp 50",
+      "sell": 40,
+      "use": {
+        "effect": "hp_pct",
+        "value": 25,
+        "level": 50,
+        "group": "hp"
+      }
+    },
+    {
+      "code": "potion_mp_10",
+      "name": "Bình MP cấp 10",
+      "sell": 5,
+      "use": {
+        "effect": "mp",
+        "value": 100,
+        "level": 10,
+        "group": "mp"
+      }
+    },
+    {
+      "code": "potion_mp_30",
+      "name": "Bình MP cấp 30",
+      "sell": 16,
+      "use": {
+        "effect": "mp",
+        "value": 250,
+        "level": 30,
+        "group": "mp"
+      }
+    },
+    {
+      "code": "potion_mp_50",
+      "name": "Bình MP cấp 50",
+      "sell": 32,
+      "use": {
+        "effect": "mp",
+        "value": 400,
+        "level": 50,
+        "group": "mp"
+      }
+    },
+    {
+      "code": "scroll_return",
+      "name": "Giấy về thành",
+      "sell": 10,
+      "use": {
+        "effect": "return_town",
+        "value": 0,
+        "level": 1,
+        "group": ""
       }
     }
   ],
@@ -7510,5 +7627,89 @@
     "stones_per_lock": 1,
     "xu_per_tier": 20,
     "xu_per_tier_per_lock": 20
-  }
+  },
+  "shops": [
+    {
+      "id": "general",
+      "name": "Tạp hóa",
+      "currency": "xu",
+      "goods": [
+        {
+          "code": "potion_hp_1",
+          "price": 5
+        },
+        {
+          "code": "potion_hp_10",
+          "price": 30
+        },
+        {
+          "code": "potion_hp_30",
+          "price": 100
+        },
+        {
+          "code": "potion_hp_50",
+          "price": 200
+        },
+        {
+          "code": "potion_mp_10",
+          "price": 25
+        },
+        {
+          "code": "potion_mp_30",
+          "price": 80
+        },
+        {
+          "code": "potion_mp_50",
+          "price": 160
+        },
+        {
+          "code": "scroll_return",
+          "price": 50
+        },
+        {
+          "code": "charm_protect",
+          "price": 5000
+        }
+      ]
+    },
+    {
+      "id": "apothecary",
+      "name": "Dược sư",
+      "currency": "xu",
+      "goods": [
+        {
+          "code": "potion_hp_1",
+          "price": 5
+        },
+        {
+          "code": "potion_hp_10",
+          "price": 30
+        },
+        {
+          "code": "potion_hp_30",
+          "price": 100
+        },
+        {
+          "code": "potion_hp_50",
+          "price": 200
+        },
+        {
+          "code": "potion_mp_10",
+          "price": 25
+        },
+        {
+          "code": "potion_mp_30",
+          "price": 80
+        },
+        {
+          "code": "potion_mp_50",
+          "price": 160
+        },
+        {
+          "code": "scroll_return",
+          "price": 50
+        }
+      ]
+    }
+  ]
 }

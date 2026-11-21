@@ -175,7 +175,8 @@ func Load(dir string) (*Data, error) {
 }
 
 // Validate checks every region of every map: its monster kind exists
-// and every level in min_level..max_level has stats.
+// and every level in min_level..max_level has stats; and that the shop of
+// every shop NPC exists in items.json.
 func (d *Data) Validate(maps map[string]*mapdata.Map) error {
 	for id, m := range maps {
 		for _, r := range m.Regions {
@@ -186,6 +187,14 @@ func (d *Data) Validate(maps map[string]*mapdata.Map) error {
 				if _, ok := d.Levels[l]; !ok {
 					return fmt.Errorf("gamedata: map %q region %q: no stats for level %d", id, r.ID, l)
 				}
+			}
+		}
+		for _, n := range m.NPCs {
+			if n.Role != mapdata.RoleShop {
+				continue
+			}
+			if d.Items == nil || !d.Items.hasShop(n.Shop) {
+				return fmt.Errorf("gamedata: map %q npc %q: unknown shop %q", id, n.ID, n.Shop)
 			}
 		}
 	}

@@ -67,6 +67,26 @@ STACKABLES = [
     {"code": "stone_refine", "name": "Đá tẩy luyện"},
     {"code": "charm_protect", "name": "Bùa bảo vệ"},
 ]
+# Phase 4b spec 2.3. Sell prices of the stackables above and of gem level g
+# (SELL_GEM_PER_LEVEL * g); equipment sells for tier * SELL_EQUIPMENT_XU_PER_TIER[quality].
+SELL = {"stone_enhance": 5, "stone_refine": 50, "charm_protect": 1000}
+SELL_GEM_PER_LEVEL = 200
+SELL_EQUIPMENT_XU_PER_TIER = [5, 10, 20, 40, 80]
+USE_COOLDOWN_SEC = {"hp": 10, "mp": 10}
+SELL_DIVISOR = 5  # potions and the scroll sell for buy price // 5
+CHARM_PRICE = 5000
+# Code, name, use level, effect, value, group, buy price (game-design 2.7).
+POTIONS = [
+    ("potion_hp_1", "Bình HP cấp 1", 1, "hp_pct", 10, "hp", 5),
+    ("potion_hp_10", "Bình HP cấp 10", 10, "hp_pct", 15, "hp", 30),
+    ("potion_hp_30", "Bình HP cấp 30", 30, "hp_pct", 20, "hp", 100),
+    ("potion_hp_50", "Bình HP cấp 50", 50, "hp_pct", 25, "hp", 200),
+    ("potion_mp_10", "Bình MP cấp 10", 10, "mp", 100, "mp", 25),
+    ("potion_mp_30", "Bình MP cấp 30", 30, "mp", 250, "mp", 80),
+    ("potion_mp_50", "Bình MP cấp 50", 50, "mp", 400, "mp", 160),
+]
+SCROLL = ("scroll_return", "Giấy về thành", 1, "return_town", 0, "", 50)
+SHOP_NAMES = {"general": "Tạp hóa", "apothecary": "Dược sư"}
 STONE = "stone_enhance"
 CHARM = "charm_protect"
 STONE_REFINE = "stone_refine"
@@ -185,6 +205,34 @@ def gems(tiers):
             for kind, name, stats in GEM_KINDS for level in GEM_LEVELS]
 
 
+def use_stackables():
+    """The seven potions and the return scroll, with sell = price // 5."""
+    return [{"code": code, "name": name, "sell": price // SELL_DIVISOR,
+             "use": {"effect": effect, "value": value, "level": level, "group": group}}
+            for code, name, level, effect, value, group, price in POTIONS + [SCROLL]]
+
+
+def shops():
+    potions = [{"code": p[0], "price": p[6]} for p in POTIONS]
+    scroll = [{"code": SCROLL[0], "price": SCROLL[6]}]
+    charm = [{"code": CHARM, "price": CHARM_PRICE}]
+    return [{"id": "general", "name": SHOP_NAMES["general"], "currency": "xu", "goods": potions + scroll + charm},
+            {"id": "apothecary", "name": SHOP_NAMES["apothecary"], "currency": "xu", "goods": potions + scroll}]
+
+
+def with_sell(stackables):
+    """Add the sell price after the name: stones and charm from SELL, gem
+    level g at SELL_GEM_PER_LEVEL * g."""
+    out = []
+    for s in stackables:
+        sell = SELL[s["code"]] if "gem" not in s else SELL_GEM_PER_LEVEL * s["gem"]["level"]
+        entry = {"code": s["code"], "name": s["name"], "sell": sell}
+        if "gem" in s:
+            entry["gem"] = s["gem"]
+        out.append(entry)
+    return out
+
+
 def build():
     items = eb.generate()
     tiers, equipment = [], []
@@ -206,7 +254,9 @@ def build():
         "line_roll_min_pct": LINE_ROLL_MIN_PCT,
         "tiers": tiers,
         "equipment": equipment,
-        "stackables": STACKABLES + gems(tiers),
+        "use_cooldown_sec": USE_COOLDOWN_SEC,
+        "sell_equipment_xu_per_tier": SELL_EQUIPMENT_XU_PER_TIER,
+        "stackables": with_sell(STACKABLES + gems(tiers)) + use_stackables(),
         "drops": DROPS,
         "enhance": {
             "pity_pct": PITY_PCT,
@@ -218,6 +268,7 @@ def build():
         "resonance": {"activator": ACTIVATOR, "slots": RESONANCE_SLOTS},
         "sockets": SOCKETS,
         "refine": REFINE,
+        "shops": shops(),
     }
 
 
@@ -254,6 +305,42 @@ def check(data):
     assert len(codes) == len(set(codes)), codes
     check_enhance(data)
     check_forge(data)
+    check_shops(data)
+
+
+def check_shops(data):
+    """Phase 4b spec 2.3: the load checks of the Go server, the game-design
+    2.7 potion prices and sell = price // 5 for potions and the scroll."""
+    cool = data["use_cooldown_sec"]
+    assert sorted(cool) == ["hp", "mp"] and all(v > 0 for v in cool.values()), cool
+    tiers = data["sell_equipment_xu_per_tier"]
+    assert len(tiers) == 5 and all(v >= 0 for v in tiers), tiers
+    by_code = {s["code"]: s for s in data["stackables"]}
+    assert len(data["stackables"]) == 26, len(data["stackables"])
+    assert all(s["sell"] >= 0 for s in data["stackables"])
+    for g in range(1, 6):
+        assert by_code[f"gem_attack_{g}"]["sell"] == 200 * g
+    want = {code: (level, effect, value, group, price)
+            for code, _, level, effect, value, group, price in POTIONS + [SCROLL]}
+    # game-design 2.7 prices: HP 5/30/100/200, MP 25/80/160, scroll 50.
+    assert [w[4] for w in want.values()] == [5, 30, 100, 200, 25, 80, 160, 50], want
+    for code, (level, effect, value, group, price) in want.items():
+        s = by_code[code]
+        assert s["use"] == {"effect": effect, "value": value, "level": level, "group": group}, s
+        assert s["sell"] == price // 5, s
+        assert 1 <= level <= 90, s
+        assert group == "" or group in cool, s
+    assert "potion_mp_1" not in by_code
+    ids = [sh["id"] for sh in data["shops"]]
+    assert ids == ["general", "apothecary"] and len(set(ids)) == 2, ids
+    for sh in data["shops"]:
+        assert sh["name"] and sh["currency"] == "xu" and sh["goods"], sh
+        codes = [g["code"] for g in sh["goods"]]
+        assert len(codes) == len(set(codes)), sh
+        for g in sh["goods"]:
+            assert g["code"] in by_code and g["price"] >= 1, g
+            assert g["price"] == want[g["code"]][4] if g["code"] in want else g["price"] == CHARM_PRICE, g
+    assert len(data["shops"][0]["goods"]) == 9 and len(data["shops"][1]["goods"]) == 8
 
 
 def check_forge(data):
