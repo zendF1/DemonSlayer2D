@@ -95,6 +95,11 @@ type PlayerInfo struct {
 	Cooldowns map[string]time.Duration
 	// PkOn is whether PK mode is on (phase 5a spec 4.1).
 	PkOn bool
+	// Quests and SkillBookWaiver (phase 6b) are the quest log rows and the
+	// skill book waiver; the zone keeps them untouched and saves them with
+	// every state. Join deep-copies Quests.
+	Quests          []store.QuestRow
+	SkillBookWaiver int
 	// Party is the session's party-id cell (phase 5b spec 4.1): the party
 	// service writes it, the zone only reads it, and the handoff carries the
 	// same cell. nil means no party.
@@ -111,10 +116,14 @@ const slowTick = 50 * time.Millisecond
 
 type player struct {
 	entity
-	charID   int64
-	out      Outbox
-	inputSeq uint32
-	visible  map[uint64]struct{}
+	// quests and skillBookWaiver are carried for the saves; only the zone
+	// goroutine touches them.
+	quests          []store.QuestRow
+	skillBookWaiver int
+	charID          int64
+	out             Outbox
+	inputSeq        uint32
+	visible         map[uint64]struct{}
 
 	// Progression; level and hp live in entity.
 	stats      combat.Stats
@@ -637,6 +646,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		xu: info.Xu, accountID: info.AccountID, luong: info.Luong, stash: cloneSlots(info.Stash),
 	}
 	p.pkOn = info.PkOn
+	p.quests, p.skillBookWaiver = slices.Clone(info.Quests), info.SkillBookWaiver
 	if p.skills == nil {
 		p.skills = map[string]int{}
 	}
@@ -746,7 +756,8 @@ func (z *Zone) state(p *player) store.CharState {
 	// item rows that share nothing with p (phase 3a spec 3).
 	st := store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
 		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
-		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv), PkOn: p.pkOn}
+		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv), PkOn: p.pkOn,
+		Quests: slices.Clone(p.quests), SkillBookWaiver: p.skillBookWaiver}
 	if p.accountID != 0 {
 		st.Account = &store.AccountState{ID: p.accountID, Luong: p.luong, StashSize: len(p.stash),
 			Stash: slotRows(nil, false, p.stash)}

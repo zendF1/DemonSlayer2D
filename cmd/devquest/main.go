@@ -111,12 +111,12 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 			}
 			byID[*active] = store.QuestRow{QuestID: *active, State: stateActive, Progress: p}
 		}
-		out := make([]store.QuestRow, 0, len(byID))
+		merged := make([]store.QuestRow, 0, len(byID))
 		for _, r := range byID {
-			out = append(out, r)
+			merged = append(merged, r)
 		}
-		slices.SortFunc(out, func(a, b store.QuestRow) int { return strings.Compare(a.QuestID, b.QuestID) })
-		return out, nil
+		slices.SortFunc(merged, func(a, b store.QuestRow) int { return strings.Compare(a.QuestID, b.QuestID) })
+		return merged, nil
 	})
 	if err != nil {
 		return err

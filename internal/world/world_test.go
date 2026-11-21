@@ -2304,3 +2304,32 @@ func TestPartyOutboxKicksWhenFull(t *testing.T) {
 		t.Fatalf("kicked = %v, want one SLOW_CONSUMER", o.kicked)
 	}
 }
+
+// ______________________TEST QUESTS KEPT_____________________
+
+// A character's quest rows and book waiver survive the departure save of a
+// portal and the leave save.
+func TestQuestsAndWaiverSurviveSaves(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 10, portalMaps(t), sv)
+	c := char(2, "m2", 1.5, 9.0)
+	c.SkillBookWaiver = 25
+	c.Quests = []store.QuestRow{{QuestID: "m01", State: 2, Progress: 5}, {QuestID: "m02", State: 1, Progress: 3}}
+	m, _ := enterChar(t, w, c)
+	nm, _, err := w.Transfer(context.Background(), m, portal("west"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(when string) {
+		t.Helper()
+		st, ok := sv.last(2)
+		if !ok || st.SkillBookWaiver != 25 || !reflect.DeepEqual(st.Quests, c.Quests) {
+			t.Fatalf("%s save %+v, want waiver 25 and both quest rows", when, st)
+		}
+	}
+	check("departure")
+	if err := <-nm.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	check("leave")
+}
