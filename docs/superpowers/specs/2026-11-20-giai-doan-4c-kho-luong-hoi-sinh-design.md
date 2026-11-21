@@ -1,6 +1,6 @@
 # Giai đoạn 4c — Kho chung tài khoản, Lượng và hồi sinh tại chỗ
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: server đã triển khai, client chờ (task 9–12).
 
 Phần cuối của Giai đoạn 4 (xem bảng chia ở [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 4.1 (Thủ kho), 5.4, 5.7 (hồi sinh khi chết) và 7.1 (Xu, Lượng); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như spec 4a, [spec 4b](2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md) và các spec Giai đoạn 3. 4c chạy sau khi 4b đã triển khai.
 

@@ -671,12 +671,12 @@ NPC chủ yếu tập trung ở làng, thành và doanh trại an toàn; có bi�
 
 - Thợ rèn: cường hóa, khảm ngọc, tẩy luyện.
 - Tạp hóa/dược sư: bình HP/MP, giấy về thành (50 Xu), bùa bảo vệ (chỉ Tạp hóa); cũng mua lại đồ của người chơi (mục 7.2).
-- Thủ kho: kho chung tài khoản và mở rộng kho.
+- Thủ kho: kho chung tài khoản và mở rộng kho. Kho mặc định 30 ô, mở rộng thêm 10 ô mỗi lần (20.000 Xu) tới tối đa 120 ô; gửi và rút theo cả ô (nguyên chồng, giữ nguyên phẩm chất, cường hóa, dòng, lỗ và ngọc), có nút sắp xếp. Nhân vật phải đứng trong 3,5 ô quanh Thủ kho; mọi nhân vật cùng tài khoản thấy cùng một kho.
 - Xa phu: di chuyển giữa các bản đồ với phí, tới trại của map đích: 50 Xu tới thành, 20 × cấp quái thấp nhất của map đích (tối thiểu 50) tới map luyện cấp.
 - NPC giao nhiệm vụ/hướng dẫn: trưởng làng, chỉ huy, sứ giả môn phái…; không bắt người chơi diễn lại cốt truyện nguyên tác.
 - NPC hoạt động: bang hội, lôi đài, sự kiện, thương nhân theo giờ.
 
-Bố trí hiện có (Giai đoạn 4b): Tổng hành dinh có Tạp hóa, Thợ rèn, Xa phu; trại của mỗi map luyện cấp có Dược sư và Xa phu. NPC là dữ liệu của map, không phải thực thể trong zone. Giấy về thành đưa nhân vật về Tổng hành dinh, dùng được ở map không phải thành, kể cả khi đang giao chiến.
+Bố trí hiện có (Giai đoạn 4b, 4c): Tổng hành dinh có Tạp hóa, Thợ rèn, Xa phu, Thủ kho; trại của mỗi map luyện cấp có Dược sư, Xa phu và Thủ kho. NPC là dữ liệu của map, không phải thực thể trong zone. Giấy về thành đưa nhân vật về Tổng hành dinh, dùng được ở map không phải thành, kể cả khi đang giao chiến.
 
 Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám khi đang làm; ? vàng khi đủ điều kiện trả. Thứ tự ưu tiên biểu tượng khi có nhiều nhiệm vụ chưa chốt.
 
@@ -825,6 +825,7 @@ Khi chết, người chơi chọn một trong hai cách:
 - Nếu không chọn trong **60 giây**, nhân vật tự về làng.
 - Mất EXP do PK (nếu có) tính lúc chết, không phụ thuộc cách hồi sinh. Hồi sinh tại chỗ không hoàn lại EXP đã mất.
 - Không đủ 1 Lượng thì chỉ còn lựa chọn về làng.
+- Hồi sinh tại chỗ trừ 1 Lượng khỏi ví tài khoản và lưu nhân vật ngay; về làng và tự về làng sau 60 giây vẫn miễn phí.
 - Phó bản, lôi đài và sự kiện có thể có luật hồi sinh riêng của hoạt động. Mặc định áp dụng bảng trên nếu hoạt động không quy định khác.
 
 ### 5.8. EXP tổ đội và quyền nhặt đồ
@@ -1031,9 +1032,9 @@ Danh mục được đề xuất, chưa chốt số lượng: Xu, EXP, đá cư�
 | Loại | Nguồn và sử dụng |
 | --- | --- |
 | Xu | Kiếm qua đánh quái, nhiệm vụ, sự kiện và hoạt động trong game; dùng giao dịch và các chi phí trong game |
-| Lượng | Nhận từ nạp tiền; dùng mua vật phẩm và tiện ích trong shop |
+| Lượng | Nhận từ nạp tiền; dùng mua vật phẩm và tiện ích trong shop và hồi sinh tại chỗ |
 
-**Chỉ có hai loại tiền: Xu và Lượng. Xu không phân thành tiền khóa/không khóa**, không có thứ tự ưu tiên tiêu hao giữa hai dạng Xu. Giá và sản lượng cụ thể được cấu hình, cân chỉnh theo vận hành; không thêm loại tiền hoặc cơ chế phân tầng khác.
+**Chỉ có hai loại tiền: Xu và Lượng. Xu không phân thành tiền khóa/không khóa**, không có thứ tự ưu tiên tiêu hao giữa hai dạng Xu. Xu và Lượng là của **tài khoản**, không phải của nhân vật: kho chung cũng vậy. Bản đầu (v1) chưa có nạp tiền; người vận hành cộng Lượng bằng lệnh dev. Cửa hàng Lượng bản đầu chỉ bán Bùa bảo vệ và mở được ở bất cứ đâu, không cần đứng gần NPC. Giá và sản lượng cụ thể được cấu hình, cân chỉnh theo vận hành; không thêm loại tiền hoặc cơ chế phân tầng khác.
 
 ### 7.2. Giao dịch
 
