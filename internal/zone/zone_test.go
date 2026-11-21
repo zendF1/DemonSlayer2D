@@ -322,6 +322,65 @@ func TestSlowConsumerIsKickedAndSaved(t *testing.T) {
 	}
 }
 
+// holdSaver keeps each save pending until release, like a slow database.
+type holdSaver struct {
+	mu   sync.Mutex
+	held []chan<- error
+}
+
+func (s *holdSaver) Save(_ store.CharState, done chan<- error) {
+	if done == nil {
+		return
+	}
+	s.mu.Lock()
+	s.held = append(s.held, done)
+	s.mu.Unlock()
+}
+
+func (s *holdSaver) release() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, d := range s.held {
+		d <- nil
+	}
+	s.held = nil
+}
+
+// A zone emptied by a slow-consumer kick still holds that player's save; when
+// the zone stops (closeIdle) before the connection's Leave arrives, Leave must
+// still hand back that save instead of an already-closed nil, or the session
+// ends before the save commits.
+func TestLeaveAfterStopReturnsTheDepartedSave(t *testing.T) {
+	sv := &holdSaver{}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp}, sv, quietLog())
+	b := joinNow(t, z, 2, 6.5, 5.5)
+	b.full = true
+	z.advance(time.Now())
+	if z.Count() != 0 {
+		t.Fatalf("count = %d, want the kicked player gone", z.Count())
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go z.Run(ctx)
+	cancel()
+	<-z.Done()
+
+	ch := z.Leave(2)
+	select {
+	case err := <-ch:
+		t.Fatalf("Leave returned %v before the departed save committed", err)
+	default:
+	}
+	sv.release()
+	select {
+	case err := <-ch:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Leave never yielded the departed save")
+	}
+}
+
 func TestStateSavesEntityHPAndLevel(t *testing.T) {
 	z, sv := newTestZone(10, openGrid(64, 64))
 	joinNow(t, z, 1, 5.5, 5.5) // HP -1: full

@@ -286,14 +286,31 @@ func (z *Zone) Leave(id uint64) <-chan error {
 	select {
 	case z.inbox <- leaveCmd{id: id, reply: reply}:
 	case <-z.done:
-		return closedNil()
+		return z.leftAfterStop(id)
 	}
 	select {
 	case ch := <-reply:
 		return ch
 	case <-z.done:
-		return closedNil()
+		select {
+		case ch := <-reply:
+			return ch
+		default:
+			return z.leftAfterStop(id)
+		}
 	}
+}
+
+// leftAfterStop is the save of a player evicted before the zone stopped whose
+// Leave arrived after: the zone may be emptied by a kick and closed while that
+// save is still pending, and the session must not end before it commits.
+// It runs only after done is closed, when the zone goroutine no longer touches
+// departed, so it only reads the map (concurrent readers are safe).
+func (z *Zone) leftAfterStop(id uint64) <-chan error {
+	if d, ok := z.departed[id]; ok {
+		return d
+	}
+	return closedNil()
 }
 
 // Move sets a player's direction. It never blocks; input is dropped if the inbox is full.
