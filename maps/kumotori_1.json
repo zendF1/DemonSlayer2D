@@ -78,7 +78,7 @@
   "town": "ubuyashiki",
   "npcs": [
     {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 3.5},
-    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 7.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}]},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 7.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}, {"map": "fujikasane_2", "xu": 420}, {"map": "tay_bac_1", "xu": 520}, {"map": "asakusa_1", "xu": 620}, {"map": "asakusa_2", "xu": 720}, {"map": "tsuzumi_1", "xu": 820}, {"map": "tsuzumi_2", "xu": 920}, {"map": "natagumo_1", "xu": 1020}, {"map": "natagumo_2", "xu": 1120}, {"map": "natagumo_3", "xu": 1220}, {"map": "mugen_1", "xu": 1320}, {"map": "mugen_2", "xu": 1420}, {"map": "yoshiwara_1", "xu": 1520}, {"map": "yoshiwara_2", "xu": 1620}, {"map": "yoshiwara_3", "xu": 1720}]},
     {"id": "thu_kho", "name": "Thủ kho", "role": "storage", "x": 3.5, "y": 7.5},
     {"id": "tho_san", "name": "Thợ săn già", "role": "quest", "x": 5.5, "y": 8.5}
   ]

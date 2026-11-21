@@ -15,6 +15,12 @@ and 1.5 tiles apart. Phase 6b (spec 2.5) adds the role "quest": one quest npc
 per map, 2-4 tiles from default, no shop and no routes. Phase 6d (spec 2) adds
 a second quest npc to the town, qua_truyen_tin, who gives the daily quests.
 
+Phase 4d (spec 2.1-2.4) adds fourteen training maps of levels 21-90 in a
+chain after fujikasane_1, each a camp with duoc_su, xa_phu and thu_kho (no
+quest npc). Carriage routes are generated: every other map of {town, training
+maps}, the town first, then by lowest region level; battle, instance and
+event_only maps are left out.
+
 Rules (phase 4a spec 2.1-2.3): each map is declared with its size, wall
 rectangles (inside the border wall), safe zones, rest points, spawn points,
 portals, monster regions and min_zones. A portal is a 1 x 4 tile rectangle in
@@ -45,6 +51,9 @@ STORAGE_MAX_DEFAULT_DISTANCE = 3.0  # phase 4c spec 2.2
 QUEST_NPCS = {"kumotori_1": ["tho_san"], "ubuyashiki": ["chi_huy", "qua_truyen_tin"],
               "sagiri_1": ["truong_lang"], "sagiri_2": ["trinh_sat"], "fujikasane_1": ["giam_khao"]}
 QUEST_DEFAULT_DISTANCE = (2.0, 4.0)
+CAMP_NPCS = {"duoc_su": ("Dược sư", "shop"), "xa_phu": ("Xa phu", "carriage"), "thu_kho": ("Thủ kho", "storage")}
+CAMP_DEFAULT_DISTANCE = (2.0, 4.0)  # phase 4b spec 2.2: apothecary and carriage
+ROUTE_SKIP_TYPES = ("battle", "instance")  # and every event_only map (phase 4d spec 2.4)
 NPC_MIN_DISTANCE = 1.5  # tiles between two NPCs of a map
 MIN_FARE = 50  # Xu; a trip to a map costs 20 x its lowest region level, at least this
 FARE_PER_LEVEL = 20
@@ -107,15 +116,113 @@ def quarters(monsters, levels, counts, nests, walls=()):
     return out
 
 
-def camp_west(quest_id, quest_name):
+def camp_west(quest_id=None, quest_name=None):
     """The camp of a new training map (spec 2.3): a 10 x 10 safe zone against
     the west wall at mid height, holding the west portal and its arrival, the
-    default (respawn) spawn point in its middle and a bonfire."""
-    return [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True),
-            npc("duoc_su", "Dược sư", "shop", 8.5, 21.5, shop="apothecary"),
-            npc("xa_phu", "Xa phu", "carriage", 8.5, 27.5),
-            npc("thu_kho", "Thủ kho", "storage", 8.5, 24.5),
-            npc(quest_id, quest_name, "quest", 4.5, 27.5)]
+    default (respawn) spawn point in its middle and a bonfire. The maps of
+    phase 4d have no quest npc."""
+    parts = [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True),
+             npc("duoc_su", "Dược sư", "shop", 8.5, 21.5, shop="apothecary"),
+             npc("xa_phu", "Xa phu", "carriage", 8.5, 27.5),
+             npc("thu_kho", "Thủ kho", "storage", 8.5, 24.5)]
+    if quest_id:
+        parts.append(npc(quest_id, quest_name, "quest", 4.5, 27.5))
+    return parts
+
+
+def strip_regions(kinds, levels, count, walls=(), x0=12, x1=62, height=48):
+    """Phase 4d spec 2.4 (yoshiwara_3): the area east of the camp, columns
+    x0 .. x1 - 1, split into equal vertical strips of the full inner height,
+    one region each, levels rising west to east, the nest at the strip's
+    centre."""
+    n = len(kinds)
+    if (x1 - x0) % n:
+        raise SystemExit(f"mapgen: columns {x0}-{x1} do not split into {n} equal strips")
+    w = (x1 - x0) // n
+    out = [wall(*wl) for wl in walls]
+    for i, (kind, level) in enumerate(zip(kinds, levels)):
+        x = x0 + i * w
+        out.append(region(f"r{i + 1}", kind, level, level, count, [(x, 1, w, height - 2)],
+                          (x + w // 2 + 0.5, height // 2 + 0.5)))
+    return out
+
+
+def car_partition(y, gaps, x0=11, x1=63):
+    """Phase 4d spec 2.4 (mugen_*): a horizontal wall on row y from column x0
+    to x1 - 1 between two rows of cars, open at each gap (x, w), w >= 3."""
+    out, x = [], x0
+    for gx, gw in sorted(gaps):
+        if gw < 3 or gx < x:
+            raise SystemExit(f"mapgen: car partition row {y}: gap ({gx}, {gw}) narrower than 3 or overlapping")
+        if gx > x:
+            out.append((x, y, gx - x, 1))
+        x = gx + gw
+    if x < x1:
+        out.append((x, y, x1 - x, 1))
+    return out
+
+
+# Phase 4d spec 2.1-2.2: the five-level maps after fujikasane_1, in chain
+# order: (id, name, lowest level, (middle kind, east kind), decorative walls).
+# Every map has the default nests of NESTS_4D; the walls keep off them.
+NESTS_4D = [(18.5, 9.5), (18.5, 38.5), (46.5, 9.5), (46.5, 38.5)]
+CHAIN_4D = [
+    ("fujikasane_2", "Fujikasane – Vùng sâu", 21, ("big_demon", "many_arms"),
+     # Wisteria thickets.
+     [(14, 5, 3, 3), (24, 14, 3, 3), (14, 40, 3, 3), (24, 31, 3, 3), (36, 4, 3, 3), (54, 14, 3, 3),
+      (40, 16, 3, 2), (36, 41, 3, 3), (54, 32, 3, 3), (40, 30, 3, 2)]),
+    ("tay_bac_1", "Thị trấn Tây Bắc – Ngoại ô, đầm lầy", 26, ("marsh_demon", "mud_ambusher"),
+     # Marsh pools.
+     [(22, 4, 6, 4), (14, 14, 4, 3), (38, 6, 5, 4), (52, 15, 6, 3),
+      (14, 33, 6, 3), (24, 40, 5, 4), (38, 36, 6, 4), (52, 41, 5, 3)]),
+    ("asakusa_1", "Asakusa – Ngõ tối, khu ngoại vi", 31, ("new_demon", "city_wanderer"),
+     # Rows of houses along dark alleys.
+     [(14, 4, 8, 3), (26, 4, 4, 3), (14, 15, 8, 2), (36, 4, 8, 3), (50, 4, 8, 3), (36, 15, 8, 2), (50, 15, 6, 2),
+      (14, 32, 8, 2), (14, 41, 8, 3), (36, 32, 8, 2), (36, 41, 8, 3), (50, 32, 6, 2), (50, 41, 8, 3)]),
+    ("asakusa_2", "Asakusa – Khu chiến đấu", 36, ("henchman", "henchman"),
+     # Barricades and broken walls.
+     [(15, 6, 2, 6), (26, 12, 6, 2), (38, 5, 2, 7), (52, 10, 6, 2),
+      (15, 34, 2, 6), (26, 34, 6, 2), (38, 36, 2, 7), (52, 36, 6, 2)]),
+    ("tsuzumi_1", "Dinh thự Trống – Rừng ngoài dinh", 41, ("manor_woods", "long_nail"),
+     # Trees round the manor.
+     [(x, y, 2, 2) for x, y in [(14, 4), (22, 7), (28, 3), (13, 14), (25, 16), (36, 6), (43, 3), (51, 8),
+                                (57, 4), (40, 15), (53, 15), (14, 33), (24, 31), (13, 42), (27, 41),
+                                (37, 33), (44, 42), (52, 34), (58, 41), (39, 40)]]),
+    ("tsuzumi_2", "Dinh thự Trống – Hành lang, phòng trống", 46, ("manor_dweller", "manor_dweller"),
+     # Corridor walls and the corners of empty rooms.
+     [(13, 5, 12, 1), (24, 5, 1, 8), (36, 5, 12, 1), (36, 5, 1, 8), (50, 12, 1, 9),
+      (13, 42, 12, 1), (24, 35, 1, 8), (36, 42, 12, 1), (36, 35, 1, 8), (50, 27, 1, 9)]),
+    ("natagumo_1", "Natagumo – Bìa rừng", 51, ("small_spider", "thread_puppet"),
+     # Trees at the forest edge.
+     [(14, 3, 3, 2), (26, 8, 2, 4), (13, 15, 4, 2), (36, 4, 3, 3), (48, 3, 2, 4), (55, 10, 3, 3), (42, 16, 4, 2),
+      (14, 44, 3, 2), (26, 35, 2, 4), (13, 30, 4, 2), (36, 41, 3, 3), (48, 41, 2, 4), (55, 34, 3, 3),
+      (42, 30, 4, 2)]),
+    ("natagumo_2", "Natagumo – Rừng tơ nhện", 56, ("spider_demon", "silk_cocoon"),
+     # Spider-silk strands between the trees.
+     [(14, 4, 1, 5), (15, 8, 5, 1), (28, 12, 1, 6), (38, 4, 5, 1), (42, 5, 1, 5), (54, 12, 1, 6),
+      (14, 39, 1, 5), (15, 39, 5, 1), (28, 30, 1, 6), (38, 43, 5, 1), (42, 38, 1, 5), (54, 30, 1, 6)]),
+    ("natagumo_3", "Natagumo – Vùng lõi", 61, ("silk_fiend", "veteran_puppet"),
+     # Old trunks and silk cocoons.
+     [(20, 4, 4, 4), (13, 13, 3, 3), (27, 16, 3, 3), (40, 4, 4, 4), (52, 8, 4, 4), (44, 16, 3, 3),
+      (20, 40, 4, 4), (13, 32, 3, 3), (27, 29, 3, 3), (40, 40, 4, 4), (52, 36, 4, 4), (44, 29, 3, 3)]),
+    ("mugen_1", "Chuyến Tàu Vô Tận – Các toa đầu", 66, ("train_tentacle", "train_flesh"),
+     # Car walls: two partitions split the map into three rows of cars.
+     car_partition(12, [(20, 4), (40, 4), (54, 4)]) + car_partition(36, [(16, 4), (34, 4), (52, 4)])),
+    ("mugen_2", "Chuyến Tàu Vô Tận – Các toa cuối", 71, ("train_flesh", "train_nightmare"),
+     car_partition(14, [(16, 3), (30, 5), (48, 3)]) + car_partition(34, [(22, 4), (38, 3), (56, 4)])),
+    ("yoshiwara_1", "Yoshiwara – Ngõ đêm", 76, ("night_lurker", "sash_fragment"),
+     # Lantern-lit houses of the pleasure district.
+     [(14, 3, 6, 4), (23, 3, 6, 4), (14, 13, 6, 4), (36, 3, 6, 4), (45, 3, 6, 4), (36, 13, 6, 4), (53, 11, 5, 4),
+      (14, 31, 6, 4), (14, 40, 6, 4), (23, 40, 6, 4), (36, 31, 6, 4), (36, 40, 6, 4), (45, 40, 6, 4),
+      (53, 32, 5, 4)]),
+    ("yoshiwara_2", "Yoshiwara – Đường ngầm", 81, ("night_lurker", "sash_fragment"),
+     # Tunnel walls.
+     [(12, 6, 18, 1), (12, 16, 14, 1), (34, 6, 20, 1), (38, 16, 16, 1),
+      (12, 32, 14, 1), (12, 42, 18, 1), (38, 32, 16, 1), (34, 42, 20, 1)]),
+]
+# Yoshiwara - Hầm Ngầm (spec 2.2): five strips of one kind and one level each.
+LAST_4D = ("yoshiwara_3", "Yoshiwara – Hầm Ngầm", ["mask_demon", "long_talon", "blood_fang", "shadow_demon",
+                                                   "scale_serpent"], [86, 87, 88, 89, 90], 6)
 
 
 # ______________________MAPS_____________________
@@ -196,6 +303,9 @@ MAPS = [
         "width": 64, "height": 48, "min_zones": 2,
         "parts": camp_west("giam_khao", "Giám khảo tuyển chọn") + [
             portal("west", "sagiri_2"),
+            # Phase 4d spec 1.3: the east portal on to fujikasane_2.
+            portal("east", "fujikasane_2"),
+            gate_safe("east"),
         ] + quarters(
             ("forest_demon", "captive_demon"), [(16, 17), (17, 18), (18, 19), (19, 20)], [8, 7, 7, 8],
             [(18.5, 8.5), (18.5, 39.5), (45.5, 8.5), (45.5, 39.5)],
@@ -205,6 +315,42 @@ MAPS = [
         ),
     },
 ]
+
+
+
+
+def chain_4d():
+    """The fourteen maps of phase 4d spec 2.1-2.4, each linked west to the
+    map before it and east to the map after it."""
+    ids = ["fujikasane_1"] + [c[0] for c in CHAIN_4D] + [LAST_4D[0]]
+    out = []
+    for i, (mid, name, a, kinds, walls) in enumerate(CHAIN_4D):
+        out.append({
+            "id": mid, "name": name, "type": "training", "width": 64, "height": 48, "min_zones": 2,
+            "parts": camp_west() + [portal("west", ids[i]), portal("east", ids[i + 2]), gate_safe("east")]
+            + quarters(kinds, [(a, a + 1), (a + 1, a + 2), (a + 2, a + 3), (a + 3, a + 4)], [8, 7, 7, 8],
+                       NESTS_4D, walls=walls),
+        })
+    mid, name, kinds, levels, count = LAST_4D
+    out.append({
+        "id": mid, "name": name, "type": "training", "width": 64, "height": 48, "min_zones": 2,
+        "parts": camp_west() + [portal("west", ids[-2])] + strip_regions(
+            kinds, levels, count,
+            # Pillars of the underground hall.
+            walls=[(x, y, 2, 2) for x in (15, 25, 35, 45, 55) for y in (8, 38)]),
+    })
+    return out
+
+
+MAPS += chain_4d()
+
+# The region levels of the phase 4d maps (spec 2.1-2.2):
+# {map: [(region, kind, min_level, max_level, count)]}.
+EXPECTED_4D = {mid: [("r1", k[0], a, a + 1, 8), ("r2", k[0], a + 1, a + 2, 7),
+                     ("r3", k[1], a + 2, a + 3, 7), ("r4", k[1], a + 3, a + 4, 8)]
+               for mid, _, a, k, _ in CHAIN_4D}
+EXPECTED_4D[LAST_4D[0]] = [(f"r{i + 1}", k, lv, lv, LAST_4D[4])
+                           for i, (k, lv) in enumerate(zip(LAST_4D[2], LAST_4D[3]))]
 
 
 # ______________________BUILD_____________________
@@ -243,6 +389,22 @@ def fare(target):
     return max(MIN_FARE, FARE_PER_LEVEL * min(levels))
 
 
+def lowest_level(spec):
+    """The lowest region min_level of a map spec, 0 without regions."""
+    return min((v["min_level"] for kind, v in spec["parts"] if kind == "region"), default=0)
+
+
+def route_targets(map_id, specs):
+    """The maps a carriage on map_id goes to (phase 4d spec 2.4): every other
+    town or training map, the town first, then by lowest region level;
+    battle, instance and event_only maps are left out."""
+    towns = [mid for mid, s in specs.items() if s["type"] == "town"]
+    training = sorted((mid for mid, s in specs.items()
+                       if s["type"] not in ROUTE_SKIP_TYPES + ("town",) and not s.get("event_only")),
+                      key=lambda mid: lowest_level(specs[mid]))
+    return [mid for mid in towns + training if mid != map_id]
+
+
 def build_map(spec, specs):
     """The JSON object of one map (spec 2.1 key order) and its collision grid."""
     width, height = spec["width"], spec["height"]
@@ -276,8 +438,7 @@ def build_map(spec, specs):
                 n["shop"] = value["shop"]
             n["x"], n["y"] = value["x"], value["y"]
             if value["role"] == "carriage":
-                n["routes"] = [{"map": mid, "xu": fare(target)}
-                               for mid, target in specs.items() if mid != spec["id"]]
+                n["routes"] = [{"map": mid, "xu": fare(specs[mid])} for mid in route_targets(spec["id"], specs)]
             npcs.append(n)
         else:
             raise AssertionError(kind)
@@ -490,8 +651,23 @@ def check_map(m):
         if d > STORAGE_MAX_DEFAULT_DISTANCE:
             err(f"npc {n['id']} is {d:.2f} tiles from default, more than {STORAGE_MAX_DEFAULT_DISTANCE}")
     quest_ids = sorted(n["id"] for n in m["npcs"] if n["role"] == "quest")
-    if quest_ids != sorted(QUEST_NPCS[m["id"]]):
-        err(f"the map needs exactly the quest npcs {QUEST_NPCS[m['id']]}, has {quest_ids}")
+    if quest_ids != sorted(QUEST_NPCS.get(m["id"], [])):
+        err(f"the map needs exactly the quest npcs {QUEST_NPCS.get(m['id'], [])}, has {quest_ids}")
+    if m["type"] == "training":
+        # Phase 4d spec 2.4: exactly the three camp NPCs besides quest npcs.
+        camp = {n["id"]: n for n in m["npcs"] if n["role"] != "quest"}
+        if sorted(camp) != sorted(CAMP_NPCS) or any(
+                (camp[i]["name"], camp[i]["role"]) != CAMP_NPCS[i] for i in camp):
+            err(f"a training map needs exactly the camp npcs {sorted(CAMP_NPCS)}, has {sorted(camp)}")
+        elif camp["duoc_su"].get("shop") != "apothecary":
+            err("npc duoc_su must sell the apothecary shop")
+        for i in ("duoc_su", "xa_phu"):
+            if i in camp:
+                d = math.hypot(camp[i]["x"] - spawns["default"]["x"], camp[i]["y"] - spawns["default"]["y"])
+                if not CAMP_DEFAULT_DISTANCE[0] <= d <= CAMP_DEFAULT_DISTANCE[1]:
+                    err(f"npc {i} is {d:.2f} tiles from default, outside {CAMP_DEFAULT_DISTANCE}")
+        if "min_level" in m:
+            err("a training map has no min_level")
     for n in m["npcs"]:
         if n["role"] == "quest":
             d = math.hypot(n["x"] - spawns["default"]["x"], n["y"] - spawns["default"]["y"])
@@ -544,6 +720,18 @@ def check_world(built):
                     errs.append(f"{p['to_map']}: arrival {p['to_spawn']} is {d:.2f} tiles from portal {q['id']}")
             if not any(q["to_map"] == mid for q in target["portals"]):
                 errs.append(f"{mid}: portal {p['id']} has no reverse portal in {p['to_map']}")
+    for mid, m in built.items():
+        for n in m["npcs"]:
+            if n["role"] == "carriage":
+                got = [r["map"] for r in n["routes"]]
+                want = route_targets(mid, SPECS)
+                if got != want:
+                    errs.append(f"{mid}: npc {n['id']}: routes {got}, want {want}")
+    for mid, want in EXPECTED_4D.items():
+        m = built.get(mid)
+        got = m and [(r["id"], r["monster"], r["min_level"], r["max_level"], r["count"]) for r in m["regions"]]
+        if got != want:
+            errs.append(f"{mid}: regions {got}, want {want} (phase 4d spec 2.1-2.2)")
     seen, queue = {START_MAP}, deque([START_MAP])
     while queue:
         for p in built[queue.popleft()]["portals"]:

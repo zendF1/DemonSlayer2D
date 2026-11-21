@@ -59,7 +59,7 @@
   "npcs": [
     {"id": "tap_hoa", "name": "Tạp hóa", "role": "shop", "shop": "general", "x": 23.5, "y": 16.5},
     {"id": "tho_ren", "name": "Thợ rèn", "role": "blacksmith", "x": 17.5, "y": 16.5},
-    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 20.5, "y": 19.5, "routes": [{"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}]},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 20.5, "y": 19.5, "routes": [{"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}, {"map": "fujikasane_2", "xu": 420}, {"map": "tay_bac_1", "xu": 520}, {"map": "asakusa_1", "xu": 620}, {"map": "asakusa_2", "xu": 720}, {"map": "tsuzumi_1", "xu": 820}, {"map": "tsuzumi_2", "xu": 920}, {"map": "natagumo_1", "xu": 1020}, {"map": "natagumo_2", "xu": 1120}, {"map": "natagumo_3", "xu": 1220}, {"map": "mugen_1", "xu": 1320}, {"map": "mugen_2", "xu": 1420}, {"map": "yoshiwara_1", "xu": 1520}, {"map": "yoshiwara_2", "xu": 1620}, {"map": "yoshiwara_3", "xu": 1720}]},
     {"id": "thu_kho", "name": "Thủ kho", "role": "storage", "x": 20.5, "y": 14.5},
     {"id": "chi_huy", "name": "Chỉ huy Sát Quỷ Đoàn", "role": "quest", "x": 18.5, "y": 19.5},
     {"id": "qua_truyen_tin", "name": "Quạ truyền tin", "role": "quest", "x": 22.5, "y": 19.5}

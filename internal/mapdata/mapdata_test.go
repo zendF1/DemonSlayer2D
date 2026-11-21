@@ -671,9 +671,129 @@ func TestRepoMapsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"fujikasane_1", "kumotori_1", "sagiri_1", "sagiri_2", "ubuyashiki"}
+	want := []string{"asakusa_1", "asakusa_2", "fujikasane_1", "fujikasane_2", "kumotori_1", "mugen_1", "mugen_2",
+		"natagumo_1", "natagumo_2", "natagumo_3", "sagiri_1", "sagiri_2", "tay_bac_1", "tsuzumi_1", "tsuzumi_2",
+		"ubuyashiki", "yoshiwara_1", "yoshiwara_2", "yoshiwara_3"}
 	if got := slices.Sorted(maps.Keys(loaded)); !slices.Equal(got, want) {
 		t.Fatalf("maps %v, want %v", got, want)
+	}
+}
+
+// trainingMaps is the ids of the loaded training maps, sorted.
+func trainingMaps(loaded map[string]*Map) []string {
+	var out []string
+	for id, m := range loaded {
+		if m.Type == "training" {
+			out = append(out, id)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// lowestLevel is the lowest region min_level of a map, 0 without regions.
+func lowestLevel(m *Map) int {
+	lo := 0
+	if m == nil {
+		return lo
+	}
+	for _, r := range m.Regions {
+		if lo == 0 || r.MinLevel < lo {
+			lo = r.MinLevel
+		}
+	}
+	return lo
+}
+
+// Phase 4d spec 2.1-2.3: the fourteen training maps of levels 21-90.
+func TestRepoMapsExpansion(t *testing.T) {
+	loaded, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type quarter struct {
+		id       string
+		base     int
+		mid, est string
+	}
+	quarters := []quarter{
+		{"fujikasane_2", 21, "big_demon", "many_arms"}, {"tay_bac_1", 26, "marsh_demon", "mud_ambusher"},
+		{"asakusa_1", 31, "new_demon", "city_wanderer"}, {"asakusa_2", 36, "henchman", "henchman"},
+		{"tsuzumi_1", 41, "manor_woods", "long_nail"}, {"tsuzumi_2", 46, "manor_dweller", "manor_dweller"},
+		{"natagumo_1", 51, "small_spider", "thread_puppet"}, {"natagumo_2", 56, "spider_demon", "silk_cocoon"},
+		{"natagumo_3", 61, "silk_fiend", "veteran_puppet"}, {"mugen_1", 66, "train_tentacle", "train_flesh"},
+		{"mugen_2", 71, "train_flesh", "train_nightmare"}, {"yoshiwara_1", 76, "night_lurker", "sash_fragment"},
+		{"yoshiwara_2", 81, "night_lurker", "sash_fragment"},
+	}
+	type reg struct {
+		id, monster string
+		lo, hi, n   int
+	}
+	check := func(id string, want []reg) {
+		m := loaded[id]
+		if m == nil {
+			t.Errorf("%s not loaded", id)
+			return
+		}
+		if m.Type != "training" || m.Width != 64 || m.Height != 48 || m.MinZones != 2 || m.Town != "ubuyashiki" {
+			t.Errorf("%s: %s %dx%d min_zones %d town %s", id, m.Type, m.Width, m.Height, m.MinZones, m.Town)
+		}
+		var got []reg
+		for _, r := range m.Regions {
+			got = append(got, reg{r.ID, r.Monster, r.MinLevel, r.MaxLevel, r.Count})
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%s regions %v, want %v", id, got, want)
+		}
+	}
+	for _, q := range quarters {
+		a := q.base
+		check(q.id, []reg{{"r1", q.mid, a, a + 1, 8}, {"r2", q.mid, a + 1, a + 2, 7},
+			{"r3", q.est, a + 2, a + 3, 7}, {"r4", q.est, a + 3, a + 4, 8}})
+	}
+	check("yoshiwara_3", []reg{{"r1", "mask_demon", 86, 86, 6}, {"r2", "long_talon", 87, 87, 6},
+		{"r3", "blood_fang", 88, 88, 6}, {"r4", "shadow_demon", 89, 89, 6}, {"r5", "scale_serpent", 90, 90, 6}})
+	// Yoshiwara - Hầm Ngầm: five strips west to east, no east portal.
+	y3 := loaded["yoshiwara_3"]
+	if y3 != nil {
+		for i := 1; i < len(y3.Regions); i++ {
+			if y3.Regions[i].Nest.X <= y3.Regions[i-1].Nest.X {
+				t.Errorf("yoshiwara_3 nests not west to east: %+v", y3.Regions)
+			}
+		}
+		if len(y3.Portals) != 1 || y3.Portals[0].ToMap != "yoshiwara_2" {
+			t.Errorf("yoshiwara_3 portals %+v, want only to_yoshiwara_2", y3.Portals)
+		}
+		for _, z := range y3.SafeZones {
+			if z.ID == "gate_east" {
+				t.Error("yoshiwara_3 has gate_east")
+			}
+		}
+	}
+	// fujikasane_1 gains the east portal, its arrival and gate_east.
+	f1 := loaded["fujikasane_1"]
+	if p := f1.Portals; len(p) != 2 || p[1].ID != "to_fujikasane_2" || p[1].ToMap != "fujikasane_2" || p[1].ToSpawn != "from_fujikasane_1" {
+		t.Errorf("fujikasane_1 portals %+v", p)
+	}
+	if _, ok := f1.Spawns["from_fujikasane_2"]; !ok {
+		t.Error("fujikasane_1 has no from_fujikasane_2")
+	}
+	if z := f1.SafeZones; len(z) != 2 || z[1].ID != "gate_east" {
+		t.Errorf("fujikasane_1 safe zones %+v", z)
+	}
+	// No training map has a min_level (phase 4d spec 1.3).
+	for _, id := range trainingMaps(loaded) {
+		b, err := os.ReadFile(filepath.Join("../../maps", id+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(b, &raw); err != nil {
+			t.Fatal(err)
+		}
+		if v, ok := raw["min_level"]; ok && string(v) != "1" && string(v) != "0" {
+			t.Errorf("%s: min_level %s", id, v)
+		}
 	}
 }
 
@@ -702,6 +822,22 @@ func TestRepoMapsPortalGraph(t *testing.T) {
 	}
 	if len(seen) != len(loaded) {
 		t.Errorf("reached %v from kumotori_1, want all %d maps", seen, len(loaded))
+	}
+	// Phase 4d spec 2.3: the shortest portal path to yoshiwara_3 has 18 hops.
+	dist := map[string]int{"kumotori_1": 0}
+	queue = []string{"kumotori_1"}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		for _, p := range loaded[id].Portals {
+			if _, ok := dist[p.ToMap]; !ok {
+				dist[p.ToMap] = dist[id] + 1
+				queue = append(queue, p.ToMap)
+			}
+		}
+	}
+	if d, ok := dist["yoshiwara_3"]; !ok || d != 18 {
+		t.Errorf("kumotori_1 -> yoshiwara_3: %d hops (reached %v), want 18", d, ok)
 	}
 	for id, m := range loaded {
 		want := 2
@@ -843,7 +979,10 @@ func TestLinkTown(t *testing.T) {
 	}
 }
 
-// Phase 4b spec 2.2: the NPCs of the five maps.
+// Phase 4b spec 2.2 and 4d spec 2.4: the NPCs of the real maps. Every Xa phu
+// has a route to every other map of {town, training maps}, the town first,
+// then by lowest region level, at 50 to the town and max(50, 20 x lowest
+// level) otherwise.
 func TestRepoMapsNPCs(t *testing.T) {
 	loaded, err := LoadDir("../../maps")
 	if err != nil {
@@ -854,18 +993,34 @@ func TestRepoMapsNPCs(t *testing.T) {
 			t.Errorf("%s: town %q, want ubuyashiki", id, m.Town)
 		}
 	}
-	routes := func(m *Map) map[string]int64 {
-		cart, ok := m.NPC("xa_phu")
-		if !ok || cart.Role != RoleCarriage || cart.Name != "Xa phu" || len(cart.Routes) != 4 {
-			t.Fatalf("%s: xa_phu = %+v, %v", m.ID, cart, ok)
+	order := append([]string{"ubuyashiki"}, trainingMaps(loaded)...)
+	slices.SortStableFunc(order[1:], func(a, b string) int { return lowestLevel(loaded[a]) - lowestLevel(loaded[b]) })
+	price := func(id string) int64 {
+		if id == "ubuyashiki" {
+			return 50
 		}
-		out := map[string]int64{}
-		for _, r := range cart.Routes {
-			out[r.Map] = r.Xu
-		}
-		return out
+		return int64(max(50, 20*lowestLevel(loaded[id])))
 	}
-	price := map[string]int64{"ubuyashiki": 50, "kumotori_1": 50, "sagiri_1": 120, "sagiri_2": 220, "fujikasane_1": 320}
+	if p := price("yoshiwara_3"); p != 1720 {
+		t.Errorf("fare to yoshiwara_3 %d, want 1720", p)
+	}
+	checkRoutes := func(m *Map) {
+		cart, ok := m.NPC("xa_phu")
+		if !ok || cart.Role != RoleCarriage || cart.Name != "Xa phu" {
+			t.Errorf("%s: xa_phu = %+v, %v", m.ID, cart, ok)
+			return
+		}
+		var want, got []Route
+		for _, to := range order {
+			if to != m.ID {
+				want = append(want, Route{Map: to, Xu: price(to)})
+			}
+		}
+		got = cart.Routes
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: routes %v, want %v", m.ID, got, want)
+		}
+	}
 	town := loaded["ubuyashiki"]
 	if len(town.NPCs) != 6 { // 6d adds qua_truyen_tin
 		t.Fatalf("ubuyashiki npcs %+v, want 6", town.NPCs)
@@ -876,28 +1031,30 @@ func TestRepoMapsNPCs(t *testing.T) {
 	if n, ok := town.NPC("tho_ren"); !ok || n.Role != RoleBlacksmith || n.Name != "Thợ rèn" {
 		t.Errorf("tho_ren = %+v, %v", n, ok)
 	}
-	for to, xu := range routes(town) {
-		if to == "ubuyashiki" || xu != price[to] {
-			t.Errorf("ubuyashiki route %s %d, want %d", to, xu, price[to])
-		}
-	}
-	for _, id := range []string{"kumotori_1", "sagiri_1", "sagiri_2", "fujikasane_1"} {
+	checkRoutes(town)
+	for _, id := range trainingMaps(loaded) {
 		m := loaded[id]
-		if len(m.NPCs) != 4 {
-			t.Errorf("%s npcs %+v, want 4", id, m.NPCs)
+		var camp []string
+		for _, n := range m.NPCs {
+			if n.Role != RoleQuest {
+				camp = append(camp, n.ID)
+			}
+		}
+		slices.Sort(camp)
+		if !slices.Equal(camp, []string{"duoc_su", "thu_kho", "xa_phu"}) {
+			t.Errorf("%s: camp npcs %v, want duoc_su thu_kho xa_phu", id, camp)
 		}
 		if n, ok := m.NPC("duoc_su"); !ok || n.Role != RoleShop || n.Shop != "apothecary" || n.Name != "Dược sư" {
 			t.Errorf("%s: duoc_su = %+v, %v", id, n, ok)
 		}
-		got := routes(m)
-		if _, self := got[id]; self {
-			t.Errorf("%s: route to itself", id)
-		}
-		for to, xu := range got {
-			if xu != price[to] {
-				t.Errorf("%s route %s %d, want %d", id, to, xu, price[to])
+		def := m.Spawns["default"]
+		for _, nid := range []string{"duoc_su", "xa_phu"} {
+			n, _ := m.NPC(nid)
+			if d := math.Hypot(float64(n.Pos.X-def.X), float64(n.Pos.Y-def.Y)); d < 2 || d > 4 {
+				t.Errorf("%s: %s %.2f tiles from default", id, nid, d)
 			}
 		}
+		checkRoutes(m)
 	}
 	k := loaded["kumotori_1"]
 	if n, _ := k.NPC("duoc_su"); n.Pos != (Point{8.5, 3.5}) {
@@ -942,9 +1099,6 @@ func TestRepoMapsStorage(t *testing.T) {
 	loaded, err := LoadDir("../../maps")
 	if err != nil {
 		t.Fatal(err)
-	}
-	if len(loaded) != 5 {
-		t.Fatalf("%d maps", len(loaded))
 	}
 	for id, m := range loaded {
 		n, ok := m.NPC("thu_kho")

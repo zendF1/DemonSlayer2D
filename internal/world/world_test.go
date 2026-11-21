@@ -690,6 +690,53 @@ func kumotoriArea(t *testing.T) zone.Area {
 	return areaOf(maps["kumotori_1"], d)
 }
 
+// Phase 4d spec 7: Start with the real maps and data opens 2 zones for every
+// training map and 1 for the town.
+func TestStartRealMaps(t *testing.T) {
+	maps, err := mapdata.LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := gamedata.Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Validate(maps); err != nil {
+		t.Fatal(err)
+	}
+	w, err := New(Config{
+		StartMap: "kumotori_1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, maps, d, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.Start(ctx)
+	t.Cleanup(func() { cancel(); w.Wait() })
+	var want []string
+	training := 0
+	for id, m := range maps {
+		n := 1
+		if m.Type == "training" {
+			n = 2
+			training++
+		} else if m.Type != "town" {
+			t.Fatalf("%s: type %s", id, m.Type)
+		}
+		for i := 1; i <= n; i++ {
+			want = append(want, fmt.Sprintf("%s:%d", id, i))
+		}
+	}
+	slices.Sort(want)
+	if training != 18 {
+		t.Fatalf("%d training maps, want 18", training)
+	}
+	if got := zoneNos(w); !slices.Equal(got, want) {
+		t.Fatalf("zones %v, want %v", got, want)
+	}
+}
+
 func TestAreaOfKumotori(t *testing.T) {
 	a := kumotoriArea(t)
 	wants := []struct {

@@ -56,17 +56,20 @@
     "################################################################"
   ],
   "safe_zones": [
-    {"id": "camp", "x": 1, "y": 19, "w": 10, "h": 10}
+    {"id": "camp", "x": 1, "y": 19, "w": 10, "h": 10},
+    {"id": "gate_east", "x": 57, "y": 20, "w": 6, "h": 8}
   ],
   "rest_points": [
     {"id": "bonfire", "x": 4.5, "y": 21.5, "radius": 1.5}
   ],
   "spawn_points": [
     {"id": "default", "x": 6.5, "y": 24.5, "respawn": true},
-    {"id": "from_sagiri_2", "x": 4.5, "y": 24.0}
+    {"id": "from_sagiri_2", "x": 4.5, "y": 24.0},
+    {"id": "from_fujikasane_2", "x": 59.5, "y": 24.0}
   ],
   "portals": [
-    {"id": "to_sagiri_2", "x": 1, "y": 22, "w": 1, "h": 4, "to_map": "sagiri_2", "to_spawn": "from_fujikasane_1"}
+    {"id": "to_sagiri_2", "x": 1, "y": 22, "w": 1, "h": 4, "to_map": "sagiri_2", "to_spawn": "from_fujikasane_1"},
+    {"id": "to_fujikasane_2", "x": 62, "y": 22, "w": 1, "h": 4, "to_map": "fujikasane_2", "to_spawn": "from_fujikasane_1"}
   ],
   "regions": [
     {"id": "r1", "monster": "forest_demon", "min_level": 16, "max_level": 17, "count": 8, "rects": [{"x": 1, "y": 1, "w": 31, "h": 23}], "nest": {"x": 18.5, "y": 8.5}},
@@ -77,7 +80,7 @@
   "town": "ubuyashiki",
   "npcs": [
     {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 21.5},
-    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 27.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}]},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 27.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_2", "xu": 420}, {"map": "tay_bac_1", "xu": 520}, {"map": "asakusa_1", "xu": 620}, {"map": "asakusa_2", "xu": 720}, {"map": "tsuzumi_1", "xu": 820}, {"map": "tsuzumi_2", "xu": 920}, {"map": "natagumo_1", "xu": 1020}, {"map": "natagumo_2", "xu": 1120}, {"map": "natagumo_3", "xu": 1220}, {"map": "mugen_1", "xu": 1320}, {"map": "mugen_2", "xu": 1420}, {"map": "yoshiwara_1", "xu": 1520}, {"map": "yoshiwara_2", "xu": 1620}, {"map": "yoshiwara_3", "xu": 1720}]},
     {"id": "thu_kho", "name": "Thủ kho", "role": "storage", "x": 8.5, "y": 24.5},
     {"id": "giam_khao", "name": "Giám khảo tuyển chọn", "role": "quest", "x": 4.5, "y": 27.5}
   ]
