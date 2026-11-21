@@ -2400,3 +2400,113 @@ func TestDailyQuestsOverWebSocket(t *testing.T) {
 		t.Fatalf("accept d_enhance again today: %v, want QUEST_NOT_AVAILABLE", err)
 	}
 }
+
+// ______________________TEST WORLD EXPANSION_____________________
+
+// Phase 4d spec 7: a level 25 character inside gate_east of Fujikasane's first
+// map walks through the east portal into the deep forest (level 21-25
+// monsters), leaves, is given 5,000 Xu and placed by the carriage driver
+// there, and rides to the Yoshiwara tunnels (level 86-90 monsters) for the
+// route's fare. Every position, rect and route comes from the map files.
+func TestWorldExpansionOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f1, f2, yo := loaded["fujikasane_1"], loaded["fujikasane_2"], loaded["yoshiwara_3"]
+	portal, ok := f1.Portal("to_fujikasane_2")
+	if !ok {
+		t.Fatal("fujikasane_1 has no to_fujikasane_2 portal")
+	}
+	var gate mapdata.Rect
+	for _, z := range f1.SafeZones {
+		if z.ID == "gate_east" {
+			gate = z
+		}
+	}
+	if gate.ID == "" {
+		t.Fatal("fujikasane_1 has no gate_east")
+	}
+	start := mapdata.Point{X: float32(portal.Rect.X) - 0.5, Y: float32(portal.Rect.Y) + float32(portal.Rect.H)/2}
+	if !gate.ContainsTile(int(start.X), int(start.Y)) || mapdata.RectDistance(start, portal.Rect) != 0.5 {
+		t.Fatalf("start %v: want inside gate_east %v and 0.5 tiles from the portal %v", start, gate, portal.Rect)
+	}
+	arrival := f2.Spawns[portal.ToSpawn]
+	carriage, ok := f2.NPC("xa_phu")
+	if !ok {
+		t.Fatal("fujikasane_2 has no xa_phu")
+	}
+	route := -1
+	for i, r := range carriage.Routes {
+		if r.Map == "yoshiwara_3" {
+			route = i
+		}
+	}
+	if route < 0 {
+		t.Fatalf("the carriage of fujikasane_2 has no route to yoshiwara_3: %v", carriage.Routes)
+	}
+	const wantFare = 1720 // spec 7; computed by mapgen.py
+	fare := carriage.Routes[route].Xu
+	if fare != wantFare {
+		t.Fatalf("fare to yoshiwara_3 is %d, want %d", fare, wantFare)
+	}
+	const purse = 5000
+	yoDefault := yo.Spawns["default"]
+
+	p := newPlayer(t, s, "tengen01", "Tengen", pb.CharClass_CHAR_CLASS_VIEM)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetLevel(ctx, "tengen01", 25); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "tengen01", "fujikasane_1", start.X, start.Y); err != nil {
+		t.Fatal(err)
+	}
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ew.MapId != "fujikasane_1" || ew.X != start.X || ew.Y != start.Y {
+		t.Fatalf("entered %v, want fujikasane_1 at (%v, %v)", ew, start.X, start.Y)
+	}
+	monsterIn := func(lo, hi int32) func(*pb.Envelope) bool {
+		return func(e *pb.Envelope) bool {
+			m := e.GetEntityEnter()
+			return m != nil && m.Kind == pb.EntityKind_ENTITY_KIND_MONSTER && m.Level >= lo && m.Level <= hi
+		}
+	}
+
+	deep, err := p.c.UsePortal(ctx, portal.ID)
+	if err != nil {
+		t.Fatalf("portal to the deep forest: %v", err)
+	}
+	if deep.MapId != "fujikasane_2" || deep.X != arrival.X || deep.Y != arrival.Y || deep.SelfEntityId != ew.SelfEntityId {
+		t.Fatalf("arrived %v, want fujikasane_2 at (%v, %v)", deep, arrival.X, arrival.Y)
+	}
+	waitFor(t, p.c, 3*time.Second, monsterIn(21, 25))
+
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevGiveItem(ctx, "tengen01", nil, purse); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "tengen01", "fujikasane_2", carriage.Pos.X-1, carriage.Pos.Y); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.c.EnterWorld(ctx, p.charID); err != nil {
+		t.Fatal(err)
+	}
+	tun, err := p.c.Travel(ctx, "xa_phu", route)
+	if err != nil {
+		t.Fatalf("carriage to yoshiwara_3: %v", err)
+	}
+	if tun.MapId != "yoshiwara_3" || tun.X != yoDefault.X || tun.Y != yoDefault.Y || tun.Stats.GetXu() != purse-fare ||
+		tun.Stats.GetXu() != 3280 {
+		t.Fatalf("arrived %v, want yoshiwara_3 at (%v, %v) with 3,280 Xu", tun, yoDefault.X, yoDefault.Y)
+	}
+	waitFor(t, p.c, 3*time.Second, monsterIn(86, 90))
+}
