@@ -25,7 +25,8 @@ func (z *Zone) Enhance(id uint64, seq uint32, ref items.Ref, protect bool, times
 
 // enhance runs an enhancement request (phase 3b spec 4.1): DEAD first, then
 // NPC_TOO_FAR, then the item package's checks in the spec's order; a
-// rejected request costs nothing. Otherwise the stats are recomputed with the
+// rejected request costs nothing. Otherwise the attempts run count towards
+// the enhance quests (phase 6d spec 4.3), the stats are recomputed with the
 // HP rule of gearChanged if the item is worn, the character is saved at once
 // and the reply lists the item's slot and the bag slots materials came from.
 func (z *Zone) enhance(c enhanceCmd) {
@@ -38,6 +39,7 @@ func (z *Zone) enhance(c enhanceCmd) {
 		z.replyError(p, c.seq, itemErrorCode(err))
 		return
 	}
+	z.creditEnhance(p, res.Attempts)
 	// res.Changed holds only bag slots: a worn item's own slot is added here.
 	var worn []int
 	if c.ref.Equipped {

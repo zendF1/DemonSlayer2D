@@ -59,6 +59,9 @@ type Config struct {
 	// whose level changed (phase 5b spec 4.1). It runs on the zone goroutine
 	// and must not block or wait on any zone.
 	Leveled func(entityID uint64, level int)
+	// Now is the clock of the quest day (phase 6d spec 4.1), and nothing
+	// else: ticks keep counting the tick timer. nil means time.Now.
+	Now func() time.Time
 }
 
 type PlayerInfo struct {
@@ -118,10 +121,12 @@ const slowTick = 50 * time.Millisecond
 type player struct {
 	entity
 	// quests is the quest log, never nil; questChanged lists the ids that
-	// kill credit changed this tick, sent as QuestProgress by syncView.
+	// kill credit changed this tick, sent as QuestProgress by syncView;
+	// questReset makes syncView push the whole log first (a new quest day).
 	// bookWaiver is the skill book waiver (phase 6b spec 4.1).
 	quests       quest.Log
 	questChanged []string
+	questReset   bool
 	bookWaiver   int
 	charID       int64
 	out          Outbox
@@ -263,12 +268,18 @@ type Zone struct {
 	// impactSeq is the seq of the last one scheduled.
 	impacts   []impact
 	impactSeq uint32
+	// day is the quest day (quest.Day of Config.Now), set by New and
+	// checked once a second by newDay.
+	day int32
 }
 
 // New creates a zone on area and fills its monster regions.
 func New(cfg Config, area Area, saver Saver, log *slog.Logger) *Zone {
 	if cfg.NewID == nil && len(area.Regions) > 0 {
 		panic("zone: Config.NewID is required when the area has regions")
+	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
 	}
 	rng := cfg.Rand
 	if rng == nil {
@@ -287,6 +298,7 @@ func New(cfg Config, area Area, saver Saver, log *slog.Logger) *Zone {
 		ground:   make(map[uint64]*groundItem),
 		cells:    make(map[cellKey]map[uint64]*entity),
 		departed: make(map[uint64]chan error),
+		day:      quest.Day(cfg.Now()),
 	}
 	z.mgrid = z.area.monsterGrid()
 	z.spawnAll()
@@ -487,10 +499,13 @@ func (z *Zone) safeAdvance(now time.Time) {
 // advance runs one tick in the order of spec 6.2 and attack phases spec 3.2:
 // apply commands, land the impacts now due, resolve attacks, move players,
 // run monsters, run timers (ground items after spawns, phase 3a spec 4.9),
-// then send each player its view.
+// then send each player its view. Once a second the quest day is checked
+// first (phase 6d spec 4.2), so this tick's commands and credit see the
+// new day.
 func (z *Zone) advance(now time.Time) {
 	z.tickNo++
 	z.events = tickEvents{}
+	z.newDay()
 	z.drain()
 	z.runImpacts()
 	z.resolveAttacks()
@@ -657,6 +672,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	if p.quests == nil {
 		p.quests = quest.Log{}
 	}
+	z.pruneQuests(p) // a login or a handoff from a zone still on yesterday
 	if p.skills == nil {
 		p.skills = map[string]int{}
 	}
@@ -696,7 +712,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		Skills:          skillLevels(p),
 		Inventory:       z.inventory(p),
 		Cooldowns:       z.cooldownList(p),
-		Quests:          &pb.QuestLog{Quests: questEntries(p, slices.Sorted(maps.Keys(p.quests)))},
+		Quests:          z.questLog(p),
 		SkillBookWaiver: int32(p.bookWaiver),
 	}}})
 	return nil
@@ -898,9 +914,10 @@ func inventoryUpdate(inv *items.Inventory, bag, equip []int) *pb.InventoryUpdate
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick, with
-// this tick's events about the entities p sees, then its DeathNotice and the
-// QuestProgress of the quests credited this tick, if any, then SelfStats if
-// p's stats changed. It returns false if p's outbox is full.
+// this tick's events about the entities p sees, then its DeathNotice, the
+// whole QuestLog if the quest day changed this tick and the QuestProgress of
+// the quests credited this tick, if any, then SelfStats if p's stats
+// changed. It returns false if p's outbox is full.
 func (z *Zone) syncView(p *player) bool {
 	ok := true
 	send := func(env *pb.Envelope) {
@@ -939,6 +956,10 @@ func (z *Zone) syncView(p *player) bool {
 	if p.deathNotice != nil {
 		send(&pb.Envelope{Payload: &pb.Envelope_DeathNotice{DeathNotice: p.deathNotice}})
 		p.deathNotice = nil
+	}
+	if p.questReset {
+		p.questReset = false
+		send(&pb.Envelope{Payload: &pb.Envelope_QuestLog{QuestLog: z.questLog(p)}})
 	}
 	if len(p.questChanged) > 0 {
 		slices.Sort(p.questChanged)

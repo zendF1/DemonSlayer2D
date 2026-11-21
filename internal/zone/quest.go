@@ -3,7 +3,6 @@ package zone
 import (
 	"maps"
 	"slices"
-	"time"
 
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/gamedata"
@@ -74,7 +73,8 @@ func (z *Zone) questPlayer(id uint64, seq uint32, npc string) *player {
 
 // questAccept takes a quest (phase 6b spec 4.2). Checks run in the spec's
 // order and the first failure is answered and changes nothing. A talk quest
-// starts complete at progress 1. The new entry is saved at once. A waiting
+// starts complete at progress 1; a daily entry is of the zone day (phase 6d
+// spec 4.3). The new entry is saved at once. A waiting
 // refine result is kept: the bag does not change.
 func (z *Zone) questAccept(c questAcceptCmd) {
 	p := z.questPlayer(c.id, c.seq, c.npc)
@@ -82,7 +82,7 @@ func (z *Zone) questAccept(c questAcceptCmd) {
 		return
 	}
 	q := z.questByID(c.quest)
-	today := quest.Day(time.Now()) // the zone clock comes with the 6d zone task
+	today := z.day
 	var code pb.ErrorCode
 	switch {
 	case q == nil || !z.here(q.Giver, c.npc):
@@ -117,6 +117,8 @@ func (z *Zone) questAccept(c questAcceptCmd) {
 // hold them all is BAG_FULL with nothing paid. Then the entry is done, the
 // items go into the bag, the Xu into the wallet and the EXP through
 // gainExp (a level-up as from a kill), and the player is saved at once. A
+// daily quest pays by the level at the turn-in (quest.DailyReward, phase 6d
+// spec 4.3), and the reply tells the amounts paid. A
 // waiting refine result is kept: items are only added, as by a purchase.
 func (z *Zone) questTurnIn(c questTurnInCmd) {
 	p := z.questPlayer(c.id, c.seq, c.npc)
@@ -145,15 +147,19 @@ func (z *Zone) questTurnIn(c questTurnInCmd) {
 		z.replyError(p, c.seq, itemErrorCode(err))
 		return
 	}
+	exp, xu := q.Reward.Exp, q.Reward.Xu
+	if q.Line == gamedata.LineDaily {
+		exp, xu = quest.DailyReward(q, p.level, z.area.Exp.ToNext(p.level))
+	}
 	e.State = quest.Done
 	p.quests[q.ID] = e
 	changed, _ := addAll(z.area.Items, p.inv, rewards) // fits: tried on the copy
-	p.xu += q.Reward.Xu
-	z.gainExp(p, q.Reward.Exp)
+	p.xu += xu
+	z.gainExp(p, exp)
 	p.statsDirty = true
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_QuestTurnInResp{QuestTurnInResp: &pb.QuestTurnInResp{
-		QuestId: q.ID, Exp: q.Reward.Exp, Xu: q.Reward.Xu,
+		QuestId: q.ID, Exp: exp, Xu: xu,
 		Update: inventoryUpdate(p.inv, changed, nil), Stats: z.selfStats(p)}}})
 }
 
@@ -199,6 +205,50 @@ func (z *Zone) creditQuests(m *monster, killer *player) {
 	}
 	roll := func(bp int) bool { return z.rng.IntN(10000) < bp }
 	killer.questChanged = append(killer.questChanged, quest.Credit(z.area.Quests, killer.quests, m.region.Kind.ID, killer.level, m.level, roll)...)
+}
+
+// creditEnhance counts the attempts of a successful EnhanceReq towards
+// p's active enhance quests (phase 6d spec 4.3). The changed quests go out
+// in this tick's syncView.
+func (z *Zone) creditEnhance(p *player, attempts int) {
+	if z.area.Quests == nil || len(p.quests) == 0 {
+		return
+	}
+	p.questChanged = append(p.questChanged, quest.CreditEnhance(z.area.Quests, p.quests, attempts)...)
+}
+
+// newDay checks the quest day once a second (phase 6d spec 4.2). When it
+// changes, every player loses the daily entries of other days and gets the
+// whole log in this tick's syncView, even with no daily entry, so the client
+// restarts its countdown. Nothing is saved at once: the next save carries
+// the pruned log.
+func (z *Zone) newDay() {
+	if z.tickNo%z.ticks(1) != 0 {
+		return
+	}
+	day := quest.Day(z.cfg.Now())
+	if day == z.day {
+		return
+	}
+	z.day = day
+	for _, p := range z.players {
+		z.pruneQuests(p)
+		p.questReset = true
+	}
+}
+
+// pruneQuests drops p's daily entries of other days than the zone day.
+func (z *Zone) pruneQuests(p *player) {
+	if z.area.Quests != nil {
+		quest.Prune(z.area.Quests, p.quests, z.day)
+	}
+}
+
+// questLog is p's whole log on the wire, by quest id, with the time to the
+// next reset by the zone clock.
+func (z *Zone) questLog(p *player) *pb.QuestLog {
+	return &pb.QuestLog{Quests: questEntries(p, slices.Sorted(maps.Keys(p.quests))),
+		DailyResetMs: quest.ResetIn(z.cfg.Now()).Milliseconds()}
 }
 
 // questEntry is the entry of quest id on the wire.

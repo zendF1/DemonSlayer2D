@@ -2398,3 +2398,28 @@ func TestEnterCleansQuests(t *testing.T) {
 		t.Fatalf("log %q, want a warning for quest gone", s)
 	}
 }
+
+// ____TEST DAILY CLOCK____
+
+// Every zone the world opens takes the quest day from Config.Now.
+func TestZonesUseWorldClock(t *testing.T) {
+	fake := time.Date(2030, 3, 14, 17, 0, 0, 0, time.UTC)
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 1,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+		Now: func() time.Time { return fake },
+	}, testMaps(t), testMonsters, nopSaver{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.Start(ctx)
+	t.Cleanup(func() { cancel(); w.Wait() })
+	enterNamed(t, w, 1, "an", "m1", 5.5, 5.5)
+	enterNamed(t, w, 2, "binh", "m1", 5.5, 5.5) // zone 2
+	for _, no := range []int{1, 2} {
+		if now := slotOf(w, "m1", no).z.Config().Now; now == nil || !now().Equal(fake) {
+			t.Fatalf("zone %d clock is not the world clock", no)
+		}
+	}
+}

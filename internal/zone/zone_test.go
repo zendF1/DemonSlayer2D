@@ -4699,19 +4699,26 @@ var testQuestData = func() *gamedata.Data {
 }()
 
 // questZone joins a Viêm of the given level as player 1 at (5.5, 5.5) of
-// mapID, with the real quest and item data, the quest NPCs tho_san and
-// chi_huy 3 tiles east and south and a shop NPC 3 tiles west. Its outbox
-// is emptied.
+// mapID, with the real quest and item data, the quest NPCs tho_san,
+// chi_huy and qua_truyen_tin 3 tiles east, south and north and a shop NPC
+// 3 tiles west. Its outbox is emptied.
 func questZone(t *testing.T, mapID string, level int, log quest.Log) (*Zone, *player, *fakeOut, *fakeSaver) {
+	t.Helper()
+	return questZoneAt(t, mapID, level, log, nil)
+}
+
+// questZoneAt is questZone with now as the zone clock (nil: time.Now).
+func questZoneAt(t *testing.T, mapID string, level int, log quest.Log, now func() time.Time) (*Zone, *player, *fakeOut, *fakeSaver) {
 	t.Helper()
 	sv := &fakeSaver{}
 	npcs := map[string]mapdata.NPC{
-		"tho_san": {ID: "tho_san", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 8.5, Y: 5.5}},
-		"chi_huy": {ID: "chi_huy", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 5.5, Y: 8.5}},
-		"shop":    {ID: "shop", Role: mapdata.RoleShop, Shop: "general", Pos: mapdata.Point{X: 2.5, Y: 5.5}},
+		"tho_san":        {ID: "tho_san", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 8.5, Y: 5.5}},
+		"chi_huy":        {ID: "chi_huy", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 5.5, Y: 8.5}},
+		"qua_truyen_tin": {ID: "qua_truyen_tin", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 5.5, Y: 2.5}},
+		"shop":           {ID: "shop", Role: mapdata.RoleShop, Shop: "general", Pos: mapdata.Point{X: 2.5, Y: 5.5}},
 	}
 	cfg := testConfig(10)
-	cfg.MapID = mapID
+	cfg.MapID, cfg.Now = mapID, now
 	z := New(cfg, Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData, NPCs: npcs, Skills: testQuestData.Skills,
 		Quests: testQuestData}, sv, quietLog())
 	in := info(1, 5.5, 5.5)
@@ -5231,4 +5238,332 @@ func TestLearnNeedsBook(t *testing.T) {
 			t.Fatalf("waiver 10: resp %v skills %v", r, p.skills)
 		}
 	})
+}
+
+// ____TEST DAILY____
+
+// fakeClock is a settable Config.Now. The tests drive the zone on their own
+// goroutine, so it needs no lock.
+type fakeClock struct{ t time.Time }
+
+func (c *fakeClock) now() time.Time { return c.t }
+
+// beforeMidnight is half a second before 00:00 UTC+7 (17:00 UTC), years
+// away from the wall clock.
+var beforeMidnight = time.Date(2030, 3, 14, 16, 59, 59, 500e6, time.UTC)
+
+// dailyZone is questZoneAt on ubuyashiki, where qua_truyen_tin gives and
+// takes the daily quests, with clock as the zone clock.
+func dailyZone(t *testing.T, level int, log quest.Log, clock *fakeClock) (*Zone, *player, *fakeOut, *fakeSaver) {
+	t.Helper()
+	return questZoneAt(t, "ubuyashiki", level, log, clock.now)
+}
+
+// questLogsIn is every pushed QuestLog in envs.
+func questLogsIn(envs []*pb.Envelope) []*pb.QuestLog {
+	var out []*pb.QuestLog
+	for _, e := range envs {
+		if q := e.GetQuestLog(); q != nil {
+			out = append(out, q)
+		}
+	}
+	return out
+}
+
+// Accepting d_kill stamps the zone day of the zone clock (not the wall
+// clock) and saves it; accepting it again the same day is refused.
+func TestDailyAcceptUsesZoneDay(t *testing.T) {
+	clock := &fakeClock{beforeMidnight.Add(-36 * time.Hour)}
+	day := quest.Day(clock.t)
+	z, p, out, sv := dailyZone(t, 10, nil, clock)
+	itemNow(t, z, z.QuestAccept(1, 9, "qua_truyen_tin", "d_kill"))
+	r := respFor(out.take(), 9, (*pb.Envelope).GetQuestAcceptResp)
+	if r == nil || r.Quest.QuestId != "d_kill" || p.quests["d_kill"] != (quest.Entry{State: quest.Active, Day: day}) {
+		t.Fatalf("resp %v log %v, want d_kill active on day %d", r, p.quests, day)
+	}
+	if saves := sv.all(); len(saves) != 1 || !reflect.DeepEqual(saves[0].Quests, []store.QuestRow{{QuestID: "d_kill", State: 1, Day: day}}) {
+		t.Fatalf("saves %+v, want d_kill on day %d", saves, day)
+	}
+	if got := questErr(t, z, out, accept("qua_truyen_tin", "d_kill")); got != pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE {
+		t.Fatalf("accept again: %v, want QUEST_NOT_AVAILABLE", got)
+	}
+	if got := questErr(t, z, out, accept("qua_truyen_tin", "d_enhance")); got != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("accept d_enhance: %v", got)
+	}
+}
+
+// When the clock crosses 00:00 UTC+7 the zone notices within a second:
+// yesterday's daily entries go, active or done, the main ones stay, and
+// every player gets one QuestLog (seq 0) with about 24 h to the next
+// reset, before the QuestProgress of the same tick; nothing is saved. The
+// daily quests can be taken again, on the new day.
+func TestDailyResetAtMidnight(t *testing.T) {
+	clock := &fakeClock{beforeMidnight}
+	day := quest.Day(clock.t)
+	log := quest.Log{
+		"d_kill":    {State: quest.Active, Progress: 12, Day: day},
+		"d_collect": {State: quest.Done, Progress: 20, Day: day},
+		"m01":       {State: quest.Done, Progress: 5},
+		"m02":       {State: quest.Active, Progress: 1},
+	}
+	z, p, out, sv := dailyZone(t, 10, log, clock)
+	out2 := &fakeOut{}
+	if err := z.join(info(2, 6.5, 5.5), out2); err != nil {
+		t.Fatal(err)
+	}
+	tick := func() []*pb.Envelope {
+		p.questChanged = []string{"m02"}
+		z.advance(time.Now())
+		return out.take()
+	}
+	for range 2 * z.cfg.TickRate {
+		if ql := questLogsIn(tick()); len(ql) != 0 {
+			t.Fatalf("QuestLog %v before midnight", ql)
+		}
+	}
+	out2.take()
+	if !reflect.DeepEqual(p.quests, log) {
+		t.Fatalf("log %v changed before midnight", p.quests)
+	}
+
+	clock.t = beforeMidnight.Add(time.Second) // 17:00:00.5 UTC
+	var envs []*pb.Envelope
+	n := 0
+	for n < z.cfg.TickRate {
+		n++
+		if envs = tick(); len(questLogsIn(envs)) > 0 {
+			break
+		}
+	}
+	ql := questLogsIn(envs)
+	want := []*pb.QuestEntry{
+		{QuestId: "m01", State: pb.QuestState_QUEST_STATE_DONE, Progress: 5},
+		{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 1},
+	}
+	if len(ql) != 1 || len(ql[0].Quests) != 2 || !proto.Equal(ql[0].Quests[0], want[0]) || !proto.Equal(ql[0].Quests[1], want[1]) {
+		t.Fatalf("after %d ticks QuestLog %v, want one with m01 and m02", n, ql)
+	}
+	if ms := ql[0].DailyResetMs; ms <= 86_400_000-1000 || ms > 86_400_000 {
+		t.Fatalf("daily_reset_ms %d, want about 86,400,000", ms)
+	}
+	li := slices.IndexFunc(envs, func(e *pb.Envelope) bool { return e.GetQuestLog() != nil })
+	qi := slices.IndexFunc(envs, func(e *pb.Envelope) bool { return e.GetQuestProgress() != nil })
+	if envs[li].Seq != 0 || qi < li {
+		t.Fatalf("QuestLog at %d (seq %d), QuestProgress at %d", li, envs[li].Seq, qi)
+	}
+	if want := (quest.Log{"m01": log["m01"], "m02": log["m02"]}); !reflect.DeepEqual(p.quests, want) {
+		t.Fatalf("log %v, want %v", p.quests, want)
+	}
+	ql2 := questLogsIn(out2.take())
+	if len(ql2) != 1 || len(ql2[0].Quests) != 0 || ql2[0].DailyResetMs != ql[0].DailyResetMs {
+		t.Fatalf("player 2 QuestLog %v, want one with no quests", ql2)
+	}
+	if saves := sv.all(); len(saves) != 0 {
+		t.Fatalf("the reset saved %+v", saves)
+	}
+	for range 2 * z.cfg.TickRate {
+		if ql := questLogsIn(tick()); len(ql) != 0 {
+			t.Fatalf("QuestLog %v sent again", ql)
+		}
+	}
+	for _, id := range []string{"d_kill", "d_collect"} {
+		if got := questErr(t, z, out, accept("qua_truyen_tin", id)); got != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+			t.Fatalf("accept %s on the new day: %v", id, got)
+		}
+		if e := p.quests[id]; e != (quest.Entry{State: quest.Active, Day: day + 1}) {
+			t.Fatalf("%s %+v, want active on day %d", id, e, day+1)
+		}
+	}
+}
+
+// A player joining with yesterday's daily entries sees the log without
+// them, and the time to the next reset by the zone clock.
+func TestDailyJoinPrunes(t *testing.T) {
+	clock := &fakeClock{beforeMidnight.Add(-time.Hour)}
+	day := quest.Day(clock.t)
+	z, _, _, _ := dailyZone(t, 10, nil, clock)
+	in := info(2, 5.5, 5.5)
+	in.Quests = quest.Log{
+		"d_kill":    {State: quest.Active, Progress: 30, Day: day - 1},
+		"d_collect": {State: quest.Done, Progress: 20, Day: day - 1},
+		"d_enhance": {State: quest.Active, Progress: 2, Day: day},
+		"m01":       {State: quest.Done, Progress: 5},
+	}
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	r := out.take()[0].GetEnterWorldResp()
+	want := []*pb.QuestEntry{
+		{QuestId: "d_enhance", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 2},
+		{QuestId: "m01", State: pb.QuestState_QUEST_STATE_DONE, Progress: 5},
+	}
+	q := r.GetQuests()
+	if len(q.GetQuests()) != 2 || !proto.Equal(q.Quests[0], want[0]) || !proto.Equal(q.Quests[1], want[1]) {
+		t.Fatalf("EnterWorldResp quests %v, want d_enhance and m01", q)
+	}
+	if q.DailyResetMs != (time.Hour + 500*time.Millisecond).Milliseconds() {
+		t.Fatalf("daily_reset_ms %d, want 3,600,500", q.DailyResetMs)
+	}
+	if got := z.players[2].quests; len(got) != 2 {
+		t.Fatalf("log %v, want d_enhance and m01", got)
+	}
+}
+
+// A daily entry rides the handoff and stays in a zone on the same day; a
+// zone already on the next day drops it at the join.
+func TestDailyHandoff(t *testing.T) {
+	clock := &fakeClock{beforeMidnight}
+	day := quest.Day(clock.t)
+	z, _, _, _ := dailyZone(t, 10, quest.Log{"d_kill": {State: quest.Active, Progress: 7, Day: day}, "m01": {State: quest.Done, Progress: 5}}, clock)
+	res := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{5.5, 5.5}}, Check: notDead})
+	if res.err != nil || res.info.Quests["d_kill"] != (quest.Entry{State: quest.Active, Progress: 7, Day: day}) {
+		t.Fatalf("handoff quests %v err %v", res.info.Quests, res.err)
+	}
+	for _, c := range []struct {
+		name   string
+		now    time.Time
+		kept   bool
+		listed int
+	}{
+		{"same day", beforeMidnight, true, 2},
+		{"next day", beforeMidnight.Add(time.Second), false, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := testConfig(10)
+			cfg.Now = (&fakeClock{c.now}).now
+			z2 := New(cfg, Area{Grid: openGrid(64, 64), Exp: testExp, Quests: testQuestData}, &fakeSaver{}, quietLog())
+			out := &fakeOut{}
+			if err := z2.join(res.info, out); err != nil {
+				t.Fatal(err)
+			}
+			_, kept := z2.players[1].quests["d_kill"]
+			r := out.take()[0].GetEnterWorldResp()
+			if kept != c.kept || len(r.GetQuests().GetQuests()) != c.listed {
+				t.Fatalf("d_kill kept %v, EnterWorldResp quests %v", kept, r.GetQuests())
+			}
+		})
+	}
+}
+
+// d_enhance counts the attempts an EnhanceReq ran, after the loop and only
+// when it succeeds, capped at 3: times 5 stopping at the first success is
+// 1, two failed attempts with charms are 2, a refused request is 0. The
+// change goes out as QuestProgress and in the save of the command.
+func TestDailyEnhanceCredit(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		fail        bool
+		charms      int
+		ref         items.Ref
+		protect     bool
+		times       int
+		start, want int
+	}{
+		{"first success of 5", false, 0, items.Ref{Slot: 0}, false, 5, 0, 1},
+		{"two failed with charms", true, 2, items.Ref{Slot: 9}, true, 100, 0, 2},
+		{"capped at 3", true, 2, items.Ref{Slot: 9}, true, 100, 2, 3},
+		{"refused", false, 0, items.Ref{Slot: 60}, false, 5, 1, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			inv := forgeInventory()
+			if c.charms > 0 {
+				inv.Bag[10] = &items.Item{Code: gamedata.CharmProtect, Count: c.charms}
+			}
+			z, p, sv := forgeZone(t, inv, false)
+			if c.fail {
+				z.rng = rand.New(failSource{})
+			}
+			z.area.Quests = testQuestData
+			p.quests = quest.Log{
+				"d_enhance": {State: quest.Active, Progress: c.start, Day: z.day},
+				"d_kill":    {State: quest.Active, Day: z.day},
+			}
+			out := p.out.(*fakeOut)
+			out.take()
+			itemNow(t, z, z.Enhance(1, 9, c.ref, c.protect, c.times))
+			envs := out.take()
+			if got := p.quests["d_enhance"].Progress; got != c.want || p.quests["d_kill"].Progress != 0 {
+				t.Fatalf("log %v, want d_enhance at %d", p.quests, c.want)
+			}
+			qp := questProgressIn(envs)
+			if c.want == c.start {
+				if len(qp) != 0 {
+					t.Fatalf("QuestProgress %v, want none", qp)
+				}
+				return
+			}
+			wantQ := &pb.QuestEntry{QuestId: "d_enhance", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: int32(c.want)}
+			if len(qp) != 1 || len(qp[0].Quests) != 1 || !proto.Equal(qp[0].Quests[0], wantQ) {
+				t.Fatalf("QuestProgress %v, want d_enhance at %d", qp, c.want)
+			}
+			saves := sv.all()
+			i := slices.IndexFunc(saves[len(saves)-1].Quests, func(r store.QuestRow) bool { return r.QuestID == "d_enhance" })
+			if i < 0 || saves[len(saves)-1].Quests[i].Progress != c.want {
+				t.Fatalf("save %+v, want d_enhance at %d", saves[len(saves)-1].Quests, c.want)
+			}
+		})
+	}
+}
+
+// kill_any counts a monster within 10 levels of the killer only: a level-1
+// monster counts for a level-11 killer, not for a level-20 one.
+func TestDailyKillAnyLevelWindow(t *testing.T) {
+	for _, c := range []struct {
+		level, want int
+	}{{11, 1}, {20, 0}} {
+		z, m, _ := questKillZone(t, nil)
+		p := z.players[1]
+		p.level = c.level
+		p.quests = quest.Log{"d_kill": {State: quest.Active, Day: z.day}}
+		attackLand(t, z, 1, 1, m.id)
+		if !m.dead || p.quests["d_kill"].Progress != c.want {
+			t.Fatalf("level %d: dead %v log %v, want d_kill at %d", c.level, m.dead, p.quests, c.want)
+		}
+	}
+}
+
+// A daily turn-in pays by the level at the turn-in: d_enhance at level 12
+// gives 5 stones and 480 Xu and no EXP, d_kill at level 30 gives 545,080
+// EXP and 2,400 Xu. QuestTurnInResp tells the amounts paid. The done entry
+// keeps its day, so it cannot be taken again that day.
+func TestDailyTurnInRewards(t *testing.T) {
+	clock := &fakeClock{beforeMidnight.Add(-time.Hour)}
+	day := quest.Day(clock.t)
+	z, p, out, sv := dailyZone(t, 12, quest.Log{"d_enhance": {State: quest.Active, Progress: 3, Day: day}}, clock)
+	itemNow(t, z, z.QuestTurnIn(1, 9, "qua_truyen_tin", "d_enhance"))
+	r := respFor(out.take(), 9, (*pb.Envelope).GetQuestTurnInResp)
+	if r == nil || r.Exp != 0 || r.Xu != 480 || p.xu != 77+480 || p.exp != 0 {
+		t.Fatalf("resp %v xu %d exp %d, want 480 Xu and no EXP", r, p.xu, p.exp)
+	}
+	if !reflect.DeepEqual(p.inv.Bag[0], &items.Item{Code: "stone_enhance", Count: 5}) {
+		t.Fatalf("bag slot 0 %+v, want 5 stones", p.inv.Bag[0])
+	}
+	if e := p.quests["d_enhance"]; e != (quest.Entry{State: quest.Done, Progress: 3, Day: day}) {
+		t.Fatalf("entry %+v, want done on day %d", e, day)
+	}
+	if saves := sv.all(); len(saves) != 1 || saves[0].Xu != 557 || saves[0].Quests[0].Day != day {
+		t.Fatalf("saves %+v", saves)
+	}
+	if got := questErr(t, z, out, accept("qua_truyen_tin", "d_enhance")); got != pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE {
+		t.Fatalf("accept again: %v", got)
+	}
+
+	z, p, out, _ = dailyZone(t, 30, quest.Log{"d_kill": {State: quest.Active, Progress: 40, Day: day}}, clock)
+	itemNow(t, z, z.QuestTurnIn(1, 9, "qua_truyen_tin", "d_kill"))
+	r = respFor(out.take(), 9, (*pb.Envelope).GetQuestTurnInResp)
+	if r == nil || r.Exp != 545_080 || r.Xu != 2_400 || p.exp != 545_080 || p.xu != 77+2_400 || p.level != 30 {
+		t.Fatalf("resp %v exp %d xu %d level %d, want 545,080 EXP and 2,400 Xu", r, p.exp, p.xu, p.level)
+	}
+}
+
+// A bag that cannot take the stones refuses d_enhance with BAG_FULL and
+// pays nothing.
+func TestDailyTurnInBagFull(t *testing.T) {
+	runQuestErrors(t, []questCase{{name: "bag full", mapID: "ubuyashiki", level: 12,
+		setup: func(z *Zone, p *player) {
+			p.quests["d_enhance"] = quest.Entry{State: quest.Active, Progress: 3, Day: z.day}
+			fillBag(p.inv)
+		},
+		cmd: turnIn("qua_truyen_tin", "d_enhance"), want: pb.ErrorCode_ERROR_CODE_BAG_FULL}})
 }

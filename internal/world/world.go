@@ -43,6 +43,9 @@ type Config struct {
 	SaveInterval time.Duration
 	IdleZoneTTL  time.Duration
 	JanitorEvery time.Duration
+	// Now is the clock each zone takes the quest day from (zone.Config.Now);
+	// nil means time.Now. Tests set a fake clock.
+	Now func() time.Time
 }
 
 type World struct {
@@ -215,6 +218,7 @@ func (w *World) openZoneLocked(mapID string) *slot {
 		NewID:       func() uint64 { return w.nextEntity.Add(1) },
 		KeepPvPLock: w.keepPvPLock,
 		Leveled:     w.party.Leveled,
+		Now:         w.cfg.Now,
 	}, w.areas[mapID], w.saver, w.log)
 	zctx, cancel := context.WithCancel(w.ctx)
 	s := &slot{z: z, cancel: cancel, no: idx + 1}
