@@ -1,6 +1,6 @@
 # Giai đoạn 6b — Nhiệm vụ chính tuyến và sách kỹ năng
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server (Task 1–8, 31112e2..d6339cd; sửa sau review tổng: d84ef80; protocol 14, migration 00009) và client (Task 9–12, 49b6997..6f18844; sửa sau review tổng: 3c70470); smoke OK.
 
 Phần thứ hai của Giai đoạn 6 (xem bảng chia ở [spec 6a](2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.2 (nhiệm vụ là nguồn EXP bổ sung), 2.6 (sách kỹ năng từ chính tuyến), 4.1 (NPC và biểu tượng nhiệm vụ), 4.2 (tuyến và mục tiêu), 4.3 (chạm nhiệm vụ để đi) và 5.8 (không chia tiến độ qua tổ đội); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như spec 6a, [spec 4b](2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md) (NPC, tầm NPC), [spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) (hành trang, người kết liễu) và [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md) (học chiêu). 6b chạy sau khi 6a đã triển khai (giao thức 13, migration 00008).
 
