@@ -1,6 +1,6 @@
 # Giai đoạn 6c — Auto đánh quái
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ client (Task 1–5, f97959e..f11a292; sửa sau review tổng: 6c72d53, 92c77cd) và tài liệu server (Task 6, 0f4ed05; 2b68282); server không đổi (protocol 14); smoke OK.
 
 Phần thứ ba của Giai đoạn 6 (xem bảng chia ở [spec 6a](2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 8 (auto-play), 2.5 (chọn mục tiêu), 2.7 (bình thuốc), 5.7 (bảng PK, phản công) và 4.3 (chạm nhiệm vụ không bật auto); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như spec 6a, [spec 6b](2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md), [spec 5a](2026-11-20-giai-doan-5a-pk-phat-exp-design.md) (ứng viên mục tiêu, tự khóa người vừa đánh mình), [spec 4b](2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md) (bình thuốc, `potion_rules`) và [spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md) (`pickup_loop`). 6c chạy sau khi 6b đã triển khai (giao thức 14, migration 00009).
 
