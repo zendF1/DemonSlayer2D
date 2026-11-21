@@ -418,8 +418,16 @@ func (c *conn) handleEnterWorld(ctx context.Context, seq uint32, r *pb.EnterWorl
 	c.log.Info("enter world", "account_id", c.accountID, "char_id", ch.ID, "map", m.MapID, "zone", m.ZoneNo)
 }
 
+// handleLeaveWorld takes the character out of the world, unless it fought a
+// player too recently (IN_PVP_COMBAT, phase 5a spec 4.8): it then stays in
+// the world. A disconnect still removes it at once (cleanup).
 func (c *conn) handleLeaveWorld(seq uint32) {
-	c.waitSaved(c.member.Leave(), "save on leave")
+	saved, code := c.member.Quit()
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		c.fail(seq, code, code.String())
+		return
+	}
+	c.waitSaved(saved, "save on leave")
 	c.member = nil
 	c.state = stateAuthed
 	c.send(&pb.Envelope{Seq: seq, Payload: &pb.Envelope_LeaveWorldResp{LeaveWorldResp: &pb.LeaveWorldResp{}}})

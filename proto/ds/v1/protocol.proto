@@ -181,7 +181,8 @@ enum ErrorCode {
   // The target is a player the PK rules, the map type or the party do not
   // allow to attack.
   ERROR_CODE_PK_FORBIDDEN = 45;
-  // PK cannot be turned off yet: the character fought a player recently.
+  // PK cannot be turned off, nor the world left, yet: the character fought
+  // a player recently.
   ERROR_CODE_IN_PVP_COMBAT = 46;
 }
 

@@ -2907,12 +2907,14 @@ func TestDepartKeepPos(t *testing.T) {
 }
 
 // A monster chasing the departed player lets it go and forgets its hits, and
-// a shot already flying at it does not land, even if it comes back at once.
+// a shot already flying at it does not land, even if it comes back at once;
+// nor does another player's hit in flight at it.
 func TestDepartMonsterLosesTarget(t *testing.T) {
 	z, m, p, a := castZone(t, Vec2{30.5, 30.5}, Vec2{35.5, 30.5})
 	z.startChase(m, 1)
 	m.attackers[1] = z.tickNo
 	z.schedule(impact{due: z.tickNo + 3, attacker: m.id, byMonster: true, target: 1, damage: 50})
+	z.schedule(impact{due: z.tickNo + 3, attacker: 99, targetIsPlayer: true, attackerName: "x", target: 1, damage: 40})
 	a.take()
 	r := departNow(t, z, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead})
 	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
@@ -4521,6 +4523,64 @@ func TestPkOnEnterAndSave(t *testing.T) {
 	}
 	if s := sv.all(); len(s) != 1 || !s[0].PkOn {
 		t.Fatalf("saves %+v, want one with PkOn", s)
+	}
+}
+
+// Quitting the world (LeaveWorldReq) is refused IN_PVP_COMBAT while the PvP
+// lock runs: the player stays, nothing is saved. Once the lock is over it
+// leaves and saves as leave does.
+func TestQuitInPvPCombat(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	joinNow(t, z, 1, 12.5, 7.5)
+	p := z.players[1]
+	p.pvpUntil = z.tickNo + z.ticks(pvpLockSec)
+	if saved, code := z.quit(1); saved != nil || code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT {
+		t.Fatalf("quit = %v, %v, want IN_PVP_COMBAT", saved, code)
+	}
+	if z.players[1] != p || len(sv.all()) != 0 {
+		t.Fatalf("a refused quit removed or saved the player (saves %d)", len(sv.all()))
+	}
+	for z.pvpLocked(p) {
+		z.advance(time.Now())
+	}
+	saved, code := z.quit(1)
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || saved == nil {
+		t.Fatalf("quit after the lock = %v, %v", saved, code)
+	}
+	if err := <-saved; err != nil || z.players[1] != nil || len(sv.all()) != 1 {
+		t.Fatalf("err %v, still in zone %v, saves %d", err, z.players[1] != nil, len(sv.all()))
+	}
+	if saved, code := z.quit(1); code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || saved == nil {
+		t.Fatalf("quit of a player gone = %v, %v, want a closed channel", saved, code)
+	}
+}
+
+// A player removed while its PvP lock runs (a disconnect, a kick) is
+// removed at once, and Config.KeepPvPLock gets the time left on the lock so
+// the world can hand it to the next login. No lock, no call.
+func TestLeaveKeepsPvPLock(t *testing.T) {
+	type kept struct {
+		char int64
+		left time.Duration
+	}
+	var got []kept
+	cfg := testConfig(10)
+	cfg.KeepPvPLock = func(char int64, left time.Duration) { got = append(got, kept{char, left}) }
+	z := New(cfg, Area{Grid: openGrid(64, 64), Exp: testExp}, &fakeSaver{}, quietLog())
+	joinNow(t, z, 1, 12.5, 7.5)
+	joinNow(t, z, 2, 13.5, 7.5)
+	joinNow(t, z, 3, 14.5, 7.5)
+	z.players[1].pvpUntil = z.tickNo + z.ticks(4)
+	z.players[3].pvpUntil = z.tickNo + z.ticks(2)
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-z.leave(2); err != nil {
+		t.Fatal(err)
+	}
+	z.evictAll(pb.KickReason_KICK_REASON_SERVER_SHUTDOWN)
+	if want := []kept{{100, 4 * time.Second}, {300, 2 * time.Second}}; !slices.Equal(got, want) {
+		t.Fatalf("kept %v, want %v", got, want)
 	}
 }
 

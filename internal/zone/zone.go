@@ -49,6 +49,11 @@ type Config struct {
 	// Rand drives monster behaviour and spawns; a nil Rand is randomly seeded.
 	// Only the zone goroutine uses it.
 	Rand *rand.Rand
+	// KeepPvPLock, if set, is told the character id and the time left on
+	// the PK-off lock of a player removed while it runs (a disconnect or a
+	// kick; phase 5a spec 4.1), so the next login can get it back. It runs
+	// on the zone goroutine and must not wait on any zone.
+	KeepPvPLock func(charID int64, left time.Duration)
 }
 
 type PlayerInfo struct {
@@ -154,9 +159,18 @@ type joinCmd struct {
 	reply chan error
 }
 
+// leaveCmd removes a player; with quit it is a LeaveWorldReq, refused while
+// the PvP lock runs.
 type leaveCmd struct {
 	id    uint64
-	reply chan (<-chan error)
+	quit  bool
+	reply chan leaveResult
+}
+
+// leaveResult is a leave's save, or the code refusing a quit.
+type leaveResult struct {
+	saved <-chan error
+	code  pb.ErrorCode
 }
 
 type moveCmd struct {
@@ -298,21 +312,34 @@ func (z *Zone) Join(ctx context.Context, info PlayerInfo, out Outbox) error {
 
 // Leave removes a player. The returned channel yields the save result.
 func (z *Zone) Leave(id uint64) <-chan error {
-	reply := make(chan (<-chan error), 1)
+	saved, _ := z.sendLeave(leaveCmd{id: id})
+	return saved
+}
+
+// Quit removes a player that asked to leave the world (LeaveWorldReq), as
+// Leave does, unless its PvP lock still runs: then it answers IN_PVP_COMBAT,
+// returns a nil channel and the player stays (phase 5a spec 4.8).
+func (z *Zone) Quit(id uint64) (<-chan error, pb.ErrorCode) {
+	return z.sendLeave(leaveCmd{id: id, quit: true})
+}
+
+func (z *Zone) sendLeave(c leaveCmd) (<-chan error, pb.ErrorCode) {
+	reply := make(chan leaveResult, 1)
+	c.reply = reply
 	select {
-	case z.inbox <- leaveCmd{id: id, reply: reply}:
+	case z.inbox <- c:
 	case <-z.done:
-		return z.leftAfterStop(id)
+		return z.leftAfterStop(c.id), pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	}
 	select {
-	case ch := <-reply:
-		return ch
+	case r := <-reply:
+		return r.saved, r.code
 	case <-z.done:
 		select {
-		case ch := <-reply:
-			return ch
+		case r := <-reply:
+			return r.saved, r.code
 		default:
-			return z.leftAfterStop(id)
+			return z.leftAfterStop(c.id), pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 		}
 	}
 }
@@ -508,7 +535,12 @@ func (z *Zone) handle(c any) {
 	case joinCmd:
 		c.reply <- z.join(c.info, c.out)
 	case leaveCmd:
-		c.reply <- z.leave(c.id)
+		if c.quit {
+			saved, code := z.quit(c.id)
+			c.reply <- leaveResult{saved: saved, code: code}
+		} else {
+			c.reply <- leaveResult{saved: z.leave(c.id)}
+		}
 	case departCmd:
 		c.reply <- z.depart(c)
 	case moveCmd:
@@ -627,6 +659,15 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	return nil
 }
 
+// quit is leave for a LeaveWorldReq: IN_PVP_COMBAT and no channel while
+// the player's PvP lock runs.
+func (z *Zone) quit(id uint64) (<-chan error, pb.ErrorCode) {
+	if p, ok := z.players[id]; ok && z.pvpLocked(p) {
+		return nil, pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT
+	}
+	return z.leave(id), pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
 func (z *Zone) leave(id uint64) <-chan error {
 	if p, ok := z.players[id]; ok {
 		return z.remove(p)
@@ -653,8 +694,12 @@ func (z *Zone) move(c moveCmd) {
 	}
 }
 
-// remove takes p out of the zone and starts saving it.
+// remove takes p out of the zone and starts saving it. A PvP lock still
+// running goes to Config.KeepPvPLock.
 func (z *Zone) remove(p *player) chan error {
+	if z.pvpLocked(p) && z.cfg.KeepPvPLock != nil {
+		z.cfg.KeepPvPLock(p.charID, z.cooldownsOf(p)[CooldownPvPCombat])
+	}
 	delete(z.players, p.id)
 	z.removeFromCell(&p.entity)
 	z.setCount()

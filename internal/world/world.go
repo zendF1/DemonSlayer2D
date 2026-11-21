@@ -61,6 +61,11 @@ type World struct {
 	zones    map[string][]*slot // index i holds zone number i+1; nil = closed
 	online   map[int64]Session
 	handoffs map[int64]*accountLock // per-account Takeover serialisation
+	// pvpLocks is when the PK-off lock of a character that left the world
+	// while it ran ends, by character id (phase 5a spec 4.1). Zones write it
+	// through keepPvPLock, Enter uses it up and the janitor drops expired
+	// entries. Nothing under w.mu waits on a zone, so zones may take it.
+	pvpLocks map[int64]time.Time
 
 	nextEntity atomic.Uint64
 }
@@ -100,6 +105,7 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 		zones:    make(map[string][]*slot),
 		online:   make(map[int64]Session),
 		handoffs: make(map[int64]*accountLock),
+		pvpLocks: make(map[int64]time.Time),
 	}, nil
 }
 
@@ -193,7 +199,8 @@ func (w *World) openZoneLocked(mapID string) *slot {
 	z := zone.New(zone.Config{
 		MapID: mapID, ZoneNo: idx + 1, TickRate: w.cfg.TickRate, MoveSpeed: w.cfg.MoveSpeed,
 		AOICellSize: w.cfg.AOICellSize, Capacity: w.cfg.ZoneCapacity, SaveInterval: w.cfg.SaveInterval,
-		NewID: func() uint64 { return w.nextEntity.Add(1) },
+		NewID:       func() uint64 { return w.nextEntity.Add(1) },
+		KeepPvPLock: w.keepPvPLock,
 	}, w.areas[mapID], w.saver, w.log)
 	zctx, cancel := context.WithCancel(w.ctx)
 	s := &slot{z: z, cancel: cancel, no: idx + 1}
@@ -379,8 +386,40 @@ func (m *Membership) RefineChoose(seq uint32, accept bool) bool {
 // Leave removes the character; the channel yields the save result.
 func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
 
+// Quit is Leave for a LeaveWorldReq: while the character's PvP lock runs it
+// is refused IN_PVP_COMBAT with a nil channel, and the character stays.
+func (m *Membership) Quit() (<-chan error, pb.ErrorCode) { return m.z.Quit(m.EntityID) }
+
+// keepPvPLock remembers that the PK-off lock of character charID, which is
+// leaving the world, runs for left more; a later end already known wins.
+func (w *World) keepPvPLock(charID int64, left time.Duration) {
+	if left <= 0 {
+		return
+	}
+	until := time.Now().Add(left)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if until.After(w.pvpLocks[charID]) {
+		w.pvpLocks[charID] = until
+	}
+}
+
+// takePvPLock is the time left on the remembered PK-off lock of charID, 0
+// if none or over; the entry is used up.
+func (w *World) takePvPLock(charID int64) time.Duration {
+	w.mu.Lock()
+	until, ok := w.pvpLocks[charID]
+	delete(w.pvpLocks, charID)
+	w.mu.Unlock()
+	if !ok {
+		return 0
+	}
+	return max(time.Until(until), 0)
+}
+
 // Enter puts the character into the first zone with room, opening a new zone if all are full.
-// The zone sends EnterWorldResp (with req.RespSeq) on req.Out.
+// The zone sends EnterWorldResp (with req.RespSeq) on req.Out. A PvP lock the
+// character left the world with comes back as its pvp_combat cooldown.
 func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error) {
 	mapID, pos := w.placement(req.Char)
 	info := zone.PlayerInfo{
@@ -405,11 +444,19 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		PkOn:        req.Char.PkOn,
 		RespSeq:     req.RespSeq,
 	}
+	left := w.takePvPLock(req.Char.ID)
+	if left > 0 {
+		info.Cooldowns = map[string]time.Duration{zone.CooldownPvPCombat: left}
+	}
 	s := w.reserve(mapID)
 	if s == nil {
 		return nil, ErrStopped
 	}
-	return w.joinZone(ctx, s, mapID, info, req.Out)
+	m, err := w.joinZone(ctx, s, mapID, info, req.Out)
+	if err != nil {
+		w.keepPvPLock(req.Char.ID, left) // not in the world after all
+	}
+	return m, err
 }
 
 // knownSkills is c's stored skills without those missing from the skill data,
@@ -628,10 +675,15 @@ func running(s *slot) bool {
 }
 
 // closeIdle stops zones above min_zones of their map that have been empty for
-// IdleZoneTTL (spec 3.1).
+// IdleZoneTTL (spec 3.1), and drops the remembered PvP locks over by now.
 func (w *World) closeIdle(now time.Time) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	for id, until := range w.pvpLocks {
+		if !until.After(now) {
+			delete(w.pvpLocks, id)
+		}
+	}
 	for mapID, slots := range w.zones {
 		keep := w.minZones(mapID)
 		for i, s := range slots {

@@ -31,7 +31,7 @@ Người dùng đã ủy quyền chọn phương án khuyên dùng cho mọi quy
 | Giới hạn cấp | Không có; người cấp 1 cũng đánh được và bị đánh | Game-design 5.7 "người bật PK đánh được tất cả người chơi"; người tắt PK không bao giờ mất EXP do PK |
 | Đồng đội | 5b thêm: cùng tổ đội không đánh nhau, kể cả khi bật PK | Luật thường gặp của thể loại; game-design không nói khác |
 | Bật PK | Được bất cứ lúc nào khi còn sống, cả trong khu an toàn; không có hồi chiêu | Bật PK chỉ làm mình dễ bị đánh hơn |
-| Tắt PK | Bị chặn (`IN_PVP_COMBAT`) khi chưa đủ **10 giây** kể từ đòn PvP cuối cùng trúng mình hoặc do mình gây | Không để người bật PK sắp chết tắt PK để né phạt EXP; 10 giây khớp nhịp giao tranh |
+| Tắt PK | Bị chặn (`IN_PVP_COMBAT`) khi chưa đủ **10 giây** kể từ đòn PvP cuối cùng trúng mình hoặc do mình gây. Khóa bắt đầu ngay khi một đòn PvP được chấp nhận lúc bấm (tới tick trúng dự kiến + 10 giây, cho cả hai bên) và được làm mới khi đòn trúng | Không để người bật PK sắp chết tắt PK để né phạt EXP; 10 giây khớp nhịp giao tranh |
 | Lưu trạng thái PK | Cột `characters.pk_on`; giữ khi thoát game, qua cổng và đổi khu; đổi PK không lưu ngay mà theo nhịp lưu định kỳ và các lần lưu khác | Lộ trình Giai đoạn 0 đã dự kiến cột này; sập server chỉ làm mất một lần bật/tắt |
 | Hệ số PvP | 100% (game-design 2.2), là hằng số `combat.PvPFactor`; sát thương vật lý xét thủ vật lý, sát thương phép xét thủ phép của người bị đánh; chém mặc định là vật lý | Game-design 2.2; giữ hằng số ở `internal/combat` để cân bằng sau chỉ sửa một chỗ |
 | Thời điểm kiểm tra luật PK | Lúc bấm, cùng lúc chốt mục tiêu và sát thương. Đòn đã chốt vẫn trúng dù sau đó ai đổi PK, mục tiêu chạy vào khu an toàn hay hai người vào chung tổ đội | Giữ luật ba mốc "đòn đã ra thì trúng" và luật khu an toàn của đòn quái (spec ba mốc mục 3.3) |
@@ -48,6 +48,7 @@ Người dùng đã ủy quyền chọn phương án khuyên dùng cho mọi quy
 | EXP âm | Thanh EXP rỗng, chữ ghi số âm ("−1.400 / 64.000") | Game-design 5.7 cho EXP âm |
 | PvP và quái | Đòn PvP không đổi thù, không đổi bảng sát thương tính EXP của quái | Hai hệ thống độc lập |
 | Hồi chiêu giao tranh khi chuyển zone | Thời gian còn lại của khóa tắt PK đi qua bản trao tay (khóa `pvp_combat`) | Không đổi khu để tắt PK ngay |
+| Thoát khi đang giao tranh | `LeaveWorldReq` bị từ chối `IN_PVP_COMBAT` khi khóa còn chạy, nhân vật ở lại thế giới. Mất kết nối vẫn rời thế giới ngay (như thoát khi đang đánh quái), nhưng world nhớ lúc khóa hết theo đồng hồ thật và lần vào lại nhận phần còn lại thành hồi chiêu `pvp_combat` | Không thoát rồi vào lại để tắt PK ngay |
 
 ### 1.4. Bổ sung cho game-design
 
@@ -82,8 +83,9 @@ Migration `00008_pk_mode.sql`: `characters.pk_on boolean NOT NULL DEFAULT false`
 
 ### 4.1. Trạng thái
 
-- `PlayerInfo.PkOn` (từ `Character.PkOn`); người chơi trong zone giữ `pkOn` và `pvpUntil` (tick đầu tiên được tắt PK lại; mỗi đòn PvP trúng mình hoặc do mình gây đặt nó bằng tick trúng + 10 giây).
+- `PlayerInfo.PkOn` (từ `Character.PkOn`); người chơi trong zone giữ `pkOn` và `pvpUntil` (tick đầu tiên được tắt PK lại; mỗi đòn PvP trúng mình hoặc do mình gây đặt nó bằng tick trúng + 10 giây). Khóa bắt đầu ngay khi đòn PvP được chấp nhận lúc bấm: `pvpUntil` của cả người đánh và mục tiêu nâng lên ít nhất tick trúng dự kiến + 10 giây, nên không thể bấm đánh rồi tắt PK trước khi đòn trúng; khi đòn trúng, khóa được làm mới (không bao giờ rút ngắn).
 - Bản trao tay (4a mục 3.2.1) mang `PkOn` và mục hồi chiêu `pvp_combat` = thời gian còn lại của khóa 10 giây (bỏ khi đã hết).
+- Nhân vật rời zone khi khóa còn chạy (mất kết nối, bị đá) thì zone báo world (`Config.KeepPvPLock`); world giữ `charID → lúc khóa hết` (đồng hồ thật, cùng khóa `w.mu` như bảng Takeover), `Enter` lấy ra và đặt phần còn lại vào `PlayerInfo.Cooldowns["pvp_combat"]`; mục đã hết bị bỏ khi vào và bị janitor dọn.
 - `zone.Area` thêm `PvP bool` và `PkPenalty bool`, lấy từ loại map lúc dựng area (`mapdata.Map.PvP()`, `mapdata.Map.PkPenalty()`).
 
 ### 4.2. Kiểm tra mục tiêu là người chơi
@@ -135,7 +137,7 @@ Sát thương chốt lúc bấm bằng chỉ số và cấp của A, thủ của
 Hàng đợi đòn (spec ba mốc mục 3.1) thêm loại đòn người chơi → người chơi, mang tên người đánh. Tại tick trúng:
 
 - Mục tiêu đã rời zone hoặc đã chết: bỏ đòn, không có `Hit`.
-- Ngược lại: trừ máu, phát `Hit{attacker, target, damage, hp_after, skill_id}` (đòn của người chơi nay cũng mang `skill_id`). `pvpUntil` của mục tiêu và của người đánh (nếu còn trong zone) đặt bằng tick này + 10 giây.
+- Ngược lại: trừ máu, phát `Hit{attacker, target, damage, hp_after, skill_id}` (đòn của người chơi nay cũng mang `skill_id`). `pvpUntil` của mục tiêu và của người đánh (nếu còn trong zone) nâng lên ít nhất tick này + 10 giây (khóa đã bắt đầu từ lúc bấm, mục 4.1).
 - HP về 0: mục tiêu chết (mục 4.7), đòn này là đòn kết liễu; các đòn khác trúng sau đó bị bỏ.
 - Không đụng tới quái: không thù, không bảng sát thương, không EXP.
 
@@ -158,6 +160,8 @@ Ví dụ: cấp 10 cần 64.000 EXP thì mất 3.200; cấp 1 cần 130 thì m�
 3. Tắt PK (`on` sai) khi tick hiện tại < `pvpUntil`: `IN_PVP_COMBAT`.
 
 Hợp lệ: đổi `pkOn`, trả `SetPkResp{on}`, `SelfStats` mới (có `pk_on`) và một `LookChange` cho người thấy nhân vật và chính họ. Không lưu ngay.
+
+`LeaveWorldReq` khi tick hiện tại < `pvpUntil`: `IN_PVP_COMBAT`, nhân vật ở lại; client hiện thông báo lỗi và vẫn ở màn World.
 
 ### 4.9. Hiển thị cho người khác
 
@@ -229,7 +233,7 @@ Không có lệnh mới. Thử dùng `devchar -level` và `devchar -map` sẵn c
 - `zone` phạt EXP: B bật PK bị người hạ ở area `PkPenalty` mất đúng 5% và có một lần lưu; B tắt PK không mất; B bật PK bị quái hạ không mất; area `PvP` nhưng không `PkPenalty` không mất; EXP 1.000 ở cấp 10 thành −2.200; cấp 90 không mất; người đánh đã rời zone khi đòn trúng vẫn tính là người chơi; `DeathNotice` đúng tên, `by_player`, `exp_lost` và chỉ nạn nhân nhận.
 - `zone` bật tắt: `DEAD`; cùng trạng thái trả `SetPkResp` không đổi; tắt trong 10 giây sau đòn PvP (gây hoặc nhận) bị `IN_PVP_COMBAT`, sau 10 giây được; `LookChange` tới người xung quanh với `pk_on` và `weapon_enhance` đúng; bản trao tay mang `pk_on` và `pvp_combat`; tắt PK ở zone mới trước khi hết khóa vẫn bị chặn.
 - `gateway`: `ProtocolVersion` 12; fixture mới; `SetPkReq` khi chưa vào thế giới bị `NOT_IN_WORLD`.
-- e2e `TestPvPOverWebSocket`: A cấp 30 và B cấp 30 (`DevSetLevel`), đặt cạnh nhau ngay ngoài trại Kumotori (`DevSetPlace`); A chém B khi cả hai tắt PK bị `PK_FORBIDDEN`; A bật PK; B nhận `LookChange` với `pk_on`; A chém B, B nhận `Hit`; B (tắt PK) chém lại A được; A tắt PK ngay bị `IN_PVP_COMBAT`; B bật PK, A đánh tới khi B chết: B nhận `DeathNotice` có tên A, `by_player` và `exp_lost` đúng 5% `ToNext(30)`, `SelfStats.exp` giảm đúng số đó; B thoát rồi vào lại, `pk_on` vẫn bật, EXP vẫn là số sau phạt.
+- e2e `TestPvPOverWebSocket`: A cấp 30 và B cấp 30 (`DevSetLevel`), đặt cạnh nhau ngay ngoài trại Kumotori (`DevSetPlace`); A chém B khi cả hai tắt PK bị `PK_FORBIDDEN`; A bật PK; B nhận `LookChange` với `pk_on`; A chém B, B nhận `Hit`; B (tắt PK) chém lại A được; A tắt PK ngay bị `IN_PVP_COMBAT`; B bật PK, A đánh tới khi B chết: B nhận `DeathNotice` có tên A, `by_player` và `exp_lost` đúng 5% `ToNext(30)`, `SelfStats.exp` giảm đúng số đó; A thoát (`LeaveWorldReq`) ngay sau giao tranh bị `IN_PVP_COMBAT`; B thoát bị `IN_PVP_COMBAT`, B ngắt kết nối rồi đăng nhập và vào lại: `pk_on` vẫn bật, EXP vẫn là số sau phạt, `EnterWorldResp.cooldowns` có `pvp_combat` còn lại.
 
 **Client** (`tests/run.sh`): `pk_rules` (bảng, loại map); `entity_table` (`pk_on` từ `EntityEnter` và `looks`); `targeting` (ứng viên có người chơi; `on_hurt_by` khóa khi chưa có mục tiêu, không đổi khi đã có); giải mã fixture mới. Smoke theo mục 6.4.
 

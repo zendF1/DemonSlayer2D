@@ -99,7 +99,8 @@ const (
 	// The target is a player the PK rules, the map type or the party do not
 	// allow to attack.
 	ErrorCode_ERROR_CODE_PK_FORBIDDEN ErrorCode = 45
-	// PK cannot be turned off yet: the character fought a player recently.
+	// PK cannot be turned off, nor the world left, yet: the character fought
+	// a player recently.
 	ErrorCode_ERROR_CODE_IN_PVP_COMBAT ErrorCode = 46
 )
 

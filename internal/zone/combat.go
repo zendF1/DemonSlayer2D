@@ -69,11 +69,14 @@ func (z *Zone) hurtPlayer(p *player, h *pb.Hit, k killer) {
 // stays zero while dead because move ignores the dead. It notes the killer
 // for p's DeathNotice and, when a player killed a PK-on p on a map with the
 // PK penalty (phase 5a spec 4.7), takes combat.PkExpLoss of p's EXP, which
-// may go negative, and saves at once. The killer gets nothing.
+// may go negative, and saves at once; a loss of 0 (level 90) saves nothing.
+// The killer gets nothing.
 func (z *Zone) killPlayer(p *player, k killer) {
 	var lost int64
 	if k.byPlayer && z.area.PkPenalty && p.pkOn {
 		lost = combat.PkExpLoss(z.area.Exp.ToNext(p.level))
+	}
+	if lost > 0 {
 		p.exp -= lost
 		p.statsDirty = true
 		z.saver.Save(z.state(p), nil)
@@ -315,12 +318,17 @@ func (z *Zone) slash(p *player, f foe) {
 // hitOn is p's impact on f due at tick due, of base damage before f's
 // defense from an attacker of the given level: magic picks a player's magic
 // defense (a slash is physical); skillID is empty for a slash. The damage is
-// fixed now, at the press.
+// fixed now, at the press. A hit on a player also starts the PK-off lock of
+// both sides now, to pvpLockSec after due (phase 5a spec 1.3), so neither
+// can turn PK off while it is in flight; applyPvP refreshes it on landing.
 func (z *Zone) hitOn(p *player, f foe, base, level int, magic bool, skillID string, due uint32) impact {
 	im := impact{due: due, attacker: p.id, target: f.id(), skillID: skillID}
 	if f.p != nil {
 		im.targetIsPlayer, im.attackerName = true, p.name
 		im.damage = z.damageToPlayer(f.p, base, level, magic)
+		lock := due + z.ticks(pvpLockSec)
+		p.pvpUntil = max(p.pvpUntil, lock)
+		f.p.pvpUntil = max(f.p.pvpUntil, lock)
 	} else {
 		im.damage = z.damageTo(f.m, base, level)
 	}

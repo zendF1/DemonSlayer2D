@@ -1829,6 +1829,8 @@ func TestPvPOverWebSocket(t *testing.T) {
 	waitFor(t, ca, 5*time.Second, isHit(idB, idA))
 	_, err = ca.SetPk(ctxT(t), false)
 	expect(err, pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT)
+	// Leaving the world is refused too, and A stays in it.
+	expect(ca.LeaveWorld(ctxT(t)), pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT)
 
 	if r, err := cb.SetPk(ctxT(t), true); err != nil || !r.On {
 		t.Fatalf("SetPk(true) for B = %v, %v", r, err)
@@ -1876,14 +1878,30 @@ func TestPvPOverWebSocket(t *testing.T) {
 		})
 	}
 
-	if err := cb.LeaveWorld(ctxT(t)); err != nil {
+	// B was hit within 10 s, so it may not leave the world; it drops the
+	// connection instead, which removes it at once, and logs in again. The
+	// lock is remembered across the relogin.
+	expect(cb.LeaveWorld(ctxT(t)), pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT)
+	cb.Close()
+	<-cb.Closed()
+	cb2 := dial(t, s)
+	if _, err := cb2.Login(ctxT(t), "sora01", "password123"); err != nil {
 		t.Fatal(err)
 	}
-	ew2, err := cb.EnterWorld(ctxT(t), chB)
+	ew2, err := cb2.EnterWorld(ctxT(t), chB)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ew2.Stats.GetPkOn() || ew2.Stats.GetExp() != expStart-lost {
 		t.Fatalf("B re-entered with pk_on %v exp %d, want on and %d", ew2.Stats.GetPkOn(), ew2.Stats.GetExp(), expStart-lost)
+	}
+	var lockMs int32
+	for _, cd := range ew2.Cooldowns {
+		if cd.Key == "pvp_combat" {
+			lockMs = cd.RemainingMs
+		}
+	}
+	if lockMs <= 0 || lockMs > 10000 {
+		t.Fatalf("B re-entered with cooldowns %v, want pvp_combat left from the fight", ew2.Cooldowns)
 	}
 }

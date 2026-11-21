@@ -251,6 +251,8 @@ func (w *World) Transfer(ctx context.Context, m *Membership, req TransferReq) (*
 	info.RespSeq = req.RespSeq
 	nm, err := w.joinZone(w.ctx, s, r.to.MapID, info, m.out)
 	if err != nil {
+		// The character is in no zone now; its next login gets the lock back.
+		w.keepPvPLock(info.CharID, info.Cooldowns[zone.CooldownPvPCombat])
 		if w.ctx.Err() != nil {
 			err = ErrStopped
 		} else {

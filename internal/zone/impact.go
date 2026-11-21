@@ -122,7 +122,8 @@ func (z *Zone) applyToPlayer(im impact) {
 // killed included. The PK rules were checked at the press, so it lands even
 // if the target has since walked into a safe zone or turned PK off, and even
 // if the attacker has died or left. The target and, if still in the zone,
-// the attacker cannot turn PK off for pvpLockSec from now. It never touches
+// the attacker cannot turn PK off for pvpLockSec from now (hitOn already
+// locked both at the press; a later lock is never shortened). It never touches
 // monsters: no aggro, no damage share, no EXP. The impact that brings the
 // target to 0 HP is the killing blow.
 func (z *Zone) applyPvP(im impact) {
@@ -131,9 +132,9 @@ func (z *Zone) applyPvP(im impact) {
 		return
 	}
 	lock := z.tickNo + z.ticks(pvpLockSec)
-	b.pvpUntil = lock
+	b.pvpUntil = max(b.pvpUntil, lock)
 	if a := z.players[im.attacker]; a != nil {
-		a.pvpUntil = lock
+		a.pvpUntil = max(a.pvpUntil, lock)
 	}
 	z.hurtPlayer(b, &pb.Hit{AttackerId: im.attacker, TargetId: b.id, Damage: int32(im.damage), SkillId: im.skillID}, killer{id: im.attacker, name: im.attackerName, byPlayer: true})
 }

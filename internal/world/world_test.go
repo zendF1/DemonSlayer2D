@@ -346,6 +346,74 @@ func TestLeaveAndCloseIdleZone(t *testing.T) {
 	_ = m1
 }
 
+// pvpLeft is the pvp_combat cooldown of r, or 0.
+func pvpLeft(r *pb.EnterWorldResp) time.Duration {
+	for _, cd := range r.Cooldowns {
+		if cd.Key == zone.CooldownPvPCombat {
+			return time.Duration(cd.RemainingMs) * time.Millisecond
+		}
+	}
+	return 0
+}
+
+// enterResp enters character id at (3.5, 3.5) of m1 and returns its
+// EnterWorldResp.
+func enterResp(t *testing.T, w *World, id int64) (*Membership, *pb.EnterWorldResp) {
+	t.Helper()
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: char(id, "m1", 3.5, 3.5), Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m, out.enterResp(t)
+}
+
+// A PvP lock still running when a character leaves its zone is remembered
+// by wall clock and handed to its next Enter (phase 5a spec 4.1), so a
+// relogin cannot turn PK off early: the zone refuses a quit while it runs,
+// and a disconnect, which removes the character at once, remembers it
+// again. The entry is used up by the Enter; an expired one gives nothing
+// and the janitor drops it.
+func TestPvPLockKeptAcrossRelogin(t *testing.T) {
+	w := newTestWorld(t, 10)
+	w.keepPvPLock(1, 5*time.Second)
+	m, r := enterResp(t, w, 1)
+	if left := pvpLeft(r); left <= 4*time.Second || left > 5*time.Second {
+		t.Fatalf("pvp_combat on entering %v, want about 5 s", left)
+	}
+	w.mu.Lock()
+	_, still := w.pvpLocks[1]
+	w.mu.Unlock()
+	if still {
+		t.Fatal("the Enter did not use up the remembered lock")
+	}
+	if saved, code := m.Quit(); code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT || saved != nil {
+		t.Fatalf("Quit = %v, %v, want IN_PVP_COMBAT", saved, code)
+	}
+	if err := <-m.Leave(); err != nil { // a disconnect
+		t.Fatal(err)
+	}
+	_, r = enterResp(t, w, 1)
+	if left := pvpLeft(r); left <= 3*time.Second || left > 5*time.Second {
+		t.Fatalf("pvp_combat after the relogin %v, want what was left of 5 s", left)
+	}
+
+	w.mu.Lock()
+	w.pvpLocks[2] = time.Now().Add(-time.Second)
+	w.pvpLocks[3] = time.Now().Add(time.Minute)
+	w.mu.Unlock()
+	if _, r := enterResp(t, w, 2); pvpLeft(r) != 0 {
+		t.Fatalf("an expired lock gave pvp_combat %v", pvpLeft(r))
+	}
+	w.closeIdle(time.Now().Add(2 * time.Minute))
+	w.mu.Lock()
+	n := len(w.pvpLocks)
+	w.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("%d remembered locks after the janitor, want none", n)
+	}
+}
+
 type sess struct{ done chan struct{} }
 
 func (s *sess) Kick(pb.KickReason)    {}

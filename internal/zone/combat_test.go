@@ -4942,8 +4942,9 @@ func TestPvPSlashHits(t *testing.T) {
 
 // The PK rules are checked at the press only (phase 5a spec 1.3): a target
 // who walks into a safe zone or turns PK off before the impact is still
-// hit. One who leaves the zone is not, and the attacker is not locked. An
-// attacker who leaves still lands its hit, which locks the target.
+// hit. One who leaves the zone is not, but the attacker keeps the lock it got
+// at the press. An attacker who leaves still lands its hit, which locks the
+// target.
 func TestPvPImpactAfterPress(t *testing.T) {
 	for _, c := range []struct {
 		name     string
@@ -4988,8 +4989,8 @@ func TestPvPImpactAfterPress(t *testing.T) {
 			if c.hit && B.pvpUntil != lock {
 				t.Fatalf("target pvpUntil %d, want %d", B.pvpUntil, lock)
 			}
-			if wantA := map[bool]uint32{true: lock, false: 0}[c.hit]; z.players[1] != nil && A.pvpUntil != wantA {
-				t.Fatalf("attacker pvpUntil %d, want %d", A.pvpUntil, wantA)
+			if z.players[1] != nil && A.pvpUntil != lock {
+				t.Fatalf("attacker pvpUntil %d, want %d", A.pvpUntil, lock)
 			}
 		})
 	}
@@ -5017,6 +5018,48 @@ func TestPvPSecondImpactOnKilledIsDropped(t *testing.T) {
 	}
 	if !B.dead || !slices.Equal(deathsIn(envs), []uint64{2}) {
 		t.Fatalf("dead %v deaths %v, want B dead once", B.dead, deathsIn(envs))
+	}
+}
+
+// The PK-off lock starts when a PvP hit is accepted at the press (phase 5a
+// spec 1.3): an attacker cannot press and turn PK off before the impact
+// lands (hit-and-hide), nor can a PK-on target during the windup. The lock
+// runs to pvpLockSec after the impact is due, and landing keeps it there.
+func TestPvPLockStartsAtPress(t *testing.T) {
+	z, _ := pvpZone(t)
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	b := joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, true, nil)
+	A, B := z.players[1], z.players[2]
+	hp := B.hp
+	attackNow(t, z, 1, 5, 2)
+	if attackRespAt(a.take(), 5) < 0 || len(z.impacts) != 1 {
+		t.Fatal("slash refused")
+	}
+	due := z.impacts[0].due
+	lock := due + z.ticks(pvpLockSec)
+	if A.pvpUntil != lock || B.pvpUntil != lock {
+		t.Fatalf("pvpUntil %d and %d at the press, want %d", A.pvpUntil, B.pvpUntil, lock)
+	}
+	b.take()
+	if !z.SetPk(1, 6, false) || !z.SetPk(2, 7, false) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now()) // the slash is still in flight
+	if B.hp != hp {
+		t.Fatal("setup: the slash landed before the switches")
+	}
+	for name, c := range map[string]struct {
+		out *fakeOut
+		seq uint32
+		p   *player
+	}{"attacker": {a, 6, A}, "target": {b, 7, B}} {
+		if er := errorFor(c.out.take(), c.seq); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT || !c.p.pkOn {
+			t.Fatalf("%s: error %v pk %v, want IN_PVP_COMBAT and still on", name, er, c.p.pkOn)
+		}
+	}
+	settle(z)
+	if B.hp >= hp || A.pvpUntil != lock || B.pvpUntil != lock {
+		t.Fatalf("hp %d of %d, pvpUntil %d and %d, want the hit and %d", B.hp, hp, A.pvpUntil, B.pvpUntil, lock)
 	}
 }
 
@@ -5297,7 +5340,7 @@ func TestPkDeathPenalty(t *testing.T) {
 		saves    int
 	}{
 		{"PK on, level 10, training", 10, true, true, 1000 - pkLoss10, 1},
-		{"level 90 loses nothing", 90, true, true, 1000, 1},
+		{"level 90 loses nothing and saves nothing", 90, true, true, 1000, 0},
 		{"PK off", 10, false, true, 1000, 0},
 		{"PvP area without the penalty", 10, true, false, 1000, 0},
 	} {
