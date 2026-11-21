@@ -965,7 +965,11 @@ func (z *Zone) syncView(p *player) bool {
 	if len(p.questChanged) > 0 {
 		slices.Sort(p.questChanged)
 		ids := slices.Compact(p.questChanged)
-		send(&pb.Envelope{Payload: &pb.Envelope_QuestProgress{QuestProgress: &pb.QuestProgress{Quests: questEntries(p, ids)}}})
+		// A prune since the credit (syncDay in a join) may have dropped an id.
+		ids = slices.DeleteFunc(ids, func(id string) bool { _, ok := p.quests[id]; return !ok })
+		if len(ids) > 0 {
+			send(&pb.Envelope{Payload: &pb.Envelope_QuestProgress{QuestProgress: &pb.QuestProgress{Quests: questEntries(p, ids)}}})
+		}
 		p.questChanged = nil
 	}
 	if p.statsDirty {

@@ -693,7 +693,7 @@ Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám k
 | Hàng ngày | Làm mới 00:00 UTC+7; hoạt động diệt quái, phó bản, nâng cấp… và điểm năng động |
 | Bang hội/tuần hoàn | Chuỗi hoạt động như áp tiêu, thu thập; thưởng cống hiến; dự kiến 10–20 vòng/ngày |
 
-Mẫu mục tiêu: diệt quái, thu thập vật phẩm, hái/đào tài nguyên, đưa thư/trò chuyện, săn Boss/vượt ải và hộ tống/áp tiêu. Vật phẩm nhiệm vụ có thể dùng kho riêng, không chiếm hành trang chính. **Không chia sẻ tiến độ nhiệm vụ qua tổ đội**; nhận EXP chia sẻ không tự cộng tiến độ nhiệm vụ. 
+Mẫu mục tiêu: diệt quái, thu thập vật phẩm, hái/đào tài nguyên, đưa thư/trò chuyện, săn Boss/vượt ải và hộ tống/áp tiêu. Vật phẩm nhiệm vụ có thể dùng kho riêng, không chiếm hành trang chính. **Không chia sẻ tiến độ nhiệm vụ qua tổ đội**; nhận EXP chia sẻ không tự cộng tiến độ nhiệm vụ.
 
 Chuỗi chính tuyến v1 (Giai đoạn 6b) gồm 22 nhiệm vụ nối nhau cho cấp 1–20 đi qua Kumotori, Tổng hành dinh, Sagiri và Fujikasane, cộng 3 nhiệm vụ mốc cấp 30, 40, 50 trao sách 3–5; dữ liệu sinh từ `docs/balance/quest_data.py`. Mỗi nhiệm vụ có đúng một mục tiêu thuộc ba loại: diệt N con một loại quái, thu thập N vật phẩm nhiệm vụ rơi từ một loại quái theo tỷ lệ, hoặc đưa tin (đủ điều kiện ngay khi nhận, trả ở NPC khác). Vật phẩm nhiệm vụ không phải vật phẩm thật mà chỉ là bộ đếm của nhiệm vụ, không chiếm hành trang. Tiến độ chỉ tính cho **người kết liễu** con quái (như đồ rơi, kể cả khi người đó đang chết), không xét cửa sổ cấp và không chia qua tổ đội. Thưởng EXP theo % EXP một cấp (20% với diệt và thu thập, 10% với đưa tin), Xu theo cấp và số lượng, kèm bình thuốc, giấy về thành và vũ khí Trắng đúng class ở cấp 10, 20. Trả nhiệm vụ cần đủ chỗ trong hành trang cho cả lô thưởng, nếu không thì không trả gì.
 

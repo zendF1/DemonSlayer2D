@@ -5446,6 +5446,29 @@ func TestDailyHandoff(t *testing.T) {
 	}
 }
 
+// A daily credit queued in a tick whose drain then prunes it (a join that is
+// the first to see the new day) is not sent as a QuestProgress: the player
+// gets the QuestLog without the entry and nothing for the dropped id.
+func TestDailyJoinPruneDropsPendingProgress(t *testing.T) {
+	clock := &fakeClock{beforeMidnight}
+	yesterday := quest.Day(clock.t)
+	z, p, out, _ := dailyZone(t, 10, quest.Log{"d_enhance": {State: quest.Active, Progress: 1, Day: yesterday}}, clock)
+	out.take()
+	p.questChanged = []string{"d_enhance"} // an enhance credit earlier in the drain
+	clock.t = beforeMidnight.Add(time.Second)
+	if err := z.join(info(2, 6.5, 5.5), &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	z.advance(time.Now())
+	envs := out.take()
+	if ql := questLogsIn(envs); len(ql) != 1 || len(ql[0].Quests) != 0 {
+		t.Fatalf("QuestLog %v, want one with no quests", ql)
+	}
+	if qp := questProgressIn(envs); len(qp) != 0 {
+		t.Fatalf("QuestProgress %v for a pruned quest", qp)
+	}
+}
+
 // A zone whose once-a-second day check has not yet seen midnight still
 // prunes a joining player by the clock: an entry of the new day, accepted in
 // a zone that already moved on, is kept, and one of the old day is dropped,
