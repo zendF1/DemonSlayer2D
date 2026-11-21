@@ -5,6 +5,8 @@ import (
 	"math"
 	"slices"
 
+	"demonslayer2d/internal/combat"
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/pb"
 )
 
@@ -102,6 +104,37 @@ func (z *Zone) bestCandidate(tiles, placed []Vec2) Vec2 {
 	return best
 }
 
+// statsOf is the level row of a monster of kind at level, with HP and EXP
+// scaled by the kind's hp_pct and attack by its attack_pct; defense is the
+// row's (phase 4d spec 3.2). Every read of a monster's level stats goes
+// through it, so none forgets the kind's percentages. ok is false when the
+// level has no row.
+func (z *Zone) statsOf(kind *gamedata.Kind, level int) (gamedata.Level, bool) {
+	l, ok := z.area.Levels[level]
+	if !ok {
+		return l, false
+	}
+	l.HP = combat.ScalePct(l.HP, kind.HPPct)
+	l.Exp = int64(combat.ScalePct(int(l.Exp), kind.HPPct))
+	l.Attack = combat.ScalePct(l.Attack, kind.AttackPct)
+	return l, true
+}
+
+// monsterStats is statsOf m's kind and level.
+func (z *Zone) monsterStats(m *monster) gamedata.Level {
+	l, _ := z.statsOf(&m.region.Kind, m.level)
+	return l
+}
+
+// monsterHitDefense is the defense of p that m's hits meet: the magic one
+// when m's kind deals magic damage, else the physical one (phase 4d spec 3.2).
+func (z *Zone) monsterHitDefense(m *monster, p *player) int {
+	if m.region.Kind.Magic() {
+		return p.stats.MagicDefense
+	}
+	return p.stats.PhysDefense
+}
+
 // spawn adds one monster of r at pos, at a random level in r's range, with
 // full HP. It reports whether it did.
 func (z *Zone) spawn(r *regionState, pos Vec2) bool {
@@ -110,7 +143,7 @@ func (z *Zone) spawn(r *regionState, pos Vec2) bool {
 		return false
 	}
 	level := r.MinLevel + z.rng.IntN(r.MaxLevel-r.MinLevel+1)
-	stats, ok := z.area.Levels[level]
+	stats, ok := z.statsOf(&r.Kind, level)
 	if !ok {
 		z.log.Error("no monster stats for level", "region", r.ID, "level", level)
 		return false

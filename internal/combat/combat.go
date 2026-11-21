@@ -96,6 +96,13 @@ func Damage(base, defense, attackerLevel int) int {
 	return got
 }
 
+// ScalePct is ceil(v * pct / 100) in integers: a monster kind's HP, EXP and
+// attack percentages applied to its level row (phase 4d spec 2.4). At 100 it
+// returns v.
+func ScalePct(v, pct int) int {
+	return (v*pct + 99) / 100
+}
+
 // RangedFactor scales a monster's ranged shot against its melee hit
 // (monster regions spec 3.1).
 const RangedFactor = 0.5

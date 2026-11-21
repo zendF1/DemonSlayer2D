@@ -344,7 +344,7 @@ func (z *Zone) hitOn(p *player, f foe, base, level int, magic bool, skillID stri
 // from an attacker of the given level. Attacks fix it at the press;
 // applyToMonster lands it.
 func (z *Zone) damageTo(m *monster, base, level int) int {
-	return combat.Damage(base, z.area.Levels[m.level].Defense, level)
+	return combat.Damage(base, z.monsterStats(m).Defense, level)
 }
 
 // damageToPlayer is the damage a player's hit of base damage before b's

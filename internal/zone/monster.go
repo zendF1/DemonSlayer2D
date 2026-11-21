@@ -166,7 +166,7 @@ func (z *Zone) shoot(m *monster) {
 		z.startWander(m)
 		return
 	}
-	dmg := combat.MonsterRangedDamage(z.area.Levels[m.level].Attack, p.stats.PhysDefense, m.level)
+	dmg := combat.MonsterRangedDamage(z.monsterStats(m).Attack, z.monsterHitDefense(m, p), m.level)
 	z.monsterAttack(m, p, dmg, 0, flightSec(distance(m.pos, p.pos), m.region.Kind.ShotSpeed), true)
 	m.nextShot += z.ticks(m.region.Kind.ShootSec)
 }
@@ -319,7 +319,7 @@ func (z *Zone) fight(m *monster) {
 	}
 	z.stopMonster(m)
 	if z.tickNo >= m.nextAttack {
-		dmg := combat.Damage(z.area.Levels[m.level].Attack, t.stats.PhysDefense, m.level)
+		dmg := combat.Damage(z.monsterStats(m).Attack, z.monsterHitDefense(m, t), m.level)
 		z.monsterAttack(m, t, dmg, k.MeleeWindupMS, 0, false)
 		m.nextAttack = z.tickNo + z.ticks(k.AttackSec)
 	}

@@ -5591,3 +5591,109 @@ func TestPartyPKForbidden(t *testing.T) {
 		t.Fatalf("hits %v hp %d/%d, want only player 3 hit", targetIDs(hs), z.players[2].hp, z.players[3].hp)
 	}
 }
+
+// ____TEST KIND TRAITS____
+
+// traitKind is testKind with the given HP and attack percentages and damage
+// type (phase 4d spec 3.2).
+func traitKind(hpPct, attackPct int, damageType string) gamedata.Kind {
+	k := testKind
+	k.HPPct, k.AttackPct, k.DamageType = hpPct, attackPct, damageType
+	return k
+}
+
+// A kind with hp_pct 80 spawns with 80% of its level HP, rounded up, shows
+// that max HP in EntityEnter, and one player killing it alone gets exactly
+// 80% of the level EXP.
+func TestKindHPPct(t *testing.T) {
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZoneOf(t, traitKind(80, 100, gamedata.DamagePhys), 2, home)
+	wantHP := combat.ScalePct(testLevels[2].HP, 80)
+	if wantHP == testLevels[2].HP || m.maxHP != wantHP || m.hp != wantHP {
+		t.Fatalf("hp %d max %d, want %d (80%% of %d)", m.hp, m.maxHP, wantHP, testLevels[2].HP)
+	}
+	in := info(1, home.X+1, home.Y)
+	in.Points = combat.Points{Str: 200} // one slash kills it
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	z.advance(time.Now())
+	var enter *pb.EntityEnter
+	for _, e := range out.take() {
+		if en := e.GetEntityEnter(); en != nil && en.Id == m.id {
+			enter = en
+		}
+	}
+	if enter == nil || int(enter.MaxHp) != wantHP || int(enter.Hp) != wantHP {
+		t.Fatalf("enter %v, want hp and max hp %d", enter, wantHP)
+	}
+	attackLand(t, z, 1, 1, m.id)
+	want := int64(combat.ScalePct(int(testLevels[2].Exp), 80))
+	if p := z.players[1]; !m.dead || p.exp != want || want == testLevels[2].Exp {
+		t.Fatalf("dead %v exp %d, want %d (80%% of %d)", m.dead, p.exp, want, testLevels[2].Exp)
+	}
+}
+
+// firstMonsterHit is the damage of the first hit of a monster of kind and
+// level on player 1 with the given defenses: in melee when engaged next to
+// it, else shot from 4.9 tiles away.
+func firstMonsterHit(t *testing.T, kind gamedata.Kind, level int, ranged bool, phys, magic int) int32 {
+	t.Helper()
+	home := Vec2{30.5, 30.5}
+	z, m := newFightZoneOf(t, kind, level, home)
+	dx := float32(1)
+	if ranged {
+		dx = 4.9
+	}
+	a := joinNow(t, z, 1, home.X+dx, home.Y)
+	p := z.players[1]
+	p.stats.PhysDefense, p.stats.MagicDefense = phys, magic
+	if !ranged {
+		engage(m, 1)
+	}
+	now := time.Now()
+	for z.tickNo < 200 {
+		z.advance(now)
+		for _, h := range hitsIn(a.take()) {
+			if h.AttackerId == m.id && h.TargetId == 1 {
+				if h.Ranged != ranged {
+					t.Fatalf("hit %v, want ranged %v", h, ranged)
+				}
+				return h.Damage
+			}
+		}
+	}
+	t.Fatal("never hit")
+	return 0
+}
+
+// A kind with attack_pct 120 hits in melee and shoots with 120% of its level
+// attack, rounded up.
+func TestKindAttackPct(t *testing.T) {
+	k, attack := traitKind(100, 120, gamedata.DamagePhys), combat.ScalePct(testLevels[12].Attack, 120)
+	if got, want := firstMonsterHit(t, k, 12, false, 100, 500), combat.Damage(attack, 100, 12); int(got) != want {
+		t.Fatalf("melee %d, want %d", got, want)
+	}
+	if got, want := firstMonsterHit(t, k, 12, true, 100, 500), combat.MonsterRangedDamage(attack, 100, 12); int(got) != want {
+		t.Fatalf("ranged %d, want %d", got, want)
+	}
+}
+
+// A magic kind hits and shoots against the magic defense; a phys kind of the
+// same level against the physical one.
+func TestKindDamageType(t *testing.T) {
+	attack := testLevels[12].Attack
+	for _, c := range []struct {
+		kind string
+		def  int
+	}{{gamedata.DamageMagic, 500}, {gamedata.DamagePhys, 100}} {
+		k := traitKind(100, 100, c.kind)
+		if got, want := firstMonsterHit(t, k, 12, false, 100, 500), combat.Damage(attack, c.def, 12); int(got) != want {
+			t.Fatalf("%s melee %d, want %d", c.kind, got, want)
+		}
+		if got, want := firstMonsterHit(t, k, 12, true, 100, 500), combat.MonsterRangedDamage(attack, c.def, 12); int(got) != want {
+			t.Fatalf("%s ranged %d, want %d", c.kind, got, want)
+		}
+	}
+}

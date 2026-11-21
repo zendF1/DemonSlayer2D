@@ -104,7 +104,7 @@ func (z *Zone) payExpShare(p *player, m *monster, counted int) {
 		return
 	}
 	m.dmgBy[p.id] += counted
-	share := combat.ExpShare(z.area.Levels[m.level].Exp, m.maxHP, m.dmgBy[p.id])
+	share := combat.ExpShare(z.monsterStats(m).Exp, m.maxHP, m.dmgBy[p.id])
 	gain := share - m.expPaid[p.id]
 	m.expPaid[p.id] = share
 	z.gainExp(p, gain)

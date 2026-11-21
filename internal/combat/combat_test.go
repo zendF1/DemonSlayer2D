@@ -457,3 +457,17 @@ func TestPartyBonusSumsExactly(t *testing.T) {
 		}
 	}
 }
+
+// ______________________TEST SCALE PCT_____________________
+
+// ScalePct rounds up in integers and leaves a value alone at 100 (phase 4d
+// spec 2.4).
+func TestScalePct(t *testing.T) {
+	for _, c := range []struct{ v, pct, want int }{
+		{1000, 80, 800}, {1001, 80, 801}, {7, 100, 7}, {10, 120, 12}, {13280, 80, 10624}, {1398, 120, 1678}, {0, 80, 0},
+	} {
+		if got := ScalePct(c.v, c.pct); got != c.want {
+			t.Fatalf("ScalePct(%d, %d) = %d, want %d", c.v, c.pct, got, c.want)
+		}
+	}
+}
