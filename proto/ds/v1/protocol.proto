@@ -99,6 +99,9 @@ message Envelope {
     StashExpandResp stash_expand_resp = 102;
     StashSortReq stash_sort_req = 103;
     StashSortResp stash_sort_resp = 104;
+    SetPkReq set_pk_req = 105;
+    SetPkResp set_pk_resp = 106;
+    DeathNotice death_notice = 107;
   }
 }
 
@@ -119,7 +122,8 @@ enum ErrorCode {
   ERROR_CODE_ALREADY_IN_WORLD = 13;
   ERROR_CODE_ZONE_FULL = 14;
   ERROR_CODE_INTERNAL = 15;
-  // The attack target does not exist, is dead or is not attackable.
+  // The target does not exist, is dead, is the caster itself or is neither a
+  // monster nor a player.
   ERROR_CODE_INVALID_TARGET = 16;
   ERROR_CODE_OUT_OF_RANGE = 17;
   ERROR_CODE_ON_COOLDOWN = 18;
@@ -174,6 +178,11 @@ enum ErrorCode {
   ERROR_CODE_STASH_MAXED = 43;
   // The wallet holds too little Luong.
   ERROR_CODE_NOT_ENOUGH_LUONG = 44;
+  // The target is a player the PK rules, the map type or the party do not
+  // allow to attack.
+  ERROR_CODE_PK_FORBIDDEN = 45;
+  // PK cannot be turned off yet: the character fought a player recently.
+  ERROR_CODE_IN_PVP_COMBAT = 46;
 }
 
 enum KickReason {
@@ -287,7 +296,7 @@ message EnterWorldResp {
 }
 
 // Time left on a cooldown when entering a zone. key: a skill id, "slash",
-// "zone_change", "potion_hp" or "potion_mp".
+// "zone_change", "potion_hp", "potion_mp" or "pvp_combat".
 message Cooldown {
   string key = 1;
   int32 remaining_ms = 2;
@@ -323,6 +332,8 @@ message EntityEnter {
   // A player's worn weapon enhancement (0 without a wearable weapon); clients
   // draw the glow from it.
   int32 weapon_enhance = 14;
+  // True for a player with PK on.
+  bool pk_on = 15;
 }
 
 message EntityLeave {
@@ -356,10 +367,13 @@ message WorldTick {
   repeated LookChange looks = 9;
 }
 
-// A player's look changed; sent to everyone who sees the player and to the player.
+// A player's look changed; sent to everyone who sees the player and to the
+// player. It carries the entity's whole look at the end of the tick, so a
+// client applies every field.
 message LookChange {
   uint64 id = 1;
   int32 weapon_enhance = 2;
+  bool pk_on = 3;
 }
 
 message Ping {
@@ -377,6 +391,7 @@ message Kicked {
 
 // Default slash at one target; the result arrives as a Hit in WorldTick.
 message AttackReq {
+  // A monster or a player.
   uint64 target_id = 1;
 }
 
@@ -441,6 +456,8 @@ message SelfStats {
   int32 mp_regen = 23;
   // Luong in the account wallet.
   int64 luong = 24;
+  // True while PK is on.
+  bool pk_on = 25;
 }
 
 message Hit {
@@ -484,6 +501,7 @@ message LearnSkillResp {
 // facing for skills without a target.
 message CastReq {
   string skill_id = 1;
+  // A monster or a player; 0 for none.
   uint64 target_id = 2;
   float dir_x = 3;
   float dir_y = 4;
@@ -822,4 +840,23 @@ message StashSortReq {
 
 message StashSortResp {
   repeated ItemSlot stash = 1;
+}
+
+// Turns PK on or off; the answer is SetPkResp.
+message SetPkReq {
+  bool on = 1;
+}
+
+message SetPkResp {
+  bool on = 1;
+}
+
+// Pushed with seq = 0 to the character that just died.
+message DeathNotice {
+  uint64 killer_id = 1;
+  string killer_name = 2;
+  // True when a player landed the killing blow.
+  bool by_player = 3;
+  // EXP taken as the PK penalty; 0 when none.
+  int64 exp_lost = 4;
 }

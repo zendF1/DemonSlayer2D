@@ -504,13 +504,19 @@ func clientFixtures() map[string]*pb.Envelope {
 			Update: &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 2}}},
 			Stash:  []*pb.ItemSlot{{Slot: 1, Item: &pb.ItemInfo{Code: "scroll_protect", Count: 1}}}}}},
 		"respawn_req_in_place": {Seq: 25, Payload: &pb.Envelope_RespawnReq{RespawnReq: &pb.RespawnReq{InPlace: true}}},
+		"set_pk_req":           {Seq: 26, Payload: &pb.Envelope_SetPkReq{SetPkReq: &pb.SetPkReq{On: true}}},
+		"death_notice": {Seq: 0, Payload: &pb.Envelope_DeathNotice{DeathNotice: &pb.DeathNotice{
+			KillerId: 78, KillerName: "Mai", ByPlayer: true, ExpLost: 3200}}},
+		"entity_enter_pk": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
+			Id: 78, Kind: pb.EntityKind_ENTITY_KIND_PLAYER, Name: "Mai", CharClass: pb.CharClass_CHAR_CLASS_MINH,
+			Level: 30, X: 7.5, Y: 8.5, DirY: -1, Hp: 1500, MaxHp: 1500, PkOn: true}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 11 {
-		t.Fatalf("ProtocolVersion = %d, want 11", ProtocolVersion)
+	if ProtocolVersion != 12 {
+		t.Fatalf("ProtocolVersion = %d, want 12", ProtocolVersion)
 	}
 }
 
@@ -627,6 +633,23 @@ func TestStashFixturesRoundTrip(t *testing.T) {
 	rs := readFixture(t, "respawn_req_in_place")
 	if rs.GetSeq() != 25 || !rs.GetRespawnReq().GetInPlace() {
 		t.Fatalf("respawn %v", rs)
+	}
+}
+
+// The PK fixtures decode back to the toggle request, a death notice from a
+// player and a player entity with PK on.
+func TestPkFixturesRoundTrip(t *testing.T) {
+	req := readFixture(t, "set_pk_req")
+	if req.GetSeq() != 26 || !req.GetSetPkReq().GetOn() {
+		t.Fatalf("set pk %v", req)
+	}
+	dn := readFixture(t, "death_notice")
+	if d := dn.GetDeathNotice(); dn.GetSeq() != 0 || d.GetKillerId() != 78 || d.GetKillerName() != "Mai" ||
+		!d.GetByPlayer() || d.GetExpLost() != 3200 {
+		t.Fatalf("death notice %v", dn)
+	}
+	if e := readFixture(t, "entity_enter_pk").GetEntityEnter(); e.GetKind() != pb.EntityKind_ENTITY_KIND_PLAYER || !e.GetPkOn() {
+		t.Fatalf("entity %v, want a player with pk_on", e)
 	}
 }
 

@@ -40,7 +40,8 @@ const (
 	ErrorCode_ERROR_CODE_ALREADY_IN_WORLD ErrorCode = 13
 	ErrorCode_ERROR_CODE_ZONE_FULL        ErrorCode = 14
 	ErrorCode_ERROR_CODE_INTERNAL         ErrorCode = 15
-	// The attack target does not exist, is dead or is not attackable.
+	// The target does not exist, is dead, is the caster itself or is neither a
+	// monster nor a player.
 	ErrorCode_ERROR_CODE_INVALID_TARGET ErrorCode = 16
 	ErrorCode_ERROR_CODE_OUT_OF_RANGE   ErrorCode = 17
 	ErrorCode_ERROR_CODE_ON_COOLDOWN    ErrorCode = 18
@@ -95,6 +96,11 @@ const (
 	ErrorCode_ERROR_CODE_STASH_MAXED ErrorCode = 43
 	// The wallet holds too little Luong.
 	ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG ErrorCode = 44
+	// The target is a player the PK rules, the map type or the party do not
+	// allow to attack.
+	ErrorCode_ERROR_CODE_PK_FORBIDDEN ErrorCode = 45
+	// PK cannot be turned off yet: the character fought a player recently.
+	ErrorCode_ERROR_CODE_IN_PVP_COMBAT ErrorCode = 46
 )
 
 // Enum value maps for ErrorCode.
@@ -145,6 +151,8 @@ var (
 		42: "ERROR_CODE_STASH_FULL",
 		43: "ERROR_CODE_STASH_MAXED",
 		44: "ERROR_CODE_NOT_ENOUGH_LUONG",
+		45: "ERROR_CODE_PK_FORBIDDEN",
+		46: "ERROR_CODE_IN_PVP_COMBAT",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":          0,
@@ -192,6 +200,8 @@ var (
 		"ERROR_CODE_STASH_FULL":           42,
 		"ERROR_CODE_STASH_MAXED":          43,
 		"ERROR_CODE_NOT_ENOUGH_LUONG":     44,
+		"ERROR_CODE_PK_FORBIDDEN":         45,
+		"ERROR_CODE_IN_PVP_COMBAT":        46,
 	}
 )
 
@@ -486,6 +496,9 @@ type Envelope struct {
 	//	*Envelope_StashExpandResp
 	//	*Envelope_StashSortReq
 	//	*Envelope_StashSortResp
+	//	*Envelope_SetPkReq
+	//	*Envelope_SetPkResp
+	//	*Envelope_DeathNotice
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1228,6 +1241,33 @@ func (x *Envelope) GetStashSortResp() *StashSortResp {
 	return nil
 }
 
+func (x *Envelope) GetSetPkReq() *SetPkReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SetPkReq); ok {
+			return x.SetPkReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSetPkResp() *SetPkResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SetPkResp); ok {
+			return x.SetPkResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetDeathNotice() *DeathNotice {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_DeathNotice); ok {
+			return x.DeathNotice
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1540,6 +1580,18 @@ type Envelope_StashSortResp struct {
 	StashSortResp *StashSortResp `protobuf:"bytes,104,opt,name=stash_sort_resp,json=stashSortResp,proto3,oneof"`
 }
 
+type Envelope_SetPkReq struct {
+	SetPkReq *SetPkReq `protobuf:"bytes,105,opt,name=set_pk_req,json=setPkReq,proto3,oneof"`
+}
+
+type Envelope_SetPkResp struct {
+	SetPkResp *SetPkResp `protobuf:"bytes,106,opt,name=set_pk_resp,json=setPkResp,proto3,oneof"`
+}
+
+type Envelope_DeathNotice struct {
+	DeathNotice *DeathNotice `protobuf:"bytes,107,opt,name=death_notice,json=deathNotice,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -1693,6 +1745,12 @@ func (*Envelope_StashExpandResp) isEnvelope_Payload() {}
 func (*Envelope_StashSortReq) isEnvelope_Payload() {}
 
 func (*Envelope_StashSortResp) isEnvelope_Payload() {}
+
+func (*Envelope_SetPkReq) isEnvelope_Payload() {}
+
+func (*Envelope_SetPkResp) isEnvelope_Payload() {}
+
+func (*Envelope_DeathNotice) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2480,7 +2538,7 @@ func (x *EnterWorldResp) GetCooldowns() []*Cooldown {
 }
 
 // Time left on a cooldown when entering a zone. key: a skill id, "slash",
-// "zone_change", "potion_hp" or "potion_mp".
+// "zone_change", "potion_hp", "potion_mp" or "pvp_combat".
 type Cooldown struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -2686,6 +2744,8 @@ type EntityEnter struct {
 	// A player's worn weapon enhancement (0 without a wearable weapon); clients
 	// draw the glow from it.
 	WeaponEnhance int32 `protobuf:"varint,14,opt,name=weapon_enhance,json=weaponEnhance,proto3" json:"weapon_enhance,omitempty"`
+	// True for a player with PK on.
+	PkOn          bool `protobuf:"varint,15,opt,name=pk_on,json=pkOn,proto3" json:"pk_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2816,6 +2876,13 @@ func (x *EntityEnter) GetWeaponEnhance() int32 {
 		return x.WeaponEnhance
 	}
 	return 0
+}
+
+func (x *EntityEnter) GetPkOn() bool {
+	if x != nil {
+		return x.PkOn
+	}
+	return false
 }
 
 type EntityLeave struct {
@@ -3060,11 +3127,14 @@ func (x *WorldTick) GetLooks() []*LookChange {
 	return nil
 }
 
-// A player's look changed; sent to everyone who sees the player and to the player.
+// A player's look changed; sent to everyone who sees the player and to the
+// player. It carries the entity's whole look at the end of the tick, so a
+// client applies every field.
 type LookChange struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	WeaponEnhance int32                  `protobuf:"varint,2,opt,name=weapon_enhance,json=weaponEnhance,proto3" json:"weapon_enhance,omitempty"`
+	PkOn          bool                   `protobuf:"varint,3,opt,name=pk_on,json=pkOn,proto3" json:"pk_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3111,6 +3181,13 @@ func (x *LookChange) GetWeaponEnhance() int32 {
 		return x.WeaponEnhance
 	}
 	return 0
+}
+
+func (x *LookChange) GetPkOn() bool {
+	if x != nil {
+		return x.PkOn
+	}
+	return false
 }
 
 type Ping struct {
@@ -3255,8 +3332,9 @@ func (x *Kicked) GetReason() KickReason {
 
 // Default slash at one target; the result arrives as a Hit in WorldTick.
 type AttackReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TargetId      uint64                 `protobuf:"varint,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A monster or a player.
+	TargetId      uint64 `protobuf:"varint,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3581,7 +3659,9 @@ type SelfStats struct {
 	// MP regenerated per second from worn enhancement milestones.
 	MpRegen int32 `protobuf:"varint,23,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	// Luong in the account wallet.
-	Luong         int64 `protobuf:"varint,24,opt,name=luong,proto3" json:"luong,omitempty"`
+	Luong int64 `protobuf:"varint,24,opt,name=luong,proto3" json:"luong,omitempty"`
+	// True while PK is on.
+	PkOn          bool `protobuf:"varint,25,opt,name=pk_on,json=pkOn,proto3" json:"pk_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3782,6 +3862,13 @@ func (x *SelfStats) GetLuong() int64 {
 		return x.Luong
 	}
 	return 0
+}
+
+func (x *SelfStats) GetPkOn() bool {
+	if x != nil {
+		return x.PkOn
+	}
+	return false
 }
 
 type Hit struct {
@@ -4127,11 +4214,12 @@ func (x *LearnSkillResp) GetSkills() []*SkillLevel {
 // Casts a skill. target_id is the locked target (0 for none); dir is the
 // facing for skills without a target.
 type CastReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SkillId       string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
-	TargetId      uint64                 `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
-	DirX          float32                `protobuf:"fixed32,3,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
-	DirY          float32                `protobuf:"fixed32,4,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SkillId string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	// A monster or a player; 0 for none.
+	TargetId      uint64  `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	DirX          float32 `protobuf:"fixed32,3,opt,name=dir_x,json=dirX,proto3" json:"dir_x,omitempty"`
+	DirY          float32 `protobuf:"fixed32,4,opt,name=dir_y,json=dirY,proto3" json:"dir_y,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7178,11 +7266,171 @@ func (x *StashSortResp) GetStash() []*ItemSlot {
 	return nil
 }
 
+// Turns PK on or off; the answer is SetPkResp.
+type SetPkReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	On            bool                   `protobuf:"varint,1,opt,name=on,proto3" json:"on,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetPkReq) Reset() {
+	*x = SetPkReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetPkReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetPkReq) ProtoMessage() {}
+
+func (x *SetPkReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetPkReq.ProtoReflect.Descriptor instead.
+func (*SetPkReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *SetPkReq) GetOn() bool {
+	if x != nil {
+		return x.On
+	}
+	return false
+}
+
+type SetPkResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	On            bool                   `protobuf:"varint,1,opt,name=on,proto3" json:"on,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetPkResp) Reset() {
+	*x = SetPkResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetPkResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetPkResp) ProtoMessage() {}
+
+func (x *SetPkResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetPkResp.ProtoReflect.Descriptor instead.
+func (*SetPkResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *SetPkResp) GetOn() bool {
+	if x != nil {
+		return x.On
+	}
+	return false
+}
+
+// Pushed with seq = 0 to the character that just died.
+type DeathNotice struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	KillerId   uint64                 `protobuf:"varint,1,opt,name=killer_id,json=killerId,proto3" json:"killer_id,omitempty"`
+	KillerName string                 `protobuf:"bytes,2,opt,name=killer_name,json=killerName,proto3" json:"killer_name,omitempty"`
+	// True when a player landed the killing blow.
+	ByPlayer bool `protobuf:"varint,3,opt,name=by_player,json=byPlayer,proto3" json:"by_player,omitempty"`
+	// EXP taken as the PK penalty; 0 when none.
+	ExpLost       int64 `protobuf:"varint,4,opt,name=exp_lost,json=expLost,proto3" json:"exp_lost,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeathNotice) Reset() {
+	*x = DeathNotice{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeathNotice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeathNotice) ProtoMessage() {}
+
+func (x *DeathNotice) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeathNotice.ProtoReflect.Descriptor instead.
+func (*DeathNotice) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *DeathNotice) GetKillerId() uint64 {
+	if x != nil {
+		return x.KillerId
+	}
+	return 0
+}
+
+func (x *DeathNotice) GetKillerName() string {
+	if x != nil {
+		return x.KillerName
+	}
+	return ""
+}
+
+func (x *DeathNotice) GetByPlayer() bool {
+	if x != nil {
+		return x.ByPlayer
+	}
+	return false
+}
+
+func (x *DeathNotice) GetExpLost() int64 {
+	if x != nil {
+		return x.ExpLost
+	}
+	return 0
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xef\"\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x8d$\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -7283,7 +7531,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x10stash_expand_req\x18e \x01(\v2\x15.ds.v1.StashExpandReqH\x00R\x0estashExpandReq\x12D\n" +
 	"\x11stash_expand_resp\x18f \x01(\v2\x16.ds.v1.StashExpandRespH\x00R\x0fstashExpandResp\x12;\n" +
 	"\x0estash_sort_req\x18g \x01(\v2\x13.ds.v1.StashSortReqH\x00R\fstashSortReq\x12>\n" +
-	"\x0fstash_sort_resp\x18h \x01(\v2\x14.ds.v1.StashSortRespH\x00R\rstashSortRespB\t\n" +
+	"\x0fstash_sort_resp\x18h \x01(\v2\x14.ds.v1.StashSortRespH\x00R\rstashSortResp\x12/\n" +
+	"\n" +
+	"set_pk_req\x18i \x01(\v2\x0f.ds.v1.SetPkReqH\x00R\bsetPkReq\x122\n" +
+	"\vset_pk_resp\x18j \x01(\v2\x10.ds.v1.SetPkRespH\x00R\tsetPkResp\x127\n" +
+	"\fdeath_notice\x18k \x01(\v2\x12.ds.v1.DeathNoticeH\x00R\vdeathNoticeB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -7347,7 +7599,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\tMoveInput\x12\x1b\n" +
 	"\tinput_seq\x18\x01 \x01(\rR\binputSeq\x12\x13\n" +
 	"\x05dir_x\x18\x02 \x01(\x02R\x04dirX\x12\x13\n" +
-	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\xec\x02\n" +
+	"\x05dir_y\x18\x03 \x01(\x02R\x04dirY\"\x81\x03\n" +
 	"\vEntityEnter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x11.ds.v1.EntityKindR\x04kind\x12\x12\n" +
@@ -7364,7 +7616,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x06max_hp\x18\v \x01(\x05R\x05maxHp\x12\x12\n" +
 	"\x04dead\x18\f \x01(\bR\x04dead\x12#\n" +
 	"\x04item\x18\r \x01(\v2\x0f.ds.v1.ItemInfoR\x04item\x12%\n" +
-	"\x0eweapon_enhance\x18\x0e \x01(\x05R\rweaponEnhance\"\x1d\n" +
+	"\x0eweapon_enhance\x18\x0e \x01(\x05R\rweaponEnhance\x12\x13\n" +
+	"\x05pk_on\x18\x0f \x01(\bR\x04pkOn\"\x1d\n" +
 	"\vEntityLeave\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\"v\n" +
 	"\n" +
@@ -7386,11 +7639,12 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"hp_changes\x18\x06 \x03(\v2\x0f.ds.v1.HpChangeR\thpChanges\x12+\n" +
 	"\tlevel_ups\x18\a \x03(\v2\x0e.ds.v1.LevelUpR\blevelUps\x12!\n" +
 	"\x05casts\x18\b \x03(\v2\v.ds.v1.CastR\x05casts\x12'\n" +
-	"\x05looks\x18\t \x03(\v2\x11.ds.v1.LookChangeR\x05looks\"C\n" +
+	"\x05looks\x18\t \x03(\v2\x11.ds.v1.LookChangeR\x05looks\"X\n" +
 	"\n" +
 	"LookChange\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12%\n" +
-	"\x0eweapon_enhance\x18\x02 \x01(\x05R\rweaponEnhance\"'\n" +
+	"\x0eweapon_enhance\x18\x02 \x01(\x05R\rweaponEnhance\x12\x13\n" +
+	"\x05pk_on\x18\x03 \x01(\bR\x04pkOn\"'\n" +
 	"\x04Ping\x12\x1f\n" +
 	"\vclient_time\x18\x01 \x01(\x03R\n" +
 	"clientTime\"H\n" +
@@ -7417,7 +7671,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\bin_place\x18\x01 \x01(\bR\ainPlace\")\n" +
 	"\vRespawnResp\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x02R\x01y\"\x95\x05\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\"\xaa\x05\n" +
 	"\tSelfStats\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x10\n" +
 	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x19\n" +
@@ -7446,7 +7700,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x02xu\x18\x15 \x01(\x03R\x02xu\x12\x1e\n" +
 	"\vhp_regen_bp\x18\x16 \x01(\x05R\thpRegenBp\x12\x19\n" +
 	"\bmp_regen\x18\x17 \x01(\x05R\ampRegen\x12\x14\n" +
-	"\x05luong\x18\x18 \x01(\x03R\x05luong\"\xa9\x01\n" +
+	"\x05luong\x18\x18 \x01(\x03R\x05luong\x12\x13\n" +
+	"\x05pk_on\x18\x19 \x01(\bR\x04pkOn\"\xa9\x01\n" +
 	"\x03Hit\x12\x1f\n" +
 	"\vattacker_id\x18\x01 \x01(\x04R\n" +
 	"attackerId\x12\x1b\n" +
@@ -7657,7 +7912,17 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fStashSortReq\x12\x15\n" +
 	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\"6\n" +
 	"\rStashSortResp\x12%\n" +
-	"\x05stash\x18\x01 \x03(\v2\x0f.ds.v1.ItemSlotR\x05stash*\xbf\n" +
+	"\x05stash\x18\x01 \x03(\v2\x0f.ds.v1.ItemSlotR\x05stash\"\x1a\n" +
+	"\bSetPkReq\x12\x0e\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\x1b\n" +
+	"\tSetPkResp\x12\x0e\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\x83\x01\n" +
+	"\vDeathNotice\x12\x1b\n" +
+	"\tkiller_id\x18\x01 \x01(\x04R\bkillerId\x12\x1f\n" +
+	"\vkiller_name\x18\x02 \x01(\tR\n" +
+	"killerName\x12\x1b\n" +
+	"\tby_player\x18\x03 \x01(\bR\bbyPlayer\x12\x19\n" +
+	"\bexp_lost\x18\x04 \x01(\x03R\aexpLost*\xfa\n" +
 	"\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -7705,7 +7970,9 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x17ERROR_CODE_ALREADY_FULL\x10)\x12\x19\n" +
 	"\x15ERROR_CODE_STASH_FULL\x10*\x12\x1a\n" +
 	"\x16ERROR_CODE_STASH_MAXED\x10+\x12\x1f\n" +
-	"\x1bERROR_CODE_NOT_ENOUGH_LUONG\x10,*\x84\x02\n" +
+	"\x1bERROR_CODE_NOT_ENOUGH_LUONG\x10,\x12\x1b\n" +
+	"\x17ERROR_CODE_PK_FORBIDDEN\x10-\x12\x1c\n" +
+	"\x18ERROR_CODE_IN_PVP_COMBAT\x10.*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -7743,7 +8010,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 97)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 100)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -7846,6 +8113,9 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*StashExpandResp)(nil),    // 98: ds.v1.StashExpandResp
 	(*StashSortReq)(nil),       // 99: ds.v1.StashSortReq
 	(*StashSortResp)(nil),      // 100: ds.v1.StashSortResp
+	(*SetPkReq)(nil),           // 101: ds.v1.SetPkReq
+	(*SetPkResp)(nil),          // 102: ds.v1.SetPkResp
+	(*DeathNotice)(nil),        // 103: ds.v1.DeathNotice
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -7925,83 +8195,86 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	98,  // 74: ds.v1.Envelope.stash_expand_resp:type_name -> ds.v1.StashExpandResp
 	99,  // 75: ds.v1.Envelope.stash_sort_req:type_name -> ds.v1.StashSortReq
 	100, // 76: ds.v1.Envelope.stash_sort_resp:type_name -> ds.v1.StashSortResp
-	0,   // 77: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,   // 78: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10,  // 79: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,   // 80: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10,  // 81: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	37,  // 82: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 83: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	52,  // 84: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	19,  // 85: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
-	3,   // 86: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,   // 87: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	49,  // 88: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	25,  // 89: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	38,  // 90: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	39,  // 91: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	40,  // 92: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	41,  // 93: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	47,  // 94: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	27,  // 95: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,   // 96: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	37,  // 97: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	37,  // 98: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 99: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	48,  // 100: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,   // 101: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	50,  // 102: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	50,  // 103: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	49,  // 104: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	51,  // 105: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	51,  // 106: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	51,  // 107: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	51,  // 108: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	53,  // 109: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 110: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 111: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 112: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 113: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 114: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 115: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	64,  // 116: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	53,  // 117: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 118: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 119: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
-	53,  // 120: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 121: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 122: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 123: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 124: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 125: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 126: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 127: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 128: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
-	50,  // 129: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
-	53,  // 130: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 131: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 132: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 133: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
-	81,  // 134: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
-	53,  // 135: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 136: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 137: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 138: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 139: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 140: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
-	51,  // 141: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
-	90,  // 142: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
-	53,  // 143: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
-	51,  // 144: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
-	53,  // 145: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
-	51,  // 146: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
-	37,  // 147: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
-	51,  // 148: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
-	149, // [149:149] is the sub-list for method output_type
-	149, // [149:149] is the sub-list for method input_type
-	149, // [149:149] is the sub-list for extension type_name
-	149, // [149:149] is the sub-list for extension extendee
-	0,   // [0:149] is the sub-list for field type_name
+	101, // 77: ds.v1.Envelope.set_pk_req:type_name -> ds.v1.SetPkReq
+	102, // 78: ds.v1.Envelope.set_pk_resp:type_name -> ds.v1.SetPkResp
+	103, // 79: ds.v1.Envelope.death_notice:type_name -> ds.v1.DeathNotice
+	0,   // 80: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 81: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10,  // 82: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 83: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10,  // 84: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	37,  // 85: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	46,  // 86: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	52,  // 87: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	19,  // 88: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
+	3,   // 89: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 90: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	49,  // 91: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	25,  // 92: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	38,  // 93: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	39,  // 94: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	40,  // 95: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	41,  // 96: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	47,  // 97: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	27,  // 98: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 99: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	37,  // 100: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	37,  // 101: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	46,  // 102: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	48,  // 103: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 104: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	50,  // 105: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	50,  // 106: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	49,  // 107: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	51,  // 108: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	51,  // 109: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	51,  // 110: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	51,  // 111: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	53,  // 112: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 113: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 114: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 115: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 116: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 117: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 118: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	64,  // 119: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	53,  // 120: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 121: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 122: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	53,  // 123: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 124: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 125: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	53,  // 126: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 127: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 128: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	53,  // 129: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 130: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 131: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	50,  // 132: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	53,  // 133: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 134: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 135: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 136: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	81,  // 137: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
+	53,  // 138: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 139: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 140: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 141: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 142: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 143: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
+	51,  // 144: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
+	90,  // 145: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
+	53,  // 146: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
+	51,  // 147: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
+	53,  // 148: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
+	51,  // 149: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
+	37,  // 150: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
+	51,  // 151: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
+	152, // [152:152] is the sub-list for method output_type
+	152, // [152:152] is the sub-list for method input_type
+	152, // [152:152] is the sub-list for extension type_name
+	152, // [152:152] is the sub-list for extension extendee
+	0,   // [0:152] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -8087,6 +8360,9 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_StashExpandResp)(nil),
 		(*Envelope_StashSortReq)(nil),
 		(*Envelope_StashSortResp)(nil),
+		(*Envelope_SetPkReq)(nil),
+		(*Envelope_SetPkResp)(nil),
+		(*Envelope_DeathNotice)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -8094,7 +8370,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   97,
+			NumMessages:   100,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
