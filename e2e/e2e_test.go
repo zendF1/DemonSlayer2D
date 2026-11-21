@@ -1905,3 +1905,179 @@ func TestPvPOverWebSocket(t *testing.T) {
 		t.Fatalf("B re-entered with cooldowns %v, want pvp_combat left from the fight", ew2.Cooldowns)
 	}
 }
+
+// ______________________TEST PARTY_____________________
+
+// Phase 5b spec 8: A, B and C are level 1. A and B stand side by side just
+// east of the Kumotori camp, C at the default spawn. A invites B (accepts),
+// then C (declines, then accepts), B cannot kick C but A can, A and B turn PK
+// on and still cannot hurt each other, A kills a monster while B stands still
+// and B is paid exactly 5% of the monster's base EXP, and when A leaves the
+// world B is told the party is gone.
+func TestPartyOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := gamedata.Load("../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spotA, spotB := pvpSpot(t, loaded["kumotori_1"])
+	ca, chA := offlinePlayer(t, s, "kai01", "Kai", pb.CharClass_CHAR_CLASS_VIEM)
+	cb, chB := offlinePlayer(t, s, "mio01", "Mio", pb.CharClass_CHAR_CLASS_THUY)
+	cc, chC := offlinePlayer(t, s, "ryo01", "Ryo", pb.CharClass_CHAR_CLASS_NHAM)
+	for _, u := range []struct {
+		name string
+		at   mapdata.Point
+	}{{"kai01", spotA}, {"mio01", spotB}} {
+		if _, err := s.store.DevSetPlace(ctx, u.name, "kumotori_1", u.at.X, u.at.Y); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ewA, err := ca.EnterWorld(ctx, chA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ewB, err := cb.EnterWorld(ctx, chB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ewC, err := cc.EnterWorld(ctx, chC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idA, idB, idC := ewA.SelfEntityId, ewB.SelfEntityId, ewC.SelfEntityId
+	expect := func(err error, want pb.ErrorCode) {
+		t.Helper()
+		if got := client.Code(err); got != want {
+			t.Fatalf("error code = %v (%v), want %v", got, err, want)
+		}
+	}
+	isState := func(n int) func(*pb.Envelope) bool {
+		return func(e *pb.Envelope) bool { return e.GetPartyState() != nil && len(e.GetPartyState().Members) == n }
+	}
+	isNotice := func(k pb.PartyNoticeKind) func(*pb.Envelope) bool {
+		return func(e *pb.Envelope) bool { return e.GetPartyNotice().GetKind() == k }
+	}
+	const wait = 5 * time.Second
+
+	// A invites B, who accepts.
+	if err := ca.PartyInvite(ctxT(t), idB); err != nil {
+		t.Fatal(err)
+	}
+	inv := waitFor(t, cb, wait, func(e *pb.Envelope) bool { return e.GetPartyInvite() != nil }).GetPartyInvite()
+	if inv.FromId != idA || inv.FromName != "Kai" || inv.FromLevel != 1 || inv.ExpiresMs != 30000 {
+		t.Fatalf("invite %v, want from Kai (%d) level 1, 30000 ms", inv, idA)
+	}
+	if err := cb.PartyAnswer(ctxT(t), idA, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []*client.Client{ca, cb} {
+		st := waitFor(t, c, wait, isState(2)).GetPartyState()
+		if st.LeaderId != idA || st.Members[0].Id != idA || st.Members[1].Id != idB {
+			t.Fatalf("party state %v, want leader A with members A, B", st)
+		}
+	}
+
+	// A invites C, who declines and is invited again.
+	if err := ca.PartyInvite(ctxT(t), idC); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, cc, wait, func(e *pb.Envelope) bool { return e.GetPartyInvite() != nil })
+	if err := cc.PartyAnswer(ctxT(t), idA, false); err != nil {
+		t.Fatal(err)
+	}
+	if n := waitFor(t, ca, wait, isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DECLINED)).GetPartyNotice(); n.Name != "Ryo" {
+		t.Fatalf("declined notice %v, want Ryo", n)
+	}
+	if err := ca.PartyInvite(ctxT(t), idC); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, cc, wait, func(e *pb.Envelope) bool { return e.GetPartyInvite() != nil })
+	if err := cc.PartyAnswer(ctxT(t), idA, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []*client.Client{ca, cb, cc} {
+		waitFor(t, c, wait, isState(3))
+	}
+
+	// Only the leader may kick.
+	expect(cb.PartyKick(ctxT(t), idC), pb.ErrorCode_ERROR_CODE_NOT_PARTY_LEADER)
+	if err := ca.PartyKick(ctxT(t), idC); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, cc, wait, isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_YOU_WERE_KICKED))
+	waitFor(t, cc, wait, isState(0))
+	waitFor(t, ca, wait, isState(2))
+	waitFor(t, cb, wait, isState(2))
+
+	// Party mates cannot hurt each other even with PK on.
+	for _, c := range []*client.Client{ca, cb} {
+		if r, err := c.SetPk(ctxT(t), true); err != nil || !r.On {
+			t.Fatalf("SetPk(true) = %v, %v", r, err)
+		}
+	}
+	expect(attackRetry(t, ca, idB), pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN)
+
+	// A kills monsters while B stands still: B earns 5% of their base EXP. The
+	// monsters near the camp pay so little (6 and 11) that one kill rounds to
+	// nothing, so A kills four; the remainder carries over, so B's total is
+	// floor(5% of the sum).
+	const killCount = 4
+	levels := make(map[uint64]int32)
+	f := client.NewFighter(ca, ewA)
+	f.Seek = nestR1
+	f.Observe = func(env *pb.Envelope) {
+		if e := env.GetEntityEnter(); e != nil && e.Kind == pb.EntityKind_ENTITY_KIND_MONSTER {
+			levels[e.Id] = e.Level
+		}
+	}
+	var kills []client.Kill
+	fctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	// B stands still but pings, or the server drops it as idle (30 s) while A fights.
+	go func() {
+		for {
+			select {
+			case <-time.After(5 * time.Second):
+				pctx, pcancel := context.WithTimeout(fctx, 5*time.Second)
+				_, _ = cb.Ping(pctx)
+				pcancel()
+			case <-fctx.Done():
+				return
+			}
+		}
+	}()
+	if err := f.Fight(fctx, killCount, func(k client.Kill) { kills = append(kills, k) }); err != nil {
+		t.Fatalf("fight: %v (kills %v)", err, kills)
+	}
+	var base int64
+	for _, k := range kills {
+		lvl, ok := levels[k.ID]
+		if !ok {
+			t.Fatalf("never saw monster %d enter", k.ID)
+		}
+		base += data.Levels[int(lvl)].Exp
+	}
+	want := ewB.Stats.GetExp() + 5*base/100
+	if want == ewB.Stats.GetExp() {
+		t.Fatalf("monsters pay %d EXP in all, 5%% of it rounds to 0", base)
+	}
+	last := ewB.Stats.GetExp()
+	waitFor(t, cb, 10*time.Second, func(e *pb.Envelope) bool {
+		if st := e.GetSelfStats(); st != nil {
+			last = st.GetExp()
+		}
+		return last == want
+	})
+
+	// A leaves the world: the party is gone for B.
+	if err := ca.LeaveWorld(ctxT(t)); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, cb, wait, isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED))
+	waitFor(t, cb, wait, isState(0))
+}

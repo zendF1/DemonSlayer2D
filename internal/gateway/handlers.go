@@ -256,9 +256,46 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.handleZoneList(seq)
+	case *pb.Envelope_PartyInviteReq:
+		// Only the packet limit applies (phase 5b spec 4.8).
+		if !c.inWorld(seq) {
+			return
+		}
+		code := c.srv.deps.World.Party().Invite(c.member.EntityID, p.PartyInviteReq.TargetId)
+		c.partyReply(seq, code, &pb.Envelope{Payload: &pb.Envelope_PartyInviteResp{PartyInviteResp: &pb.PartyInviteResp{}}})
+	case *pb.Envelope_PartyAnswerReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.PartyAnswerReq
+		code := c.srv.deps.World.Party().Answer(c.member.EntityID, r.FromId, r.Accept)
+		c.partyReply(seq, code, &pb.Envelope{Payload: &pb.Envelope_PartyAnswerResp{PartyAnswerResp: &pb.PartyAnswerResp{}}})
+	case *pb.Envelope_PartyLeaveReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		code := c.srv.deps.World.Party().Leave(c.member.EntityID)
+		c.partyReply(seq, code, &pb.Envelope{Payload: &pb.Envelope_PartyLeaveResp{PartyLeaveResp: &pb.PartyLeaveResp{}}})
+	case *pb.Envelope_PartyKickReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		code := c.srv.deps.World.Party().Kick(c.member.EntityID, p.PartyKickReq.MemberId)
+		c.partyReply(seq, code, &pb.Envelope{Payload: &pb.Envelope_PartyKickResp{PartyKickResp: &pb.PartyKickResp{}}})
 	default:
 		c.fail(seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, "unexpected message")
 	}
+}
+
+// partyReply sends ok as the reply to seq when the party service returned
+// UNSPECIFIED, else the error code.
+func (c *conn) partyReply(seq uint32, code pb.ErrorCode, ok *pb.Envelope) {
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		c.fail(seq, code, code.String())
+		return
+	}
+	ok.Seq = seq
+	c.send(ok)
 }
 
 // itemRef is r as an items.Ref; a missing ref is bag slot 0.

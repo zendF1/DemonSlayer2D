@@ -328,6 +328,29 @@ func TestSetPkNotInWorld(t *testing.T) {
 	}
 }
 
+// The party requests need a character in the world (phase 5b spec 4.8).
+func TestPartyRequestsNotInWorld(t *testing.T) {
+	for name, env := range map[string]*pb.Envelope{
+		"invite": {Payload: &pb.Envelope_PartyInviteReq{PartyInviteReq: &pb.PartyInviteReq{TargetId: 5}}},
+		"answer": {Payload: &pb.Envelope_PartyAnswerReq{PartyAnswerReq: &pb.PartyAnswerReq{FromId: 5, Accept: true}}},
+		"leave":  {Payload: &pb.Envelope_PartyLeaveReq{PartyLeaveReq: &pb.PartyLeaveReq{}}},
+		"kick":   {Payload: &pb.Envelope_PartyKickReq{PartyKickReq: &pb.PartyKickReq{MemberId: 5}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := NewServer(Deps{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+			c := s.newConn(nil, "127.0.0.1")
+			defer c.idle.Stop()
+			defer c.authTimer.Stop()
+			env.Seq = 4
+			c.dispatch(context.Background(), env)
+			r := <-c.out.ch
+			if r.Seq != 4 || r.GetError().GetCode() != pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD {
+				t.Fatalf("reply %v, want NOT_IN_WORLD for seq 4", r)
+			}
+		})
+	}
+}
+
 // ______________________TEST CLIENT FIXTURES_____________________
 
 var updateFixtures = flag.Bool("update", false, "rewrite testdata/client")

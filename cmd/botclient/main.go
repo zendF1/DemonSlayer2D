@@ -29,7 +29,12 @@ Commands:
   delete   -u USER -p PASS -id CHAR_ID -name NAME
   play     -u USER -p PASS -id CHAR_ID [-dir 1,0] [-for 10s]
   load     [-n 100] [-prefix bot] [-p botpass123] [-for 60s] [-ramp 20ms]
+  partner  [-for 60s]
   -fight N [-timeout 2m] [-u USER -p PASS] [-id CHAR_ID] [-class viem] [-seek 22.5,10.5]
+
+partner registers a new account, creates a character, enters the world and
+prints "PARTNER <name>". It accepts the first party invite it receives, prints
+"PARTY OK" once the party has two members, and stands still until -for ends.
 
 Every command accepts -url (default ws://localhost:8080/ws).
 
@@ -47,7 +52,7 @@ var classByName = map[string]pb.CharClass{
 func main() {
 	cmds := map[string]func([]string) error{
 		"register": cmdRegister, "chars": cmdChars, "create": cmdCreate,
-		"delete": cmdDelete, "play": cmdPlay, "load": cmdLoad, "fight": cmdFight,
+		"delete": cmdDelete, "play": cmdPlay, "load": cmdLoad, "fight": cmdFight, "partner": cmdPartner,
 	}
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, usage)
@@ -332,6 +337,63 @@ func cmdFight(args []string) error {
 		return fmt.Errorf("after %d of %d kills: %w", kills, *n, err)
 	}
 	return leave(c)
+}
+
+// cmdPartner is the dev partner for the party smoke: it enters the world as a
+// fresh character, accepts the first party invite and stands still.
+func cmdPartner(args []string) error {
+	fs, url, _, _ := flags("partner")
+	dur := fs.Duration("for", 60*time.Second, "how long to stay in the world")
+	_ = fs.Parse(args)
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	ctx, cancel := context.WithTimeout(sigCtx, *dur)
+	defer cancel()
+
+	c, err := client.Dial(ctx, *url)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	user, pass := fmt.Sprintf("partner_%06d", rand.IntN(1_000_000)), "partnerpass1"
+	if err := c.Register(ctx, user, pass); err != nil {
+		return err
+	}
+	if _, err := c.Login(ctx, user, pass); err != nil {
+		return err
+	}
+	name := fmt.Sprintf("Partner%06d", rand.IntN(1_000_000))
+	ch, err := c.CreateChar(ctx, 1, name, pb.CharClass_CHAR_CLASS_VIEM)
+	if err != nil {
+		return err
+	}
+	if _, err := c.EnterWorld(ctx, ch.Id); err != nil {
+		return err
+	}
+	fmt.Println("PARTNER", name)
+	answered, ok := false, false
+	for {
+		select {
+		case env := <-c.Pushes():
+			if inv := env.GetPartyInvite(); inv != nil && !answered {
+				answered = true
+				if err := c.PartyAnswer(ctx, inv.FromId, true); err != nil {
+					return fmt.Errorf("accept invite: %w", err)
+				}
+			}
+			if st := env.GetPartyState(); st != nil && !ok && len(st.Members) >= 2 {
+				ok = true
+				fmt.Println("PARTY OK")
+			}
+			if k := env.GetKicked(); k != nil {
+				return fmt.Errorf("kicked: %v", k.Reason)
+			}
+		case <-c.Closed():
+			return fmt.Errorf("connection closed: %v", c.Err())
+		case <-ctx.Done():
+			return leave(c)
+		}
+	}
 }
 
 // firstChar returns the account's first character, creating one if it has none.

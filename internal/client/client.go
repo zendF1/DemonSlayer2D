@@ -638,3 +638,27 @@ func (c *Client) Ping(ctx context.Context) (time.Duration, error) {
 func (c *Client) SendRaw(ctx context.Context, data []byte) error {
 	return c.writeData(ctx, data)
 }
+
+// PartyInvite invites the player with entity id target to the caller's party.
+func (c *Client) PartyInvite(ctx context.Context, target uint64) error {
+	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_PartyInviteReq{PartyInviteReq: &pb.PartyInviteReq{TargetId: target}}})
+	return err
+}
+
+// PartyAnswer accepts or declines the invite from entity id from.
+func (c *Client) PartyAnswer(ctx context.Context, from uint64, accept bool) error {
+	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_PartyAnswerReq{PartyAnswerReq: &pb.PartyAnswerReq{FromId: from, Accept: accept}}})
+	return err
+}
+
+// PartyLeave leaves the caller's party.
+func (c *Client) PartyLeave(ctx context.Context) error {
+	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_PartyLeaveReq{PartyLeaveReq: &pb.PartyLeaveReq{}}})
+	return err
+}
+
+// PartyKick removes the member with entity id member from the caller's party.
+func (c *Client) PartyKick(ctx context.Context, member uint64) error {
+	_, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_PartyKickReq{PartyKickReq: &pb.PartyKickReq{MemberId: member}}})
+	return err
+}
