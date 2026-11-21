@@ -112,8 +112,8 @@ func (z *Zone) buy(c buyCmd) {
 }
 
 // sell buys count of the item in a bag slot from the player (phase 4b spec
-// 4.3); worn pieces cannot be sold. A waiting refine result is dropped by
-// dropsRefine before this runs.
+// 4.3); worn pieces cannot be sold. A successful sale drops a waiting refine
+// result; a refused one keeps it.
 func (z *Zone) sell(c sellCmd) {
 	p := z.itemPlayer(c.id, c.seq)
 	if p == nil {
@@ -147,6 +147,7 @@ func (z *Zone) sell(c sellCmd) {
 		return
 	}
 	p.xu += unit * int64(taken.Count)
+	p.refine = nil // only a successful sale drops the waiting refine result
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_SellResp{SellResp: &pb.SellResp{
 		Update: inventoryUpdate(p.inv, []int{c.bagSlot}, nil), Stats: z.selfStats(p)}}})

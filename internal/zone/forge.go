@@ -220,8 +220,6 @@ func dropsRefine(c any) (uint64, bool) {
 		return c.id, true
 	case sortBagCmd:
 		return c.id, true
-	case sellCmd:
-		return c.id, true
 	case enhanceCmd:
 		return c.id, true
 	case punchCmd:

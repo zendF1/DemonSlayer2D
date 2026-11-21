@@ -3160,6 +3160,7 @@ func TestShopErrors(t *testing.T) {
 		{"buy count 1000", false, 0, false, 77, buy("shop", "potion_hp_1", 1000), bad},
 		{"buy count huge", false, 0, false, 77, buy("shop", "potion_hp_1", 1<<30), bad},
 		{"buy short of xu", false, 0, false, 4, buy("shop", "potion_hp_1", 1), xuErr},
+		{"buy short of xu and full bag", false, 0, true, 4, buy("shop", "potion_hp_30", 1), xuErr},
 		{"buy full bag", false, 0, true, 1000, buy("shop", "potion_hp_30", 1), full},
 		{"sell dead, no npc", true, 0, false, 77, sell("none", 60, 0), dead},
 		{"sell blacksmith", false, 0, false, 77, sell("smith", 0, 0), bad},
@@ -3245,7 +3246,7 @@ func TestSellExamples(t *testing.T) {
 				t.Fatalf("xu %d left %d saves %d, want %d %d %d", p.xu, left, len(sv.all())-saves, c.xu, c.left, 1)
 			}
 			r := respFor(out.take(), 9, (*pb.Envelope).GetSellResp)
-			if r == nil || r.Stats.Xu != c.xu {
+			if r == nil || r.Stats.Xu != c.xu || len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != int32(c.slot) {
 				t.Fatalf("reply %v", r)
 			}
 		})
@@ -3277,6 +3278,11 @@ func TestPendingRefineSurvivesBuyNotSell(t *testing.T) {
 	if p.refine == nil {
 		t.Fatal("a buy dropped the refine result")
 	}
+	p.pos.X = 4.9 // 3.6 tiles from the shop: refused, the result stays
+	if got := shopErr(t, z, p, z.Sell(1, 9, "shop", 0, 1)); got != pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR || p.refine == nil {
+		t.Fatalf("refused sale: code %v, refine kept %v", got, p.refine != nil)
+	}
+	p.pos.X = 5.5
 	itemNow(t, z, z.Sell(1, 10, "shop", 0, 1))
 	if p.refine != nil {
 		t.Fatal("a sale kept the refine result")
