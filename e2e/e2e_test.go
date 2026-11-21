@@ -1964,6 +1964,23 @@ func TestPartyOverWebSocket(t *testing.T) {
 	}
 	const wait = 5 * time.Second
 
+	// Monster levels, from every EntityEnter A is sent, including those the
+	// waits below consume before the fight starts.
+	levels := make(map[uint64]int32)
+	note := func(e *pb.Envelope) {
+		if m := e.GetEntityEnter(); m != nil && m.Kind == pb.EntityKind_ENTITY_KIND_MONSTER {
+			levels[m.Id] = m.Level
+		}
+	}
+	waitC := func(c *client.Client, match func(*pb.Envelope) bool) *pb.Envelope {
+		t.Helper()
+		return waitFor(t, c, wait, func(e *pb.Envelope) bool { note(e); return match(e) })
+	}
+	waitA := func(match func(*pb.Envelope) bool) *pb.Envelope {
+		t.Helper()
+		return waitFor(t, ca, wait, func(e *pb.Envelope) bool { note(e); return match(e) })
+	}
+
 	// A invites B, who accepts.
 	if err := ca.PartyInvite(ctxT(t), idB); err != nil {
 		t.Fatal(err)
@@ -1976,7 +1993,7 @@ func TestPartyOverWebSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range []*client.Client{ca, cb} {
-		st := waitFor(t, c, wait, isState(2)).GetPartyState()
+		st := waitC(c, isState(2)).GetPartyState()
 		if st.LeaderId != idA || st.Members[0].Id != idA || st.Members[1].Id != idB {
 			t.Fatalf("party state %v, want leader A with members A, B", st)
 		}
@@ -1990,7 +2007,7 @@ func TestPartyOverWebSocket(t *testing.T) {
 	if err := cc.PartyAnswer(ctxT(t), idA, false); err != nil {
 		t.Fatal(err)
 	}
-	if n := waitFor(t, ca, wait, isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DECLINED)).GetPartyNotice(); n.Name != "Ryo" {
+	if n := waitA(isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DECLINED)).GetPartyNotice(); n.Name != "Ryo" {
 		t.Fatalf("declined notice %v, want Ryo", n)
 	}
 	if err := ca.PartyInvite(ctxT(t), idC); err != nil {
@@ -2001,7 +2018,7 @@ func TestPartyOverWebSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range []*client.Client{ca, cb, cc} {
-		waitFor(t, c, wait, isState(3))
+		waitC(c, isState(3))
 	}
 
 	// Only the leader may kick.
@@ -2011,7 +2028,7 @@ func TestPartyOverWebSocket(t *testing.T) {
 	}
 	waitFor(t, cc, wait, isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_YOU_WERE_KICKED))
 	waitFor(t, cc, wait, isState(0))
-	waitFor(t, ca, wait, isState(2))
+	waitA(isState(2))
 	waitFor(t, cb, wait, isState(2))
 
 	// Party mates cannot hurt each other even with PK on.
@@ -2027,13 +2044,10 @@ func TestPartyOverWebSocket(t *testing.T) {
 	// nothing, so A kills four; the remainder carries over, so B's total is
 	// floor(5% of the sum).
 	const killCount = 4
-	levels := make(map[uint64]int32)
 	f := client.NewFighter(ca, ewA)
 	f.Seek = nestR1
 	f.Observe = func(env *pb.Envelope) {
-		if e := env.GetEntityEnter(); e != nil && e.Kind == pb.EntityKind_ENTITY_KIND_MONSTER {
-			levels[e.Id] = e.Level
-		}
+		note(env)
 	}
 	var kills []client.Kill
 	fctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)

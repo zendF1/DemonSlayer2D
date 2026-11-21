@@ -372,8 +372,14 @@ func cmdPartner(args []string) error {
 	}
 	fmt.Println("PARTNER", name)
 	answered, ok := false, false
+	ping := time.NewTicker(5 * time.Second) // the gateway drops a silent connection after 30 s
+	defer ping.Stop()
 	for {
 		select {
+		case <-ping.C:
+			if _, err := c.Ping(ctx); err != nil && ctx.Err() == nil {
+				return fmt.Errorf("ping: %w", err)
+			}
 		case env := <-c.Pushes():
 			if inv := env.GetPartyInvite(); inv != nil && !answered {
 				answered = true
