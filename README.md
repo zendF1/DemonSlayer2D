@@ -97,7 +97,7 @@ Players toggle PK mode with the PK button (`SetPkReq`); the state is saved with 
 
 ## Parties
 
-Up to 5 players form a party: touch a player, invite, and the invitee accepts or declines within 30 seconds. The leader can remove members; leaving or quitting the game leaves the party, and the last member disbanding it. Parties live in memory only (`internal/party`) and are lost on restart.
+Up to 5 players form a party: touch a player, invite, and the invitee accepts or declines within 30 seconds. The leader can remove members; leaving, quitting or disconnecting leaves the party, and a party with one member left is disbanded. Parties live in memory only (`internal/party`) and are lost on restart.
 
 - Each time a hit pays a member EXP, every teammate in the same zone (same map and instance) gets 5% of that payment on top, if the monster is within 10 levels of the teammate. Dead teammates are included; the bonus does not chain.
 - Teammates cannot hit each other, even with PK on (`PK_FORBIDDEN`).

@@ -46,8 +46,6 @@ Phần tăng thủ phép được chuyển sang VIT; INT không tăng thủ phé
 
 Ví dụ 100 STR tăng 200 công vật lý: Bất Tri Hỏa cấp kỹ năng 10 (285%) tăng 570 sát thương cơ sở; Luyện Ngục cấp kỹ năng 10 (475%) tăng 950. Với 100 INT, mức tăng tương ứng áp dụng cho kỹ năng phép cùng hệ số. 100 VIT tăng 2.000 HP với class vật lý hoặc 1.600 HP với class phép, cùng 200 mỗi loại phòng thủ. Đây là mức tăng từ tiềm năng, trước khi xét bị động và các hiệu ứng tăng chỉ số khác.
 
-Ghi chú tổ đội: khoản EXP thêm ×1,2 khi cả tổ năm người cùng đánh (4 đồng đội × 5%) đến từ luật EXP tổ đội ở mục 5.8.
-
 Chỉ số chiến đấu tổng hợp từ chỉ số nền theo cấp, tiềm năng, trang bị (gồm dòng phụ, dòng ẩn, cường hóa và ngọc khảm), kỹ năng bị động, thú cưỡi và linh thú/trợ thủ: HP, MP, công/thủ vật lý, công/thủ phép, chính xác, né tránh, tỷ lệ và sát thương chí mạng, tốc độ di chuyển.
 
 Các thuộc tính bổ sung gồm kháng sát thương theo hệ, kháng hiệu ứng hoặc giảm thời gian khống chế; danh vọng/công trạng phục vụ tiến trình nhân vật. PK dùng chế độ bật/tắt, không yêu cầu hệ thống ác danh. Người bật PK đánh được mọi người chơi, và mọi người chơi đều đánh được người bật PK; hai người cùng tắt PK không đánh được nhau (mục 5.7). Khi đang bật PK mà bị người chơi khác giết sẽ mất EXP theo mục 5.7; không có lính canh trừng phạt người bật PK.
@@ -109,7 +107,7 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 | Đánh một mình | ×1 | ~3 giờ | ~456 giờ | ~3.072 giờ |
 | Tổ đội 5 người cùng đánh | ×1,2 | ~2,5 giờ | ~380 giờ | ~2.560 giờ |
 
-Tổ đội ×1,2 giả định cả năm người hạ quái nhanh như nhau. Trên thực tế, năm người chung một vùng 7–8 quái hồi sinh 8 giây có thể không đủ quái cho cả nhóm.
+Khi cả năm người cùng đánh với tốc độ EXP như nhau (cùng khu, quái trong ±10 cấp của mọi người), tổng EXP của mỗi người là ×1,2 so với đánh một mình (1 + 4 × 5%); luật chi tiết ở mục 5.8. Hệ số ×1,2 giả định cả năm người hạ quái nhanh như nhau. Trên thực tế, năm người chung một vùng 7–8 quái hồi sinh 8 giây có thể không đủ quái cho cả nhóm.
 - Tổng EXP lên cấp 90 khoảng 19,8 tỷ, vượt giới hạn số nguyên 32-bit có dấu (khoảng 2,1 tỷ); EXP lên một cấp lớn nhất là khoảng 1,08 tỷ ở cấp 89. Server và database lưu EXP bằng số nguyên 64-bit.
 
 - Cột "Tổng EXP từ cấp 1" là tổng EXP đến khi lên được cấp kế tiếp. Ví dụ ở dòng cấp 89, đó là tổng EXP từ cấp 1 lên cấp 90.
