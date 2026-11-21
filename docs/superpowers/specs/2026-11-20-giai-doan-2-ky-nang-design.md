@@ -32,7 +32,7 @@ Giai đoạn này cũng đổi luật EXP: quái cấp càng cao cho càng nhi�
 
 ### 1.3. Khác với game-design
 
-- Học lần đầu **không cần sách** cho tới khi có vật phẩm sách.
+- Học lần đầu **không cần sách** cho tới khi có vật phẩm sách. (Ghi chú: sách kỹ năng đã có từ spec 6b; học lần đầu nay cần sách, trừ chiêu có cấp học không quá mức miễn của nhân vật.)
 - **Tầm đánh** của chiêu đổi theo mục 2.1 (chiêu đơn 5 ô; chiêu nhiều mục tiêu 4/5/6 ô theo cấp kỹ năng) thay cho tầm riêng từng chiêu, và cộng điểm **có** tăng tầm của chiêu nhiều mục tiêu. Game-design mục 2.6 được cập nhật theo.
 - **EXP gốc của quái** đổi từ `10 × cấp` thành `HP × r(L)` (mục 2.4). Game-design mục 2.2, 5.8, 5.12 được cập nhật theo.
 

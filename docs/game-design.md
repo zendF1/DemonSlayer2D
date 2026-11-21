@@ -181,7 +181,7 @@ Tầm đánh dùng **ô bản đồ** làm đơn vị, đo trên mặt đất t�
 - Mỗi kỹ năng riêng tối đa **10 cấp**, mỗi lần cộng tốn **1 điểm kỹ năng**. Học lần đầu là cấp 1 và cũng tốn một điểm; nâng một kỹ năng từ chưa học lên tối đa tốn 10 điểm. Năm kỹ năng cần tổng cộng **50 điểm** để tối đa.
 - Mỗi lần lên cấp nhân vật nhận **1 điểm kỹ năng**; điểm chưa dùng được tích lại.
 - Gọi **n** là cấp kỹ năng, từ 1 đến 10. Cấp nhân vật để học lần đầu là 10/20/30/40/50. Mỗi lần nâng tiếp yêu cầu thêm **1 cấp nhân vật**: **cấp nhân vật yêu cầu = cấp học ban đầu + (n − 1)**. Ví dụ kỹ năng học từ cấp nhân vật 10: cấp kỹ năng 2 cần cấp nhân vật 11, cấp kỹ năng 10 cần cấp nhân vật 19. Các kỹ năng học từ cấp 20/30/40/50 lần lượt có thể đạt cấp kỹ năng 10 ở cấp nhân vật 29/39/49/59, nếu đủ điểm. Có đủ điểm cũng không được bỏ qua điều kiện cấp.
-- Học lần đầu cần đủ cấp nhân vật, **1 điểm kỹ năng và sách của kỹ năng tương ứng**. Sách nhận từ nhiệm vụ chính tuyến để người chơi tham gia nhiệm vụ, không chỉ treo máy luyện cấp. Sách dùng khi học lần đầu; nâng tiếp không cần thêm sách.
+- Học lần đầu cần đủ cấp nhân vật, **1 điểm kỹ năng và sách của kỹ năng tương ứng**. Sách nhận từ nhiệm vụ chính tuyến để người chơi tham gia nhiệm vụ, không chỉ treo máy luyện cấp. Sách dùng khi học lần đầu; nâng tiếp không cần thêm sách. Sách 1 và 2 (chiêu học từ cấp 10 và 20) là thưởng cuối chặng cấp 10 và cấp 20 của chuỗi chính tuyến; sách 3, 4, 5 (cấp 30, 40, 50) đến từ các nhiệm vụ mốc ở Chỉ huy, chỉ cần đủ cấp, không cần làm chuỗi. Sách nằm trong hành trang (không tính kho), không bán được và không dùng bằng lệnh dùng vật phẩm. Nhân vật có từ trước khi có sách được **mức miễn sách**: chiêu có cấp học không quá mức này học lần đầu không cần sách; nhân vật mới có mức 0. Nhiệm vụ chỉ trao sách khi người trả còn cần sách đó.
 - Sát thương cơ sở = **Công tương ứng × hệ số kỹ năng**. Viêm, Minh, Nham dùng công vật lý; Thủy, Phong dùng công phép.
 - Các hệ số dưới đây tính trước phòng thủ, chí mạng và hiệu ứng khác; là bộ thông số ban đầu để cân bằng cùng MP/hồi chiêu.
 - Kỹ năng nhiều mục tiêu gây đủ sát thương riêng cho từng mục tiêu, không chia tổng sát thương theo số mục tiêu. Mỗi lần dùng tính một lần sát thương cho mỗi mục tiêu hợp lệ; nhiều vệt chém trong animation không tạo thêm lần tính sát thương.
@@ -680,7 +680,9 @@ NPC chủ yếu tập trung ở làng, thành và doanh trại an toàn; có bi�
 
 Bố trí hiện có (Giai đoạn 4b, 4c): Tổng hành dinh có Tạp hóa, Thợ rèn, Xa phu, Thủ kho; trại của mỗi map luyện cấp có Dược sư, Xa phu và Thủ kho. NPC là dữ liệu của map, không phải thực thể trong zone. Giấy về thành đưa nhân vật về Tổng hành dinh, dùng được ở map không phải thành, kể cả khi đang giao chiến.
 
-Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám khi đang làm; ? vàng khi đủ điều kiện trả. Thứ tự ưu tiên biểu tượng khi có nhiều nhiệm vụ chưa chốt.
+Năm NPC nhiệm vụ (Giai đoạn 6b): Thợ săn già ở Kumotori, Chỉ huy Sát Quỷ Đoàn ở Tổng hành dinh, Trưởng làng ở Sagiri 1, Kiếm sĩ trinh sát ở Sagiri 2 và Giám khảo tuyển chọn ở Fujikasane.
+
+Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám khi đang làm; ? vàng khi đủ điều kiện trả. Khi NPC có nhiều nhiệm vụ, thứ tự ưu tiên là **? vàng** (trả được) > **! vàng** (nhận được) > **? xám** (đang làm, NPC này trả): việc làm được ngay lên trước.
 
 ### 4.2. Tuyến và mục tiêu nhiệm vụ
 
@@ -692,6 +694,8 @@ Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám k
 | Bang hội/tuần hoàn | Chuỗi hoạt động như áp tiêu, thu thập; thưởng cống hiến; dự kiến 10–20 vòng/ngày |
 
 Mẫu mục tiêu: diệt quái, thu thập vật phẩm, hái/đào tài nguyên, đưa thư/trò chuyện, săn Boss/vượt ải và hộ tống/áp tiêu. Vật phẩm nhiệm vụ có thể dùng kho riêng, không chiếm hành trang chính. **Không chia sẻ tiến độ nhiệm vụ qua tổ đội**; nhận EXP chia sẻ không tự cộng tiến độ nhiệm vụ. Múi giờ reset chưa chốt.
+
+Chuỗi chính tuyến v1 (Giai đoạn 6b) gồm 22 nhiệm vụ nối nhau cho cấp 1–20 đi qua Kumotori, Tổng hành dinh, Sagiri và Fujikasane, cộng 3 nhiệm vụ mốc cấp 30, 40, 50 trao sách 3–5; dữ liệu sinh từ `docs/balance/quest_data.py`. Mỗi nhiệm vụ có đúng một mục tiêu thuộc ba loại: diệt N con một loại quái, thu thập N vật phẩm nhiệm vụ rơi từ một loại quái theo tỷ lệ, hoặc đưa tin (đủ điều kiện ngay khi nhận, trả ở NPC khác). Vật phẩm nhiệm vụ không phải vật phẩm thật mà chỉ là bộ đếm của nhiệm vụ, không chiếm hành trang. Tiến độ chỉ tính cho **người kết liễu** con quái (như đồ rơi, kể cả khi người đó đang chết), không xét cửa sổ cấp và không chia qua tổ đội. Thưởng EXP theo % EXP một cấp (20% với diệt và thu thập, 10% với đưa tin), Xu theo cấp và số lượng, kèm bình thuốc, giấy về thành và vũ khí Trắng đúng class ở cấp 10, 20. Trả nhiệm vụ cần đủ chỗ trong hành trang cho cả lô thưởng, nếu không thì không trả gì.
 
 Nhiệm vụ phục vụ hướng dẫn, luyện cấp và kiếm tài nguyên; không yêu cầu người chơi trải qua hành trình của Tanjiro. Cấp quái thể hiện độ khó và phân bố bãi, không phải điều kiện vượt map.
 
@@ -1087,7 +1091,6 @@ Chưa chốt khi nào ngừng truy đuổi người tấn công, cách chọn gi
 4. Diễn Võ: chọn thể thức 1vs1/3vs3, công thức xếp hạng, cách trao danh hiệu cho đội 3vs3 và phần thưởng khi đạt Top 1 nhiều tuần.
 5. Auto-play: điều kiện/chi phí hồi sinh và tiếp tế, chọn đối thủ khi nhiều người tấn công, giới hạn truy đuổi và thời điểm quay lại đánh quái. Thú cưỡi/trợ thủ: cách bố trí ô, số lượng hoạt động đồng thời, kỹ năng trợ thủ và sử dụng thú cưỡi khi chiến đấu.
 6. Kỹ thuật: công cụ và nền tảng triển khai, ngân sách hiệu năng, kích thước ô tọa độ thế giới, số ô mỗi giây của tốc độ di chuyển 1 (chốt sau chơi thử), sức chứa kênh thực tế và múi giờ reset nhiệm vụ.
-7. Nhiệm vụ: thứ tự ưu tiên biểu tượng khi NPC có nhiều nhiệm vụ.
 
 ## 11. Để sau v1.0.0.0
 

@@ -2,7 +2,7 @@
 
 Go game server for DemonSlayer2D. The Godot client lives in a separate repository and generates its protocol code from [`proto/`](proto/) and reads maps from [`maps/`](maps/).
 
-The protocol version is 13 (`gateway.ProtocolVersion`). A login with any other
+The protocol version is 14 (`gateway.ProtocolVersion`). A login with any other
 version fails with `ERROR_CODE_VERSION_MISMATCH`, so bump it together with the client.
 
 Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md), [Phase 5b parties and shared EXP spec](docs/superpowers/specs/2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md).
@@ -131,6 +131,26 @@ The character must be offline. The server does not record who is online, so
 `devchar` cannot check; a running server's next save of the character
 overwrites the change.
 
+`-waive-books` (after `-level`) sets the character's skill book waiver to its
+level, so every skill whose learn level is at most that level can be learned
+without a book (a new character has waiver 0).
+
+## Dev quests
+
+`devquest` edits the quest log of an account's first character, for
+development only. It reads `DATABASE_URL` and `DATA_DIR` (default `./data`):
+
+```bash
+go run ./cmd/devquest -u tanjiro -reset                      # clear the log
+go run ./cmd/devquest -u tanjiro -done m10 -active m11       # m01-m10 done, m11 in progress
+go run ./cmd/devquest -u tanjiro -active m04 -progress 3
+```
+
+`-done` sets a quest and its whole `requires` chain done; `-active` sets one in
+progress at `-progress` (a talk quest is always 1, clamped to the objective's
+count). An unknown id is refused before anything is written. The character must
+be offline.
+
 ## Dev items
 
 `devitem` gives an account's first character (lowest slot) an item or Xu, for
@@ -219,6 +239,7 @@ The files in [`data/`](data/) are generated too:
 | [`data/monsters.json`](data/monsters.json) | [`monster_stats.py`](docs/balance/monster_stats.py) | Monster kinds and stats for levels 1–90, including base EXP (`HP × r(L)`) |
 | [`data/skills.json`](data/skills.json) | [`skill_stats.py`](docs/balance/skill_stats.py) | The 25 class skills: shape, range, coefficients, MP, cooldowns, passives |
 | [`data/exp.json`](data/exp.json) | [`exp_table.py`](docs/balance/exp_table.py) | EXP to the next level for levels 1–89 (also writes `docs/balance/exp-table.csv`) |
+| [`data/quests.json`](data/quests.json) | [`quest_data.py`](docs/balance/quest_data.py) | The main-line quests, rewards computed from `exp.json`, regions looked up in `maps/*.json` |
 | [`data/items.json`](data/items.json) | [`item_stats.py`](docs/balance/item_stats.py) | Bag size, equipment slots, qualities, line rules, the 70 equipment pieces, stackables, drop tables per monster rank, the enhancement table (rates, stones, Xu), the regen milestones, the resonance table, the socket and refine costs and the 15 gems |
 
 ```bash
@@ -226,6 +247,7 @@ python3 docs/balance/monster_stats.py --write-json
 python3 docs/balance/skill_stats.py --write-json
 python3 docs/balance/exp_table.py --write-json --write-csv
 python3 docs/balance/item_stats.py --write-json
+python3 docs/balance/quest_data.py --write-json
 ```
 
 The level-up table depends on monster HP, so rerun `exp_table.py` whenever you
@@ -235,6 +257,25 @@ builds monsters from level 10 against the best +0 gear) read the gear stats from
 `monster_stats.py` and `exp_table.py`. A Go test checks that each committed JSON
 matches its script's output. The Godot client keeps copies of `skills.json` and
 `items.json`, refreshed by its `tools/sync_server.sh`.
+
+## Quests and skill books
+
+`data/quests.json` (from [`quest_data.py`](docs/balance/quest_data.py)) holds the
+main line: 22 chained quests for levels 1-20 across the five maps, plus three
+milestone quests at levels 30, 40 and 50. Each quest has one objective: `kill`,
+`collect` (a quest-item counter, not a real item) or `talk`. Five `quest` NPCs
+on the maps give and take quests (`QuestAcceptReq`, `QuestTurnInReq`, within
+3.5 tiles); the zone pushes `QuestProgress` after a credited kill.
+
+- Only the killing blow counts toward a quest; progress is never shared with a
+  party.
+- A turn-in pays EXP, Xu and items all or nothing: `BAG_FULL` pays nothing.
+- Quest state is saved with the character (accept and turn-in save at once,
+  progress with the periodic save).
+- The first learn of a skill needs its `book_<class>_<n>` item in the bag
+  (`NO_SKILL_BOOK`) unless the skill's learn level is at most the character's
+  `skill_book_waiver`. Books 1 and 2 come from m11 and m22, books 3 to 5 from
+  the milestone quests m23 to m25.
 
 ## NPCs, shops and potions
 
