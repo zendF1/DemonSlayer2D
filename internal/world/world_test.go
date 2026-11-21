@@ -1007,6 +1007,11 @@ func portalMaps(t *testing.T) map[string]*mapdata.Map {
 	parse := func(f map[string]any) *mapdata.Map {
 		f["type"], f["width"], f["height"], f["collision"] = "training", 20, 20, rows
 		f["safe_zones"] = []map[string]any{{"id": "camp", "x": 1, "y": 1, "w": 3, "h": 3}}
+		f["town"] = "m2"
+		if f["id"] == "m2" { // the town: all walkable tiles safe
+			f["type"] = "town"
+			f["safe_zones"] = []map[string]any{{"id": "town", "x": 0, "y": 0, "w": 20, "h": 20}}
+		}
 		data, _ := json.Marshal(f)
 		m, err := mapdata.Parse(data)
 		if err != nil {

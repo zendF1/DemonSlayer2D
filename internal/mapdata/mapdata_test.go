@@ -572,13 +572,24 @@ func TestRectDistance(t *testing.T) {
 	}
 }
 
+// asTown makes m a town of its own: every walkable tile safe, no regions.
+func asTown(m map[string]any) {
+	m["type"], m["town"] = "town", m["id"]
+	m["safe_zones"] = []map[string]any{{"id": "town", "x": 1, "y": 1, "w": 14, "h": 6}}
+	m["regions"] = []map[string]any{}
+}
+
 // linkPair is two maps joined both ways: a's to_b leads to b's from_a (2.5
-// tiles from b's to_a) and b's to_a to a's from_b.
+// tiles from b's to_a) and b's to_a to a's from_b. a is the town of both.
 func linkPair(t *testing.T, mutateA, mutateB func(m map[string]any)) map[string]*Map {
 	t.Helper()
 	parse := func(id string, portal map[string]any, arrival map[string]any, mutate func(m map[string]any)) *Map {
 		m, err := Parse(portalJSON(t, func(m map[string]any) {
 			m["id"] = id
+			m["town"] = "a"
+			if id == "a" {
+				asTown(m)
+			}
 			m["portals"] = []map[string]any{portal}
 			m["spawn_points"] = append(m["spawn_points"].([]map[string]any), arrival)
 			if mutate != nil {
@@ -629,12 +640,13 @@ func TestLoadDirLinks(t *testing.T) {
 		}
 	}
 	write("t1.json", portalJSON(t, func(m map[string]any) {
+		asTown(m)
 		m["portals"] = []map[string]any{portalAt(m, 0)} // to_west leads to a map that is not there
 	}))
 	if _, err := LoadDir(dir); err == nil || !strings.Contains(err.Error(), `portal "to_west": unknown map "a"`) {
 		t.Fatalf("LoadDir must check portals across maps, got %v", err)
 	}
-	write("t1.json", portalJSON(t, func(m map[string]any) { m["portals"] = []map[string]any{} }))
+	write("t1.json", portalJSON(t, func(m map[string]any) { asTown(m); m["portals"] = []map[string]any{} }))
 	if _, err := LoadDir(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -798,19 +810,10 @@ func TestParseNPCErrors(t *testing.T) {
 	}
 }
 
-// townPair is linkPair with a as the town (all walkable tiles safe, no region)
-// and b a training map whose town is a; the mutations run afterwards.
+// townPair is linkPair with a carriage in b.
 func townPair(t *testing.T, mutateA, mutateB func(m map[string]any)) map[string]*Map {
 	t.Helper()
-	return linkPair(t, func(m map[string]any) {
-		m["type"], m["town"] = "town", "a"
-		m["safe_zones"] = []map[string]any{{"id": "town", "x": 1, "y": 1, "w": 14, "h": 6}}
-		m["regions"] = []map[string]any{}
-		if mutateA != nil {
-			mutateA(m)
-		}
-	}, func(m map[string]any) {
-		m["town"] = "a"
+	return linkPair(t, mutateA, func(m map[string]any) {
 		m["npcs"] = []map[string]any{{"id": "cart", "name": "Xa phu", "role": "carriage", "x": 3.5, "y": 5.5,
 			"routes": []map[string]any{{"map": "a", "xu": 50}}}}
 		if mutateB != nil {
@@ -824,6 +827,7 @@ func TestLinkTown(t *testing.T) {
 		t.Fatalf("a valid pair: %v", err)
 	}
 	cases := map[string][2]func(m map[string]any){
+		`mapdata b: missing town`:                {nil, func(m map[string]any) { delete(m, "town") }},
 		`mapdata b: town "zzz" is not a map`:     {nil, func(m map[string]any) { m["town"] = "zzz" }},
 		`mapdata b: town "b" is not a town`:      {nil, func(m map[string]any) { m["town"] = "b" }},
 		`mapdata a: a town must be its own town`: {func(m map[string]any) { m["town"] = "b" }, nil},

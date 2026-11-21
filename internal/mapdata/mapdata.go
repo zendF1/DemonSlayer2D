@@ -682,20 +682,20 @@ func LoadDir(dir string) (map[string]*Map, error) {
 	return out, nil
 }
 
-// linkTown checks the town and the carriage routes of m against the other maps.
-// A map without a town (an empty field) is left alone; the real maps all have one.
+// linkTown checks the (mandatory) town and the carriage routes of m against the other maps.
 func linkTown(maps map[string]*Map, m *Map) error {
-	if m.Type == "town" && m.Town != "" && m.Town != m.ID {
+	if m.Town == "" {
+		return fmt.Errorf("mapdata %s: missing town", m.ID)
+	}
+	if m.Type == "town" && m.Town != m.ID {
 		return fmt.Errorf("mapdata %s: a town must be its own town, not %q", m.ID, m.Town)
 	}
-	if m.Town != "" {
-		town, ok := maps[m.Town]
-		switch {
-		case !ok:
-			return fmt.Errorf("mapdata %s: town %q is not a map", m.ID, m.Town)
-		case town.Type != "town":
-			return fmt.Errorf("mapdata %s: town %q is not a town", m.ID, m.Town)
-		}
+	town, ok := maps[m.Town]
+	if !ok {
+		return fmt.Errorf("mapdata %s: town %q is not a map", m.ID, m.Town)
+	}
+	if town.Type != "town" {
+		return fmt.Errorf("mapdata %s: town %q is not a town", m.ID, m.Town)
 	}
 	for _, n := range m.NPCs {
 		for _, r := range n.Routes {
