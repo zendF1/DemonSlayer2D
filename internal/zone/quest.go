@@ -3,6 +3,7 @@ package zone
 import (
 	"maps"
 	"slices"
+	"time"
 
 	"demonslayer2d/internal/classes"
 	"demonslayer2d/internal/gamedata"
@@ -81,13 +82,14 @@ func (z *Zone) questAccept(c questAcceptCmd) {
 		return
 	}
 	q := z.questByID(c.quest)
+	today := quest.Day(time.Now()) // the zone clock comes with the 6d zone task
 	var code pb.ErrorCode
 	switch {
 	case q == nil || !z.here(q.Giver, c.npc):
 		code = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 	// At q's own level Available checks only the entry and the required
 	// quest, which come before the level (step 5).
-	case !quest.Available(q, p.quests, q.MinLevel):
+	case !quest.Available(q, p.quests, q.MinLevel, today):
 		code = pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE
 	case p.level < q.MinLevel:
 		code = pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
@@ -99,6 +101,9 @@ func (z *Zone) questAccept(c questAcceptCmd) {
 	e := quest.Entry{State: quest.Active}
 	if q.Objective.Type == gamedata.ObjTalk {
 		e.Progress = 1
+	}
+	if q.Line == gamedata.LineDaily {
+		e.Day = today
 	}
 	p.quests[q.ID] = e
 	z.saver.Save(z.state(p), nil)
@@ -193,7 +198,7 @@ func (z *Zone) creditQuests(m *monster, killer *player) {
 		return
 	}
 	roll := func(bp int) bool { return z.rng.IntN(10000) < bp }
-	killer.questChanged = append(killer.questChanged, quest.Credit(z.area.Quests, killer.quests, m.region.Kind.ID, roll)...)
+	killer.questChanged = append(killer.questChanged, quest.Credit(z.area.Quests, killer.quests, m.region.Kind.ID, killer.level, m.level, roll)...)
 }
 
 // questEntry is the entry of quest id on the wire.
