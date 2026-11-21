@@ -1,6 +1,6 @@
 # Giai đoạn 5a — Chế độ PK, đánh người và phạt EXP
 
-Ngày: 2026-11-20. Trạng thái: Server đã triển khai, client chờ (task 9–12).
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server (Task 1–8, protocol 12, migration 00008) và client (Task 9–12, client 79001f3; sửa sau review tổng: server 42497d2, client 23313bc); smoke OK.
 
 Spec này thiết kế phần đầu của Giai đoạn 5 (PK và tổ đội) cho server (repo này) và client Godot (`../DemonSlayer2DGame`). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.2 (công thức PvP), 2.5 (chọn mục tiêu), 5.1 (loại bản đồ), 5.7 (chế độ PK, phạt EXP, hồi sinh) và [nguyên tắc cân bằng chiến đấu](../../combat-balance.md); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như các spec trước, nhất là [spec Giai đoạn 2](2026-11-20-giai-doan-2-ky-nang-design.md), [spec ba mốc của đòn đánh](2026-11-20-moc-don-danh-design.md), [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) và [spec 4c](2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md). Giai đoạn 3 và 4 được triển khai trước, nên spec này viết trên giao thức 11 và migration 00007.
 
