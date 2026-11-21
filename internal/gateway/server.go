@@ -20,7 +20,7 @@ import (
 )
 
 // ProtocolVersion must match LoginReq.protocol_version.
-const ProtocolVersion uint32 = 9
+const ProtocolVersion uint32 = 10
 
 const (
 	maxMessageSize = 4096

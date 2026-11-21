@@ -80,6 +80,15 @@ message Envelope {
     ChangeZoneReq change_zone_req = 84;
     ZoneListReq zone_list_req = 85;
     ZoneListResp zone_list_resp = 86;
+
+    BuyReq buy_req = 87;
+    BuyResp buy_resp = 88;
+    SellReq sell_req = 89;
+    SellResp sell_resp = 90;
+    UseItemReq use_item_req = 91;
+    UseItemResp use_item_resp = 92;
+    ReturnTownReq return_town_req = 93;
+    TravelReq travel_req = 94;
   }
 }
 
@@ -131,7 +140,7 @@ enum ErrorCode {
   ERROR_CODE_NOT_ENOUGH_MATERIALS = 31;
   // The item is already at the highest enhancement level.
   ERROR_CODE_ENHANCE_MAXED = 32;
-  // The action needs the character to stand in a safe zone.
+  // Unused since protocol 10: forging needs a nearby smith, not a safe zone.
   ERROR_CODE_NOT_IN_SAFE_ZONE = 33;
   // The item already has the most holes.
   ERROR_CODE_HOLES_MAXED = 34;
@@ -143,6 +152,12 @@ enum ErrorCode {
   ERROR_CODE_NO_PENDING_REFINE = 37;
   // The current map has no running zone with that number.
   ERROR_CODE_ZONE_NOT_FOUND = 38;
+  // The character is too far from the NPC.
+  ERROR_CODE_NPC_TOO_FAR = 39;
+  // The item cannot be sold to an NPC.
+  ERROR_CODE_NOT_SELLABLE = 40;
+  // The potion would restore nothing: HP or MP is already full.
+  ERROR_CODE_ALREADY_FULL = 41;
 }
 
 enum KickReason {
@@ -256,7 +271,7 @@ message EnterWorldResp {
 }
 
 // Time left on a cooldown when entering a zone. key: a skill id, "slash",
-// "zone_change"; phase 4b adds "potion_hp" and "potion_mp".
+// "zone_change", "potion_hp" or "potion_mp".
 message Cooldown {
   string key = 1;
   int32 remaining_ms = 2;
@@ -679,4 +694,51 @@ message ZoneInfo {
   int32 zone = 1;
   int32 players = 2;
   int32 capacity = 3;
+}
+
+// Buys count of an item from an NPC shop. Answered with BuyResp.
+message BuyReq {
+  string npc_id = 1;
+  string code = 2;
+  int32 count = 3;
+}
+
+message BuyResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Sells count of the stack in a bag slot to an NPC shop. Answered with SellResp.
+message SellReq {
+  string npc_id = 1;
+  int32 bag_slot = 2;
+  int32 count = 3;
+}
+
+message SellResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+}
+
+// Uses the potion in a bag slot. cooldown_ms is the wait before the next
+// potion of the same group.
+message UseItemReq {
+  int32 bag_slot = 1;
+}
+
+message UseItemResp {
+  InventoryUpdate update = 1;
+  SelfStats stats = 2;
+  int32 cooldown_ms = 3;
+}
+
+// Reads the return scroll in a bag slot. Answered with EnterWorldResp.
+message ReturnTownReq {
+  int32 bag_slot = 1;
+}
+
+// Rides the carriage NPC along one of its routes. Answered with EnterWorldResp.
+message TravelReq {
+  string npc_id = 1;
+  int32 route = 2;
 }

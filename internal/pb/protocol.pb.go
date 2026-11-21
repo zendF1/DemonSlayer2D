@@ -71,7 +71,7 @@ const (
 	ErrorCode_ERROR_CODE_NOT_ENOUGH_MATERIALS ErrorCode = 31
 	// The item is already at the highest enhancement level.
 	ErrorCode_ERROR_CODE_ENHANCE_MAXED ErrorCode = 32
-	// The action needs the character to stand in a safe zone.
+	// Unused since protocol 10: forging needs a nearby smith, not a safe zone.
 	ErrorCode_ERROR_CODE_NOT_IN_SAFE_ZONE ErrorCode = 33
 	// The item already has the most holes.
 	ErrorCode_ERROR_CODE_HOLES_MAXED ErrorCode = 34
@@ -83,6 +83,12 @@ const (
 	ErrorCode_ERROR_CODE_NO_PENDING_REFINE ErrorCode = 37
 	// The current map has no running zone with that number.
 	ErrorCode_ERROR_CODE_ZONE_NOT_FOUND ErrorCode = 38
+	// The character is too far from the NPC.
+	ErrorCode_ERROR_CODE_NPC_TOO_FAR ErrorCode = 39
+	// The item cannot be sold to an NPC.
+	ErrorCode_ERROR_CODE_NOT_SELLABLE ErrorCode = 40
+	// The potion would restore nothing: HP or MP is already full.
+	ErrorCode_ERROR_CODE_ALREADY_FULL ErrorCode = 41
 )
 
 // Enum value maps for ErrorCode.
@@ -127,6 +133,9 @@ var (
 		36: "ERROR_CODE_NOT_REFINABLE",
 		37: "ERROR_CODE_NO_PENDING_REFINE",
 		38: "ERROR_CODE_ZONE_NOT_FOUND",
+		39: "ERROR_CODE_NPC_TOO_FAR",
+		40: "ERROR_CODE_NOT_SELLABLE",
+		41: "ERROR_CODE_ALREADY_FULL",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":          0,
@@ -168,6 +177,9 @@ var (
 		"ERROR_CODE_NOT_REFINABLE":        36,
 		"ERROR_CODE_NO_PENDING_REFINE":    37,
 		"ERROR_CODE_ZONE_NOT_FOUND":       38,
+		"ERROR_CODE_NPC_TOO_FAR":          39,
+		"ERROR_CODE_NOT_SELLABLE":         40,
+		"ERROR_CODE_ALREADY_FULL":         41,
 	}
 )
 
@@ -444,6 +456,14 @@ type Envelope struct {
 	//	*Envelope_ChangeZoneReq
 	//	*Envelope_ZoneListReq
 	//	*Envelope_ZoneListResp
+	//	*Envelope_BuyReq
+	//	*Envelope_BuyResp
+	//	*Envelope_SellReq
+	//	*Envelope_SellResp
+	//	*Envelope_UseItemReq
+	//	*Envelope_UseItemResp
+	//	*Envelope_ReturnTownReq
+	//	*Envelope_TravelReq
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1024,6 +1044,78 @@ func (x *Envelope) GetZoneListResp() *ZoneListResp {
 	return nil
 }
 
+func (x *Envelope) GetBuyReq() *BuyReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_BuyReq); ok {
+			return x.BuyReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetBuyResp() *BuyResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_BuyResp); ok {
+			return x.BuyResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSellReq() *SellReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SellReq); ok {
+			return x.SellReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSellResp() *SellResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SellResp); ok {
+			return x.SellResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetUseItemReq() *UseItemReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_UseItemReq); ok {
+			return x.UseItemReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetUseItemResp() *UseItemResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_UseItemResp); ok {
+			return x.UseItemResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetReturnTownReq() *ReturnTownReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_ReturnTownReq); ok {
+			return x.ReturnTownReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetTravelReq() *TravelReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TravelReq); ok {
+			return x.TravelReq
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1264,6 +1356,38 @@ type Envelope_ZoneListResp struct {
 	ZoneListResp *ZoneListResp `protobuf:"bytes,86,opt,name=zone_list_resp,json=zoneListResp,proto3,oneof"`
 }
 
+type Envelope_BuyReq struct {
+	BuyReq *BuyReq `protobuf:"bytes,87,opt,name=buy_req,json=buyReq,proto3,oneof"`
+}
+
+type Envelope_BuyResp struct {
+	BuyResp *BuyResp `protobuf:"bytes,88,opt,name=buy_resp,json=buyResp,proto3,oneof"`
+}
+
+type Envelope_SellReq struct {
+	SellReq *SellReq `protobuf:"bytes,89,opt,name=sell_req,json=sellReq,proto3,oneof"`
+}
+
+type Envelope_SellResp struct {
+	SellResp *SellResp `protobuf:"bytes,90,opt,name=sell_resp,json=sellResp,proto3,oneof"`
+}
+
+type Envelope_UseItemReq struct {
+	UseItemReq *UseItemReq `protobuf:"bytes,91,opt,name=use_item_req,json=useItemReq,proto3,oneof"`
+}
+
+type Envelope_UseItemResp struct {
+	UseItemResp *UseItemResp `protobuf:"bytes,92,opt,name=use_item_resp,json=useItemResp,proto3,oneof"`
+}
+
+type Envelope_ReturnTownReq struct {
+	ReturnTownReq *ReturnTownReq `protobuf:"bytes,93,opt,name=return_town_req,json=returnTownReq,proto3,oneof"`
+}
+
+type Envelope_TravelReq struct {
+	TravelReq *TravelReq `protobuf:"bytes,94,opt,name=travel_req,json=travelReq,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -1381,6 +1505,22 @@ func (*Envelope_ChangeZoneReq) isEnvelope_Payload() {}
 func (*Envelope_ZoneListReq) isEnvelope_Payload() {}
 
 func (*Envelope_ZoneListResp) isEnvelope_Payload() {}
+
+func (*Envelope_BuyReq) isEnvelope_Payload() {}
+
+func (*Envelope_BuyResp) isEnvelope_Payload() {}
+
+func (*Envelope_SellReq) isEnvelope_Payload() {}
+
+func (*Envelope_SellResp) isEnvelope_Payload() {}
+
+func (*Envelope_UseItemReq) isEnvelope_Payload() {}
+
+func (*Envelope_UseItemResp) isEnvelope_Payload() {}
+
+func (*Envelope_ReturnTownReq) isEnvelope_Payload() {}
+
+func (*Envelope_TravelReq) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2168,7 +2308,7 @@ func (x *EnterWorldResp) GetCooldowns() []*Cooldown {
 }
 
 // Time left on a cooldown when entering a zone. key: a skill id, "slash",
-// "zone_change"; phase 4b adds "potion_hp" and "potion_mp".
+// "zone_change", "potion_hp" or "potion_mp".
 type Cooldown struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -5869,11 +6009,441 @@ func (x *ZoneInfo) GetCapacity() int32 {
 	return 0
 }
 
+// Buys count of an item from an NPC shop. Answered with BuyResp.
+type BuyReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BuyReq) Reset() {
+	*x = BuyReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyReq) ProtoMessage() {}
+
+func (x *BuyReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyReq.ProtoReflect.Descriptor instead.
+func (*BuyReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *BuyReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *BuyReq) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *BuyReq) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type BuyResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BuyResp) Reset() {
+	*x = BuyResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyResp) ProtoMessage() {}
+
+func (x *BuyResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyResp.ProtoReflect.Descriptor instead.
+func (*BuyResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *BuyResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *BuyResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Sells count of the stack in a bag slot to an NPC shop. Answered with SellResp.
+type SellReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	BagSlot       int32                  `protobuf:"varint,2,opt,name=bag_slot,json=bagSlot,proto3" json:"bag_slot,omitempty"`
+	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SellReq) Reset() {
+	*x = SellReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SellReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SellReq) ProtoMessage() {}
+
+func (x *SellReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SellReq.ProtoReflect.Descriptor instead.
+func (*SellReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *SellReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *SellReq) GetBagSlot() int32 {
+	if x != nil {
+		return x.BagSlot
+	}
+	return 0
+}
+
+func (x *SellReq) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type SellResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SellResp) Reset() {
+	*x = SellResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SellResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SellResp) ProtoMessage() {}
+
+func (x *SellResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SellResp.ProtoReflect.Descriptor instead.
+func (*SellResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *SellResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *SellResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Uses the potion in a bag slot. cooldown_ms is the wait before the next
+// potion of the same group.
+type UseItemReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BagSlot       int32                  `protobuf:"varint,1,opt,name=bag_slot,json=bagSlot,proto3" json:"bag_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UseItemReq) Reset() {
+	*x = UseItemReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UseItemReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UseItemReq) ProtoMessage() {}
+
+func (x *UseItemReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UseItemReq.ProtoReflect.Descriptor instead.
+func (*UseItemReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *UseItemReq) GetBagSlot() int32 {
+	if x != nil {
+		return x.BagSlot
+	}
+	return 0
+}
+
+type UseItemResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	CooldownMs    int32                  `protobuf:"varint,3,opt,name=cooldown_ms,json=cooldownMs,proto3" json:"cooldown_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UseItemResp) Reset() {
+	*x = UseItemResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UseItemResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UseItemResp) ProtoMessage() {}
+
+func (x *UseItemResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UseItemResp.ProtoReflect.Descriptor instead.
+func (*UseItemResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *UseItemResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *UseItemResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+func (x *UseItemResp) GetCooldownMs() int32 {
+	if x != nil {
+		return x.CooldownMs
+	}
+	return 0
+}
+
+// Reads the return scroll in a bag slot. Answered with EnterWorldResp.
+type ReturnTownReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BagSlot       int32                  `protobuf:"varint,1,opt,name=bag_slot,json=bagSlot,proto3" json:"bag_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReturnTownReq) Reset() {
+	*x = ReturnTownReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReturnTownReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReturnTownReq) ProtoMessage() {}
+
+func (x *ReturnTownReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReturnTownReq.ProtoReflect.Descriptor instead.
+func (*ReturnTownReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *ReturnTownReq) GetBagSlot() int32 {
+	if x != nil {
+		return x.BagSlot
+	}
+	return 0
+}
+
+// Rides the carriage NPC along one of its routes. Answered with EnterWorldResp.
+type TravelReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	Route         int32                  `protobuf:"varint,2,opt,name=route,proto3" json:"route,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TravelReq) Reset() {
+	*x = TravelReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TravelReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TravelReq) ProtoMessage() {}
+
+func (x *TravelReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TravelReq.ProtoReflect.Descriptor instead.
+func (*TravelReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *TravelReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *TravelReq) GetRoute() int32 {
+	if x != nil {
+		return x.Route
+	}
+	return 0
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xb0\x1a\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xc8\x1d\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -5954,7 +6524,17 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x0euse_portal_req\x18S \x01(\v2\x13.ds.v1.UsePortalReqH\x00R\fusePortalReq\x12>\n" +
 	"\x0fchange_zone_req\x18T \x01(\v2\x14.ds.v1.ChangeZoneReqH\x00R\rchangeZoneReq\x128\n" +
 	"\rzone_list_req\x18U \x01(\v2\x12.ds.v1.ZoneListReqH\x00R\vzoneListReq\x12;\n" +
-	"\x0ezone_list_resp\x18V \x01(\v2\x13.ds.v1.ZoneListRespH\x00R\fzoneListRespB\t\n" +
+	"\x0ezone_list_resp\x18V \x01(\v2\x13.ds.v1.ZoneListRespH\x00R\fzoneListResp\x12(\n" +
+	"\abuy_req\x18W \x01(\v2\r.ds.v1.BuyReqH\x00R\x06buyReq\x12+\n" +
+	"\bbuy_resp\x18X \x01(\v2\x0e.ds.v1.BuyRespH\x00R\abuyResp\x12+\n" +
+	"\bsell_req\x18Y \x01(\v2\x0e.ds.v1.SellReqH\x00R\asellReq\x12.\n" +
+	"\tsell_resp\x18Z \x01(\v2\x0f.ds.v1.SellRespH\x00R\bsellResp\x125\n" +
+	"\fuse_item_req\x18[ \x01(\v2\x11.ds.v1.UseItemReqH\x00R\n" +
+	"useItemReq\x128\n" +
+	"\ruse_item_resp\x18\\ \x01(\v2\x12.ds.v1.UseItemRespH\x00R\vuseItemResp\x12>\n" +
+	"\x0freturn_town_req\x18] \x01(\v2\x14.ds.v1.ReturnTownReqH\x00R\rreturnTownReq\x121\n" +
+	"\n" +
+	"travel_req\x18^ \x01(\v2\x10.ds.v1.TravelReqH\x00R\ttravelReqB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -6269,7 +6849,34 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\bZoneInfo\x12\x12\n" +
 	"\x04zone\x18\x01 \x01(\x05R\x04zone\x12\x18\n" +
 	"\aplayers\x18\x02 \x01(\x05R\aplayers\x12\x1a\n" +
-	"\bcapacity\x18\x03 \x01(\x05R\bcapacity*\x91\t\n" +
+	"\bcapacity\x18\x03 \x01(\x05R\bcapacity\"I\n" +
+	"\x06BuyReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\"a\n" +
+	"\aBuyResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"Q\n" +
+	"\aSellReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bbag_slot\x18\x02 \x01(\x05R\abagSlot\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\"b\n" +
+	"\bSellResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"'\n" +
+	"\n" +
+	"UseItemReq\x12\x19\n" +
+	"\bbag_slot\x18\x01 \x01(\x05R\abagSlot\"\x86\x01\n" +
+	"\vUseItemResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\x12\x1f\n" +
+	"\vcooldown_ms\x18\x03 \x01(\x05R\n" +
+	"cooldownMs\"*\n" +
+	"\rReturnTownReq\x12\x19\n" +
+	"\bbag_slot\x18\x01 \x01(\x05R\abagSlot\"8\n" +
+	"\tTravelReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x14\n" +
+	"\x05route\x18\x02 \x01(\x05R\x05route*\xe7\t\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -6310,7 +6917,10 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x17ERROR_CODE_GEM_TOO_HIGH\x10#\x12\x1c\n" +
 	"\x18ERROR_CODE_NOT_REFINABLE\x10$\x12 \n" +
 	"\x1cERROR_CODE_NO_PENDING_REFINE\x10%\x12\x1d\n" +
-	"\x19ERROR_CODE_ZONE_NOT_FOUND\x10&*\x84\x02\n" +
+	"\x19ERROR_CODE_ZONE_NOT_FOUND\x10&\x12\x1a\n" +
+	"\x16ERROR_CODE_NPC_TOO_FAR\x10'\x12\x1b\n" +
+	"\x17ERROR_CODE_NOT_SELLABLE\x10(\x12\x1b\n" +
+	"\x17ERROR_CODE_ALREADY_FULL\x10)*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -6348,7 +6958,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 78)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -6432,6 +7042,14 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*ZoneListReq)(nil),        // 79: ds.v1.ZoneListReq
 	(*ZoneListResp)(nil),       // 80: ds.v1.ZoneListResp
 	(*ZoneInfo)(nil),           // 81: ds.v1.ZoneInfo
+	(*BuyReq)(nil),             // 82: ds.v1.BuyReq
+	(*BuyResp)(nil),            // 83: ds.v1.BuyResp
+	(*SellReq)(nil),            // 84: ds.v1.SellReq
+	(*SellResp)(nil),           // 85: ds.v1.SellResp
+	(*UseItemReq)(nil),         // 86: ds.v1.UseItemReq
+	(*UseItemResp)(nil),        // 87: ds.v1.UseItemResp
+	(*ReturnTownReq)(nil),      // 88: ds.v1.ReturnTownReq
+	(*TravelReq)(nil),          // 89: ds.v1.TravelReq
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -6493,69 +7111,83 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	78,  // 56: ds.v1.Envelope.change_zone_req:type_name -> ds.v1.ChangeZoneReq
 	79,  // 57: ds.v1.Envelope.zone_list_req:type_name -> ds.v1.ZoneListReq
 	80,  // 58: ds.v1.Envelope.zone_list_resp:type_name -> ds.v1.ZoneListResp
-	0,   // 59: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,   // 60: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10,  // 61: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,   // 62: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10,  // 63: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	37,  // 64: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 65: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	52,  // 66: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	19,  // 67: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
-	3,   // 68: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,   // 69: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	49,  // 70: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	25,  // 71: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	38,  // 72: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	39,  // 73: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	40,  // 74: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	41,  // 75: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	47,  // 76: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	27,  // 77: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,   // 78: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	37,  // 79: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	37,  // 80: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 81: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	48,  // 82: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,   // 83: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	50,  // 84: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	50,  // 85: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	49,  // 86: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	51,  // 87: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	51,  // 88: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	51,  // 89: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	51,  // 90: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	53,  // 91: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 92: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 93: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 94: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 95: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 96: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 97: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	64,  // 98: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	53,  // 99: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 100: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 101: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
-	53,  // 102: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 103: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 104: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 105: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 106: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 107: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 108: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 109: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 110: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
-	50,  // 111: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
-	53,  // 112: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 113: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 114: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 115: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
-	81,  // 116: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
-	117, // [117:117] is the sub-list for method output_type
-	117, // [117:117] is the sub-list for method input_type
-	117, // [117:117] is the sub-list for extension type_name
-	117, // [117:117] is the sub-list for extension extendee
-	0,   // [0:117] is the sub-list for field type_name
+	82,  // 59: ds.v1.Envelope.buy_req:type_name -> ds.v1.BuyReq
+	83,  // 60: ds.v1.Envelope.buy_resp:type_name -> ds.v1.BuyResp
+	84,  // 61: ds.v1.Envelope.sell_req:type_name -> ds.v1.SellReq
+	85,  // 62: ds.v1.Envelope.sell_resp:type_name -> ds.v1.SellResp
+	86,  // 63: ds.v1.Envelope.use_item_req:type_name -> ds.v1.UseItemReq
+	87,  // 64: ds.v1.Envelope.use_item_resp:type_name -> ds.v1.UseItemResp
+	88,  // 65: ds.v1.Envelope.return_town_req:type_name -> ds.v1.ReturnTownReq
+	89,  // 66: ds.v1.Envelope.travel_req:type_name -> ds.v1.TravelReq
+	0,   // 67: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 68: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10,  // 69: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 70: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10,  // 71: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	37,  // 72: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	46,  // 73: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	52,  // 74: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	19,  // 75: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
+	3,   // 76: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 77: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	49,  // 78: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	25,  // 79: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	38,  // 80: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	39,  // 81: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	40,  // 82: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	41,  // 83: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	47,  // 84: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	27,  // 85: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 86: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	37,  // 87: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	37,  // 88: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	46,  // 89: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	48,  // 90: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 91: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	50,  // 92: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	50,  // 93: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	49,  // 94: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	51,  // 95: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	51,  // 96: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	51,  // 97: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	51,  // 98: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	53,  // 99: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 100: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 101: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 102: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 103: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 104: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 105: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	64,  // 106: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	53,  // 107: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 108: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 109: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	53,  // 110: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 111: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 112: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	53,  // 113: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 114: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 115: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	53,  // 116: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 117: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 118: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	50,  // 119: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	53,  // 120: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 121: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 122: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 123: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	81,  // 124: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
+	53,  // 125: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 126: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 127: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 128: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 129: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 130: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
+	131, // [131:131] is the sub-list for method output_type
+	131, // [131:131] is the sub-list for method input_type
+	131, // [131:131] is the sub-list for extension type_name
+	131, // [131:131] is the sub-list for extension extendee
+	0,   // [0:131] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -6623,6 +7255,14 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_ChangeZoneReq)(nil),
 		(*Envelope_ZoneListReq)(nil),
 		(*Envelope_ZoneListResp)(nil),
+		(*Envelope_BuyReq)(nil),
+		(*Envelope_BuyResp)(nil),
+		(*Envelope_SellReq)(nil),
+		(*Envelope_SellResp)(nil),
+		(*Envelope_UseItemReq)(nil),
+		(*Envelope_UseItemResp)(nil),
+		(*Envelope_ReturnTownReq)(nil),
+		(*Envelope_TravelReq)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -6630,7 +7270,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   78,
+			NumMessages:   86,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

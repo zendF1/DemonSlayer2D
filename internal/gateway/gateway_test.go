@@ -474,13 +474,23 @@ func clientFixtures() map[string]*pb.Envelope {
 				{Key: "viem_1", RemainingMs: 2000},
 				{Key: "zone_change", RemainingMs: 9500},
 			}}}},
+		"buy_req": {Seq: 20, Payload: &pb.Envelope_BuyReq{BuyReq: &pb.BuyReq{
+			NpcId: "kumotori_apothecary", Code: "potion_hp_1", Count: 10}}},
+		"use_item_resp": {Seq: 21, Payload: &pb.Envelope_UseItemResp{UseItemResp: &pb.UseItemResp{
+			// One potion left bag slot 3; HP restored; the next potion waits 10 s.
+			Update: &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 3}}},
+			Stats: &pb.SelfStats{Level: 30, Exp: 10, ExpNext: 9000, Hp: 2100, MaxHp: 2400, Mp: 300, MaxMp: 300,
+				PhysAttack: 400, PhysDefense: 150, MagicDefense: 140, Xu: 48800},
+			CooldownMs: 10000}}},
+		"travel_req": {Seq: 22, Payload: &pb.Envelope_TravelReq{TravelReq: &pb.TravelReq{
+			NpcId: "ubuyashiki_carriage", Route: 1}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 9 {
-		t.Fatalf("ProtocolVersion = %d, want 9", ProtocolVersion)
+	if ProtocolVersion != 10 {
+		t.Fatalf("ProtocolVersion = %d, want 10", ProtocolVersion)
 	}
 }
 
@@ -557,6 +567,25 @@ func TestTransferFixturesRoundTrip(t *testing.T) {
 	}
 	if readFixture(t, "enter_world_resp").GetEnterWorldResp().GetCooldowns() != nil {
 		t.Fatal("a login EnterWorldResp carries cooldowns")
+	}
+}
+
+// The shop fixtures decode back to the buy request, the potion reply and the
+// carriage request.
+func TestShopFixturesRoundTrip(t *testing.T) {
+	buy := readFixture(t, "buy_req")
+	if b := buy.GetBuyReq(); buy.GetSeq() != 20 || b.GetNpcId() != "kumotori_apothecary" || b.GetCode() != "potion_hp_1" || b.GetCount() != 10 {
+		t.Fatalf("buy %v", buy)
+	}
+	use := readFixture(t, "use_item_resp")
+	u := use.GetUseItemResp()
+	if use.GetSeq() != 21 || u.GetCooldownMs() != 10000 || u.GetStats().GetHp() != 2100 ||
+		len(u.GetUpdate().GetBag()) != 1 || u.GetUpdate().GetBag()[0].GetSlot() != 3 {
+		t.Fatalf("use item %v", use)
+	}
+	tr := readFixture(t, "travel_req")
+	if r := tr.GetTravelReq(); tr.GetSeq() != 22 || r.GetNpcId() != "ubuyashiki_carriage" || r.GetRoute() != 1 {
+		t.Fatalf("travel %v", tr)
 	}
 }
 
