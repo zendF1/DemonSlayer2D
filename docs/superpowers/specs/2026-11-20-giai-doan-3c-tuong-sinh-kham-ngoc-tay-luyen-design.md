@@ -14,6 +14,9 @@ Phần cuối của Giai đoạn 3 (xem bảng chia ở [spec 3a](2026-11-20-gia
 
 ### 1.2. Quyết định đã chốt
 
+> **Ghi chú (Giai đoạn 4b):** nơi đục lỗ, khảm, tháo ngọc và tẩy luyện đã đổi thành đứng gần NPC Thợ rèn (trong 3,5 ô; lỗi `NPC_TOO_FAR`), thay cho khu an toàn; `NOT_IN_SAFE_ZONE` không còn dùng từ protocol 10. Xem [spec 4b](2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md).
+> Kết quả tẩy luyện chờ nay cũng được giữ khi mua bình hoặc dùng vật phẩm; bán đồ chỉ xóa nó khi bán thành công.
+
 Người dùng đã ủy quyền chọn phương án khuyên dùng cho mọi quyết định dưới đây.
 
 | Vấn đề | Quyết định | Lý do |

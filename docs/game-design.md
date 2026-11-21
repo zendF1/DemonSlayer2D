@@ -320,7 +320,7 @@ Ví dụ chiêu có mốc 1,5 giây: cấp 2 còn 1,35 giây; cấp 3 còn 1,215
 Bản v1.0.0.0 **không có hồi HP/MP tự nhiên**. Có ba nguồn hồi:
 - nghỉ tại NPC trong khu an toàn (mục 5.4);
 - hồi theo giây từ các mốc cường hóa trang bị;
-- bình thuốc.
+- bình thuốc (mua ở Tạp hóa và Dược sư, bấm nút bình trên HUD).
 
 #### Hồi theo mốc cường hóa
 
@@ -357,6 +357,7 @@ Bán tại tạp hóa/dược sư, Điệp Phủ và Nhà Hoa Tử Đằng. Mỗ
 | Bình MP cấp 50 | 50 | 400 MP | 160 Xu |
 
 - **Không có bình MP cấp 1**, vì từ cấp 1 đến 9 chỉ dùng chém mặc định, không tốn MP.
+- **Nút bình trên HUD:** bấm là uống bình tốt nhất cùng loại mà nhân vật dùng được. **Từ chối khi HP (hoặc MP) đã đầy**, không mất bình.
 - **Hồi chiêu 10 giây**, HP và MP tính riêng. Mọi cấp bình HP dùng chung một hồi chiêu; bình MP cũng vậy.
 - Với cấu hình tham chiếu, bình MP cấp 50 hồi khoảng 37% MP của class vật lý ở cấp 50 (1.080 MP). Ở cấp 10, bình MP cấp 10 hồi khoảng 36% (280 MP).
 - Giá tính theo Xu rơi từ quái thường (trung bình 4 × cấp quái mỗi con, mục 5.12). Ở cấp 50, mỗi con cho khoảng 200 Xu. Dùng cả hai loại bình liên tục mỗi 10 giây tốn 360 Xu, xấp xỉ thu nhập khi hạ khoảng hai con trong 10 giây. Thực tế người chơi không dùng liên tục, nên bình là khoản tiêu Xu đáng kể nhưng vẫn kham được.
@@ -491,7 +492,7 @@ Giá trị mỗi dòng ẩn so với một dòng phụ cùng loại/cùng bậc:
 
 | Tính năng | Thiết kế hiện tại |
 | --- | --- |
-| Cường hóa | +1 đến +15, tiêu hao đá và Xu theo bảng chi phí dưới đây; +1 đến +4 thành công 100%; từ +5 tỷ lệ giảm, thất bại có thể tụt cấp; bùa bảo vệ chống tụt cấp; mỗi lần thất bại cộng ẩn +1% tỷ lệ cho lần sau; mốc +7/+10/+12/+15 kích hoạt hồi HP/MP theo mục 2.7 |
+| Cường hóa | Đứng gần Thợ rèn; +1 đến +15, tiêu hao đá và Xu theo bảng chi phí dưới đây; +1 đến +4 thành công 100%; từ +5 tỷ lệ giảm, thất bại có thể tụt cấp; bùa bảo vệ (5.000 Xu, bán ở Tạp hóa) chống tụt cấp; mỗi lần thất bại cộng ẩn +1% tỷ lệ cho lần sau; mốc +7/+10/+12/+15 kích hoạt hồi HP/MP theo mục 2.7 |
 | Khảm ngọc | Đục tối đa ba lỗ trên mọi trang bị bằng Xu, khảm ngọc công, sinh lực hoặc hộ thể vào lỗ trống, tháo ngọc ra bằng Xu; ngọc xuyên giáp, kháng choáng có sau khi các chỉ số này có công thức (mục 10) |
 | Tẩy luyện | Dùng đá tẩy và Xu để làm mới dòng phụ trên đồ Vàng/Cam/Đỏ, khóa được dòng muốn giữ, xem kết quả rồi chọn giữ bộ cũ hoặc nhận bộ mới |
 
@@ -633,7 +634,7 @@ Bùa bảo vệ chống tụt cấp, không tăng tỷ lệ thành công. Thất
 
 #### Khảm ngọc
 
-Bộ số bản đầu, sinh bằng `docs/balance/item_stats.py`. Khảm, tháo ngọc và tẩy luyện làm ở bất cứ đâu trong khu an toàn, như cường hóa, cho tới khi có NPC thợ rèn (Giai đoạn 4).
+Bộ số bản đầu, sinh bằng `docs/balance/item_stats.py`. Cường hóa, đục lỗ, khảm, tháo ngọc và tẩy luyện làm khi đứng gần NPC Thợ rèn (trong 3,5 ô; Tổng hành dinh có Thợ rèn từ Giai đoạn 4b).
 
 - **Đục lỗ:** mọi phẩm chất, tối đa **3 lỗ**, đục lần lượt. Lỗ thứ 1/2/3 tốn **100/200/400 × bậc** Xu (đồ Lữ Hành bậc 10: 1.000/2.000/4.000 Xu; Xích Cương bậc 50: 5.000/10.000/20.000 Xu). Lỗ đã đục không mất.
 - **Khảm:** không tốn Xu, tốn một viên ngọc; lỗ phải trống.
@@ -669,11 +670,13 @@ Tẩy luyện làm mới loại và giá trị dòng phụ của đồ **Vàng, 
 NPC chủ yếu tập trung ở làng, thành và doanh trại an toàn; có biểu tượng chức năng:
 
 - Thợ rèn: cường hóa, khảm ngọc, tẩy luyện.
-- Tạp hóa/dược sư: bình HP/MP, giấy về thành, bùa hỗ trợ.
+- Tạp hóa/dược sư: bình HP/MP, giấy về thành (50 Xu), bùa bảo vệ (chỉ Tạp hóa); cũng mua lại đồ của người chơi (mục 7.2).
 - Thủ kho: kho chung tài khoản và mở rộng kho.
-- Xa phu: di chuyển giữa các bản đồ với phí.
+- Xa phu: di chuyển giữa các bản đồ với phí, tới trại của map đích: 50 Xu tới thành, 20 × cấp quái thấp nhất của map đích (tối thiểu 50) tới map luyện cấp.
 - NPC giao nhiệm vụ/hướng dẫn: trưởng làng, chỉ huy, sứ giả môn phái…; không bắt người chơi diễn lại cốt truyện nguyên tác.
 - NPC hoạt động: bang hội, lôi đài, sự kiện, thương nhân theo giờ.
+
+Bố trí hiện có (Giai đoạn 4b): Tổng hành dinh có Tạp hóa, Thợ rèn, Xa phu; trại của mỗi map luyện cấp có Dược sư và Xa phu. NPC là dữ liệu của map, không phải thực thể trong zone. Giấy về thành đưa nhân vật về Tổng hành dinh, dùng được ở map không phải thành, kể cả khi đang giao chiến.
 
 Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám khi đang làm; ? vàng khi đủ điều kiện trả. Thứ tự ưu tiên biểu tượng khi có nhiều nhiệm vụ chưa chốt.
 
@@ -1037,6 +1040,7 @@ Danh mục được đề xuất, chưa chốt số lượng: Xu, EXP, đá cư�
 - Giao dịch trực tiếp 1–1 có khóa/xác nhận.
 - Mở sạp tự động ở khu an toàn trong thành.
 - NPC đấu giá/treo đồ ở Vô Hạn Thành theo thiết kế thành chủ.
+- Bán đồ cho NPC cửa hàng: trang bị = bậc × 5/10/20/40/80 Xu theo phẩm chất (Trắng … Đỏ); vật phẩm chồng theo giá bán của từng loại (bình và giấy = giá mua / 5, đá cường hóa 5, đá tẩy luyện 50, bùa 1.000, ngọc cấp g là 200 × g). Mức cường hóa, ngọc và dòng phụ không cộng giá. Không bán đồ đang mặc; đá cường hóa và đá tẩy luyện không bán bằng Xu ở cửa hàng.
 - Đề xuất an toàn giao dịch: khóa nội dung rồi xác nhận; thay đổi món hoặc số tiền phải hủy xác nhận cũ. Chi tiết giao diện chưa chốt.
 
 Các khoản tiêu hao Xu như bình thuốc, mở kho, cường hóa và tẩy luyện giúp loại tiền khỏi lưu thông. **Thuế giao dịch chuyển vào quỹ bang**, theo cơ chế thành chủ đã có; khoản này vẫn nằm trong nền kinh tế. Không bổ sung phí chợ hệ thống riêng trong thiết kế bản đầu.

@@ -208,9 +208,11 @@ func (z *Zone) RefineChoose(id uint64, seq uint32, accept bool) bool {
 }
 
 // dropsRefine is the player whose waiting refine result c drops before it
-// runs: every item command but a pickup and the choice itself (phase 3c spec
-// 4.5), so the piece's slot cannot change while the result waits. A new
-// refine drops the old result and, if it succeeds, leaves its own.
+// runs: every item command but a pickup, a buy, a potion or scroll use and
+// the choice itself (phase 3c spec 4.5, phase 4b spec 1.2), so the piece's
+// slot cannot change while the result waits. A sale is not listed: it drops
+// the result itself, and only when it succeeds (Zone.sell). A new refine
+// drops the old result and, if it succeeds, leaves its own.
 func dropsRefine(c any) (uint64, bool) {
 	switch c := c.(type) {
 	case equipCmd:
