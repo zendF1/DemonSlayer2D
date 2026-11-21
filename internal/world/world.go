@@ -364,7 +364,10 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		SkillPoints: req.Char.SkillPoints,
 		Skills:      w.knownSkills(req.Char),
 		Xu:          req.Char.Xu,
-		Inventory:   w.knownItems(req.Char),
+		Inventory:   w.knownBag(req.Char),
+		AccountID:   req.Char.AccountID,
+		Luong:       req.Char.Account.Luong,
+		Stash:       w.knownStash(req.Char),
 		RespSeq:     req.RespSeq,
 	}
 	s := w.reserve(mapID)
@@ -389,10 +392,29 @@ func (w *World) knownSkills(c store.Character) map[string]int {
 	return out
 }
 
-// knownItems is c's stored items as an inventory, without the rows that
-// break the phase 3a spec 3 rules, with one warning per dropped row: an
-// unknown code; a bag slot outside the bag; a worn slot outside 0-9 or not
-// the piece's slot (stackables are never worn); a slot already taken by an
+// knownBag is c's stored bag and worn items as an inventory (knownItems).
+func (w *World) knownBag(c store.Character) *items.Inventory {
+	return w.knownItems(c, "bag", c.Items, w.items.BagSize)
+}
+
+// knownStash is c's account stash (phase 4c spec 3): one entry per stash
+// slot, nil for an empty one. A stored size outside [base, max] is clamped
+// with a warning; the rows are checked as knownItems does, with the size as
+// the slot limit, and a worn row is dropped too.
+func (w *World) knownStash(c store.Character) []*items.Item {
+	r, size := w.items.Stash, c.Account.StashSize
+	if clamped := min(max(size, r.Base), r.Max); clamped != size {
+		w.log.Warn("clamped stored stash size", "char", c.ID, "account", c.AccountID, "size", size, "clamped", clamped)
+		size = clamped
+	}
+	return w.knownItems(c, "stash", c.Account.Stash, size).Bag
+}
+
+// knownItems is rows as an inventory with slots bag slots, without the rows
+// that break the phase 3a spec 3 rules, with one warning per dropped row
+// (where says which store they come from: "bag" or "stash", which holds no
+// worn rows): an unknown code; a bag slot outside 0..slots-1; a worn slot
+// outside 0-9 or not the piece's slot (stackables are never worn); a slot already taken by an
 // earlier row; a count outside 1..stack_max, or not 1 for equipment; a
 // stackable with a quality, element, enhance level or lines; equipment with
 // a line of an unknown stat. A worn piece c may not wear (level, class) is
@@ -400,11 +422,15 @@ func (w *World) knownSkills(c store.Character) map[string]int {
 // entries in 0-99, or that is a stackable with a pity, keeps the item with a
 // zero pity and one warning (phase 3b spec 3). Its holes are fixed by
 // knownGems (phase 3c spec 3).
-func (w *World) knownItems(c store.Character) *items.Inventory {
-	inv := items.NewInventory(w.items.BagSize)
-	for _, r := range c.Items {
-		if reason := w.badItem(inv, r); reason != "" {
-			w.log.Warn("dropped stored item", "char", c.ID, "equipped", r.Equipped, "slot", r.Slot,
+func (w *World) knownItems(c store.Character, where string, rows []store.ItemRow, slots int) *items.Inventory {
+	inv := items.NewInventory(slots)
+	for _, r := range rows {
+		reason := w.badItem(inv, r)
+		if where == "stash" && r.Equipped {
+			reason = "worn row in the stash"
+		}
+		if reason != "" {
+			w.log.Warn("dropped stored item", "char", c.ID, "in", where, "equipped", r.Equipped, "slot", r.Slot,
 				"code", r.Code, "count", r.Count, "reason", reason)
 			continue
 		}
@@ -412,12 +438,12 @@ func (w *World) knownItems(c store.Character) *items.Inventory {
 			Lines: itemLines(r.Lines), Hidden: itemLines(r.Hidden)}
 		_, isStack := w.items.Stackables[r.Code]
 		if !goodPity(r.Pity) || isStack && len(r.Pity) > 0 {
-			w.log.Warn("reset stored pity", "char", c.ID, "equipped", r.Equipped, "slot", r.Slot,
+			w.log.Warn("reset stored pity", "char", c.ID, "in", where, "equipped", r.Equipped, "slot", r.Slot,
 				"code", r.Code, "pity", r.Pity)
 		} else {
 			copy(it.Pity[:], r.Pity)
 		}
-		it.Gems = w.knownGems(c, r)
+		it.Gems = w.knownGems(c, where, r)
 		if r.Equipped {
 			inv.Worn[r.Slot] = it
 		} else {
@@ -456,12 +482,12 @@ func (w *World) badItem(inv *items.Inventory, r store.ItemRow) string {
 // a stackable are dropped, holes past sockets.max are cut, and a hole with an
 // unknown code, a stackable that is not a gem or a gem above the piece's
 // tier / 10 is left empty. No holes is nil.
-func (w *World) knownGems(c store.Character, r store.ItemRow) []string {
+func (w *World) knownGems(c store.Character, where string, r store.ItemRow) []string {
 	if len(r.Gems) == 0 {
 		return nil
 	}
 	warn := func(msg string, args ...any) {
-		w.log.Warn(msg, append([]any{"char", c.ID, "equipped", r.Equipped, "slot", r.Slot, "code", r.Code}, args...)...)
+		w.log.Warn(msg, append([]any{"char", c.ID, "in", where, "equipped", r.Equipped, "slot", r.Slot, "code", r.Code}, args...)...)
 	}
 	e, isEquip := w.items.Equipment[r.Code]
 	if !isEquip {

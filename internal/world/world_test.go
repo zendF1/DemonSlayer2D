@@ -855,7 +855,7 @@ func TestKnownItemsResetsBadPity(t *testing.T) {
 			rows := goodItemRows()
 			rows[0].Enhance, rows[c.row].Pity = 3, c.pity
 			ch.Level, ch.Items = 10, rows
-			got := w.knownItems(ch)
+			got := w.knownBag(ch)
 			want := goodInventory()
 			want.Bag[0].Enhance = 3
 			if !reflect.DeepEqual(got, want) {
@@ -898,7 +898,7 @@ func TestKnownItemsFixesBadGems(t *testing.T) {
 			rows := goodItemRows()
 			rows[c.row].Gems = c.gems
 			ch.Level, ch.Items = 10, rows
-			got := w.knownItems(ch)
+			got := w.knownBag(ch)
 			want := goodInventory()
 			if c.want != nil {
 				want.Worn[0].Gems = c.want
@@ -952,7 +952,7 @@ func TestKnownItemsDropsBadRows(t *testing.T) {
 			}
 			ch := char(1, "m1", 3.5, 4.5)
 			ch.Level, ch.Items = 10, append(goodItemRows(), c.row)
-			got := w.knownItems(ch)
+			got := w.knownBag(ch)
 			if want := goodInventory(); !reflect.DeepEqual(got, want) {
 				t.Fatalf("inventory\n%+v\nwant\n%+v", got, want)
 			}
@@ -991,6 +991,104 @@ func TestEnterCarriesItemsAndXu(t *testing.T) {
 		r.Stats.MaxHp != int32(want.MaxHP) || r.Stats.MagicDefense != int32(want.MagicDefense) ||
 		r.Stats.PhysDefense != int32(want.PhysDefense) {
 		t.Fatalf("stats %v, want %+v from the sword and its gems", r.Stats, want)
+	}
+}
+
+// ______________________TEST STASH_____________________
+
+// A stored stash size outside [base, max] is clamped with one warning; a
+// stash row at a slot at or past the (clamped) size is dropped with one
+// warning, and so is a worn row; the good rows keep their slots.
+func TestKnownStash(t *testing.T) {
+	good := []store.ItemRow{
+		{Slot: 0, Code: "eq10_boots", Count: 1, Quality: 1, Lines: []store.ItemLine{{Stat: "hp", Value: 40}}, Hidden: []store.ItemLine{}},
+		{Slot: 29, Code: "stone_enhance", Count: 999},
+	}
+	for _, c := range []struct {
+		name          string
+		size, want    int
+		extra         []store.ItemRow
+		clamps, drops int
+	}{
+		{"size 30", 30, 30, nil, 0, 0},
+		{"slot 35 of 30", 30, 30, []store.ItemRow{{Slot: 35, Code: "stone_enhance", Count: 1}}, 0, 1},
+		{"slot 30 of 30", 30, 30, []store.ItemRow{{Slot: 30, Code: "stone_enhance", Count: 1}}, 0, 1},
+		{"worn row", 30, 30, []store.ItemRow{{Equipped: true, Slot: 2, Code: "eq10_boots", Count: 1}}, 0, 1},
+		{"unknown code", 30, 30, []store.ItemRow{{Slot: 3, Code: "eq99_nothing", Count: 1}}, 0, 1},
+		{"size 10", 10, 30, nil, 1, 0},
+		{"size 0", 0, 30, nil, 1, 0},
+		{"size 150", 150, 120, []store.ItemRow{{Slot: 119, Code: "stone_refine", Count: 2}, {Slot: 125, Code: "stone_refine", Count: 1}}, 1, 1},
+		{"size 120", 120, 120, nil, 0, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var buf lockedBuf
+			w, err := New(Config{StartMap: "m1", AOICellSize: 10}, testMaps(t), testMonsters, nopSaver{},
+				slog.New(slog.NewTextHandler(&buf, nil)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ch := char(1, "m1", 3.5, 4.5)
+			ch.Account = store.AccountState{ID: 1, StashSize: c.size, Stash: append(slices.Clone(good), c.extra...)}
+			got := w.knownStash(ch)
+			if len(got) != c.want {
+				t.Fatalf("stash size %d, want %d", len(got), c.want)
+			}
+			if got[0] == nil || got[0].Code != "eq10_boots" || got[0].Lines[0].Value != 40 || got[29] == nil || got[29].Count != 999 {
+				t.Fatalf("good rows not kept: %+v %+v", got[0], got[29])
+			}
+			if c.want == 120 && len(c.extra) > 0 && (got[119] == nil || got[119].Count != 2) {
+				t.Fatalf("slot 119 %+v, want 2 refine stones", got[119])
+			}
+			n := 0
+			for _, it := range got {
+				if it != nil {
+					n++
+				}
+			}
+			if want := 2 + len(c.extra) - c.drops; n != want {
+				t.Fatalf("%d items kept, want %d", n, want)
+			}
+			if k := strings.Count(buf.String(), "clamped stored stash size"); k != c.clamps {
+				t.Fatalf("%d clamp warnings, want %d:\n%s", k, c.clamps, buf.String())
+			}
+			if k := strings.Count(buf.String(), "dropped stored item"); k != c.drops {
+				t.Fatalf("%d drop warnings, want %d:\n%s", k, c.drops, buf.String())
+			}
+		})
+	}
+}
+
+// Enter hands the zone the account part: Lượng shows in the stats, and the
+// leave save carries the account id, Lượng, the clamped stash size and the
+// kept stash rows.
+func TestEnterCarriesAccount(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 10, testMaps(t), sv)
+
+	c := char(1, "m1", 3.5, 4.5)
+	c.AccountID = 77
+	c.Account = store.AccountState{ID: 77, Luong: 5, StashSize: 10,
+		Stash: []store.ItemRow{{Slot: 3, Code: "stone_enhance", Count: 12}, {Slot: 40, Code: "stone_enhance", Count: 1}}}
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := out.enterResp(t); r.Stats.GetLuong() != 5 {
+		t.Fatalf("luong %d, want 5", r.Stats.GetLuong())
+	}
+	if err := <-m.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	st, ok := sv.last(1)
+	if !ok {
+		t.Fatal("nothing saved")
+	}
+	a := st.Account
+	want := &store.AccountState{ID: 77, Luong: 5, StashSize: 30,
+		Stash: []store.ItemRow{{Slot: 3, Code: "stone_enhance", Count: 12, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}}}
+	if !reflect.DeepEqual(a, want) {
+		t.Fatalf("saved account %+v, want %+v", a, want)
 	}
 }
 
@@ -1552,7 +1650,7 @@ func TestTransferJoinFailsAfterDeparture(t *testing.T) {
 	// the zone refuses the join as a duplicate.
 	dup := char(2, "m2", 5.5, 5.5)
 	info := zone.PlayerInfo{EntityID: m.EntityID, CharID: dup.ID, Name: "dup", Class: pb.CharClass_CHAR_CLASS_VIEM, Level: 1,
-		Pos: zone.Vec2{X: 5.5, Y: 5.5}, HP: -1, MP: -1, Skills: w.knownSkills(dup), Inventory: w.knownItems(dup)}
+		Pos: zone.Vec2{X: 5.5, Y: 5.5}, HP: -1, MP: -1, Skills: w.knownSkills(dup), Inventory: w.knownBag(dup)}
 	if err := slotOf(w, "m2", 1).z.Join(context.Background(), info, newRecOut()); err != nil {
 		t.Fatal(err)
 	}

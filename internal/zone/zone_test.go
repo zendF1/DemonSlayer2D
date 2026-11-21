@@ -3638,3 +3638,163 @@ func TestDepartNearNPC(t *testing.T) {
 		t.Fatalf("NearNPC %v, want %v", got, want)
 	}
 }
+
+// ______________________TEST ACCOUNT ZONE_____________________
+
+// accountStash is a 30-slot stash with a Xanh boots piece with two holes in
+// slot 2 and 500 stones in slot 7.
+func accountStash() []*items.Item {
+	s := make([]*items.Item, 30)
+	s[2] = &items.Item{Code: "eq10_boots", Count: 1, Quality: 1, Lines: []items.Line{{Stat: "hp", Value: 40}},
+		Gems: []string{"", "gem_hp_1"}}
+	s[7] = &items.Item{Code: "stone_enhance", Count: 500}
+	return s
+}
+
+// wantAccount is the account part accountZone's player saves.
+func wantAccount() *store.AccountState {
+	return &store.AccountState{ID: 9, Luong: 3, StashSize: 30, Stash: []store.ItemRow{
+		{Slot: 2, Code: "eq10_boots", Count: 1, Quality: 1, Lines: []store.ItemLine{{Stat: "hp", Value: 40}},
+			Hidden: []store.ItemLine{}, Gems: []string{"", "gem_hp_1"}},
+		{Slot: 7, Code: "stone_enhance", Count: 500, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+	}}
+}
+
+// accountInfo is gearZone's level-10 Viêm as player 1 of account 9 with
+// 3 Lượng and accountStash.
+func accountInfo() PlayerInfo {
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.Points = pb.CharClass_CHAR_CLASS_VIEM, 10, combat.Points{Str: 60, Vit: 30}
+	in.Xu, in.Inventory = 77, gearInventory()
+	in.AccountID, in.Luong, in.Stash = 9, 3, accountStash()
+	return in
+}
+
+func itemZone() (*Zone, *fakeSaver) {
+	sv := &fakeSaver{}
+	return New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData}, sv, quietLog()), sv
+}
+
+// accountZone joins accountInfo into a zone with the real item data.
+func accountZone(t *testing.T) (*Zone, *player, *pb.EnterWorldResp, *fakeSaver) {
+	t.Helper()
+	z, sv := itemZone()
+	out := &fakeOut{}
+	if err := z.join(accountInfo(), out); err != nil {
+		t.Fatal(err)
+	}
+	return z, z.players[1], out.take()[0].GetEnterWorldResp(), sv
+}
+
+// Join copies the account part: Lượng shows in the stats, and the player's
+// stash shares nothing with PlayerInfo.Stash.
+func TestJoinCarriesAccount(t *testing.T) {
+	z, _ := itemZone()
+	in := accountInfo()
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	if r := out.take()[0].GetEnterWorldResp(); r.Stats.GetLuong() != 3 {
+		t.Fatalf("luong %d, want 3", r.Stats.GetLuong())
+	}
+	p := z.players[1]
+	if p.accountID != 9 || p.luong != 3 || !reflect.DeepEqual(p.stash, accountStash()) {
+		t.Fatalf("account %d luong %d stash %v", p.accountID, p.luong, p.stash)
+	}
+	in.Stash[2].Lines[0].Value, in.Stash[2].Gems[1], in.Stash[7] = 1, "", nil
+	if !reflect.DeepEqual(p.stash, accountStash()) {
+		t.Fatal("the player shares its stash with PlayerInfo.Stash")
+	}
+}
+
+// Every save carries the whole account part, not only the ones that changed
+// it: the saver keeps only the newest state of a character, so a save
+// without it could hide an earlier stash change.
+func TestEverySaveCarriesAccount(t *testing.T) {
+	z, _, _, sv := accountZone(t)
+	t0 := time.Now()
+	z.advance(t0)
+	z.advance(t0.Add(61 * time.Second))  // periodic
+	itemNow(t, z, z.SortBag(1, 9))       // an item command
+	if err := <-z.leave(1); err != nil { // leave
+		t.Fatal(err)
+	}
+	saves := sv.all()
+	if len(saves) != 3 {
+		t.Fatalf("%d saves, want periodic, sort and leave", len(saves))
+	}
+	for i, st := range saves {
+		if !reflect.DeepEqual(st.Account, wantAccount()) {
+			t.Fatalf("save %d account %+v, want %+v", i, st.Account, wantAccount())
+		}
+	}
+	// Changing Lượng shows in the next save.
+	z2, sv2 := itemZone()
+	if err := z2.join(accountInfo(), &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	z2.players[1].luong = 0
+	<-z2.leave(1)
+	if a := sv2.all()[0].Account; a == nil || a.Luong != 0 || a.StashSize != 30 {
+		t.Fatalf("account %+v, want Lượng 0", a)
+	}
+}
+
+// The saved account part shares nothing with the player, both ways.
+func TestStateAccountIsDeepCopy(t *testing.T) {
+	z, p, _, _ := accountZone(t)
+	st := z.state(p)
+	a := st.Account
+	a.Stash[0].Lines[0].Value, a.Stash[0].Gems[1], a.Stash[1].Count = 1, "", 1
+	if !reflect.DeepEqual(p.stash, accountStash()) {
+		t.Fatal("mutating the saved stash changed the player's")
+	}
+	st = z.state(p)
+	p.stash[2].Lines[0].Value, p.stash[2].Gems[0], p.stash[7].Count, p.stash[0] = 9, "gem_hp_1", 1, &items.Item{Code: "stone_enhance", Count: 1}
+	if !reflect.DeepEqual(st.Account, wantAccount()) {
+		t.Fatal("mutating the player's stash changed the saved one")
+	}
+}
+
+// A departure saves the account part and hands it over as a deep copy; the
+// next zone keeps Lượng and the stash, shows Lượng and saves them.
+func TestDepartCarriesAccount(t *testing.T) {
+	z, p, _, sv := accountZone(t)
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{20.5, 21.5}}, Check: notDead})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || r.err != nil || r.saved == nil {
+		t.Fatalf("result %+v, want a departure", r)
+	}
+	<-r.saved
+	if saves := sv.all(); len(saves) != 1 || !reflect.DeepEqual(saves[0].Account, wantAccount()) {
+		t.Fatalf("saves %+v, want one with the account part", saves)
+	}
+	in := r.info
+	if in.AccountID != 9 || in.Luong != 3 || !reflect.DeepEqual(in.Stash, accountStash()) {
+		t.Fatalf("handoff account %d luong %d stash %v", in.AccountID, in.Luong, in.Stash)
+	}
+	in.Stash[2].Lines[0].Value, in.Stash[2].Gems[1] = 1, ""
+	if !reflect.DeepEqual(p.stash, accountStash()) {
+		t.Fatal("the handoff shares its stash with the departed player")
+	}
+	in.Stash = accountStash()
+
+	z2, sv2 := itemZone()
+	resp := joinByInbox(t, z2, in, &fakeOut{})
+	if resp.Stats.GetLuong() != 3 {
+		t.Fatalf("luong %d after the transfer, want 3", resp.Stats.GetLuong())
+	}
+	<-z2.leave(1)
+	if saves := sv2.all(); len(saves) != 1 || !reflect.DeepEqual(saves[0].Account, wantAccount()) {
+		t.Fatalf("saves in the next zone %+v, want the account part", saves)
+	}
+}
+
+// selfStats sends Lượng on every update, not only at the join.
+func TestSelfStatsLuong(t *testing.T) {
+	z, p, _, _ := accountZone(t)
+	p.luong = 42
+	if s := z.selfStats(p); s.GetLuong() != 42 {
+		t.Fatalf("luong %d, want 42", s.GetLuong())
+	}
+}

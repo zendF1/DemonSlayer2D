@@ -73,6 +73,13 @@ type PlayerInfo struct {
 	// against Area.Items; Join clones it, and nil means an empty bag.
 	Xu        int64
 	Inventory *items.Inventory
+	// AccountID, Luong and Stash are the account part (phase 4c spec 4.1):
+	// the account's Lượng and its stash, one entry per stash slot (nil for
+	// an empty one), already checked against Area.Items. The zone of the
+	// account's one character in the world owns them; Join deep-copies Stash.
+	AccountID int64
+	Luong     int64
+	Stash     []*items.Item
 	// Cooldowns are the time left on the cooldowns of a handed-over player,
 	// keyed by skill id, CooldownSlash or CooldownZoneChange; nil on a login.
 	Cooldowns map[string]time.Duration
@@ -105,6 +112,11 @@ type player struct {
 	// xu is the wallet; inv is never nil.
 	xu  int64
 	inv *items.Inventory
+	// accountID, luong and stash are the account part, saved with every
+	// state (phase 4c spec 1.2); stash has one entry per stash slot.
+	accountID int64
+	luong     int64
+	stash     []*items.Item
 	// refine is the paid refine result waiting for a choice, or nil; it is
 	// dropped by the other item commands (dropsRefine) and with the player.
 	refine *pendingRefine
@@ -510,7 +522,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
 		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{}, useReady: map[string]uint32{},
-		xu: info.Xu,
+		xu: info.Xu, accountID: info.AccountID, luong: info.Luong, stash: cloneSlots(info.Stash),
 	}
 	if p.skills == nil {
 		p.skills = map[string]int{}
@@ -599,35 +611,58 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 }
 
 // state is what gets saved, all from the player's live state; a full player
-// saves its real HP and MP rather than -1.
+// saves its real HP and MP rather than -1. Every state carries the account
+// part (phase 4c spec 1.2): the saver keeps only the newest state of a
+// character, so a state without it could drop an earlier stash or Lượng
+// change. Only a player without an account (tests) saves none.
 func (z *Zone) state(p *player) store.CharState {
 	// The saver runs on another goroutine, so it gets its own skill map and
 	// item rows that share nothing with p (phase 3a spec 3).
-	return store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
+	st := store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
 		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
 		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv)}
+	if p.accountID != 0 {
+		st.Account = &store.AccountState{ID: p.accountID, Luong: p.luong, StashSize: len(p.stash),
+			Stash: slotRows(nil, false, p.stash)}
+	}
+	return st
 }
 
 // itemRows is inv as store rows, bag first, then worn, each by slot. The
 // rows share no slices with inv.
 func itemRows(inv *items.Inventory) []store.ItemRow {
-	var rows []store.ItemRow
-	add := func(equipped bool, slot int, it *items.Item) {
+	rows := slotRows(nil, false, inv.Bag)
+	return slotRows(rows, true, inv.Worn[:])
+}
+
+// slotRows appends the items of slots to rows as store rows, by slot; the
+// rows share no slices with the items.
+func slotRows(rows []store.ItemRow, equipped bool, slots []*items.Item) []store.ItemRow {
+	for slot, it := range slots {
 		if it == nil {
-			return
+			continue
 		}
 		rows = append(rows, store.ItemRow{Equipped: equipped, Slot: slot, Code: it.Code, Count: it.Count,
 			Quality: it.Quality, Element: it.Element, Enhance: it.Enhance,
 			Lines: storeLines(it.Lines), Hidden: storeLines(it.Hidden), Pity: storePity(it.Pity),
 			Gems: slices.Clone(it.Gems)})
 	}
-	for i, it := range inv.Bag {
-		add(false, i, it)
-	}
-	for i, it := range inv.Worn {
-		add(true, i, it)
-	}
 	return rows
+}
+
+// cloneSlots is a deep copy of slots; nil stays nil.
+func cloneSlots(slots []*items.Item) []*items.Item {
+	if slots == nil {
+		return nil
+	}
+	out := make([]*items.Item, len(slots))
+	for i, it := range slots {
+		if it != nil {
+			c := it.Clone()
+			out[i] = &c
+		}
+	}
+	return out
 }
 
 // storePity is p as a stored pity: nil when all zero, else a fresh slice.

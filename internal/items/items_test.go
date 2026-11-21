@@ -2067,3 +2067,84 @@ func TestTakeSlotResultIndependent(t *testing.T) {
 		t.Fatalf("bag item affected: %+v", inv.Bag[0])
 	}
 }
+
+// ______________________TEST SLOT SLICES_____________________
+
+// AddTo on a 30-slot slice (a stash) merges into stacks of the code in slot
+// order, then fills empty slots, all or nothing, as Inventory.Add does.
+func TestAddToSlotSlice(t *testing.T) {
+	d := realData(t)
+	slots := make([]*Item, 30)
+	slots[0] = sword()
+	slots[4] = stone(500)
+	changed, err := AddTo(d, slots, *stone(600))
+	if err != nil || !slices.Equal(changed, []int{1, 4}) {
+		t.Fatalf("changed %v err %v, want [1 4]", changed, err)
+	}
+	if slots[4].Count != 999 || slots[1] == nil || slots[1].Count != 101 || slots[1].Code != "stone_enhance" {
+		t.Fatalf("slots %+v %+v", slots[1], slots[4])
+	}
+	piece := NewEquipment(seeded(1), d, "eq10_armor", 2)
+	if changed, err := AddTo(d, slots, piece); err != nil || !slices.Equal(changed, []int{2}) {
+		t.Fatalf("equipment: changed %v err %v, want [2]", changed, err)
+	}
+	piece.Lines[0].Value = -1
+	if slots[2].Lines[0].Value == -1 {
+		t.Fatal("the slice shares the added item's lines")
+	}
+	for i := range slots {
+		if slots[i] == nil {
+			slots[i] = sword()
+		}
+	}
+	before := slices.Clone(slots)
+	if _, err := AddTo(d, slots, *sword()); !errors.Is(err, ErrBagFull) {
+		t.Fatalf("equipment into a full slice: %v", err)
+	}
+	if _, err := AddTo(d, slots, *stone(999)); !errors.Is(err, ErrBagFull) {
+		t.Fatalf("stack into a full slice: %v", err)
+	}
+	if !slices.Equal(slots, before) || slots[1].Count != 101 {
+		t.Fatal("a failed AddTo changed the slice")
+	}
+	if _, err := AddTo(d, slots, Item{Code: "nope", Count: 1}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown code: %v", err)
+	}
+	if _, err := AddTo(d, slots, *stone(0)); !errors.Is(err, ErrBadCount) {
+		t.Fatalf("zero count: %v", err)
+	}
+}
+
+// SortSlots lays a slice out exactly as Inventory.Sort lays out a bag of the
+// same slots.
+func TestSortSlotsMatchesSort(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(30)
+	inv.Bag[0] = stone(600)
+	inv.Bag[3] = &Item{Code: "stone_refine", Count: 4}
+	inv.Bag[4] = &Item{Code: "eq10_armor", Count: 1, Quality: 4}
+	inv.Bag[9] = stone(600)
+	inv.Bag[10] = &Item{Code: "eq30_boots", Count: 1}
+	inv.Bag[12] = &Item{Code: "old_gem", Count: 3}
+	inv.Bag[20] = &Item{Code: "eq10_weapon_viem", Count: 1}
+	inv.Bag[29] = &Item{Code: "eq10_armor", Count: 1, Quality: 1, Enhance: 5}
+	slots := inv.Clone().Bag
+	inv.Sort(d)
+	SortSlots(d, slots)
+	if !sameSlots(slots, inv.Bag) {
+		t.Fatalf("SortSlots\n%v\nwant Sort's\n%v", slots, inv.Bag)
+	}
+	if slots[0].Code != "eq30_boots" || slots[12].Code != "old_gem" {
+		t.Fatalf("not sorted: %+v %+v", slots[0], slots[12])
+	}
+}
+
+func sameSlots(a, b []*Item) bool {
+	return slices.EqualFunc(a, b, func(x, y *Item) bool {
+		if x == nil || y == nil {
+			return x == y
+		}
+		return x.Code == y.Code && x.Count == y.Count && x.Quality == y.Quality && x.Enhance == y.Enhance &&
+			slices.Equal(x.Lines, y.Lines)
+	})
+}

@@ -247,6 +247,7 @@ func (z *Zone) selfStats(p *player) *pb.SelfStats {
 		Evasion:      int32(s.Evasion),
 		CritRateBp:   int32(s.CritRateBP),
 		Xu:           p.xu,
+		Luong:        p.luong,
 		HpRegenBp:    int32(p.regenHPBP),
 		MpRegen:      int32(p.regenMP),
 	}

@@ -127,7 +127,7 @@ func (inv *Inventory) Unsocket(d *gamedata.Items, r Ref, hole int, xu *int64) (c
 	if g == nil {
 		return nil, ErrBadRequest
 	}
-	plan, err := inv.planStack(d, code, 1)
+	plan, err := planStack(d, inv.Bag, code, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -137,5 +137,5 @@ func (inv *Inventory) Unsocket(d *gamedata.Items, r Ref, hole int, xu *int64) (c
 	}
 	*xu -= cost
 	it.Gems[hole] = ""
-	return withOwnSlot(r, inv.applyStack(code, plan)), nil
+	return withOwnSlot(r, applyStack(inv.Bag, code, plan)), nil
 }

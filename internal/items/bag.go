@@ -12,12 +12,17 @@ func (inv *Inventory) FirstFree() int {
 	return slices.Index(inv.Bag, nil)
 }
 
-// Add puts a copy of it into the bag (spec 4.1): a stack first tops up the
-// stacks of the same code in slot order, then fills empty slots; equipment
-// takes the first empty slot. It is all or nothing: when the bag cannot hold
-// everything, nothing changes and the error is ErrBagFull. changed lists the
-// bag slots that changed, ascending.
+// Add puts a copy of it into the bag (spec 4.1) with AddTo.
 func (inv *Inventory) Add(d *gamedata.Items, it Item) (changed []int, err error) {
+	return AddTo(d, inv.Bag, it)
+}
+
+// AddTo puts a copy of it into slots (a bag or a stash, spec 4.1): a stack
+// first tops up the stacks of the same code in slot order, then fills empty
+// slots; equipment takes the first empty slot. It is all or nothing: when
+// slots cannot hold everything, nothing changes and the error is
+// ErrBagFull. changed lists the slots that changed, ascending.
+func AddTo(d *gamedata.Items, slots []*Item, it Item) (changed []int, err error) {
 	if it.Count < 1 {
 		return nil, ErrBadCount
 	}
@@ -25,34 +30,34 @@ func (inv *Inventory) Add(d *gamedata.Items, it Item) (changed []int, err error)
 		if it.Count != 1 {
 			return nil, ErrBadCount
 		}
-		slot := inv.FirstFree()
+		slot := slices.Index(slots, nil)
 		if slot < 0 {
 			return nil, ErrBagFull
 		}
 		c := it.Clone()
-		inv.Bag[slot] = &c
+		slots[slot] = &c
 		return []int{slot}, nil
 	}
 	if _, ok := d.Stackables[it.Code]; !ok {
 		return nil, ErrNotFound
 	}
-	plan, err := inv.planStack(d, it.Code, it.Count)
+	plan, err := planStack(d, slots, it.Code, it.Count)
 	if err != nil {
 		return nil, err
 	}
-	return inv.applyStack(it.Code, plan), nil
+	return applyStack(slots, it.Code, plan), nil
 }
 
-// put is one step of a stack plan: bag slot gets count of the code.
+// put is one step of a stack plan: slot gets count of the code.
 type put struct{ slot, count int }
 
-// planStack is where Add puts count of the stackable code, without changing
-// anything: the stacks of the code in slot order, then empty slots.
-// ErrBagFull when it does not all fit.
-func (inv *Inventory) planStack(d *gamedata.Items, code string, count int) ([]put, error) {
+// planStack is where AddTo puts count of the stackable code, without
+// changing anything: the stacks of the code in slot order, then empty
+// slots. ErrBagFull when it does not all fit.
+func planStack(d *gamedata.Items, slots []*Item, code string, count int) ([]put, error) {
 	var plan []put
 	left := count
-	for i, b := range inv.Bag {
+	for i, b := range slots {
 		if left == 0 {
 			break
 		}
@@ -62,7 +67,7 @@ func (inv *Inventory) planStack(d *gamedata.Items, code string, count int) ([]pu
 			left -= n
 		}
 	}
-	for i, b := range inv.Bag {
+	for i, b := range slots {
 		if left == 0 {
 			break
 		}
@@ -79,13 +84,13 @@ func (inv *Inventory) planStack(d *gamedata.Items, code string, count int) ([]pu
 }
 
 // applyStack carries out a planStack plan for code and returns the changed
-// bag slots, ascending.
-func (inv *Inventory) applyStack(code string, plan []put) (changed []int) {
+// slots, ascending.
+func applyStack(slots []*Item, code string, plan []put) (changed []int) {
 	for _, p := range plan {
-		if inv.Bag[p.slot] == nil {
-			inv.Bag[p.slot] = &Item{Code: code}
+		if slots[p.slot] == nil {
+			slots[p.slot] = &Item{Code: code}
 		}
-		inv.Bag[p.slot].Count = p.count
+		slots[p.slot].Count = p.count
 		changed = append(changed, p.slot)
 	}
 	slices.Sort(changed)
@@ -142,19 +147,23 @@ func (inv *Inventory) Discard(bagSlot, count int) error {
 	return err
 }
 
-// Sort merges stacks of the same code (each up to stack_max) and lays the bag
-// out from slot 0 (spec 4.7): equipment first, by tier descending, slot index,
-// quality descending, enhance descending, then code; then stacks in the
-// stackables' file order, larger first. Ties keep their bag order. A code in
+// Sort lays the bag out with SortSlots (spec 4.7).
+func (inv *Inventory) Sort(d *gamedata.Items) { SortSlots(d, inv.Bag) }
+
+// SortSlots merges stacks of the same code (each up to stack_max) and lays
+// slots (a bag or a stash) out from slot 0 (spec 4.7): equipment first, by
+// tier descending, slot index, quality descending, enhance descending, then
+// code; then stacks in the stackables' file order, larger first. Ties keep
+// their slot order. A code in
 // neither list (not expected: the world drops them at login) stays in its
 // slot and the rest fill the other slots. If the result would not fit (only
-// possible with a stack above stack_max), the bag is left as it was: Sort
-// never deletes an item.
-func (inv *Inventory) Sort(d *gamedata.Items) {
+// possible with a stack above stack_max), slots are left as they
+// were: SortSlots never deletes an item.
+func SortSlots(d *gamedata.Items, slots []*Item) {
 	var equip []*Item
 	totals := map[string]int{}
 	free := 0 // slots not held by an unknown code
-	for _, it := range inv.Bag {
+	for _, it := range slots {
 		switch {
 		case it == nil:
 		case d.IsEquipment(it.Code):
@@ -185,13 +194,13 @@ func (inv *Inventory) Sort(d *gamedata.Items) {
 	if len(sorted) > free {
 		return
 	}
-	for i, it := range inv.Bag {
+	for i, it := range slots {
 		if it != nil && !d.IsEquipment(it.Code) && !isStackable(d, it.Code) {
 			continue // unknown code: keep it where it is
 		}
-		inv.Bag[i] = nil
+		slots[i] = nil
 		if len(sorted) > 0 {
-			inv.Bag[i], sorted = sorted[0], sorted[1:]
+			slots[i], sorted = sorted[0], sorted[1:]
 		}
 	}
 }
