@@ -81,9 +81,12 @@ type PlayerInfo struct {
 	Luong     int64
 	Stash     []*items.Item
 	// Cooldowns are the time left on the cooldowns of a handed-over player,
-	// keyed by skill id, CooldownSlash or CooldownZoneChange; nil on a login.
+	// keyed by skill id, CooldownSlash, CooldownZoneChange, CooldownPvPCombat
+	// or a potion key; nil on a login.
 	Cooldowns map[string]time.Duration
-	RespSeq   uint32 // seq of the EnterWorldReq or transfer request; the zone answers it with EnterWorldResp
+	// PkOn is whether PK mode is on (phase 5a spec 4.1).
+	PkOn    bool
+	RespSeq uint32 // seq of the EnterWorldReq or transfer request; the zone answers it with EnterWorldResp
 }
 
 var (
@@ -133,9 +136,13 @@ type player struct {
 	// skillReady maps a skill id to the first tick it may be cast again.
 	skillReady map[string]uint32
 	// useReady maps a potion group to the first tick it may be used again.
-	useReady   map[string]uint32
-	zoneReady  uint32 // first tick a zone change may be made again
-	statsDirty bool   // send SelfStats after this tick's WorldTick
+	useReady  map[string]uint32
+	zoneReady uint32 // first tick a zone change may be made again
+	// pvpUntil is the first tick at which PK may be turned off again: each
+	// landed PvP hit, taken or dealt, sets it 10 s ahead (phase 5a spec 4.1).
+	// 0 means never locked.
+	pvpUntil   uint32
+	statsDirty bool // send SelfStats after this tick's WorldTick
 }
 
 type joinCmd struct {
@@ -171,6 +178,12 @@ type respawnCmd struct {
 	id      uint64
 	seq     uint32
 	inPlace bool
+}
+
+type setPkCmd struct {
+	id  uint64
+	seq uint32
+	on  bool
 }
 
 type learnCmd struct {
@@ -371,6 +384,18 @@ func (z *Zone) Learn(id uint64, seq uint32, skillID string) bool {
 	}
 }
 
+// SetPk queues turning PK mode on or off (phase 5a spec 4.8). The zone
+// answers seq with SetPkResp or ErrorResp on the player's outbox. It never
+// blocks and reports false if the inbox is full.
+func (z *Zone) SetPk(id uint64, seq uint32, on bool) bool {
+	select {
+	case z.inbox <- setPkCmd{id: id, seq: seq, on: on}:
+		return true
+	default:
+		return false
+	}
+}
+
 // Run ticks until ctx is cancelled, then saves and kicks every remaining player.
 func (z *Zone) Run(ctx context.Context) {
 	defer close(z.done)
@@ -493,6 +518,8 @@ func (z *Zone) handle(c any) {
 		z.respawn(c)
 	case learnCmd:
 		z.learn(c)
+	case setPkCmd:
+		z.setPk(c)
 	case castCmd:
 		z.queueCast(c)
 	case pickupCmd:
@@ -553,6 +580,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{}, useReady: map[string]uint32{},
 		xu: info.Xu, accountID: info.AccountID, luong: info.Luong, stash: cloneSlots(info.Stash),
 	}
+	p.pkOn = info.PkOn
 	if p.skills == nil {
 		p.skills = map[string]int{}
 	}
@@ -649,7 +677,7 @@ func (z *Zone) state(p *player) store.CharState {
 	// item rows that share nothing with p (phase 3a spec 3).
 	st := store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
 		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
-		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv)}
+		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv), PkOn: p.pkOn}
 	if p.accountID != 0 {
 		st.Account = &store.AccountState{ID: p.accountID, Luong: p.luong, StashSize: len(p.stash),
 			Stash: slotRows(nil, false, p.stash)}

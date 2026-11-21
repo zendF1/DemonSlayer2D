@@ -23,14 +23,16 @@ const (
 // change records only the entity id, once per tick, and addEvents fills in
 // the HP and max HP the entity has at the end of the tick: clients apply hits
 // first and hp_changes last, so a heal recorded before a later hit in the
-// same tick cannot leave them showing too much HP.
+// same tick cannot leave them showing too much HP. A look change is recorded
+// the same way and carries the entity's whole look at the end of the tick
+// (phase 5a spec 4.9).
 type tickEvents struct {
 	casts     []*pb.Cast
 	hits      []*pb.Hit
 	deaths    []*pb.Death
 	hpChanges []uint64 // entity ids, without duplicates
 	levelUps  []*pb.LevelUp
-	looks     []*pb.LookChange
+	looks     []uint64 // entity ids, without duplicates
 }
 
 // damagePlayer applies a hit of dmg from attacker to p and kills p at 0 HP.
@@ -74,6 +76,14 @@ func (z *Zone) killPlayer(p *player) {
 func (z *Zone) hpChanged(e *entity) {
 	if !slices.Contains(z.events.hpChanges, e.id) {
 		z.events.hpChanges = append(z.events.hpChanges, e.id)
+	}
+}
+
+// lookChanged records a change of e's look (weapon glow, PK mode). Viewers
+// get e's whole look as it stands at the end of the tick.
+func (z *Zone) lookChanged(e *entity) {
+	if !slices.Contains(z.events.looks, e.id) {
+		z.events.looks = append(z.events.looks, e.id)
 	}
 }
 
@@ -123,9 +133,9 @@ func (z *Zone) addEvents(p *player, wt *pb.WorldTick) {
 			wt.LevelUps = append(wt.LevelUps, l)
 		}
 	}
-	for _, l := range z.events.looks {
-		if sees(l.Id) {
-			wt.Looks = append(wt.Looks, l)
+	for _, id := range z.events.looks {
+		if e := z.entityByID(id); e != nil && sees(id) {
+			wt.Looks = append(wt.Looks, &pb.LookChange{Id: id, WeaponEnhance: int32(e.weaponEnhance), PkOn: e.pkOn})
 		}
 	}
 }

@@ -4365,3 +4365,200 @@ func TestAutoRespawnIsToVillageAndFree(t *testing.T) {
 		t.Fatalf("dead %v at %v luong %d, want the respawn point and 2 Luong", p.dead, p.pos, p.luong)
 	}
 }
+
+// ____TEST PK MODE____
+
+// setPkNow queues a PK switch of id and runs one tick.
+func setPkNow(t *testing.T, z *Zone, id uint64, seq uint32, on bool) {
+	t.Helper()
+	if !z.SetPk(id, seq, on) {
+		t.Fatal("inbox full")
+	}
+	z.advance(time.Now())
+}
+
+func TestSetPkWhileDead(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	out := joinNow(t, z, 1, 12.5, 7.5)
+	p := z.players[1]
+	z.damagePlayer(p, 0, 1<<30, false)
+	z.advance(time.Now())
+	out.take()
+	setPkNow(t, z, 1, 9, true)
+	envs := out.take()
+	if er := errorFor(envs, 9); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_DEAD {
+		t.Fatalf("error %v, want DEAD", er)
+	}
+	if p.pkOn || len(looksIn(envs)) != 0 || len(sv.all()) != 0 {
+		t.Fatalf("pk %v looks %v saves %d: a refusal must change nothing", p.pkOn, looksIn(envs), len(sv.all()))
+	}
+}
+
+// Asking for the state the player is already in answers SetPkResp and
+// nothing else: no LookChange, no SelfStats.
+func TestSetPkSameState(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	out := joinNow(t, z, 1, 12.5, 7.5)
+	v := joinNow(t, z, 2, 13.5, 7.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	setPkNow(t, z, 1, 9, false)
+	envs := out.take()
+	if r := respFor(envs, 9, (*pb.Envelope).GetSetPkResp); r == nil || r.On {
+		t.Fatalf("reply %v, want SetPkResp off", r)
+	}
+	if ls := append(looksIn(envs), looksIn(v.take())...); len(ls) != 0 || len(selfStatsIn(envs)) != 0 {
+		t.Fatalf("looks %v self stats %v, want none", ls, selfStatsIn(envs))
+	}
+}
+
+// Turning PK on answers SetPkResp, sends SelfStats with pk_on and one
+// LookChange with pk_on and the current weapon glow to the player and a
+// viewer. It does not save.
+func TestSetPkOn(t *testing.T) {
+	z, p, out, _ := regenZone(t, pb.CharClass_CHAR_CLASS_THUY, 19, 0, map[string]int{"eq10_weapon_thuy": 12})
+	sv := z.saver.(*fakeSaver)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	setPkNow(t, z, 1, 9, true)
+	envs := out.take()
+	if r := respFor(envs, 9, (*pb.Envelope).GetSetPkResp); r == nil || !r.On {
+		t.Fatalf("reply %v, want SetPkResp on", r)
+	}
+	if ss := selfStatsIn(envs); len(ss) != 1 || !ss[0].PkOn {
+		t.Fatalf("self stats %v, want one with pk_on", ss)
+	}
+	want := &pb.LookChange{Id: 1, WeaponEnhance: 12, PkOn: true}
+	for name, es := range map[string][]*pb.Envelope{"player": envs, "viewer": v.take()} {
+		if ls := looksIn(es); len(ls) != 1 || !proto.Equal(ls[0], want) {
+			t.Fatalf("%s LookChanges %v, want %v", name, ls, want)
+		}
+	}
+	if !p.pkOn || len(sv.all()) != 0 {
+		t.Fatalf("pk %v saves %d, want on and no save", p.pkOn, len(sv.all()))
+	}
+	if st := z.state(p); !st.PkOn {
+		t.Fatal("the saved state has PK off")
+	}
+}
+
+// Turning PK off is refused IN_PVP_COMBAT until pvpUntil, then accepted.
+func TestSetPkOffInPvPCombat(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	out := joinNow(t, z, 1, 12.5, 7.5)
+	p := z.players[1]
+	p.pkOn = true
+	z.advance(time.Now())
+	p.pvpUntil = z.tickNo + z.ticks(pvpLockSec) // a PvP hit landed this tick
+	out.take()
+	setPkNow(t, z, 1, 9, false)
+	if er := errorFor(out.take(), 9); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT || !p.pkOn {
+		t.Fatalf("error %v pk %v, want IN_PVP_COMBAT and still on", er, p.pkOn)
+	}
+	for z.tickNo < p.pvpUntil-2 {
+		z.advance(time.Now())
+	}
+	out.take()
+	setPkNow(t, z, 1, 10, false) // the last locked tick
+	if er := errorFor(out.take(), 10); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT {
+		t.Fatalf("error %v one tick before the lock ends, want IN_PVP_COMBAT", er)
+	}
+	setPkNow(t, z, 1, 11, false) // 10 s after the hit
+	if r := respFor(out.take(), 11, (*pb.Envelope).GetSetPkResp); r == nil || r.On || p.pkOn {
+		t.Fatalf("reply %v pk %v, want PK off 10 s later", r, p.pkOn)
+	}
+}
+
+// A glow change and a PK change in the same tick make one LookChange with
+// both values.
+func TestLookChangeIsWholeLook(t *testing.T) {
+	inv := gearInventory()
+	inv.Bag[5] = &items.Item{Code: "eq10_weapon_viem", Count: 1, Enhance: 10}
+	z, _, _, _ := gearZone(t, inv)
+	out := z.players[1].out.(*fakeOut)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	out.take()
+	v.take()
+	if !z.Equip(1, 9, 5) {
+		t.Fatal("inbox full")
+	}
+	setPkNow(t, z, 1, 10, true)
+	want := &pb.LookChange{Id: 1, WeaponEnhance: 10, PkOn: true}
+	for name, es := range map[string][]*pb.Envelope{"player": out.take(), "viewer": v.take()} {
+		if ls := looksIn(es); len(ls) != 1 || !proto.Equal(ls[0], want) {
+			t.Fatalf("%s LookChanges %v, want %v", name, ls, want)
+		}
+	}
+}
+
+// A PK-on player comes into view with pk_on, sees it in its own
+// EnterWorldResp and saves it on leaving.
+func TestPkOnEnterAndSave(t *testing.T) {
+	z, sv := newTestZone(10, openGrid(64, 64))
+	in := info(1, 12.5, 7.5)
+	in.PkOn = true
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	if r := out.take()[0].GetEnterWorldResp(); !r.GetStats().GetPkOn() {
+		t.Fatalf("EnterWorldResp stats %v, want pk_on", r.GetStats())
+	}
+	v := joinNow(t, z, 2, 13.5, 7.5)
+	z.advance(time.Now())
+	if en := enterOf(v.take(), 1); en == nil || !en.PkOn {
+		t.Fatalf("viewer's EntityEnter %v, want pk_on", en)
+	}
+	if en := enterOf(out.take(), 2); en == nil || en.PkOn {
+		t.Fatalf("player's EntityEnter for the viewer %v, want PK off", en)
+	}
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	if s := sv.all(); len(s) != 1 || !s[0].PkOn {
+		t.Fatalf("saves %+v, want one with PkOn", s)
+	}
+}
+
+// The handoff carries PK and the 4 s left on the PvP lock: the new zone lists
+// pvp_combat and refuses turning PK off until the lock ends.
+func TestDepartCarriesPk(t *testing.T) {
+	za, _ := transferZone(t, 1)
+	outA := &fakeOut{}
+	in := info(1, 35.5, 30.5)
+	in.PkOn = true
+	joinByInbox(t, za, in, outA)
+	p := za.players[1]
+	p.pvpUntil = za.tickNo + 1 + za.ticks(4) // 4 s left at the departing tick
+	r := departNow(t, za, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead})
+	if !r.info.PkOn || !maps.Equal(r.info.Cooldowns, map[string]time.Duration{"pvp_combat": 4 * time.Second}) {
+		t.Fatalf("handoff PK %v cooldowns %v, want on and pvp_combat 4s", r.info.PkOn, r.info.Cooldowns)
+	}
+	if st := za.saver.(*fakeSaver).all(); !st[len(st)-1].PkOn {
+		t.Fatal("the departure save has PK off")
+	}
+
+	zb, _ := transferZone(t, 2)
+	outB := &fakeOut{}
+	ew := joinByInbox(t, zb, r.info, outB)
+	j := zb.tickNo
+	if cd := ew.Cooldowns; len(cd) != 1 || cd[0].Key != "pvp_combat" || cd[0].RemainingMs != 4000 || !ew.Stats.GetPkOn() {
+		t.Fatalf("EnterWorldResp cooldowns %v pk %v, want pvp_combat 4000 ms and PK on", cd, ew.Stats.GetPkOn())
+	}
+	for zb.tickNo < j+38 {
+		zb.advance(time.Now())
+	}
+	outB.take()
+	setPkNow(t, zb, 1, 3, false) // tick j+39
+	if er := errorFor(outB.take(), 3); er == nil || er.Code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT {
+		t.Fatalf("PK off 3.9 s after arriving: %v, want IN_PVP_COMBAT", er)
+	}
+	setPkNow(t, zb, 1, 4, false) // tick j+40
+	if r := respFor(outB.take(), 4, (*pb.Envelope).GetSetPkResp); r == nil || r.On {
+		t.Fatalf("PK off 4 s after arriving: %v, want SetPkResp off", r)
+	}
+}

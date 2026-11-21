@@ -789,6 +789,17 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 	}
 }
 
+// areaOf takes the PK rules from the map type: m1 is a training map, m2 a town.
+func TestAreaOfPk(t *testing.T) {
+	ms := portalMaps(t)
+	if a := areaOf(ms["m1"], testMonsters); !a.PvP || !a.PkPenalty {
+		t.Fatalf("training area PvP %v PkPenalty %v, want both", a.PvP, a.PkPenalty)
+	}
+	if a := areaOf(ms["m2"], testMonsters); a.PvP || a.PkPenalty {
+		t.Fatalf("town area PvP %v PkPenalty %v, want neither", a.PvP, a.PkPenalty)
+	}
+}
+
 // ______________________TEST ITEMS_____________________
 
 // goodItemRows are valid rows of a level-10 Viêm: a Xanh boots piece and a
@@ -1669,6 +1680,39 @@ func TestTransferJoinFailsAfterDeparture(t *testing.T) {
 	}
 	if s := slotOf(w, "m2", 1); s.reserved.Load() != 0 {
 		t.Fatalf("m2 zone 1 holds %d seats, want none", s.reserved.Load())
+	}
+}
+
+// Enter brings a character's PK mode into the zone, and a portal keeps it,
+// in the new zone and in the save.
+func TestEnterAndPortalKeepPk(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 10, portalMaps(t), sv)
+	c := char(2, "m2", 1.5, 9.0)
+	c.PkOn = true
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := out.enterResp(t); !r.Stats.GetPkOn() {
+		t.Fatalf("EnterWorldResp stats %v, want pk_on", r.Stats)
+	}
+	nm, _, err := w.Transfer(context.Background(), m, portal("west"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := out.enterRespSeq(t); r.MapId != "m1" || !r.Stats.GetPkOn() {
+		t.Fatalf("EnterWorldResp after the portal %v, want m1 with pk_on", r)
+	}
+	if st, ok := sv.last(2); !ok || st.MapID != "m1" || !st.PkOn {
+		t.Fatalf("departure save %+v, want m1 with PkOn", st)
+	}
+	if err := <-nm.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := sv.last(2); !st.PkOn {
+		t.Fatalf("leave save %+v, want PkOn", st)
 	}
 }
 

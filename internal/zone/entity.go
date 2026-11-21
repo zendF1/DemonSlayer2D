@@ -29,6 +29,9 @@ type entity struct {
 	// weaponEnhance is the enhance level of a player's worn weapon when
 	// wearable, else 0; viewers draw the glow from it (phase 3b spec 4.3).
 	weaponEnhance int
+	// pkOn is whether a player has PK mode on; viewers draw its name red
+	// (phase 5a spec 4.9).
+	pkOn bool
 }
 
 // enterEnv is the EntityEnter for e; a ground item carries its item.
@@ -48,6 +51,7 @@ func (z *Zone) enterEnv(e *entity) *pb.Envelope {
 		Dead:      e.dead,
 
 		WeaponEnhance: int32(e.weaponEnhance),
+		PkOn:          e.pkOn,
 	}
 	if g := z.ground[e.id]; g != nil && e.kind == pb.EntityKind_ENTITY_KIND_ITEM {
 		en.Item = itemInfo(&g.item)

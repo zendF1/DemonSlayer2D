@@ -18,7 +18,14 @@ const ZoneChangeCooldown = 10 * time.Second
 const (
 	CooldownSlash      = "slash"
 	CooldownZoneChange = "zone_change"
+	// CooldownPvPCombat is the time left before PK may be turned off
+	// (phase 5a spec 4.1).
+	CooldownPvPCombat = "pvp_combat"
 )
+
+// pvpLockSec is how long after a landed PvP hit PK cannot be turned off
+// (phase 5a spec 1.3).
+const pvpLockSec = 10.0
 
 // ErrNotInZone answers a departure of a player the zone no longer has: it
 // was evicted meanwhile, and its connection is being kicked.
@@ -205,15 +212,16 @@ func (z *Zone) depart(c departCmd) departResult {
 }
 
 // handoff is p's live state for the next zone (phase 4a spec 3.2.1): HP and
-// MP as they are, Lượng, deep copies of the skills, items and stash, and
-// the cooldowns still running. Pos and RespSeq are left for the caller.
+// MP as they are, Lượng, PK mode, deep copies of the skills, items and
+// stash, and the cooldowns still running, the PvP lock among them. Pos and
+// RespSeq are left for the caller.
 func (z *Zone) handoff(p *player) PlayerInfo {
 	return PlayerInfo{
 		EntityID: p.id, CharID: p.charID, Name: p.name, Class: p.class, Level: p.level, Exp: p.exp,
 		Pos: p.pos, Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
 		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Inventory: p.inv.Clone(),
 		AccountID: p.accountID, Luong: p.luong, Stash: cloneSlots(p.stash),
-		Cooldowns: z.cooldownsOf(p),
+		Cooldowns: z.cooldownsOf(p), PkOn: p.pkOn,
 	}
 }
 
@@ -228,6 +236,7 @@ func (z *Zone) cooldownsOf(p *player) map[string]time.Duration {
 	}
 	add(CooldownSlash, p.slashReady)
 	add(CooldownZoneChange, p.zoneReady)
+	add(CooldownPvPCombat, p.pvpUntil)
 	for id, ready := range p.skillReady {
 		add(id, ready)
 	}
@@ -250,6 +259,8 @@ func (z *Zone) setCooldowns(p *player, cd map[string]time.Duration) {
 			p.slashReady = ready
 		case CooldownZoneChange:
 			p.zoneReady = ready
+		case CooldownPvPCombat:
+			p.pvpUntil = ready
 		default:
 			if group, ok := potionGroup(key); ok {
 				p.useReady[group] = ready

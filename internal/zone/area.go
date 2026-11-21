@@ -50,6 +50,10 @@ type Area struct {
 	// (phase 4b spec 4.1).
 	NPCs map[string]mapdata.NPC
 	Town string
+	// PvP is whether players may fight each other outside the safe zones,
+	// and PkPenalty whether a PK-on player killed by one loses EXP (phase 5a
+	// spec 2), both from the map type.
+	PvP, PkPenalty bool
 }
 
 // InSafe reports whether the tile containing p is in a safe zone.

@@ -107,7 +107,8 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 // regions use, the EXP table, the skills and the item data into the zone's
 // view of the map. Region tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
-	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items, Town: m.Town}
+	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items, Town: m.Town,
+		PvP: m.PvP(), PkPenalty: m.PkPenalty()}
 	if len(m.NPCs) > 0 {
 		a.NPCs = make(map[string]mapdata.NPC, len(m.NPCs))
 		for _, n := range m.NPCs {
@@ -397,6 +398,7 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		AccountID:   req.Char.AccountID,
 		Luong:       req.Char.Account.Luong,
 		Stash:       w.knownStash(req.Char),
+		PkOn:        req.Char.PkOn,
 		RespSeq:     req.RespSeq,
 	}
 	s := w.reserve(mapID)

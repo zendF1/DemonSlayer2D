@@ -55,7 +55,7 @@ func (z *Zone) setWeaponEnhance(p *player) {
 	}
 	p.weaponEnhance = n
 	if z.players[p.id] == p {
-		z.events.looks = append(z.events.looks, &pb.LookChange{Id: p.id, WeaponEnhance: int32(n)})
+		z.lookChanged(&p.entity)
 	}
 }
 
@@ -180,6 +180,34 @@ func (z *Zone) allocate(c allocateCmd) {
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AllocatePointsResp{AllocatePointsResp: &pb.AllocatePointsResp{Stats: z.selfStats(p)}}})
 }
 
+// setPk turns p's PK mode on or off (phase 5a spec 4.8): DEAD; the state p
+// is already in is answered and changes nothing; turning off within 10 s of
+// the last PvP hit is IN_PVP_COMBAT. A switch sends SelfStats and a
+// LookChange; it is not saved at once.
+func (z *Zone) setPk(c setPkCmd) {
+	p, ok := z.players[c.id]
+	if !ok {
+		return // left or evicted; see queueAttack
+	}
+	switch {
+	case p.dead:
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_DEAD)
+		return
+	case c.on == p.pkOn:
+	case !c.on && z.pvpLocked(p):
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT)
+		return
+	default:
+		p.pkOn = c.on
+		p.statsDirty = true
+		z.lookChanged(&p.entity)
+	}
+	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_SetPkResp{SetPkResp: &pb.SetPkResp{On: p.pkOn}}})
+}
+
+// pvpLocked reports whether p fought a player too recently to turn PK off.
+func (z *Zone) pvpLocked(p *player) bool { return z.tickNo < p.pvpUntil }
+
 // learn spends a skill point to learn a skill of p's class or raise it a
 // level (phase 2 spec 3.1). Checks run in the spec's order and the first
 // failure is answered. A passive changes the stats; current HP and MP rise by
@@ -250,5 +278,6 @@ func (z *Zone) selfStats(p *player) *pb.SelfStats {
 		Luong:        p.luong,
 		HpRegenBp:    int32(p.regenHPBP),
 		MpRegen:      int32(p.regenMP),
+		PkOn:         p.pkOn,
 	}
 }
