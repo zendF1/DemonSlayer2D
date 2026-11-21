@@ -251,7 +251,9 @@ func (w *World) Transfer(ctx context.Context, m *Membership, req TransferReq) (*
 	info.RespSeq = req.RespSeq
 	nm, err := w.joinZone(w.ctx, s, r.to.MapID, info, m.out)
 	if err != nil {
-		// The character is in no zone now; its next login gets the lock back.
+		// The character is in no zone now and no Leave follows: it leaves the
+		// party service here, and its next login gets the lock back.
+		w.party.Unregister(info.EntityID)
 		w.keepPvPLock(info.CharID, info.Cooldowns[zone.CooldownPvPCombat])
 		if w.ctx.Err() != nil {
 			err = ErrStopped
@@ -260,6 +262,7 @@ func (w *World) Transfer(ctx context.Context, m *Membership, req TransferReq) (*
 		}
 		return nil, saved, err
 	}
+	w.party.Moved(nm.EntityID, nm.MapID, nm.ZoneNo)
 	return nm, nil, nil
 }
 
@@ -271,7 +274,8 @@ func (w *World) joinZone(ctx context.Context, s *slot, mapID string, info zone.P
 		s.reserved.Add(-1)
 		switch {
 		case err == nil:
-			return &Membership{z: s.z, out: out, EntityID: info.EntityID, MapID: mapID, ZoneNo: s.no}, nil
+			return &Membership{z: s.z, out: out, party: w.party, cell: info.Party,
+				EntityID: info.EntityID, MapID: mapID, ZoneNo: s.no}, nil
 		case !errors.Is(err, zone.ErrZoneFull) && !errors.Is(err, zone.ErrZoneClosed):
 			// zone.Join only fails this way before the join is queued, so nothing to undo.
 			return nil, err

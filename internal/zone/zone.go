@@ -54,6 +54,10 @@ type Config struct {
 	// kick; phase 5a spec 4.1), so the next login can get it back. It runs
 	// on the zone goroutine and must not wait on any zone.
 	KeepPvPLock func(charID int64, left time.Duration)
+	// Leveled, if set, is told the entity id and the new level of a player
+	// whose level changed (phase 5b spec 4.1). It runs on the zone goroutine
+	// and must not block or wait on any zone.
+	Leveled func(entityID uint64, level int)
 }
 
 type PlayerInfo struct {
@@ -90,7 +94,11 @@ type PlayerInfo struct {
 	// or a potion key; nil on a login.
 	Cooldowns map[string]time.Duration
 	// PkOn is whether PK mode is on (phase 5a spec 4.1).
-	PkOn    bool
+	PkOn bool
+	// Party is the session's party-id cell (phase 5b spec 4.1): the party
+	// service writes it, the zone only reads it, and the handoff carries the
+	// same cell. nil means no party.
+	Party   *atomic.Uint64
 	RespSeq uint32 // seq of the EnterWorldReq or transfer request; the zone answers it with EnterWorldResp
 }
 
@@ -148,6 +156,8 @@ type player struct {
 	// 0 means never locked.
 	pvpUntil   uint32
 	statsDirty bool // send SelfStats after this tick's WorldTick
+	// party is the session's party-id cell, read only (PlayerInfo.Party).
+	party *atomic.Uint64
 	// deathNotice is set by killPlayer and sent, then cleared, after this
 	// tick's WorldTick and before SelfStats.
 	deathNotice *pb.DeathNotice
@@ -598,6 +608,14 @@ func (z *Zone) handle(c any) {
 	}
 }
 
+// partyID is the id of p's party, 0 when it is in none.
+func (p *player) partyID() uint64 {
+	if p.party == nil {
+		return 0
+	}
+	return p.party.Load()
+}
+
 func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	if len(z.players) >= z.cfg.Capacity {
 		return ErrZoneFull
@@ -610,7 +628,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 			id: info.EntityID, kind: pb.EntityKind_ENTITY_KIND_PLAYER, name: info.Name, class: info.Class, level: info.Level,
 			pos: info.Pos,
 		},
-		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
+		charID: info.CharID, out: out, visible: make(map[uint64]struct{}), party: info.Party,
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
 		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{}, useReady: map[string]uint32{},
 		xu: info.Xu, accountID: info.AccountID, luong: info.Luong, stash: cloneSlots(info.Stash),

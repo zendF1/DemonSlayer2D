@@ -17,6 +17,7 @@ import (
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
+	"demonslayer2d/internal/party"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/zone"
@@ -67,6 +68,11 @@ type World struct {
 	// entries. Nothing under w.mu waits on a zone, so zones may take it.
 	pvpLocks map[int64]time.Time
 
+	// party holds the parties of the characters in the world (phase 5b
+	// spec 4.1). It has its own lock and never calls into the world or a
+	// zone, so it may be called from any goroutine, zones included.
+	party *party.Service
+
 	nextEntity atomic.Uint64
 }
 
@@ -106,6 +112,7 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 		online:   make(map[int64]Session),
 		handoffs: make(map[int64]*accountLock),
 		pvpLocks: make(map[int64]time.Time),
+		party:    party.New(time.Now),
 	}, nil
 }
 
@@ -182,6 +189,9 @@ func (w *World) minZones(mapID string) int {
 	return 1
 }
 
+// Party is the party service; requests use the membership's EntityID.
+func (w *World) Party() *party.Service { return w.party }
+
 // StartPosition is where new characters appear.
 func (w *World) StartPosition() (string, mapdata.Point) { return w.cfg.StartMap, w.start }
 
@@ -201,6 +211,7 @@ func (w *World) openZoneLocked(mapID string) *slot {
 		AOICellSize: w.cfg.AOICellSize, Capacity: w.cfg.ZoneCapacity, SaveInterval: w.cfg.SaveInterval,
 		NewID:       func() uint64 { return w.nextEntity.Add(1) },
 		KeepPvPLock: w.keepPvPLock,
+		Leveled:     w.party.Leveled,
 	}, w.areas[mapID], w.saver, w.log)
 	zctx, cancel := context.WithCancel(w.ctx)
 	s := &slot{z: z, cancel: cancel, no: idx + 1}
@@ -225,8 +236,12 @@ type EnterRequest struct {
 
 // Membership is a character's presence in a zone.
 type Membership struct {
-	z        *zone.Zone
-	out      zone.Outbox // the connection's, kept across transfers
+	z     *zone.Zone
+	out   zone.Outbox // the connection's, kept across transfers
+	party *party.Service
+	// cell is the session's party-id cell, the one the zone reads; it rides
+	// every handoff.
+	cell     *atomic.Uint64
 	EntityID uint64
 	MapID    string
 	ZoneNo   int
@@ -383,12 +398,25 @@ func (m *Membership) RefineChoose(seq uint32, accept bool) bool {
 	return m.z.RefineChoose(m.EntityID, seq, accept)
 }
 
-// Leave removes the character; the channel yields the save result.
-func (m *Membership) Leave() <-chan error { return m.z.Leave(m.EntityID) }
+// Leave removes the character (a disconnect, a kick, an eviction or the
+// shutdown): it leaves the party service first, then its zone; the channel
+// yields the save result.
+func (m *Membership) Leave() <-chan error {
+	m.party.Unregister(m.EntityID)
+	return m.z.Leave(m.EntityID)
+}
 
 // Quit is Leave for a LeaveWorldReq: while the character's PvP lock runs it
-// is refused IN_PVP_COMBAT with a nil channel, and the character stays.
-func (m *Membership) Quit() (<-chan error, pb.ErrorCode) { return m.z.Quit(m.EntityID) }
+// is refused IN_PVP_COMBAT with a nil channel, and the character stays, in
+// its party too. Otherwise it leaves the party service once its zone has
+// let it go.
+func (m *Membership) Quit() (<-chan error, pb.ErrorCode) {
+	saved, code := m.z.Quit(m.EntityID)
+	if code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		m.party.Unregister(m.EntityID)
+	}
+	return saved, code
+}
 
 // keepPvPLock remembers that the PK-off lock of character charID, which is
 // leaving the world, runs for left more; a later end already known wins.
@@ -419,7 +447,9 @@ func (w *World) takePvPLock(charID int64) time.Duration {
 
 // Enter puts the character into the first zone with room, opening a new zone if all are full.
 // The zone sends EnterWorldResp (with req.RespSeq) on req.Out. A PvP lock the
-// character left the world with comes back as its pvp_combat cooldown.
+// character left the world with comes back as its pvp_combat cooldown. The
+// character is registered with the party service before the join, so its
+// party-id cell goes into the zone; a join that fails unregisters it.
 func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error) {
 	mapID, pos := w.placement(req.Char)
 	info := zone.PlayerInfo{
@@ -452,11 +482,18 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 	if s == nil {
 		return nil, ErrStopped
 	}
+	info.Party = w.party.Register(party.Info{ID: info.EntityID, Name: info.Name, Class: info.Class, Level: info.Level,
+		MapID: mapID, Zone: s.no}, partyOutbox{req.Out})
 	m, err := w.joinZone(ctx, s, mapID, info, req.Out)
 	if err != nil {
+		w.party.Unregister(info.EntityID)
 		w.keepPvPLock(req.Char.ID, left) // not in the world after all
+		return nil, err
 	}
-	return m, err
+	if m.ZoneNo != s.no { // a retry joined another zone
+		w.party.Moved(m.EntityID, m.MapID, m.ZoneNo)
+	}
+	return m, nil
 }
 
 // knownSkills is c's stored skills without those missing from the skill data,

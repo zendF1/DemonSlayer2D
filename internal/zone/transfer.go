@@ -224,7 +224,7 @@ func (z *Zone) handoff(p *player) PlayerInfo {
 		Pos: p.pos, Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
 		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Inventory: p.inv.Clone(),
 		AccountID: p.accountID, Luong: p.luong, Stash: cloneSlots(p.stash),
-		Cooldowns: z.cooldownsOf(p), PkOn: p.pkOn,
+		Cooldowns: z.cooldownsOf(p), PkOn: p.pkOn, Party: p.party,
 	}
 }
 

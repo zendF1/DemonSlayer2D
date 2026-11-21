@@ -4,10 +4,9 @@
 // notices straight into the members' outboxes.
 //
 // The pushes are package-local messages (Invite, State, Notice) and the error
-// codes are pb.ErrorCode values with the numbers of protocol 13. The protocol
-// messages and the named error codes arrive with protocol 13; until then the
-// caller adapts its connection outbox to Outbox and converts each Msg into the
-// matching envelope.
+// codes are the protocol 13 pb.ErrorCode values. The world adapts each
+// connection outbox to Outbox and converts each Msg into the matching
+// envelope.
 package party
 
 import (

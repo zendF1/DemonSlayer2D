@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4620,5 +4621,65 @@ func TestDepartCarriesPk(t *testing.T) {
 	setPkNow(t, zb, 1, 4, false) // tick j+40
 	if r := respFor(outB.take(), 4, (*pb.Envelope).GetSetPkResp); r == nil || r.On {
 		t.Fatalf("PK off 4 s after arriving: %v, want SetPkResp off", r)
+	}
+}
+
+// ____TEST PARTY CELL____
+
+// The zone keeps the party-id cell it is given and only reads it: no cell
+// reads 0, a set cell reads what the party service wrote last, and the
+// handoff carries the same cell, not its value.
+func TestPartyCellJoinAndHandoff(t *testing.T) {
+	z, _ := newTestZone(10, openGrid(64, 64))
+	joinNow(t, z, 2, 5.5, 5.5)
+	if id := z.players[2].partyID(); id != 0 {
+		t.Fatalf("party id without a cell %d, want 0", id)
+	}
+	cell := new(atomic.Uint64)
+	in := info(1, 5.5, 5.5)
+	in.Party = cell
+	if err := z.join(in, &fakeOut{}); err != nil {
+		t.Fatal(err)
+	}
+	p := z.players[1]
+	if p.party != cell || p.partyID() != 0 {
+		t.Fatalf("cell %p id %d, want the given cell at 0", p.party, p.partyID())
+	}
+	cell.Store(7)
+	if p.partyID() != 7 {
+		t.Fatalf("party id %d, want 7", p.partyID())
+	}
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{5.5, 5.5}}, Check: notDead})
+	if r.err != nil || r.info.Party != cell {
+		t.Fatalf("handoff cell %p err %v, want the same cell %p", r.info.Party, r.err, cell)
+	}
+}
+
+// gainExp tells Leveled the new level once per level change, never for EXP
+// within a level nor at the level cap.
+func TestLeveledHook(t *testing.T) {
+	type call struct {
+		id    uint64
+		level int
+	}
+	var calls []call
+	cfg := testConfig(10)
+	cfg.Leveled = func(id uint64, level int) { calls = append(calls, call{id, level}) }
+	z := New(cfg, Area{Grid: openGrid(64, 64), Exp: testExp}, &fakeSaver{}, quietLog())
+	joinNow(t, z, 1, 5.5, 5.5)
+	p := z.players[1]
+	z.gainExp(p, 1)
+	if len(calls) != 0 {
+		t.Fatalf("calls %v after EXP within the level, want none", calls)
+	}
+	z.gainExp(p, testExp.ToNext(1)+testExp.ToNext(2)) // two levels at once
+	if !slices.Equal(calls, []call{{1, 3}}) {
+		t.Fatalf("calls %v, want one to level 3", calls)
+	}
+	calls = nil
+	p.level, p.exp = combat.MaxLevel, 0
+	z.gainExp(p, 1000)
+	if len(calls) != 0 {
+		t.Fatalf("calls %v at the level cap, want none", calls)
 	}
 }

@@ -19,10 +19,13 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
+	"demonslayer2d/internal/party"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/zone"
@@ -2019,5 +2022,267 @@ func TestCarriage(t *testing.T) {
 	}
 	if st, ok := sv.last(3); !ok || st.MapID != "m1" || st.X != 2.5 || st.Y != 2.5 || st.Xu != 380 {
 		t.Fatalf("departure save %+v, want m1 (2.5, 2.5) with 380 Xu", st)
+	}
+}
+
+// ____TEST PARTY WIRING____
+
+// drain drops everything queued on o.
+func (o *recOut) drain() {
+	for {
+		select {
+		case <-o.ch:
+		default:
+			return
+		}
+	}
+}
+
+// party is the party pushes queued on o, in order; they are pushed
+// synchronously, so they are queued by the time the call returns.
+func (o *recOut) party() []*pb.Envelope {
+	var out []*pb.Envelope
+	for {
+		select {
+		case e := <-o.ch:
+			if e.GetPartyInvite() != nil || e.GetPartyState() != nil || e.GetPartyNotice() != nil {
+				out = append(out, e)
+			}
+		default:
+			return out
+		}
+	}
+}
+
+// enterNamed puts character id named name into the world at (x, y) of mapID.
+func enterNamed(t *testing.T, w *World, id int64, name, mapID string, x, y float32) (*Membership, *recOut) {
+	t.Helper()
+	c := char(id, mapID, x, y)
+	c.Name = name
+	return enterChar(t, w, c)
+}
+
+// formParty has leader invite each member, who accepts, then drains every outbox.
+func formParty(t *testing.T, w *World, leader *Membership, members []*Membership, outs ...*recOut) {
+	t.Helper()
+	for _, m := range members {
+		if code := w.Party().Invite(leader.EntityID, m.EntityID); code != party.OK {
+			t.Fatalf("Invite %d: %v", m.EntityID, code)
+		}
+		if code := w.Party().Answer(m.EntityID, leader.EntityID, true); code != party.OK {
+			t.Fatalf("Answer %d: %v", m.EntityID, code)
+		}
+	}
+	for _, o := range outs {
+		o.drain()
+	}
+}
+
+func member(id uint64, name string, level int32, mapID string, zone int32) *pb.PartyMember {
+	return &pb.PartyMember{Id: id, Name: name, CharClass: pb.CharClass_CHAR_CLASS_VIEM, Level: level, MapId: mapID, Zone: zone}
+}
+
+func stateEnv(leader uint64, members ...*pb.PartyMember) *pb.Envelope {
+	return &pb.Envelope{Payload: &pb.Envelope_PartyState{PartyState: &pb.PartyState{LeaderId: leader, Members: members}}}
+}
+
+func noticeEnv(k pb.PartyNoticeKind, name string) *pb.Envelope {
+	return &pb.Envelope{Payload: &pb.Envelope_PartyNotice{PartyNotice: &pb.PartyNotice{Kind: k, Name: name}}}
+}
+
+func wantParty(t *testing.T, who string, got []*pb.Envelope, want ...*pb.Envelope) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s got %v, want %v", who, got, want)
+	}
+	for i := range got {
+		if !proto.Equal(got[i], want[i]) {
+			t.Fatalf("%s push %d = %v, want %v", who, i, got[i], want[i])
+		}
+	}
+}
+
+// Each party push becomes its envelope with seq 0; the shared state is
+// not changed by the conversion.
+func TestPartyEnvelope(t *testing.T) {
+	st := &party.State{LeaderID: 4, Members: []party.Member{
+		{ID: 4, Name: "a", Class: pb.CharClass_CHAR_CLASS_NHAM, Level: 12, MapID: "m1", Zone: 2},
+		{ID: 9, Name: "b", Class: pb.CharClass_CHAR_CLASS_VIEM, Level: 3, MapID: "m2", Zone: 1},
+	}}
+	keep := &party.State{LeaderID: st.LeaderID, Members: slices.Clone(st.Members)}
+	for _, c := range []struct {
+		msg  party.Msg
+		want *pb.Envelope
+	}{
+		{&party.Invite{FromID: 4, FromName: "a", FromLevel: 12, FromClass: pb.CharClass_CHAR_CLASS_NHAM, ExpiresMs: 30000},
+			&pb.Envelope{Payload: &pb.Envelope_PartyInvite{PartyInvite: &pb.PartyInvite{
+				FromId: 4, FromName: "a", FromLevel: 12, FromClass: pb.CharClass_CHAR_CLASS_NHAM, ExpiresMs: 30000}}}},
+		{st, stateEnv(4,
+			&pb.PartyMember{Id: 4, Name: "a", CharClass: pb.CharClass_CHAR_CLASS_NHAM, Level: 12, MapId: "m1", Zone: 2},
+			member(9, "b", 3, "m2", 1))},
+		{&party.State{}, stateEnv(0)},
+		{&party.Notice{Kind: party.NoticeNewLeader, Name: "b"}, noticeEnv(pb.PartyNoticeKind_PARTY_NOTICE_KIND_NEW_LEADER, "b")},
+	} {
+		o := newRecOut()
+		if !(partyOutbox{o}).Send(c.msg) {
+			t.Fatalf("Send(%T) refused", c.msg)
+		}
+		got := <-o.ch
+		if got.Seq != 0 || !proto.Equal(got, c.want) {
+			t.Fatalf("%T became %v, want %v", c.msg, got, c.want)
+		}
+	}
+	if !reflect.DeepEqual(st, keep) {
+		t.Fatalf("state changed to %+v", st)
+	}
+}
+
+// Enter registers the character under its entity id; Leave, a quit and
+// a kick's Leave unregister it, and its teammates are told.
+func TestEnterRegistersAndLeaveUnregisters(t *testing.T) {
+	w := newTestWorld(t, 10)
+	a, outA := enterNamed(t, w, 1, "an", "m1", 5.5, 5.5)
+	b, outB := enterNamed(t, w, 2, "binh", "m1", 5.5, 5.5)
+	c, outC := enterNamed(t, w, 3, "chi", "m1", 5.5, 5.5)
+	outB.drain()
+	if code := w.Party().Invite(a.EntityID, b.EntityID); code != party.OK {
+		t.Fatalf("Invite: %v", code)
+	}
+	wantParty(t, "B", outB.party(), &pb.Envelope{Payload: &pb.Envelope_PartyInvite{PartyInvite: &pb.PartyInvite{
+		FromId: a.EntityID, FromName: "an", FromLevel: 1, FromClass: pb.CharClass_CHAR_CLASS_VIEM, ExpiresMs: 30000}}})
+	outA.drain()
+	if code := w.Party().Answer(b.EntityID, a.EntityID, true); code != party.OK {
+		t.Fatalf("Answer: %v", code)
+	}
+	st := stateEnv(a.EntityID, member(a.EntityID, "an", 1, "m1", 1), member(b.EntityID, "binh", 1, "m1", 1))
+	wantParty(t, "A", outA.party(), noticeEnv(pb.PartyNoticeKind_PARTY_NOTICE_KIND_JOINED, "binh"), st)
+	formParty(t, w, a, []*Membership{c}, outA, outB, outC)
+
+	if err := <-c.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	wantParty(t, "A", outA.party(), noticeEnv(pb.PartyNoticeKind_PARTY_NOTICE_KIND_LEFT, "chi"), st)
+	if code := w.Party().Invite(a.EntityID, c.EntityID); code != party.InvalidTarget {
+		t.Fatalf("Invite the leaver: %v, want INVALID_TARGET", code)
+	}
+
+	saved, code := b.Quit()
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("Quit: %v", code)
+	}
+	if err := <-saved; err != nil {
+		t.Fatal(err)
+	}
+	wantParty(t, "A", outA.party(), noticeEnv(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED, ""), stateEnv(0))
+	if code := w.Party().Invite(a.EntityID, b.EntityID); code != party.InvalidTarget {
+		t.Fatalf("Invite the quitter: %v, want INVALID_TARGET", code)
+	}
+	if a.cell.Load() != 0 {
+		t.Fatalf("A's cell %d after the disband, want 0", a.cell.Load())
+	}
+}
+
+// A quit refused while the PvP lock runs keeps the character registered.
+func TestRefusedQuitStaysRegistered(t *testing.T) {
+	w := newTestWorld(t, 10)
+	w.keepPvPLock(1, 5*time.Second)
+	a, _ := enterNamed(t, w, 1, "an", "m1", 5.5, 5.5)
+	b, _ := enterNamed(t, w, 2, "binh", "m1", 5.5, 5.5)
+	if _, code := a.Quit(); code != pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT {
+		t.Fatalf("Quit: %v, want IN_PVP_COMBAT", code)
+	}
+	if code := w.Party().Invite(b.EntityID, a.EntityID); code != party.OK {
+		t.Fatalf("Invite after a refused quit: %v, want OK", code)
+	}
+}
+
+// A portal reports the new map and zone to the party, and the cell rides
+// the handoff: the new membership holds the same cell, which the service
+// still writes.
+func TestTransferMovesParty(t *testing.T) {
+	w := startWorld(t, 10, portalMaps(t))
+	a, outA := enterNamed(t, w, 1, "an", "m1", 5.5, 5.5)
+	b, outB := enterNamed(t, w, 2, "binh", "m1", 18.5, 10.0)
+	formParty(t, w, a, []*Membership{b}, outA, outB)
+	cell := b.cell
+	if cell == nil || cell.Load() == 0 || cell.Load() != a.cell.Load() {
+		t.Fatalf("cells %v %v, want the same party id", cell, a.cell)
+	}
+	nb, _, err := w.Transfer(context.Background(), b, portal("east"))
+	if err != nil || nb.MapID != "m2" || nb.ZoneNo != 1 {
+		t.Fatalf("transfer: %+v %v, want m2 zone 1", nb, err)
+	}
+	st := stateEnv(a.EntityID, member(a.EntityID, "an", 1, "m1", 1), member(b.EntityID, "binh", 1, "m2", 1))
+	wantParty(t, "A", outA.party(), st)
+	wantParty(t, "B", outB.party(), st)
+	if nb.cell != cell {
+		t.Fatalf("new membership cell %p, want the handed-over %p", nb.cell, cell)
+	}
+	if code := w.Party().Leave(b.EntityID); code != party.OK || cell.Load() != 0 {
+		t.Fatalf("Leave after the portal: %v, cell %d", code, cell.Load())
+	}
+	// The new membership unregisters on Leave.
+	formParty(t, w, a, []*Membership{nb}, outA, outB)
+	if err := <-nb.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	wantParty(t, "A", outA.party(), noticeEnv(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED, ""), stateEnv(0))
+}
+
+// A transfer whose join fails after the departure leaves the character in
+// no zone, so it is unregistered there.
+func TestTransferLostUnregisters(t *testing.T) {
+	w := startWorld(t, 10, portalMaps(t))
+	a, outA := enterNamed(t, w, 1, "an", "m1", 5.5, 5.5)
+	b, outB := enterNamed(t, w, 2, "binh", "m1", 18.5, 10.0)
+	formParty(t, w, a, []*Membership{b}, outA, outB)
+	dup := char(3, "m2", 5.5, 5.5)
+	info := zone.PlayerInfo{EntityID: b.EntityID, CharID: dup.ID, Name: "dup", Class: pb.CharClass_CHAR_CLASS_VIEM, Level: 1,
+		Pos: zone.Vec2{X: 5.5, Y: 5.5}, HP: -1, MP: -1, Skills: w.knownSkills(dup), Inventory: w.knownBag(dup)}
+	if err := slotOf(w, "m2", 1).z.Join(context.Background(), info, newRecOut()); err != nil {
+		t.Fatal(err)
+	}
+	_, saved, err := w.Transfer(context.Background(), b, portal("east"))
+	if err == nil || saved == nil {
+		t.Fatalf("transfer: %v (saved %v), want the join error", err, saved)
+	}
+	<-saved
+	wantParty(t, "A", outA.party(), noticeEnv(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED, ""), stateEnv(0))
+	if code := w.Party().Invite(a.EntityID, b.EntityID); code != party.InvalidTarget {
+		t.Fatalf("Invite the lost character: %v, want INVALID_TARGET", code)
+	}
+}
+
+// Every zone's Leveled reports to the party service, which pushes the new
+// level to the party (the zone tests check gainExp calls it).
+func TestLevelUpPushesPartyState(t *testing.T) {
+	w := startWorld(t, 1, portalMaps(t))
+	a, outA := enterNamed(t, w, 1, "an", "m1", 5.5, 5.5)
+	b, outB := enterNamed(t, w, 2, "binh", "m1", 5.5, 5.5) // zone 2
+	formParty(t, w, a, []*Membership{b}, outA, outB)
+	for _, s := range []*slot{slotOf(w, "m1", 1), slotOf(w, "m1", 2), slotOf(w, "m2", 1)} {
+		if s.z.Config().Leveled == nil {
+			t.Fatalf("zone %d has no Leveled hook", s.no)
+		}
+	}
+	slotOf(w, "m1", 2).z.Config().Leveled(b.EntityID, 7)
+	st := stateEnv(a.EntityID, member(a.EntityID, "an", 1, "m1", 1), member(b.EntityID, "binh", 7, "m1", 2))
+	wantParty(t, "A", outA.party(), st)
+	wantParty(t, "B", outB.party(), st)
+}
+
+// An Enter that never joins a zone (every zone full) leaves nothing
+// registered.
+func TestFailedEnterRegistersNothing(t *testing.T) {
+	w := newTestWorld(t, 0)
+	_, err := w.Enter(context.Background(), EnterRequest{Char: char(1, "m1", 5.5, 5.5), Out: newRecOut()})
+	if !errors.Is(err, zone.ErrZoneFull) {
+		t.Fatalf("Enter: %v, want ErrZoneFull", err)
+	}
+	id := w.nextEntity.Load() // the map has no monsters, so this is the character's id
+	probe := uint64(1 << 40)
+	w.Party().Register(party.Info{ID: probe, Name: "probe"}, partyOutbox{newRecOut()})
+	if code := w.Party().Invite(probe, id); code != party.InvalidTarget {
+		t.Fatalf("Invite the failed entry %d: %v, want INVALID_TARGET", id, code)
 	}
 }

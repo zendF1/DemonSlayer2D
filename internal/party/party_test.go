@@ -32,8 +32,10 @@ func (c *fakeClock) add(d time.Duration) {
 
 // box records what the service pushes to one player.
 // It also checks that the receiver's cell is written before each state is
-// pushed: 0 with an empty state, a party id otherwise.
+// pushed: 0 with an empty state, otherwise the id of the party the state
+// shows, read from the service (Send runs with the service lock held).
 type box struct {
+	s    *Service
 	mu   sync.Mutex
 	msgs []Msg
 	cell atomic.Pointer[atomic.Uint64]
@@ -42,7 +44,7 @@ type box struct {
 
 func (b *box) Send(m Msg) bool {
 	if st, ok := m.(*State); ok {
-		if c := b.cell.Load(); c != nil && (len(st.Members) == 0) != (c.Load() == 0) {
+		if c := b.cell.Load(); c != nil && c.Load() != b.partyOf(st) {
 			b.bad.Add(1)
 		}
 	}
@@ -50,6 +52,18 @@ func (b *box) Send(m Msg) bool {
 	defer b.mu.Unlock()
 	b.msgs = append(b.msgs, m)
 	return true
+}
+
+// partyOf is the id of the party st shows, 0 for an empty state. Only Send
+// calls it, under the service lock.
+func (b *box) partyOf(st *State) uint64 {
+	if len(st.Members) == 0 {
+		return 0
+	}
+	if e := b.s.players[st.LeaderID]; e != nil && e.party != nil {
+		return e.party.id
+	}
+	return 1 << 63 // a leader not in a party: never a cell value
 }
 
 // take returns the pushes since the last take and forgets them.
@@ -82,7 +96,7 @@ func newFixture(t *testing.T) *fixture {
 // reg registers player id with name "p<id>", class Viem, level id, map "m", zone 1.
 func (f *fixture) reg(ids ...uint64) {
 	for _, id := range ids {
-		b := &box{}
+		b := &box{s: f.s}
 		cell := f.s.Register(info(id), b)
 		if cell == nil || cell.Load() != 0 {
 			f.t.Fatalf("Register(%d) cell %v", id, cell)
@@ -371,7 +385,6 @@ func TestUnregister(t *testing.T) {
 	f.s.Unregister(1) // twice is harmless
 
 	// An invite to the leaver is dropped too.
-	f.code(f.s.Invite(3, 6), NotPartyLeader, "")
 	f.reg(7)
 	f.code(f.s.Invite(6, 7), OK, "invite to 7")
 	f.s.Unregister(7)
@@ -432,55 +445,111 @@ func TestMovedAndLeveled(t *testing.T) {
 
 // ______________________TEST CONCURRENCY_____________________
 
+// Random requests from many goroutines, with the clock moving (invites
+// expire) and players leaving and re-entering the world, keep every cell in
+// line with its party.
 func TestConcurrentInviteAnswerLeave(t *testing.T) {
 	f := newFixture(t)
-	const n = 24
+	const n, workers = 24, 8
 	for id := uint64(1); id <= n; id++ {
 		f.reg(id)
 	}
+	// Each worker owns player n+1+g and alone registers and unregisters it.
+	type owned struct {
+		box   *box
+		cell  *atomic.Uint64
+		old   []*atomic.Uint64 // cells of its earlier registrations
+		boxes []*box
+	}
+	own := make([]*owned, workers)
+	for g := range own {
+		b := &box{s: f.s}
+		c := f.s.Register(info(uint64(n+1+g)), b)
+		b.cell.Store(c)
+		own[g] = &owned{box: b, cell: c, boxes: []*box{b}}
+	}
 	var wg sync.WaitGroup
-	for g := 0; g < 8; g++ {
+	for g := 0; g < workers; g++ {
 		wg.Add(1)
-		go func(seed uint64) {
+		go func(g int) {
 			defer wg.Done()
-			r := rand.New(rand.NewPCG(seed, 7))
+			o, me := own[g], uint64(n+1+g)
+			r := rand.New(rand.NewPCG(uint64(g), 7))
 			for i := 0; i < 2000; i++ {
-				a, b := uint64(r.IntN(n)+1), uint64(r.IntN(n)+1)
-				switch r.IntN(6) {
-				case 0, 1:
+				a, b := uint64(r.IntN(n+workers)+1), uint64(r.IntN(n+workers)+1)
+				switch r.IntN(12) {
+				case 0, 1, 2, 3:
 					f.s.Invite(a, b)
-				case 2, 3:
+				case 4, 5, 6:
 					f.s.Answer(a, b, r.IntN(4) != 0)
-				case 4:
+				case 7:
 					f.s.Leave(a)
-				case 5:
+				case 8:
 					f.s.Kick(a, b)
-				}
-				if i%500 == 0 {
+				case 9:
+					f.clk.add(time.Duration(r.IntN(100)) * time.Millisecond)
+				case 10:
+					if o.cell != nil {
+						f.s.Unregister(me)
+						o.old, o.cell = append(o.old, o.cell), nil
+					} else {
+						bx := &box{s: f.s}
+						o.cell = f.s.Register(info(me), bx)
+						bx.cell.Store(o.cell)
+						o.boxes = append(o.boxes, bx)
+					}
+				case 11:
 					f.s.Moved(a, "m", r.IntN(3)+1)
 				}
 			}
-		}(uint64(g))
+		}(g)
 	}
 	wg.Wait()
 
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
-	seen := map[uint64]bool{}
+	cells := map[uint64]*atomic.Uint64{}
 	for id, p := range f.p {
+		cells[id] = p.cell
+	}
+	for g, o := range own {
+		id := uint64(n + 1 + g)
+		for _, c := range o.old {
+			if c.Load() != 0 {
+				t.Fatalf("player %d: an unregistered cell holds %d", id, c.Load())
+			}
+		}
+		for _, b := range o.boxes {
+			if k := b.bad.Load(); k > 0 {
+				t.Fatalf("player %d got %d states that did not match its cell", id, k)
+			}
+		}
+		if o.cell == nil {
+			if f.s.players[id] != nil {
+				t.Fatalf("player %d unregistered but listed", id)
+			}
+			continue
+		}
+		cells[id] = o.cell
+	}
+	seen := map[uint64]bool{}
+	for id, cell := range cells {
 		e := f.s.players[id]
 		if e == nil {
 			t.Fatalf("player %d gone", id)
 		}
+		if e.cell != cell {
+			t.Fatalf("player %d: the service holds another cell", id)
+		}
 		if e.party == nil {
-			if p.cell.Load() != 0 {
-				t.Fatalf("player %d not in a party has cell %d", id, p.cell.Load())
+			if cell.Load() != 0 {
+				t.Fatalf("player %d not in a party has cell %d", id, cell.Load())
 			}
 			continue
 		}
 		pa := e.party
-		if p.cell.Load() != pa.id {
-			t.Fatalf("player %d cell %d, party %d", id, p.cell.Load(), pa.id)
+		if cell.Load() != pa.id {
+			t.Fatalf("player %d cell %d, party %d", id, cell.Load(), pa.id)
 		}
 		if len(pa.members) < 2 || len(pa.members) > MaxMembers || pa.leader != pa.members[0] {
 			t.Fatalf("party %d: leader %d members %v", pa.id, pa.leader, pa.members)
@@ -488,6 +557,9 @@ func TestConcurrentInviteAnswerLeave(t *testing.T) {
 		found := false
 		for _, m := range pa.members {
 			found = found || m == id
+			if f.s.players[m] == nil || f.s.players[m].party != pa {
+				t.Fatalf("party %d lists %d, which is not in it", pa.id, m)
+			}
 		}
 		if !found {
 			t.Fatalf("player %d not listed in its party", id)

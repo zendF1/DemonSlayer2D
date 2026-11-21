@@ -138,6 +138,9 @@ func (z *Zone) gainExp(p *player, gain int64) {
 	z.events.levelUps = append(z.events.levelUps, &pb.LevelUp{Id: p.id, Level: int32(p.level)})
 	z.hpChanged(&p.entity)
 	z.saver.Save(z.state(p), nil)
+	if z.cfg.Leveled != nil {
+		z.cfg.Leveled(p.id, p.level)
+	}
 }
 
 // allocate spends free potential points (spec 3.5). Current HP and MP rise by
