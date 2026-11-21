@@ -267,6 +267,8 @@ func TestItemRequestsNotInWorld(t *testing.T) {
 		"stash withdraw": {Payload: &pb.Envelope_StashWithdrawReq{StashWithdrawReq: &pb.StashWithdrawReq{NpcId: "kho", StashSlot: 1}}},
 		"stash expand":   {Payload: &pb.Envelope_StashExpandReq{StashExpandReq: &pb.StashExpandReq{NpcId: "kho"}}},
 		"stash sort":     {Payload: &pb.Envelope_StashSortReq{StashSortReq: &pb.StashSortReq{NpcId: "kho"}}},
+		"quest accept":   {Payload: &pb.Envelope_QuestAcceptReq{QuestAcceptReq: &pb.QuestAcceptReq{NpcId: "tho_san", QuestId: "m01"}}},
+		"quest turn in":  {Payload: &pb.Envelope_QuestTurnInReq{QuestTurnInReq: &pb.QuestTurnInReq{NpcId: "tho_san", QuestId: "m01"}}},
 		"enhance": {Payload: &pb.Envelope_EnhanceReq{EnhanceReq: &pb.EnhanceReq{
 			Item: &pb.ItemRef{Equipped: true, Slot: 0}, Times: 1}}},
 		"punch":         {Payload: &pb.Envelope_PunchReq{PunchReq: &pb.PunchReq{Item: &pb.ItemRef{Slot: 1}}}},

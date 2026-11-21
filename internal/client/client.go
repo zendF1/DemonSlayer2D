@@ -498,6 +498,34 @@ func (c *Client) StashSort(ctx context.Context, npcID string) (*pb.StashSortResp
 	return r, nil
 }
 
+// QuestAccept sends QuestAcceptReq to the quest NPC npcID.
+func (c *Client) QuestAccept(ctx context.Context, npcID, questID string) (*pb.QuestAcceptResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_QuestAcceptReq{QuestAcceptReq: &pb.QuestAcceptReq{
+		NpcId: npcID, QuestId: questID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetQuestAcceptResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to QuestAcceptReq: %v", resp)
+	}
+	return r, nil
+}
+
+// QuestTurnIn sends QuestTurnInReq to the quest NPC npcID.
+func (c *Client) QuestTurnIn(ctx context.Context, npcID, questID string) (*pb.QuestTurnInResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_QuestTurnInReq{QuestTurnInReq: &pb.QuestTurnInReq{
+		NpcId: npcID, QuestId: questID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetQuestTurnInResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to QuestTurnInReq: %v", resp)
+	}
+	return r, nil
+}
+
 // UseItem drinks the potion in bagSlot.
 func (c *Client) UseItem(ctx context.Context, bagSlot int) (*pb.UseItemResp, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_UseItemReq{UseItemReq: &pb.UseItemReq{

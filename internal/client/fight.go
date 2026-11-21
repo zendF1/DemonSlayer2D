@@ -49,6 +49,9 @@ type Fighter struct {
 	Seek [2]float32
 	// Observe, if set, sees every push before the fighter acts on it.
 	Observe func(*pb.Envelope)
+	// Quests holds the latest progress of each quest the fighter saw in a
+	// QuestProgress push, by quest id.
+	Quests map[string]*pb.QuestEntry
 }
 
 // NewFighter starts a fighter for the character that ew entered the world with.
@@ -99,6 +102,14 @@ func (f *Fighter) Fight(ctx context.Context, n int, onKill func(Kill)) error {
 		case env := <-f.c.Pushes():
 			if f.Observe != nil {
 				f.Observe(env)
+			}
+			if qp := env.GetQuestProgress(); qp != nil {
+				if f.Quests == nil {
+					f.Quests = make(map[string]*pb.QuestEntry)
+				}
+				for _, q := range qp.Quests {
+					f.Quests[q.QuestId] = q
+				}
 			}
 			if k := env.GetKicked(); k != nil {
 				return fmt.Errorf("fighter: kicked: %v", k.Reason)

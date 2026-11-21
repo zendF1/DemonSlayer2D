@@ -341,6 +341,16 @@ func (m *Membership) StashSort(seq uint32, npcID string) bool {
 	return m.z.StashSort(m.EntityID, seq, npcID)
 }
 
+// QuestAccept queues taking quest from the quest NPC npcID.
+func (m *Membership) QuestAccept(seq uint32, npcID, quest string) bool {
+	return m.z.QuestAccept(m.EntityID, seq, npcID, quest)
+}
+
+// QuestTurnIn queues turning quest in to the quest NPC npcID.
+func (m *Membership) QuestTurnIn(seq uint32, npcID, quest string) bool {
+	return m.z.QuestTurnIn(m.EntityID, seq, npcID, quest)
+}
+
 // Buy queues buying count of code from the shop NPC npcID; the zone answers
 // seq on the outbox. It reports false if the zone's inbox is full.
 func (m *Membership) Buy(seq uint32, npcID, shopID, code string, count int) bool {

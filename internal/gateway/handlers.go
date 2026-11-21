@@ -169,6 +169,18 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 		}
 		r := p.StashSortReq
 		c.zoneBusyIfDropped(seq, c.member.StashSort(seq, r.NpcId))
+	case *pb.Envelope_QuestAcceptReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.QuestAcceptReq
+		c.zoneBusyIfDropped(seq, c.member.QuestAccept(seq, r.NpcId, r.QuestId))
+	case *pb.Envelope_QuestTurnInReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.QuestTurnInReq
+		c.zoneBusyIfDropped(seq, c.member.QuestTurnIn(seq, r.NpcId, r.QuestId))
 	case *pb.Envelope_SellReq:
 		if !c.inWorld(seq) {
 			return

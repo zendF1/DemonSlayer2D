@@ -2098,3 +2098,177 @@ func TestPartyOverWebSocket(t *testing.T) {
 	waitFor(t, cb, wait, isNotice(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED))
 	waitFor(t, cb, wait, isState(0))
 }
+
+// ______________________TEST QUESTS_____________________
+
+// Phase 6b spec 8: a new Viem at the Kumotori default point takes m01 from the
+// hunter, kills a wanderer for 1/5, cannot turn in, then with the progress set
+// to 5 turns in (EXP, Xu, potions) and takes m02. A second character (level 10,
+// no waiver, m01-m10 done, m11 active) beside the Ubuyashiki commander cannot
+// learn viem_1 without a book, turns in m11 for the book, learns it, and
+// keeps both across a re-enter. NPC positions come from the loaded maps.
+func TestQuestsOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hunter, ok := loaded["kumotori_1"].NPC("tho_san")
+	if !ok || hunter.Role != mapdata.RoleQuest {
+		t.Fatal("kumotori_1 has no quest NPC tho_san")
+	}
+	commander, ok := loaded["ubuyashiki"].NPC("chi_huy")
+	if !ok || commander.Role != mapdata.RoleQuest {
+		t.Fatal("ubuyashiki has no quest NPC chi_huy")
+	}
+
+	// Character 1: m01 to m02.
+	p := newPlayer(t, s, "quest01", "Nhiemvu", pb.CharClass_CHAR_CLASS_VIEM)
+	if _, err := p.c.QuestAccept(ctx, hunter.ID, "m02"); client.Code(err) != pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE {
+		t.Fatalf("accept m02 first: %v, want QUEST_NOT_AVAILABLE", err)
+	}
+	acc, err := p.c.QuestAccept(ctx, hunter.ID, "m01")
+	if err != nil {
+		t.Fatalf("accept m01: %v", err)
+	}
+	if q := acc.Quest; q.GetQuestId() != "m01" || q.GetState() != pb.QuestState_QUEST_STATE_ACTIVE || q.GetProgress() != 0 {
+		t.Fatalf("accepted %v, want m01 active at 0", q)
+	}
+
+	f := client.NewFighter(p.c, p.enter)
+	f.Seek = nestR1
+	fctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := f.Fight(fctx, 1, nil); err != nil {
+		t.Fatalf("fight: %v", err)
+	}
+	ctx = ctxT(t) // the fight may have used up most of the first deadline
+	prog := f.Quests["m01"]
+	if prog == nil { // the push follows the tick's SelfStats
+		env := waitFor(t, p.c, 10*time.Second, func(e *pb.Envelope) bool { return e.GetQuestProgress() != nil })
+		prog = env.GetQuestProgress().Quests[0]
+	}
+	if prog.GetQuestId() != "m01" || prog.GetProgress() != 1 || prog.GetState() != pb.QuestState_QUEST_STATE_ACTIVE {
+		t.Fatalf("QuestProgress %v, want m01 1/5 active", prog)
+	}
+
+	// The fighter ended at the nest: leave, stand beside the hunter again.
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "quest01", "kumotori_1", hunter.Pos.X, hunter.Pos.Y); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.c.EnterWorld(ctx, p.charID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.c.QuestTurnIn(ctx, hunter.ID, "m01"); client.Code(err) != pb.ErrorCode_ERROR_CODE_QUEST_NOT_COMPLETE {
+		t.Fatalf("turn in at 1/5: %v, want QUEST_NOT_COMPLETE", err)
+	}
+
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.store.DevSetQuests(ctx, p.charID, []store.QuestRow{{QuestID: "m01", State: 1, Progress: 5}}); err != nil {
+		t.Fatal(err)
+	}
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ew.GetQuests().GetQuests(); len(got) != 1 || got[0].GetQuestId() != "m01" || got[0].GetProgress() != 5 {
+		t.Fatalf("entered with quests %v, want m01 at 5", got)
+	}
+	turn, err := p.c.QuestTurnIn(ctx, hunter.ID, "m01")
+	if err != nil {
+		t.Fatalf("turn in m01: %v", err)
+	}
+	if turn.QuestId != "m01" || turn.Exp != 20 || turn.Xu != 40 {
+		t.Fatalf("turn in %v, want m01 with 20 EXP and 40 Xu", turn)
+	}
+	if potions := turn.Update.Bag[slotOf(t, turn.Update, "potion_hp_1")]; potions.GetItem().GetCount() != 5 {
+		t.Fatalf("turn in bag %v, want 5 potions", turn.Update)
+	}
+	// m02 needs level 2 (80 EXP); 20 EXP is not enough, so raise the level offline.
+	if _, err := p.c.QuestAccept(ctx, hunter.ID, "m02"); client.Code(err) != pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW {
+		t.Fatalf("accept m02 at level 1: %v, want LEVEL_TOO_LOW", err)
+	}
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := s.store.DevSetLevel(ctx, "quest01", 2); err != nil || res.Level != 2 {
+		t.Fatalf("DevSetLevel: %+v, %v", res, err)
+	}
+	if _, err := p.c.EnterWorld(ctx, p.charID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.c.QuestAccept(ctx, hunter.ID, "m02"); err != nil {
+		t.Fatalf("accept m02 after m01: %v", err)
+	}
+
+	// Character 2: the book for m11.
+	c2, id2 := offlinePlayer(t, s, "quest02", "Sachkynang", pb.CharClass_CHAR_CLASS_VIEM)
+	if res, err := s.store.DevSetLevel(ctx, "quest02", 10); err != nil || res.Level != 10 {
+		t.Fatalf("DevSetLevel: %+v, %v", res, err)
+	}
+	if err := s.store.DevSetWaiver(ctx, id2, 0); err != nil {
+		t.Fatal(err)
+	}
+	var rows []store.QuestRow
+	for _, id := range []string{"m01", "m02", "m03", "m04", "m05", "m06", "m07", "m08", "m09", "m10"} {
+		rows = append(rows, store.QuestRow{QuestID: id, State: 2})
+	}
+	rows = append(rows, store.QuestRow{QuestID: "m11", State: 1, Progress: 1})
+	if err := s.store.DevSetQuests(ctx, id2, rows); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "quest02", "ubuyashiki", commander.Pos.X, commander.Pos.Y); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c2.EnterWorld(ctx, id2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c2.Learn(ctx, "viem_1"); client.Code(err) != pb.ErrorCode_ERROR_CODE_NO_SKILL_BOOK {
+		t.Fatalf("learn without the book: %v, want NO_SKILL_BOOK", err)
+	}
+	book, err := c2.QuestTurnIn(ctx, commander.ID, "m11")
+	if err != nil {
+		t.Fatalf("turn in m11: %v", err)
+	}
+	slot := slotOf(t, book.Update, "book_viem_1")
+	learn, err := c2.Learn(ctx, "viem_1")
+	if err != nil {
+		t.Fatalf("learn with the book: %v", err)
+	}
+	for _, sl := range learn.Update.GetBag() {
+		if int(sl.Slot) == slot && sl.Item != nil {
+			t.Fatalf("the book is still in slot %d: %v", slot, learn.Update)
+		}
+	}
+	if err := c2.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ew2, err := c2.EnterWorld(ctx, id2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m11 *pb.QuestEntry
+	for _, q := range ew2.GetQuests().GetQuests() {
+		if q.QuestId == "m11" {
+			m11 = q
+		}
+	}
+	if m11 == nil || m11.State != pb.QuestState_QUEST_STATE_DONE {
+		t.Fatalf("re-entered with m11 %v, want done", m11)
+	}
+	var lvl int32
+	for _, sk := range ew2.Skills {
+		if sk.SkillId == "viem_1" {
+			lvl = sk.Level
+		}
+	}
+	if lvl != 1 {
+		t.Fatalf("re-entered with viem_1 at %d, want 1", lvl)
+	}
+}
