@@ -1981,3 +1981,60 @@ func TestRefineApply(t *testing.T) {
 		checkUnchanged(t, c.name, before, inv, 0, 0)
 	}
 }
+
+// ______________________TEST SELL AND USE_____________________
+
+func TestSellValue(t *testing.T) {
+	d := realData(t)
+	cases := []struct {
+		name string
+		it   Item
+		want int64
+	}{
+		{"gold armour tier 50", Item{Code: "eq50_armor", Count: 1, Quality: 2}, 1000},
+		{"white sword tier 10", Item{Code: "eq10_weapon_viem", Count: 1, Quality: 0}, 50},
+		{"enhance does not count", Item{Code: "eq50_armor", Count: 1, Quality: 2, Enhance: 9}, 1000},
+		{"gems do not count", Item{Code: "eq50_armor", Count: 1, Quality: 2, Gems: []string{"gem_attack_3"}}, 1000},
+		{"stone", Item{Code: "stone_enhance", Count: 7}, 5},
+		{"gem level 3", Item{Code: "gem_attack_3", Count: 2}, 600},
+		{"unknown code", Item{Code: "nope", Count: 1}, 0},
+	}
+	for _, c := range cases {
+		if got := SellValue(d, &c.it); got != c.want {
+			t.Errorf("%s: got %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
+func TestTakeSlot(t *testing.T) {
+	d := realData(t)
+	inv := NewInventory(d.BagSize)
+	inv.Bag[0] = stone(10)
+	got, err := inv.TakeSlot(0, 4)
+	if err != nil || got.Code != "stone_enhance" || got.Count != 4 || inv.Bag[0].Count != 6 {
+		t.Fatalf("partial: %+v %v bag %+v", got, err, inv.Bag[0])
+	}
+	got, err = inv.TakeSlot(0, 0)
+	if err != nil || got.Count != 6 || inv.Bag[0] != nil {
+		t.Fatalf("whole: %+v %v", got, err)
+	}
+	if _, err = inv.TakeSlot(0, 1); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("empty: %v", err)
+	}
+	if _, err = inv.TakeSlot(-1, 1); !errors.Is(err, ErrBadSlot) {
+		t.Fatalf("slot: %v", err)
+	}
+}
+
+func TestHealAmount(t *testing.T) {
+	hp := gamedata.Use{Effect: gamedata.EffectHPPct, Value: 10}
+	if h, m := HealAmount(hp, 1640, 50); h != 164 || m != 0 {
+		t.Fatalf("10%% of 1640: %d %d", h, m)
+	}
+	if h, _ := HealAmount(hp, 5, 50); h != 1 {
+		t.Fatalf("10%% of 5: %d", h)
+	}
+	if h, m := HealAmount(gamedata.Use{Effect: gamedata.EffectMP, Value: 100}, 1640, 50); h != 0 || m != 100 {
+		t.Fatalf("mp: %d %d", h, m)
+	}
+}
