@@ -705,7 +705,7 @@ Nhiệm vụ phục vụ hướng dẫn, luyện cấp và kiếm tài nguyên; 
 - **Trong map:** A* tám hướng trên lớp va chạm (mục 5.2), không cắt góc tường, làm mượt đường bằng cách kéo dây. Chạm mặt đất để đi tới điểm đó; chạm ô tường thì đi tới ô đi được gần nhất trong 3 ô. Ô cổng bị tránh để đường đi không vô tình chuyển map, trừ cổng là đích của chặng.
 - **Giữa các map:** chọn chuỗi cổng ít nhất tới map đích, đi từng chặng và nạp lại màn khi qua cổng. Nhân vật không tự dùng Xa phu hay giấy về thành.
 - **Cửa sổ Bản đồ:** bản đồ thu nhỏ của map hiện tại (chạm để đi tới điểm) và danh sách map cùng NPC; nút Đi tới cạnh NPC ở map khác thì tự đi qua các cổng tới NPC rồi mở cửa sổ NPC.
-- Người chơi giành lại quyền điều khiển ngay: di chuyển tay, bấm Đánh, chọn chiêu, chết hay chạm điểm khác đều hủy đường đi.
+- Người chơi giành lại quyền điều khiển ngay: di chuyển tay, bấm Đánh, chọn chiêu, chết, rời màn World hay chạm điểm khác đều hủy đường đi. Bị quái đánh không hủy đường đi.
 
 ## 5. Bản đồ, sinh quái và PK
 
