@@ -86,6 +86,15 @@ spreads the sign-ups over 150 s and leaves the rest of the run measuring the
 game loop. Measured on an 8-core dev machine with 1,000 bots in world across 20
 zones: tick p99 ≈ 9 ms, no dropped clients.
 
+## PK mode
+
+Players toggle PK mode with the PK button (`SetPkReq`); the state is saved with the character. Training and battle maps allow PvP, towns and dungeons do not; safe zones never do.
+
+- A PK-on player can hit anyone, a PK-off player can only hit PK-on players, so a PK-off victim can fight back without switching on. Two PK-off players cannot hit each other.
+- PK can be switched on anywhere, but not off for 10 seconds after a PvP hit lands (dealt or taken): `IN_PVP_COMBAT`.
+- Dying to a player while PK is on, on a training map, costs floor(5% of the EXP needed for the next level); EXP may go negative, level 90 loses nothing. The victim gets a `DeathNotice` with the killer's name and the EXP lost. The killer gets no reward.
+- Protocol version 12.
+
 ## Dev characters
 
 `devchar` changes an account's first character (lowest slot), for development

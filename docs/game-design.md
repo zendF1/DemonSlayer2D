@@ -167,6 +167,7 @@ Nhân vật có vùng quét tròn hoặc elip để phát hiện thực thể xu
 - NPC có thể là mục tiêu tương tác nhưng không mặc định là mục tiêu tấn công. Bộ lọc PK cần kiểm tra từng mục tiêu của kỹ năng nhiều mục tiêu.
 - Chọn mục tiêu mới: ưu tiên mục tiêu hợp lệ gần nhân vật nhất trong tầm phát hiện 6 ô.
 - Khi chiêu diện rộng vượt giới hạn số mục tiêu: ưu tiên mục tiêu đang khóa nếu hợp lệ và nằm trong vùng chiêu, sau đó lấy các mục tiêu hợp lệ gần tâm vùng chiêu nhất đến khi đủ giới hạn.
+- Danh sách ứng viên gồm cả người chơi mà nhân vật đánh được theo bảng PK mục 5.7 (quái và người xếp chung theo khoảng cách). Chạm vào người chơi không đánh được thì không khóa. Bị người chơi đánh trúng thì tự khóa người đó, nếu chưa có mục tiêu.
 
 ### 2.6. Bảng kỹ năng và cấp học
 
@@ -797,6 +798,11 @@ Quy tắc **mở map theo tiến trình** và **Hạ Huyền/Thượng Huyền c
 ### 5.7. Chế độ PK và phạt EXP khi chết
 
 - Bật chế độ PK để tấn công người chơi khác tại map cho phép PK. Không cần điều kiện ác danh; vùng an toàn vẫn cấm PK tuyệt đối.
+- **Map cho phép PK theo loại:** map luyện cấp (`training`) và map chiến sự (`battle`) cho đánh người; thành (`town`) và phó bản v1 cấm PK. Chỉ map luyện cấp có phạt EXP.
+- **Bật PK không điều kiện**, kể cả đang đứng trong khu an toàn. **Tắt PK bị khóa 10 giây** kể từ đòn PvP cuối trúng (gây hoặc nhận); trong lúc khóa bị từ chối `IN_PVP_COMBAT`. Trạng thái PK được lưu cùng nhân vật và giữ qua cổng, đổi khu, thoát game.
+- **Luật kiểm tra lúc bấm** (chém và chiêu): chính mình/không có/đã chết `INVALID_TARGET`; map cấm PK `PK_FORBIDDEN`; mục tiêu trong khu an toàn `IN_SAFE_ZONE`; bảng PK không cho `PK_FORBIDDEN`. Đòn chốt lúc bấm và trúng lúc chạm: mục tiêu chạy vào khu an toàn hoặc tắt PK sau khi bấm vẫn dính; rời zone hoặc đã chết thì đòn bị bỏ. Chiêu diện rộng bỏ người chơi không hợp lệ, vẫn ra theo hướng.
+- **Người kết liễu** tính theo đòn trúng làm HP về 0 (đòn người chơi hay quái), không theo ai đánh nhiều nhất. Người hạ không nhận EXP, Xu hay đồ.
+- Sát thương người đánh người: `max(1, floor(cơ sở × (1 − thủ / (thủ + 20 × cấp người đánh)) × 1,0))`, dùng thủ vật lý hay thủ phép của mục tiêu theo loại đòn.
 - **Người bật PK đánh được tất cả người chơi**, kể cả người đang tắt PK. **Người đang bật PK thì ai cũng đánh được**, kể cả người đang tắt PK. Hai người cùng tắt PK không thể tấn công nhau.
 
 | Người tấn công | Mục tiêu bật PK | Mục tiêu tắt PK |
@@ -806,10 +812,10 @@ Quy tắc **mở map theo tiến trình** và **Hạ Huyền/Thượng Huyền c
 
 - Bộ lọc mục tiêu tại mục 2.5, kỹ năng nhiều mục tiêu và auto-play dùng chung bảng trên. Người tắt PK bị người bật PK tấn công có thể phản công ngay mà không cần bật PK.
 - Chỉ tại **map luyện cấp**, nhân vật **đang bật PK bị người chơi khác giết** mất **5% EXP cần để lên cấp kế tiếp ở cấp hiện tại**, không phải 5% số EXP đang tích lũy.
-- Công thức: **EXP mất = floor(0,05 × EXP yêu cầu của cấp hiện tại)**, lấy theo bảng EXP lên cấp tại mục 2.2; **EXP sau chết = EXP đang có − EXP mất**. Làm tròn xuống số EXP bị mất, không làm tròn số EXP còn lại. Mỗi lần chết tính lại cùng quy tắc; EXP được phép âm, không chặn về 0.
+- Công thức: **EXP mất = floor(0,05 × EXP yêu cầu của cấp hiện tại)**, lấy theo bảng EXP lên cấp tại mục 2.2; **EXP sau chết = EXP đang có − EXP mất**. Làm tròn xuống số EXP bị mất, không làm tròn số EXP còn lại. Mỗi lần chết tính lại cùng quy tắc; EXP được phép âm, không chặn về 0. Nhân vật cấp 90 (hết bảng EXP) không mất EXP.
 - Ví dụ cấp 10 lên 11 cần 64.000 EXP: mỗi lần chết theo điều kiện trên mất floor(64.000 × 5%) = 3.200 EXP; đang có 5.000 về 1.800, chết tiếp về −1.400. Ví dụ cấp 1 lên 2 cần 130 EXP thì mức phạt là floor(130 × 5%) = 6 EXP.
 - Không có lính canh trừng phạt người bật PK. Vào làng/thành vẫn được, chỉ không thể tấn công vì khu an toàn cấm PK tuyệt đối.
-- **Map chiến sự/tranh chấp, phó bản/lôi đài và sự kiện không mất EXP do PK**, kể cả khi map chiến sự không có sự kiện nào đang diễn ra. Không áp mức phạt trên cho chết do quái hoặc người đang tắt PK.
+- **Map chiến sự/tranh chấp, phó bản/lôi đài và sự kiện không mất EXP do PK**, kể cả khi map chiến sự không có sự kiện nào đang diễn ra. Không áp mức phạt trên cho chết do quái hoặc người đang tắt PK. Bảng chết cho nạn nhân biết người hạ (tên) và số EXP mất.
 - Đổi map/khu khi giao chiến vẫn theo luật mục 5.1; bật PK không khóa quyền đổi khu ở map luyện cấp.
 
 #### Hồi sinh khi chết

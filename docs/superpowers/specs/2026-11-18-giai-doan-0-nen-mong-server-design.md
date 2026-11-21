@@ -25,6 +25,8 @@ Ghi chú: Giai đoạn 3 chia thành 3a, 3b, 3c ([spec 3a](2026-11-20-giai-doan-
 
 Ghi chú: Giai đoạn 4 chia thành 4a (năm map, cổng, đổi khu, điểm hồi sinh theo map), 4b (NPC, cửa hàng Xu, bán đồ, bình thuốc, giấy về thành, xa phu, rèn đồ tại Thợ rèn) và 4c (kho chung tài khoản, Lượng, hồi sinh tại chỗ; Giai đoạn 4 đã gồm cả kho và Lượng ở 4c), theo [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) mục 1.1. Map sinh bằng `tools/mapgen.py`; mọi lần chuyển zone đi qua `World.Transfer`.
 
+Ghi chú: Giai đoạn 5 chia thành 5a (chế độ PK, đánh người chơi, phạt EXP; giao thức 12) và 5b (tổ đội 5 người, EXP chia sẻ); xem [spec 5a](2026-11-20-giai-doan-5a-pk-phat-exp-design.md).
+
 ### 1.2. Ràng buộc
 
 - **Repo này chỉ chứa server.** Client Godot 4 (GDScript) ở repo khác và làm sau.
