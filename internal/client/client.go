@@ -302,9 +302,10 @@ func (c *Client) AllocatePoints(ctx context.Context, p combat.Points) (*pb.SelfS
 	return r.Stats, nil
 }
 
-// Respawn asks to respawn and returns where the character stands.
-func (c *Client) Respawn(ctx context.Context) (*pb.RespawnResp, error) {
-	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_RespawnReq{RespawnReq: &pb.RespawnReq{}}})
+// Respawn asks to respawn (in place for 1 Lượng, else at the village) and
+// returns where the character stands.
+func (c *Client) Respawn(ctx context.Context, inPlace bool) (*pb.RespawnResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_RespawnReq{RespawnReq: &pb.RespawnReq{InPlace: inPlace}}})
 	if err != nil {
 		return nil, err
 	}
@@ -385,10 +386,11 @@ func (c *Client) Discard(ctx context.Context, bagSlot, count int) (*pb.DiscardRe
 	return r, nil
 }
 
-// Buy buys count of code from the shop NPC npcID.
-func (c *Client) Buy(ctx context.Context, npcID, code string, count int) (*pb.BuyResp, error) {
+// Buy buys count of code from the shop NPC npcID, or, with an empty npcID,
+// from the anywhere shop shopID.
+func (c *Client) Buy(ctx context.Context, npcID, shopID, code string, count int) (*pb.BuyResp, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_BuyReq{BuyReq: &pb.BuyReq{
-		NpcId: npcID, Code: code, Count: int32(count)}}})
+		NpcId: npcID, ShopId: shopID, Code: code, Count: int32(count)}}})
 	if err != nil {
 		return nil, err
 	}

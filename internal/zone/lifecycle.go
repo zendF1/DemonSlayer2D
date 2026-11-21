@@ -26,15 +26,33 @@ func (z *Zone) respawn(c respawnCmd) {
 		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_DEAD)
 		return
 	}
-	z.respawnPlayer(p)
+	if c.inPlace {
+		// Phase 4c spec 4.4: 1 Lượng, back up where it died, saved at once.
+		if p.luong < 1 {
+			z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG)
+			return
+		}
+		p.luong--
+		z.revive(p)
+		z.saver.Save(z.state(p), nil)
+		p.out.Send(&pb.Envelope{Payload: &pb.Envelope_SelfStats{SelfStats: z.selfStats(p)}})
+		p.statsDirty = false // just sent
+	} else {
+		z.respawnPlayer(p)
+	}
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_RespawnResp{RespawnResp: &pb.RespawnResp{X: p.pos.X, Y: p.pos.Y}}})
 }
 
 // respawnPlayer brings dead p back at the respawn point nearest to where it
 // died, with full HP and MP. Viewers jump it there instead of interpolating.
 func (z *Zone) respawnPlayer(p *player) {
-	p.dead, p.deadUntil, p.restTicks = false, 0, 0
 	p.pos = z.area.nearestRespawn(p.pos)
+	z.revive(p)
+}
+
+// revive makes dead p alive where it stands, with full HP and MP.
+func (z *Zone) revive(p *player) {
+	p.dead, p.deadUntil, p.restTicks = false, 0, 0
 	p.hp, p.mp = p.maxHP, p.stats.MaxMP
 	p.changed, p.snap = true, true
 	z.updateCell(&p.entity)

@@ -240,7 +240,9 @@ func (m *Membership) Allocate(seq uint32, p combat.Points) bool {
 
 // Respawn queues a respawn request; the zone answers seq on the outbox. It
 // reports false if the zone's inbox is full.
-func (m *Membership) Respawn(seq uint32) bool { return m.z.Respawn(m.EntityID, seq) }
+func (m *Membership) Respawn(seq uint32, inPlace bool) bool {
+	return m.z.Respawn(m.EntityID, seq, inPlace)
+}
 
 // Learn queues learning skillID or raising it a level; the zone answers seq
 // on the outbox. It reports false if the zone's inbox is full.
@@ -311,8 +313,8 @@ func (m *Membership) StashSort(seq uint32, npcID string) bool {
 
 // Buy queues buying count of code from the shop NPC npcID; the zone answers
 // seq on the outbox. It reports false if the zone's inbox is full.
-func (m *Membership) Buy(seq uint32, npcID, code string, count int) bool {
-	return m.z.Buy(m.EntityID, seq, npcID, code, count)
+func (m *Membership) Buy(seq uint32, npcID, shopID, code string, count int) bool {
+	return m.z.Buy(m.EntityID, seq, npcID, shopID, code, count)
 }
 
 // Sell queues selling count (0: all) of the item in bagSlot to the shop NPC

@@ -3139,7 +3139,7 @@ func TestShopErrors(t *testing.T) {
 		ok     = pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	)
 	buy := func(npc, code string, n int) func(*Zone) bool {
-		return func(z *Zone) bool { return z.Buy(1, 9, npc, code, n) }
+		return func(z *Zone) bool { return z.Buy(1, 9, npc, "", code, n) }
 	}
 	sell := func(npc string, slot, n int) func(*Zone) bool {
 		return func(z *Zone) bool { return z.Sell(1, 9, npc, slot, n) }
@@ -3209,7 +3209,7 @@ func TestBuyMergesStackAndSaves(t *testing.T) {
 	out := p.out.(*fakeOut)
 	out.take()
 	saves := len(sv.all())
-	itemNow(t, z, z.Buy(1, 9, "shop", "potion_hp_1", 10))
+	itemNow(t, z, z.Buy(1, 9, "shop", "", "potion_hp_1", 10))
 	if p.xu != 50 || p.inv.Bag[0].Count != 15 {
 		t.Fatalf("xu %d, stack %d, want 50 and 15", p.xu, p.inv.Bag[0].Count)
 	}
@@ -3278,7 +3278,7 @@ func TestPendingRefineSurvivesBuyNotSell(t *testing.T) {
 	z, p, _ := shopZone(t, testItemData, shopInventory())
 	z.advance(time.Now())
 	p.refine = &pendingRefine{}
-	itemNow(t, z, z.Buy(1, 9, "shop", "potion_hp_1", 1))
+	itemNow(t, z, z.Buy(1, 9, "shop", "", "potion_hp_1", 1))
 	if p.refine == nil {
 		t.Fatal("a buy dropped the refine result")
 	}
@@ -4144,5 +4144,165 @@ func TestPendingRefineSurvivesRefusedStash(t *testing.T) {
 				t.Fatal("a refused stash command dropped the refine result")
 			}
 		})
+	}
+}
+
+// ____TEST LUONG____
+
+// luongCmd is a Lượng-shop style buy: no NPC, the shop named by id.
+func luongBuy(shop, code string, n int) func(*Zone) bool {
+	return func(z *Zone) bool { return z.Buy(1, 9, "", shop, code, n) }
+}
+
+func TestLuongShopBuy(t *testing.T) {
+	z, p, sv := shopZone(t, testItemData, shopInventory())
+	z.advance(time.Now())
+	p.pos = Vec2{X: 40.5, Y: 40.5} // far from every NPC: the shop opens anywhere
+	p.accountID, p.luong, p.xu = 9, 5, 77
+	out := p.out.(*fakeOut)
+	out.take()
+	saves := len(sv.all())
+	itemNow(t, z, luongBuy("luong", "charm_protect", 2)(z))
+	if p.luong != 1 || p.xu != 77 || p.inv.Bag[4].Count != 5 {
+		t.Fatalf("luong %d xu %d charms %d, want 1, 77 and 5", p.luong, p.xu, p.inv.Bag[4].Count)
+	}
+	if len(sv.all()) != saves+1 || sv.all()[saves].Account == nil || sv.all()[saves].Account.Luong != 1 {
+		t.Fatalf("saves %d, want one more carrying Luong 1", len(sv.all())-saves)
+	}
+	r := respFor(out.take(), 9, (*pb.Envelope).GetBuyResp)
+	if r == nil || r.Stats.GetLuong() != 1 || len(r.Update.Bag) != 1 {
+		t.Fatalf("reply %v", r)
+	}
+}
+
+func TestLuongShopRefusals(t *testing.T) {
+	const (
+		bad  = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		lErr = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG
+		full = pb.ErrorCode_ERROR_CODE_BAG_FULL
+		dead = pb.ErrorCode_ERROR_CODE_DEAD
+	)
+	for _, c := range []struct {
+		name  string
+		dead  bool
+		fullB bool
+		luong int64
+		cmd   func(*Zone) bool
+		want  pb.ErrorCode
+	}{
+		{"general without an npc", false, false, 9, luongBuy("general", "potion_hp_1", 1), bad},
+		{"unknown shop", false, false, 9, luongBuy("nope", "charm_protect", 1), bad},
+		{"empty shop id", false, false, 9, luongBuy("", "charm_protect", 1), bad},
+		{"code not sold", false, false, 9, luongBuy("luong", "potion_hp_1", 1), bad},
+		{"count 0", false, false, 9, luongBuy("luong", "charm_protect", 0), bad},
+		{"count too big", false, false, 9, luongBuy("luong", "charm_protect", 1<<30), bad},
+		{"short of luong", false, false, 1, luongBuy("luong", "charm_protect", 1), lErr},
+		{"short of luong and full bag", false, true, 1, luongBuy("luong", "charm_protect", 1), lErr},
+		{"full bag", false, true, 9, luongBuy("luong", "charm_protect", 1), full},
+		{"dead", true, false, 9, luongBuy("luong", "charm_protect", 1), dead},
+		{"npc shop ignores shop_id", false, false, 9, func(z *Zone) bool { return z.Buy(1, 9, "shop", "luong", "charm_protect", 1) }, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := shopZone(t, testItemData, shopInventory())
+			if c.fullB {
+				fillBag(p.inv)
+				p.inv.Bag[4] = &items.Item{Code: "charm_protect", Count: testItemData.StackMax}
+			}
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			p.luong, p.xu = c.luong, 77
+			before, saves := p.inv.Clone(), len(sv.all())
+			if got := shopErr(t, z, p, c.cmd(z)); got != c.want {
+				t.Fatalf("code %v, want %v", got, c.want)
+			}
+			if p.luong != c.luong || p.xu != 77 || !reflect.DeepEqual(p.inv, before) || len(sv.all()) != saves {
+				t.Fatal("a refused buy changed Luong, Xu, the bag or the saves")
+			}
+		})
+	}
+}
+
+func TestRespawnInPlace(t *testing.T) {
+	z, p, sv := shopZone(t, testItemData, shopInventory())
+	z.advance(time.Now())
+	p.pos = Vec2{X: 20.5, Y: 21.5}
+	p.accountID, p.luong = 9, 1
+	z.damagePlayer(p, 0, 1<<30, false)
+	if !p.dead {
+		t.Fatal("not dead")
+	}
+	out := p.out.(*fakeOut)
+	out.take()
+	saves := len(sv.all())
+	z.respawn(respawnCmd{id: 1, seq: 4, inPlace: true})
+	if p.dead || p.pos != (Vec2{X: 20.5, Y: 21.5}) || p.hp != p.maxHP || p.mp != p.stats.MaxMP || p.luong != 0 {
+		t.Fatalf("dead %v at %v hp %d mp %d luong %d, want alive in place, full, 0 Luong", p.dead, p.pos, p.hp, p.mp, p.luong)
+	}
+	if !slices.Contains(z.events.hpChanges, p.id) {
+		t.Fatal("viewers are not told of the new HP")
+	}
+	if len(sv.all()) != saves+1 || sv.all()[saves].Account == nil || sv.all()[saves].Account.Luong != 0 {
+		t.Fatalf("saves %d, want one more carrying Luong 0", len(sv.all())-saves)
+	}
+	envs := out.take()
+	r, _ := respawnRespFor(envs, 4)
+	if r == nil || r.X != 20.5 || r.Y != 21.5 {
+		t.Fatalf("reply %v", r)
+	}
+	if ss := selfStatsIn(envs); len(ss) == 0 || ss[len(ss)-1].GetLuong() != 0 {
+		t.Fatalf("stats %v, want a SelfStats with Luong 0", ss)
+	}
+}
+
+func TestRespawnInPlaceRefused(t *testing.T) {
+	z, p, sv := shopZone(t, testItemData, shopInventory())
+	z.advance(time.Now())
+	p.pos = Vec2{X: 20.5, Y: 21.5}
+	out := p.out.(*fakeOut)
+	// alive: NOT_DEAD before the Luong check, Luong kept
+	p.luong = 3
+	out.take()
+	z.respawn(respawnCmd{id: 1, seq: 4, inPlace: true})
+	if e := errorFor(out.take(), 4).GetCode(); e != pb.ErrorCode_ERROR_CODE_NOT_DEAD || p.luong != 3 {
+		t.Fatalf("alive: code %v luong %d, want NOT_DEAD and 3", e, p.luong)
+	}
+	// dead with no Luong
+	p.accountID, p.luong = 9, 0
+	z.damagePlayer(p, 0, 1<<30, false)
+	out.take()
+	saves := len(sv.all())
+	z.respawn(respawnCmd{id: 1, seq: 5, inPlace: true})
+	if e := errorFor(out.take(), 5).GetCode(); e != pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG || !p.dead || p.luong != 0 || len(sv.all()) != saves {
+		t.Fatalf("code %v dead %v luong %d saves %d, want NOT_ENOUGH_LUONG, still dead, nothing saved", e, p.dead, p.luong, len(sv.all())-saves)
+	}
+}
+
+func TestRespawnToVillageIsFree(t *testing.T) {
+	z, p, _ := shopZone(t, testItemData, shopInventory())
+	z.area.Respawns = []Vec2{{X: 2.5, Y: 2.5}}
+	z.advance(time.Now())
+	p.pos = Vec2{X: 20.5, Y: 21.5}
+	p.luong = 2
+	z.damagePlayer(p, 0, 1<<30, false)
+	z.respawn(respawnCmd{id: 1, seq: 4})
+	if p.dead || p.pos != (Vec2{X: 2.5, Y: 2.5}) || p.luong != 2 {
+		t.Fatalf("dead %v at %v luong %d, want the respawn point and 2 Luong", p.dead, p.pos, p.luong)
+	}
+}
+
+func TestAutoRespawnIsToVillageAndFree(t *testing.T) {
+	z, p, _ := shopZone(t, testItemData, shopInventory())
+	z.area.Respawns = []Vec2{{X: 2.5, Y: 2.5}}
+	z.advance(time.Now())
+	p.pos = Vec2{X: 20.5, Y: 21.5}
+	p.luong = 2
+	z.damagePlayer(p, 0, 1<<30, false)
+	for i := uint32(0); p.dead && i < z.ticks(autoRespawnSec)+5; i++ {
+		z.advance(time.Now())
+	}
+	if p.dead || p.pos != (Vec2{X: 2.5, Y: 2.5}) || p.luong != 2 {
+		t.Fatalf("dead %v at %v luong %d, want the respawn point and 2 Luong", p.dead, p.pos, p.luong)
 	}
 }

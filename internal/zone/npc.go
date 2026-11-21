@@ -1,6 +1,7 @@
 package zone
 
 import (
+	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
@@ -14,10 +15,11 @@ const (
 )
 
 type buyCmd struct {
-	id          uint64
-	seq         uint32
-	npcID, code string
-	count       int
+	id            uint64
+	seq           uint32
+	npcID, shopID string
+	code          string
+	count         int
 }
 
 type sellCmd struct {
@@ -27,11 +29,12 @@ type sellCmd struct {
 	bagSlot, count int
 }
 
-// Buy queues buying count of code from the shop NPC npcID. The zone answers
+// Buy queues buying count of code from the shop NPC npcID, or, with an empty
+// npcID, from the anywhere shop shopID. The zone answers
 // seq with BuyResp or ErrorResp on the player's outbox. It never blocks and
 // reports false if the inbox is full.
-func (z *Zone) Buy(id uint64, seq uint32, npcID, code string, count int) bool {
-	return z.offer(buyCmd{id: id, seq: seq, npcID: npcID, code: code, count: count})
+func (z *Zone) Buy(id uint64, seq uint32, npcID, shopID, code string, count int) bool {
+	return z.offer(buyCmd{id: id, seq: seq, npcID: npcID, shopID: shopID, code: code, count: count})
 }
 
 // Sell queues selling count (0: all) of the item in bagSlot to the shop NPC
@@ -78,25 +81,33 @@ func (z *Zone) buy(c buyCmd) {
 	if p == nil {
 		return
 	}
-	npc, code := z.nearNPC(p, c.npcID, mapdata.RoleShop)
-	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
-		z.replyError(p, c.seq, code)
+	d := z.area.Items
+	// Step 2 (phase 4c spec 4.3): an NPC names its own shop and shop_id is
+	// ignored; without an NPC the shop must be an anywhere shop.
+	shopID := c.shopID
+	if c.npcID != "" {
+		npc, code := z.nearNPC(p, c.npcID, mapdata.RoleShop)
+		if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+			z.replyError(p, c.seq, code)
+			return
+		}
+		shopID = npc.Shop
+	}
+	shop, found := d.Shops[shopID]
+	if !found || (c.npcID == "" && !shop.Anywhere) {
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
 		return
 	}
-	d := z.area.Items
-	var price int64
-	ok := false
-	for _, s := range d.Shops {
-		if s.ID == npc.Shop {
-			price, ok = s.Price(c.code)
-			break
-		}
-	}
+	price, ok := shop.Price(c.code)
+	luong := shop.Currency == gamedata.CurrencyLuong
 	switch {
 	case !ok, c.count < 1, c.count > d.StackMax:
 		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
 		return
-	case p.xu < price*int64(c.count):
+	case luong && p.luong < price*int64(c.count):
+		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG)
+		return
+	case !luong && p.xu < price*int64(c.count):
 		z.replyError(p, c.seq, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU)
 		return
 	}
@@ -105,7 +116,11 @@ func (z *Zone) buy(c buyCmd) {
 		z.replyError(p, c.seq, itemErrorCode(err))
 		return
 	}
-	p.xu -= price * int64(c.count)
+	if luong {
+		p.luong -= price * int64(c.count)
+	} else {
+		p.xu -= price * int64(c.count)
+	}
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_BuyResp{BuyResp: &pb.BuyResp{
 		Update: inventoryUpdate(p.inv, changed, nil), Stats: z.selfStats(p)}}})

@@ -98,7 +98,7 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 		if !c.inWorld(seq) {
 			return
 		}
-		c.zoneBusyIfDropped(seq, c.member.Respawn(seq))
+		c.zoneBusyIfDropped(seq, c.member.Respawn(seq, p.RespawnReq.InPlace))
 	case *pb.Envelope_LearnSkillReq:
 		// No own limiter: only the packet limit applies (phase 2 spec 4.7).
 		if !c.inWorld(seq) {
@@ -132,7 +132,7 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		r := p.BuyReq
-		c.zoneBusyIfDropped(seq, c.member.Buy(seq, r.NpcId, r.Code, int(r.Count)))
+		c.zoneBusyIfDropped(seq, c.member.Buy(seq, r.NpcId, r.ShopId, r.Code, int(r.Count)))
 	case *pb.Envelope_StashOpenReq:
 		if !c.inWorld(seq) {
 			return

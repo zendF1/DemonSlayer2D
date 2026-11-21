@@ -169,7 +169,7 @@ func (f *Fighter) handleAttack(ctx context.Context, r attackResult) (time.Durati
 }
 
 func (f *Fighter) respawn(ctx context.Context) error {
-	r, err := f.c.Respawn(ctx)
+	r, err := f.c.Respawn(ctx, false)
 	if Code(err) == pb.ErrorCode_ERROR_CODE_NOT_DEAD {
 		return nil // already respawned
 	}

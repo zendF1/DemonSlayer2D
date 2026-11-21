@@ -753,7 +753,7 @@ func TestMembershipRequestsReachZone(t *testing.T) {
 	}{
 		{"attack", func(m *Membership) bool { return m.Attack(5, 999999) }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"allocate", func(m *Membership) bool { return m.Allocate(5, combat.Points{}) }, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
-		{"respawn", func(m *Membership) bool { return m.Respawn(5) }, pb.ErrorCode_ERROR_CODE_NOT_DEAD},
+		{"respawn", func(m *Membership) bool { return m.Respawn(5, false) }, pb.ErrorCode_ERROR_CODE_NOT_DEAD},
 		{"enhance", func(m *Membership) bool { return m.Enhance(5, items.Ref{Slot: 0}, false, 1) }, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
 		{"punch", func(m *Membership) bool { return m.Punch(5, items.Ref{Slot: 0}) }, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
 		{"socket", func(m *Membership) bool { return m.Socket(5, items.Ref{Slot: 0}, 0, 1) }, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},

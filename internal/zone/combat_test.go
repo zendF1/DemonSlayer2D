@@ -336,7 +336,7 @@ func TestShotKillsPlayer(t *testing.T) {
 	if hs := hitsIn(a.take()); len(hs) != 0 || m.state != wander {
 		t.Fatalf("after the kill: hits %v state %v, want no shot at the corpse and wandering", hs, m.state)
 	}
-	if !z.Respawn(1, 3) {
+	if !z.Respawn(1, 3, false) {
 		t.Fatal("inbox full")
 	}
 	z.advance(now)
@@ -1603,7 +1603,7 @@ func TestDeadAttackerIsNotFallenBackOn(t *testing.T) {
 	attackNow(t, z, 1, 1, m.id)  // A first: the target
 	attackLand(t, z, 2, 1, m.id) // both land
 	z.damagePlayer(z.players[2], 0, 10000, false)
-	if !z.Respawn(2, 2) {
+	if !z.Respawn(2, 2, false) {
 		t.Fatal("inbox full")
 	}
 	z.advance(time.Now())
@@ -2724,7 +2724,7 @@ func TestRespawnRequest(t *testing.T) {
 	a.take()
 	v.take()
 
-	if !z.Respawn(1, 4) {
+	if !z.Respawn(1, 4, false) {
 		t.Fatal("inbox full")
 	}
 	z.advance(time.Now())
@@ -2736,7 +2736,7 @@ func TestRespawnRequest(t *testing.T) {
 	z.advance(time.Now())
 	a.take()
 	v.take()
-	if !z.Respawn(1, 5) {
+	if !z.Respawn(1, 5, false) {
 		t.Fatal("inbox full")
 	}
 	z.advance(time.Now())
@@ -2866,7 +2866,7 @@ func TestRespawnedPlayerIsNotChased(t *testing.T) {
 	if m.target == 1 {
 		t.Fatalf("target %d, want the dead player forgotten at death", m.target)
 	}
-	if !z.Respawn(1, 1) {
+	if !z.Respawn(1, 1, false) {
 		t.Fatal("inbox full")
 	}
 	now := time.Now()
@@ -2937,7 +2937,7 @@ func TestRespawnAtNearestPoint(t *testing.T) {
 					z.advance(now)
 				}
 			} else {
-				if !z.Respawn(1, 7) {
+				if !z.Respawn(1, 7, false) {
 					t.Fatal("inbox full")
 				}
 				z.advance(now)
@@ -4410,7 +4410,7 @@ func TestImpactLevelsUpDeadAttacker(t *testing.T) {
 	if saves := z.saver.(*fakeSaver).all(); len(saves) != 1 || saves[0].Level != 2 || saves[0].HP != 0 {
 		t.Fatalf("saves %+v, want the level-up saved with 0 HP", saves)
 	}
-	if !z.Respawn(1, 2) {
+	if !z.Respawn(1, 2, false) {
 		t.Fatal("inbox full")
 	}
 	z.advance(time.Now())

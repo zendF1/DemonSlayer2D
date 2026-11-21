@@ -331,7 +331,7 @@ func TestRequestErrors(t *testing.T) {
 	expect(c.Attack(ctx, 1), pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
 	_, err = c.AllocatePoints(ctx, combat.Points{Str: 1})
 	expect(err, pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
-	_, err = c.Respawn(ctx)
+	_, err = c.Respawn(ctx, false)
 	expect(err, pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD)
 	expect(c.DeleteChar(ctx, ch.Id, "Wrong"), pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
 
@@ -1530,7 +1530,7 @@ func TestShopsOverWebSocket(t *testing.T) {
 	}
 
 	// Buy 3 potions at 5 Xu.
-	buy, err := p.c.Buy(ctx, "duoc_su", "potion_hp_1", 3)
+	buy, err := p.c.Buy(ctx, "duoc_su", "", "potion_hp_1", 3)
 	if err != nil {
 		t.Fatalf("buy: %v", err)
 	}
@@ -1554,7 +1554,7 @@ func TestShopsOverWebSocket(t *testing.T) {
 	}
 
 	// A return scroll at 50 Xu takes the character to the town.
-	scroll, err := p.c.Buy(ctx, "duoc_su", "scroll_return", 1)
+	scroll, err := p.c.Buy(ctx, "duoc_su", "", "scroll_return", 1)
 	if err != nil {
 		t.Fatalf("buy scroll: %v", err)
 	}

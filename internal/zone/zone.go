@@ -168,8 +168,9 @@ type allocateCmd struct {
 }
 
 type respawnCmd struct {
-	id  uint64
-	seq uint32
+	id      uint64
+	seq     uint32
+	inPlace bool
 }
 
 type learnCmd struct {
@@ -328,12 +329,13 @@ func (z *Zone) Allocate(id uint64, seq uint32, p combat.Points) bool {
 	}
 }
 
-// Respawn queues a dead player's respawn request. The zone answers seq with
+// Respawn queues a dead player's respawn request: where it died for 1 Lượng
+// when inPlace, else at the nearest respawn point for free. The zone answers seq with
 // RespawnResp or ErrorResp on the player's outbox. It never blocks and
 // reports false if the inbox is full.
-func (z *Zone) Respawn(id uint64, seq uint32) bool {
+func (z *Zone) Respawn(id uint64, seq uint32, inPlace bool) bool {
 	select {
-	case z.inbox <- respawnCmd{id: id, seq: seq}:
+	case z.inbox <- respawnCmd{id: id, seq: seq, inPlace: inPlace}:
 		return true
 	default:
 		return false
