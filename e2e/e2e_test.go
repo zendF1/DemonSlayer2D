@@ -2272,3 +2272,131 @@ func TestQuestsOverWebSocket(t *testing.T) {
 		t.Fatalf("re-entered with viem_1 at %d, want 1", lvl)
 	}
 }
+
+// ______________________TEST DAILY QUESTS_____________________
+
+// Phase 6d spec 8: a level 10 Viêm with a Lữ Hành sword, 20 stones and
+// 10,000 Xu, beside the Ubuyashiki crow, enters with a reset countdown in
+// (0, 24 h] and takes d_enhance. Beside the blacksmith, three EnhanceReq
+// (times 1) push d_enhance up to 3. Back beside the crow it turns d_enhance
+// in for 5 stones and 400 Xu, and cannot take it again today. NPC positions
+// come from the generated maps/ubuyashiki.json.
+func TestDailyQuestsOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crow, ok := loaded["ubuyashiki"].NPC("qua_truyen_tin")
+	if !ok || crow.Role != mapdata.RoleQuest {
+		t.Fatal("ubuyashiki has no quest NPC qua_truyen_tin")
+	}
+	smith, ok := loaded["ubuyashiki"].NPC("tho_ren")
+	if !ok {
+		t.Fatal("ubuyashiki has no tho_ren")
+	}
+
+	c, id := offlinePlayer(t, s, "daily01", "Hangngay", pb.CharClass_CHAR_CLASS_VIEM)
+	if res, err := s.store.DevSetLevel(ctx, "daily01", 10); err != nil || res.Level != 10 {
+		t.Fatalf("DevSetLevel: %+v, %v", res, err)
+	}
+	give := func([]store.ItemRow) ([]store.ItemRow, error) {
+		return []store.ItemRow{
+			{Slot: 0, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+			{Slot: 1, Code: "stone_enhance", Count: 20, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}},
+		}, nil
+	}
+	if _, err := s.store.DevGiveItem(ctx, "daily01", give, 10000); err != nil {
+		t.Fatal(err)
+	}
+	// enterAt leaves the world when in it, puts the character at npc and
+	// enters again.
+	in := false
+	enterAt := func(npc mapdata.NPC) *pb.EnterWorldResp {
+		t.Helper()
+		if in {
+			if err := c.LeaveWorld(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := s.store.DevSetPlace(ctx, "daily01", "ubuyashiki", npc.Pos.X, npc.Pos.Y); err != nil {
+			t.Fatal(err)
+		}
+		ew, err := c.EnterWorld(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		in = true
+		return ew
+	}
+
+	ew := enterAt(crow)
+	if ms := ew.GetQuests().GetDailyResetMs(); ms <= 0 || ms > 86_400_000 {
+		t.Fatalf("daily_reset_ms %d, want in (0, 86,400,000]", ms)
+	}
+	acc, err := c.QuestAccept(ctx, crow.ID, "d_enhance")
+	if err != nil {
+		t.Fatalf("accept d_enhance: %v", err)
+	}
+	if q := acc.Quest; q.GetQuestId() != "d_enhance" || q.GetState() != pb.QuestState_QUEST_STATE_ACTIVE || q.GetProgress() != 0 {
+		t.Fatalf("accepted %v, want d_enhance active at 0", q)
+	}
+
+	enterAt(smith)
+	var last *pb.EnhanceResp
+	for want := int32(1); want <= 3; want++ {
+		if last, err = c.Enhance(ctx, &pb.ItemRef{Slot: 0}, false, 1); err != nil {
+			t.Fatalf("enhance %d: %v", want, err)
+		}
+		if last.Attempts != 1 {
+			t.Fatalf("enhance %d: %v, want one attempt", want, last)
+		}
+		waitFor(t, c, 3*time.Second, func(e *pb.Envelope) bool {
+			for _, q := range e.GetQuestProgress().GetQuests() {
+				if q.QuestId == "d_enhance" && q.Progress == want {
+					return true
+				}
+			}
+			return false
+		})
+	}
+	xu := last.Stats.GetXu()
+	// stonesIn is the stone count of the stack an update shows.
+	stonesIn := func(u *pb.InventoryUpdate) int32 {
+		t.Helper()
+		for _, sl := range u.GetBag() {
+			if sl.GetItem().GetCode() == "stone_enhance" {
+				return sl.GetItem().GetCount()
+			}
+		}
+		t.Fatalf("no stones in the update %v", u)
+		return 0
+	}
+	stones := stonesIn(last.Update)
+	if stones != 17 || xu >= 10000 {
+		t.Fatalf("after three enhancements %d stones and %d Xu, want 17 stones and less than 10,000 Xu", stones, xu)
+	}
+
+	ew = enterAt(crow)
+	var entry *pb.QuestEntry
+	for _, q := range ew.GetQuests().GetQuests() {
+		if q.QuestId == "d_enhance" {
+			entry = q
+		}
+	}
+	if entry.GetProgress() != 3 || entry.GetState() != pb.QuestState_QUEST_STATE_ACTIVE {
+		t.Fatalf("re-entered with d_enhance %v, want active at 3", entry)
+	}
+	turn, err := c.QuestTurnIn(ctx, crow.ID, "d_enhance")
+	if err != nil {
+		t.Fatalf("turn in d_enhance: %v", err)
+	}
+	got := stonesIn(turn.Update)
+	if turn.QuestId != "d_enhance" || turn.Exp != 0 || turn.Xu != 400 || turn.Stats.GetXu() != xu+400 || got != stones+5 {
+		t.Fatalf("turn in %v, want 400 Xu (%d in all) and %d stones", turn, xu+400, stones+5)
+	}
+	if _, err := c.QuestAccept(ctx, crow.ID, "d_enhance"); client.Code(err) != pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE {
+		t.Fatalf("accept d_enhance again today: %v, want QUEST_NOT_AVAILABLE", err)
+	}
+}

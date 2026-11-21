@@ -1,13 +1,16 @@
 // Command devquest changes the quest log of an account's first character,
 // for development only (phase 6b spec 7):
 //
-//	go run ./cmd/devquest -u USER [-reset] [-done ID] [-active ID [-progress N]]
+//	go run ./cmd/devquest -u USER [-reset] [-done ID] [-active ID [-progress N]] [-day-offset N]
 //
 // -reset deletes every quest row and runs first. -done sets the quest and
 // every quest of its requires chain before it to done. -active sets the
 // quest in progress at -progress (default 0; a talk quest is always 1),
-// clamped to 0 up to the objective's count. An unknown id is an error and
-// nothing is written. It prints the quest log afterwards.
+// clamped to 0 up to the objective's count. A daily quest set by -done or
+// -active is written on today's quest day (quest.Day of the wall clock) plus
+// -day-offset days (default 0; -1 makes an entry of yesterday, which the
+// server drops at login). An unknown id is an error and nothing is written.
+// It prints the quest log afterwards.
 //
 // It reads the database from DATABASE_URL and quests.json (with the files it
 // is checked against) from DATA_DIR (default ./data). The character must be
@@ -27,10 +30,14 @@ import (
 	"time"
 
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/quest"
 	"demonslayer2d/internal/store"
 )
 
-const usage = "usage: devquest -u USER [-reset] [-done ID] [-active ID [-progress N]]"
+const usage = "usage: devquest -u USER [-reset] [-done ID] [-active ID [-progress N]] [-day-offset N]"
+
+// now is the clock of the quest day; tests replace it.
+var now = time.Now
 
 const (
 	stateActive = 1
@@ -52,12 +59,14 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 	done := fs.String("done", "", "quest id to set done, with its requires chain")
 	active := fs.String("active", "", "quest id to set in progress")
 	progress := fs.Int("progress", 0, "progress of -active")
+	dayOffset := fs.Int("day-offset", 0, "days added to today for a daily quest")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
 	}
 	set := make(map[string]bool)
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
-	if *user == "" || fs.NArg() > 0 || (!*reset && *done == "" && *active == "") || (set["progress"] && *active == "") {
+	if *user == "" || fs.NArg() > 0 || (!*reset && *done == "" && *active == "") || (set["progress"] && *active == "") ||
+		(set["day-offset"] && *done == "" && *active == "") {
 		return errors.New(usage)
 	}
 	if *progress < 0 {
@@ -90,6 +99,13 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 	}
 	defer st.Close()
 
+	today := quest.Day(now()) + int32(*dayOffset)
+	day := func(q *gamedata.Quest) int32 {
+		if q.Line == gamedata.LineDaily {
+			return today
+		}
+		return 0
+	}
 	fmt.Fprintf(out, "warning: %s's character must be offline; if it is in game, the server's next save overwrites this change\n", *user)
 	res, err := st.DevEditQuests(ctx, *user, func(rows []store.QuestRow) ([]store.QuestRow, error) {
 		byID := make(map[string]store.QuestRow, len(rows))
@@ -100,7 +116,7 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 		}
 		if *done != "" {
 			for q := d.QuestByID[*done]; q != nil; q = d.QuestByID[q.Requires] {
-				byID[q.ID] = store.QuestRow{QuestID: q.ID, State: stateDone, Progress: q.Objective.Need()}
+				byID[q.ID] = store.QuestRow{QuestID: q.ID, State: stateDone, Progress: q.Objective.Need(), Day: day(q)}
 			}
 		}
 		if *active != "" {
@@ -109,7 +125,7 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 			if d.QuestByID[*active].Objective.Type == gamedata.ObjTalk {
 				p = 1
 			}
-			byID[*active] = store.QuestRow{QuestID: *active, State: stateActive, Progress: p}
+			byID[*active] = store.QuestRow{QuestID: *active, State: stateActive, Progress: p, Day: day(d.QuestByID[*active])}
 		}
 		merged := make([]store.QuestRow, 0, len(byID))
 		for _, r := range byID {
@@ -126,6 +142,10 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 		state := "active"
 		if r.State == stateDone {
 			state = "done"
+		}
+		if r.Day != 0 {
+			fmt.Fprintf(out, "  %s %s %d day %d\n", r.QuestID, state, r.Progress, r.Day)
+			continue
 		}
 		fmt.Fprintf(out, "  %s %s %d\n", r.QuestID, state, r.Progress)
 	}

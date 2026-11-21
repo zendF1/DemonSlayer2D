@@ -6,7 +6,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"demonslayer2d/internal/quest"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/store/storetest"
 )
@@ -33,6 +35,8 @@ func TestRunRefusesBadFlags(t *testing.T) {
 		{"unknown done", []string{"-u", "a", "-done", "zz"}, `unknown quest "zz"`},
 		{"unknown active", []string{"-u", "a", "-active", "zz"}, `unknown quest "zz"`},
 		{"no database", []string{"-u", "a", "-reset"}, "DATABASE_URL"},
+		{"day offset alone", []string{"-u", "a", "-day-offset", "-1"}, "usage"},
+		{"day offset with reset only", []string{"-u", "a", "-reset", "-day-offset", "1"}, "usage"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -146,5 +150,68 @@ func TestRunEditsQuests(t *testing.T) {
 	}
 	if got := rows(); len(got) != 0 {
 		t.Fatalf("after -reset: %+v", got)
+	}
+}
+
+// ______________________TEST DEV DAILY_____________________
+
+// A daily quest is written on today's quest day, plus -day-offset; a main
+// quest keeps day 0 whatever the offset.
+func TestRunWritesDailyDay(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	st, err := store.OpenSchema(ctx, url, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(st.Close)
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	sep := "?"
+	if strings.Contains(url, "?") {
+		sep = "&"
+	}
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, store.NewCharacter{AccountID: acc, Slot: 1, Name: "Tanjiro", NameKey: "tanjiro",
+		Class: "viem", MapID: "kumotori_1", X: 5.5, Y: 5.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 16:59:59 UTC is 23:59:59 in Vietnam: one second from the next day.
+	at := time.Date(2030, 3, 14, 16, 59, 59, 0, time.UTC)
+	old := now
+	now = func() time.Time { return at }
+	t.Cleanup(func() { now = old })
+	today := quest.Day(at)
+	vars := map[string]string{"DATABASE_URL": url + sep + "search_path=" + schema, "DATA_DIR": dataDir}
+	devquest := func(args ...string) []store.QuestRow {
+		t.Helper()
+		if err := run(append([]string{"-u", "owner"}, args...), env(vars), &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := st.GetCharacter(ctx, acc, c.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Quests
+	}
+
+	got := devquest("-active", "d_kill", "-progress", "4")
+	if want := []store.QuestRow{{QuestID: "d_kill", State: 1, Progress: 4, Day: today}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("-active d_kill: %+v, want %+v", got, want)
+	}
+	got = devquest("-reset", "-active", "d_kill", "-day-offset", "-1")
+	if want := []store.QuestRow{{QuestID: "d_kill", State: 1, Day: today - 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("-day-offset -1: %+v, want %+v", got, want)
+	}
+	got = devquest("-done", "d_enhance", "-active", "m02", "-day-offset", "2")
+	want := []store.QuestRow{
+		{QuestID: "d_enhance", State: 2, Progress: 3, Day: today + 2},
+		{QuestID: "d_kill", State: 1, Day: today - 1},
+		{QuestID: "m02", State: 1},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("-done d_enhance -active m02: %+v, want %+v", got, want)
 	}
 }
