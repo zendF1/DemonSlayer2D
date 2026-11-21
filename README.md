@@ -128,6 +128,7 @@ go run ./cmd/devitem -u tanjiro -code charm_protect -count 20      # protection 
 go run ./cmd/devitem -u tanjiro -code eq20_armor -quality 2 -holes 3   # three empty holes
 go run ./cmd/devitem -u tanjiro -code gem_hp_3 -count 5           # Ngọc Sinh Lực cấp 3
 go run ./cmd/devitem -u tanjiro -xu 100000
+go run ./cmd/devitem -u tanjiro -luong 5                           # 5 Lượng for the account
 ```
 
 An equipment code adds one piece into the first empty bag slot, with quality
@@ -145,6 +146,20 @@ written. To try the client's Khảm ngọc and Tẩy luyện tabs, give a Vàng 
 better piece, some gems that fit its tier, `stone_refine` and Xu: punching,
 socketing, unsocketing and refining work only in a safe zone, like enhancing. It prints the character's name, the item added and its bag slots,
 and the Xu it now has. Like `devchar`, it needs the character offline.
+
+`-luong N` adds Lượng to the **account** (Lượng and the account stash belong to
+the account, not a character), alone or with the other flags; it needs no
+character and prints the account's new total. There is no top-up gateway yet,
+so this is the only source of Lượng: it buys protection charms in the Lượng
+shop and pays for respawning in place. The stash itself is opened at the
+Thủ kho (storage keeper) of each camp and town: deposit and withdraw whole
+slots, expand from 30 up to 120 slots for Xu.
+
+Because the zone of an online character holds the account's Lượng and stash
+and saves them with the character, **every character of the account must be
+offline** when you use `-luong` (or any `devitem` flag); the server does not
+record who is online, so `devitem` cannot check, and the next save of an online
+character overwrites the change. The tool prints a warning to that effect.
 
 ## Game data
 

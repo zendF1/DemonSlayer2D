@@ -1588,3 +1588,125 @@ func TestShopsOverWebSocket(t *testing.T) {
 		t.Fatalf("arrived %v, want sagiri_1 at (%v, %v) with %d Xu", sag, sagiriDefault.X, sagiriDefault.Y, 9936-fare)
 	}
 }
+
+// ______________________TEST STASH_____________________
+
+// Phase 4c spec 8: one account with two characters. Character 1 (given a
+// sword by devitem and enough Xu) enters at the default point of Kumotori,
+// within reach of the storage keeper, deposits the sword and expands the
+// stash, then leaves. Character 2 opens the stash and sees the sword and 40
+// slots, withdraws it; with 2 Lượng from devitem it buys one protection charm
+// in the Lượng shop (Lượng 0) and is refused a second with NOT_ENOUGH_LUONG.
+// After leaving and entering again its Lượng is still 0 and the stash 40
+// slots. The keeper's id and position come from the loaded maps.
+func TestStashOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keeper mapdata.NPC
+	for _, n := range loaded["kumotori_1"].NPCs {
+		if n.Role == mapdata.RoleStorage {
+			keeper = n
+		}
+	}
+	if keeper.ID == "" {
+		t.Fatal("kumotori_1 has no storage keeper")
+	}
+
+	p := newPlayer(t, s, "stash01", "Khomot", pb.CharClass_CHAR_CLASS_VIEM)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	second, err := p.c.CreateChar(ctx, 2, "Khohai", pb.CharClass_CHAR_CLASS_VIEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sword := store.ItemRow{Slot: 0, Code: "eq10_weapon_viem", Count: 1, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{},
+		Gems: []string{}}
+	if _, err := s.store.DevGiveItem(ctx, "stash01", func([]store.ItemRow) ([]store.ItemRow, error) {
+		return []store.ItemRow{sword}, nil
+	}, 20000); err != nil {
+		t.Fatal(err)
+	}
+
+	// Character 1 enters at the default point, in reach of the keeper.
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := loaded["kumotori_1"].Spawns["default"]; ew.MapId != "kumotori_1" || ew.X != want.X || ew.Y != want.Y {
+		t.Fatalf("entered %v, want the default point of kumotori_1", ew)
+	}
+	dep, err := p.c.StashDeposit(ctx, keeper.ID, 0)
+	if err != nil {
+		t.Fatalf("deposit: %v", err)
+	}
+	if len(dep.Stash) != 1 || dep.Stash[0].GetItem().GetCode() != "eq10_weapon_viem" {
+		t.Fatalf("stash after the deposit %v, want the sword", dep.Stash)
+	}
+	exp, err := p.c.StashExpand(ctx, keeper.ID)
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	if exp.Size != 40 || exp.Stats.GetXu() != 0 {
+		t.Fatalf("expand %v, want 40 slots and 0 Xu", exp)
+	}
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// Lượng for the account, then character 2 (a new character enters at the default point).
+	if total, err := s.store.DevAddLuong(ctx, "stash01", 2); err != nil || total != 2 {
+		t.Fatalf("devitem -luong: %d, %v", total, err)
+	}
+	ew, err = p.c.EnterWorld(ctx, second.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ew.Stats.GetLuong() != 2 {
+		t.Fatalf("entered with %d Lượng, want 2", ew.Stats.GetLuong())
+	}
+	open, err := p.c.StashOpen(ctx, keeper.ID)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if open.Stash.GetSize() != 40 || len(open.Stash.Items) != 1 || open.Stash.Items[0].GetItem().GetCode() != "eq10_weapon_viem" {
+		t.Fatalf("opened %v, want 40 slots holding the sword", open.Stash)
+	}
+	wd, err := p.c.StashWithdraw(ctx, keeper.ID, int(open.Stash.Items[0].Slot))
+	if err != nil {
+		t.Fatalf("withdraw: %v", err)
+	}
+	if len(wd.Stash) != 1 || wd.Stash[0].Item != nil || len(wd.Update.GetBag()) != 1 || wd.Update.Bag[0].GetItem().GetCode() != "eq10_weapon_viem" {
+		t.Fatalf("withdraw %v, want the sword in the bag and its stash slot emptied", wd)
+	}
+
+	// One charm for 2 Lượng; the second is refused.
+	buy, err := p.c.Buy(ctx, "", "luong", "charm_protect", 1)
+	if err != nil {
+		t.Fatalf("buy charm: %v", err)
+	}
+	if buy.Stats.GetLuong() != 0 {
+		t.Fatalf("Lượng %d after the charm, want 0", buy.Stats.GetLuong())
+	}
+	if _, err := p.c.Buy(ctx, "", "luong", "charm_protect", 1); client.Code(err) != pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG {
+		t.Fatalf("second charm: %v, want NOT_ENOUGH_LUONG", err)
+	}
+
+	// Leave and enter again: Lượng stays 0 and the stash 40 slots.
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if ew, err = p.c.EnterWorld(ctx, second.Id); err != nil {
+		t.Fatal(err)
+	}
+	if ew.Stats.GetLuong() != 0 {
+		t.Fatalf("re-entered with %d Lượng, want 0", ew.Stats.GetLuong())
+	}
+	if open, err = p.c.StashOpen(ctx, keeper.ID); err != nil || open.Stash.GetSize() != 40 {
+		t.Fatalf("re-opened %v, %v, want 40 slots", open, err)
+	}
+}

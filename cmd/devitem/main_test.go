@@ -31,6 +31,7 @@ func TestRunRefusesBadFlags(t *testing.T) {
 		{"no user", []string{"-xu", "5"}, "usage"},
 		{"nothing to give", []string{"-u", "a"}, "usage"},
 		{"extra argument", []string{"-u", "a", "-xu", "5", "x"}, "usage"},
+		{"negative luong", []string{"-u", "a", "-luong", "-1"}, "-luong"},
 		{"negative xu", []string{"-u", "a", "-xu", "-1"}, "-xu"},
 		{"zero count", []string{"-u", "a", "-code", "stone_enhance", "-count", "0"}, "-count"},
 		{"unknown code", []string{"-u", "a", "-code", "eq10_sword"}, `unknown item code "eq10_sword"`},
@@ -206,6 +207,41 @@ func TestRunGivesItemsAndXu(t *testing.T) {
 	// A missing account is an error.
 	var out2 bytes.Buffer
 	err = run([]string{"-u", "nobody", "-xu", "1"}, env(map[string]string{"DATA_DIR": dataDir, "DATABASE_URL": url}), &out2)
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing account: %v, want ErrNotFound", err)
+	}
+}
+
+// ______________________TEST DEV LUONG_____________________
+
+// -luong adds to the account, alone (even with no character) or with -xu.
+func TestRunAddsLuong(t *testing.T) {
+	st, url := devDB(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	give := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		err := run(append([]string{"-u", "owner"}, args...), env(map[string]string{"DATA_DIR": dataDir, "DATABASE_URL": url}), &out)
+		return out.String(), err
+	}
+	out, err := give("-luong", "5")
+	if err != nil || !strings.HasPrefix(out, "warning:") || !strings.Contains(out, "5 Lượng") {
+		t.Fatalf("alone: %q, %v", out, err)
+	}
+	c, err := st.CreateCharacter(ctx, store.NewCharacter{AccountID: acc, Slot: 1, Name: "Tanjiro", NameKey: "tanjiro",
+		Class: "viem", MapID: "kumotori_1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err = give("-luong", "2", "-xu", "100"); err != nil || !strings.Contains(out, "100 Xu") || !strings.Contains(out, "7 Lượng") {
+		t.Fatalf("with xu: %q, %v", out, err)
+	}
+	got, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || got.Xu != 100 || got.Account.Luong != 7 {
+		t.Fatalf("stored xu %d account %+v, %v", got.Xu, got.Account, err)
+	}
+	var out2 bytes.Buffer
+	err = run([]string{"-u", "nobody", "-luong", "1"}, env(map[string]string{"DATA_DIR": dataDir, "DATABASE_URL": url}), &out2)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("missing account: %v, want ErrNotFound", err)
 	}

@@ -1,7 +1,7 @@
 // Command devitem gives an account's first character an item or Xu, for
 // development only (phase 3a spec 7):
 //
-//	go run ./cmd/devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-holes H] [-xu N]
+//	go run ./cmd/devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-holes H] [-xu N] [-luong N]
 //
 // It reads the database from DATABASE_URL and the item data from DATA_DIR
 // (default ./data). An equipment code adds one piece of quality -quality
@@ -11,10 +11,13 @@
 // the first empty bag slot; a stackable code (stones, charm_protect, gems
 // such as gem_hp_3) adds -count (default 1) by the bag rules, topping up
 // existing stacks first. A full bag is an error and nothing is written. -xu
-// adds Xu and may be used alone.
+// adds Xu and may be used alone. -luong adds Lượng to the account (not the
+// character, phase 4c spec 7) and may be used alone.
 //
-// The character must be offline: the server does not record who is online,
-// so a running server's next save of the character overwrites the change.
+// The character, and for -luong every character of the account, must be
+// offline: the server does not record who is online, so a running server's
+// next save (the zone owns the account's Lượng and stash) overwrites the
+// change.
 package main
 
 import (
@@ -34,7 +37,7 @@ import (
 	"demonslayer2d/internal/store"
 )
 
-const usage = "usage: devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-holes H] [-xu N]"
+const usage = "usage: devitem -u USER [-code CODE] [-count N] [-quality Q] [-enhance E] [-holes H] [-xu N] [-luong N]"
 
 func main() {
 	if err := run(os.Args[1:], os.Getenv, os.Stdout); err != nil {
@@ -53,14 +56,18 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 	enhance := fs.Int("enhance", 0, "enhance level of a piece of equipment, 0 to 15")
 	holes := fs.Int("holes", 0, "empty holes punched in a piece of equipment, 0 to 3")
 	xu := fs.Int64("xu", 0, "Xu to add")
+	luong := fs.Int64("luong", 0, "Lượng to add to the account")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
 	}
-	if *user == "" || fs.NArg() > 0 || (*code == "" && *xu == 0) {
+	if *user == "" || fs.NArg() > 0 || (*code == "" && *xu == 0 && *luong == 0) {
 		return errors.New(usage)
 	}
 	if *xu < 0 {
 		return fmt.Errorf("-xu %d is negative", *xu)
+	}
+	if *luong < 0 {
+		return fmt.Errorf("-luong %d is negative", *luong)
 	}
 	if *count < 1 {
 		return fmt.Errorf("-count %d is below 1", *count)
@@ -83,9 +90,9 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 		if item, err = newItem(d, *code, *count, *quality, *enhance, *holes); err != nil {
 			return err
 		}
-		return give(getenv, out, *user, d, item, *xu)
+		return give(getenv, out, *user, d, item, *xu, *luong)
 	}
-	return give(getenv, out, *user, nil, nil, *xu)
+	return give(getenv, out, *user, nil, nil, *xu, *luong)
 }
 
 // newItem checks the flags against the item data and makes the item: a
@@ -128,7 +135,7 @@ func newItem(d *gamedata.Items, code string, count, quality, enhance, holes int)
 	return &items.Item{Code: code, Count: count}, nil
 }
 
-func give(getenv func(string) string, out io.Writer, user string, d *gamedata.Items, item *items.Item, xu int64) error {
+func give(getenv func(string) string, out io.Writer, user string, d *gamedata.Items, item *items.Item, xu, luong int64) error {
 	url := getenv("DATABASE_URL")
 	if url == "" {
 		return errors.New("DATABASE_URL is required")
@@ -141,7 +148,7 @@ func give(getenv func(string) string, out io.Writer, user string, d *gamedata.It
 	}
 	defer st.Close()
 
-	fmt.Fprintf(out, "warning: %s's character must be offline; if it is in game, the server's next save overwrites this change\n", user)
+	fmt.Fprintf(out, "warning: %s's characters must be offline; if one is in game, the server's next save overwrites this change\n", user)
 	var (
 		place   func([]store.ItemRow) ([]store.ItemRow, error)
 		changed []int
@@ -153,6 +160,15 @@ func give(getenv func(string) string, out io.Writer, user string, d *gamedata.It
 			return rows, err
 		}
 	}
+	// -luong alone touches only the account, which needs no character.
+	if item == nil && xu == 0 {
+		total, err := st.DevAddLuong(ctx, user, luong)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "%s: %d Lượng\n", user, total)
+		return nil
+	}
 	res, err := st.DevGiveItem(ctx, user, place, xu)
 	if err != nil {
 		return err
@@ -161,6 +177,13 @@ func give(getenv func(string) string, out io.Writer, user string, d *gamedata.It
 		fmt.Fprintf(out, "%s: added %s to bag slot %s\n", res.Name, describe(d, item), joinInts(changed))
 	}
 	fmt.Fprintf(out, "%s: %d Xu\n", res.Name, res.Xu)
+	if luong > 0 {
+		total, err := st.DevAddLuong(ctx, user, luong)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "%s: %d Lượng\n", user, total)
+	}
 	return nil
 }
 

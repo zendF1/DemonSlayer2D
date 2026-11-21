@@ -716,6 +716,35 @@ func TestDevGiveItemErrors(t *testing.T) {
 	}
 }
 
+// ______________________TEST DEV LUONG_____________________
+
+func TestDevAddLuong(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	// The account needs no character.
+	if got, err := st.DevAddLuong(ctx, "owner", 5); err != nil || got != 5 {
+		t.Fatalf("add 5: %d, %v", got, err)
+	}
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.DevAddLuong(ctx, "owner", 2); err != nil || got != 7 {
+		t.Fatalf("add 2: %d, %v", got, err)
+	}
+	loaded, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || loaded.Account.Luong != 7 || loaded.Account.StashSize != 30 {
+		t.Fatalf("stored account %+v, %v", loaded.Account, err)
+	}
+	if _, err := st.DevAddLuong(ctx, "owner", -1); err == nil {
+		t.Fatal("negative Lượng: no error")
+	}
+	if _, err := st.DevAddLuong(ctx, "nobody", 5); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing account: %v, want ErrNotFound", err)
+	}
+}
+
 // ______________________TEST DEV PLACE_____________________
 
 func TestDevSetPlace(t *testing.T) {

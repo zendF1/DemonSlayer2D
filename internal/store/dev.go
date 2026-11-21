@@ -153,3 +153,24 @@ func (s *Store) DevGiveItem(ctx context.Context, username string, place func(row
 	}
 	return res, nil
 }
+
+// DevAddLuong adds n (0 or more) Lượng to the account username, for
+// development only (phase 4c spec 7), and returns the new total. Lượng
+// belongs to the account, so no character is needed. Every character of the
+// account must be offline: the zone of an online one holds the account's
+// Lượng and its next save overwrites the change.
+func (s *Store) DevAddLuong(ctx context.Context, username string, n int64) (int64, error) {
+	if n < 0 {
+		return 0, fmt.Errorf("store: dev add luong: %d is negative", n)
+	}
+	var total int64
+	err := s.pool.QueryRow(ctx, `UPDATE accounts SET luong = luong + $2 WHERE username = $1 RETURNING luong`,
+		username, n).Scan(&total)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("store: dev add luong: no account %q: %w", username, ErrNotFound)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: dev add luong: %w", err)
+	}
+	return total, nil
+}
