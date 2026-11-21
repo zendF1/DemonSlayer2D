@@ -1,4 +1,5 @@
-"""Generate the main-line quests (data/quests.json), phase 6b spec 2.
+"""Generate the quests (data/quests.json): the main line (phase 6b spec 2)
+and the daily quests (phase 6d spec 2).
 
 Run from any directory: python3 docs/balance/quest_data.py
 Add --write-json to write data/quests.json, --print-json to print the same
@@ -13,6 +14,11 @@ and n = count:
 - xu = 8 * L * n for kill/collect, 40 * L for talk.
 The region of a kill/collect objective is looked up in maps/*.json by the
 monster and the level range. Rerun after changing exp.json or the maps.
+
+Daily quests (6d spec 2) come after the main line, from level 10, given and
+turned in at qua_truyen_tin. Their EXP and Xu scale with the level at turn-in:
+exp = round10(T(level) * exp_pct / 100), xu = xu_per_level * level; the
+fixed exp, xu and skill_book are 0 and equipment is empty.
 """
 
 import argparse
@@ -29,6 +35,9 @@ CH = ("ubuyashiki", "chi_huy")
 TL = ("sagiri_1", "truong_lang")
 TS = ("sagiri_2", "trinh_sat")
 GK = ("fujikasane_1", "giam_khao")
+QUA = ("ubuyashiki", "qua_truyen_tin")
+DAILY_MIN_LEVEL = 10
+DAILY_EXP_LEVELS = (10, 30, 50)
 
 POTION_HP_1 = {"code": "potion_hp_1", "count": 5}
 SCROLLS = {"code": "scroll_return", "count": 2}
@@ -165,6 +174,28 @@ QUESTS = [
      {"skill_book": 5}),
 ]
 
+# (id, name, objective, text, exp_pct, xu_per_level, items); objective is
+# ("kill_any", count), ("collect_any", count, chance_bp, item_name) or
+# ("enhance", count).
+DAILY = [
+    ("d_kill", "Lệnh diệt quỷ", ("kill_any", 40),
+     ("Lệnh của Sát Quỷ Đoàn hôm nay: hạ bốn mươi con quỷ ngang sức cậu.",
+      "Còn quỷ ngoài kia, hãy tìm những con ngang sức cậu.",
+      "Bốn mươi con quỷ đã ngã xuống. Ta sẽ báo về Tổng hành dinh."),
+     5, 80, []),
+    ("d_collect", "Huyết quỷ", ("collect_any", 20, 4000, "Huyết quỷ"),
+     ("Thầy lang cần huyết quỷ để nghiên cứu. Thu về hai mươi lọ từ quỷ ngang sức cậu.",
+      "Chưa đủ huyết quỷ, hãy tìm thêm.",
+      "Đủ hai mươi lọ huyết quỷ rồi. Cảm ơn cậu."),
+     5, 80, []),
+    ("d_enhance", "Rèn luyện", ("enhance", 3),
+     ("Kiếm sắc thì người mới mạnh. Hãy nhờ Thợ rèn cường hóa ba lần.",
+      "Thợ rèn đang đợi cậu ở lò rèn.",
+      "Vũ khí của cậu đã được rèn giũa. Đây là đá cho lần sau."),
+     0, 40, [{"code": "stone_enhance", "count": 5}]),
+]
+DAILY_OBJECTIVES = ("kill_any", "collect_any", "enhance")
+
 
 def load_exp():
     return json.loads((ROOT / "data" / "exp.json").read_text(encoding="utf-8"))["exp_to_next"]
@@ -216,11 +247,32 @@ def build():
             "objective": objective,
             "text": {"offer": text[0], "progress": text[1], "done": text[2]},
             "reward": {"exp": (exp[level - 1] * p + 500) // 1000 * 10, "xu": xu,
+                       "exp_pct": 0, "xu_per_level": 0,
                        "items": extra.get("items", []), "equipment": extra.get("equipment", []),
                        "skill_book": extra.get("skill_book", 0)},
         })
         prev = qid
+    for qid, name, obj, text, exp_pct, xu_per_level, items in DAILY:
+        objective = {"type": obj[0], "count": obj[1]}
+        if obj[0] == "collect_any":
+            objective["chance_bp"] = obj[2]
+            objective["item_name"] = obj[3]
+        quests.append({
+            "id": qid, "line": "daily", "name": name, "min_level": DAILY_MIN_LEVEL, "requires": "",
+            "giver": npc_ref(QUA), "turn_in": npc_ref(QUA),
+            "objective": objective,
+            "text": {"offer": text[0], "progress": text[1], "done": text[2]},
+            "reward": {"exp": 0, "xu": 0, "exp_pct": exp_pct, "xu_per_level": xu_per_level,
+                       "items": items, "equipment": [], "skill_book": 0},
+        })
     return {"quests": quests}
+
+
+def daily_exp(pct, level):
+    """The EXP a daily quest with exp_pct pct pays at level (0 at the top)."""
+    exp = load_exp()
+    t = exp[level - 1] if level <= len(exp) else 0
+    return (t * pct + 500) // 1000 * 10
 
 
 def exp_share(data):
@@ -231,14 +283,29 @@ def exp_share(data):
 
 def check(data):
     quests = data["quests"]
-    assert len(quests) == 25, len(quests)
+    assert len(quests) == 28, len(quests)
     ids = [q["id"] for q in quests]
-    assert ids == [f"m{i:02d}" for i in range(1, 26)], ids
+    assert ids == [f"m{i:02d}" for i in range(1, 26)] + ["d_kill", "d_collect", "d_enhance"], ids
+    for q in quests[25:]:
+        r, o = q["reward"], q["objective"]
+        assert q["line"] == "daily" and q["requires"] == "" and q["min_level"] == DAILY_MIN_LEVEL, q["id"]
+        assert q["giver"] == q["turn_in"] == npc_ref(QUA), q["id"]
+        assert all(q["text"].values()), q["id"]
+        assert o["type"] in DAILY_OBJECTIVES and 1 <= o["count"] <= 999, q["id"]
+        assert not {"monster", "map", "region"} & o.keys(), q["id"]
+        if o["type"] == "collect_any":
+            assert 1 <= o["chance_bp"] <= 10000 and o["item_name"], q["id"]
+        assert r["exp"] == r["xu"] == r["skill_book"] == 0 and r["equipment"] == [], q["id"]
+        assert 0 <= r["exp_pct"] <= 100 and r["xu_per_level"] >= 0, q["id"]
+        assert r["exp_pct"] > 0 or r["xu_per_level"] > 0 or r["items"], q["id"]
+    quests = quests[:25]
     for i, q in enumerate(quests):
         want = ids[i - 1] if 0 < i < LAST_CHAIN else ""
         assert q["requires"] == want, q["id"]
         assert all(q["text"].values()), q["id"]
+        assert q["line"] == "main" and q["objective"]["type"] not in DAILY_OBJECTIVES, q["id"]
         assert q["reward"]["exp"] > 0 and q["reward"]["xu"] > 0, q["id"]
+        assert q["reward"]["exp_pct"] == q["reward"]["xu_per_level"] == 0, q["id"]
     books = [q["reward"]["skill_book"] for q in quests if q["reward"]["skill_book"]]
     assert books == [1, 2, 3, 4, 5], books
     got, total = exp_share(data)
@@ -269,6 +336,9 @@ def main():
             sys.exit(f"{path} differs from this script's output; run --write-json")
     got, total = exp_share(data)
     print(f"m01-m{LAST_CHAIN}: {got:,} of {total:,} EXP from level 1 to 20 ({pct:.1f}%)")
+    for qid, _, _, _, exp_pct, xu_per_level, _ in DAILY:
+        paid = ", ".join(f"L{lv} {daily_exp(exp_pct, lv):,} EXP {xu_per_level * lv:,} Xu" for lv in DAILY_EXP_LEVELS)
+        print(f"{qid}: {paid}")
     if args.write_json:
         path = ROOT / "data" / "quests.json"
         path.write_bytes(text.encode("utf-8"))

@@ -8,13 +8,19 @@ import (
 	"demonslayer2d/internal/mapdata"
 )
 
-// Quest lines and objective types (phase 6b spec 2.1). 6d adds the daily line.
+// Quest lines and objective types (phase 6b spec 2.1). 6d adds the daily
+// line and its objective types (6d spec 2).
 const (
-	LineMain = "main"
+	LineMain  = "main"
+	LineDaily = "daily"
 
 	ObjKill    = "kill"
 	ObjCollect = "collect"
 	ObjTalk    = "talk"
+
+	ObjKillAny    = "kill_any"
+	ObjCollectAny = "collect_any"
+	ObjEnhance    = "enhance"
 )
 
 // Limits of quests.json (spec 2.6).
@@ -22,6 +28,7 @@ const (
 	maxQuestLevel = 90
 	maxQuestCount = 999
 	maxSkillBook  = 5
+	maxExpPct     = 100
 	// BookPrefix starts the code of every skill book: book_<skill id>.
 	BookPrefix = "book_"
 )
@@ -34,7 +41,9 @@ type NPCRef struct {
 
 // Objective is what a quest asks for. kill and collect name a monster, a
 // count and the region (of Map) to walk to; collect adds the chance of a
-// quest item per kill and its name; talk has no other field.
+// quest item per kill and its name; talk has no other field. The daily types
+// kill_any, collect_any and enhance name no monster, map or region; collect_any
+// has the chance and item name of collect.
 type Objective struct {
 	Type     string `json:"type"`
 	Monster  string `json:"monster,omitempty"`
@@ -74,13 +83,17 @@ type EquipReward struct {
 }
 
 // QuestReward is what turning a quest in pays. SkillBook is 0 for none or
-// the class skill slot 1-5 whose book is paid (book_<class>_<n>).
+// the class skill slot 1-5 whose book is paid (book_<class>_<n>). ExpPct and
+// XuPerLevel scale a daily reward with the level at turn-in (6d spec 2); a
+// main quest has them 0, a daily quest has Exp, Xu and SkillBook 0.
 type QuestReward struct {
-	Exp       int64         `json:"exp"`
-	Xu        int64         `json:"xu"`
-	Items     []StackReward `json:"items"`
-	Equipment []EquipReward `json:"equipment"`
-	SkillBook int           `json:"skill_book"`
+	Exp        int64         `json:"exp"`
+	Xu         int64         `json:"xu"`
+	ExpPct     int           `json:"exp_pct"`
+	XuPerLevel int64         `json:"xu_per_level"`
+	Items      []StackReward `json:"items"`
+	Equipment  []EquipReward `json:"equipment"`
+	SkillBook  int           `json:"skill_book"`
 }
 
 // Quest is one entry of quests.json.
@@ -128,14 +141,17 @@ func (d *Data) ParseQuests(b []byte) error {
 }
 
 func (d *Data) checkQuest(q *Quest, earlier map[string]*Quest) error {
-	if q.Line != LineMain {
-		return fmt.Errorf("line %q must be %q", q.Line, LineMain)
+	if q.Line != LineMain && q.Line != LineDaily {
+		return fmt.Errorf("line %q must be %q or %q", q.Line, LineMain, LineDaily)
 	}
 	if q.Name == "" {
 		return fmt.Errorf("name is empty")
 	}
 	if q.MinLevel < 1 || q.MinLevel > maxQuestLevel {
 		return fmt.Errorf("min_level %d must be in 1-%d", q.MinLevel, maxQuestLevel)
+	}
+	if q.Requires != "" && q.Line == LineDaily {
+		return fmt.Errorf("a daily quest must not require another quest")
 	}
 	if q.Requires != "" {
 		if r, ok := earlier[q.Requires]; !ok || r.Line != LineMain {
@@ -147,10 +163,48 @@ func (d *Data) checkQuest(q *Quest, earlier map[string]*Quest) error {
 			return fmt.Errorf("text %s is empty", name)
 		}
 	}
-	if err := d.checkObjective(q.Objective); err != nil {
+	if q.Line == LineDaily {
+		if err := checkDailyObjective(q.Objective); err != nil {
+			return err
+		}
+	} else if err := d.checkObjective(q.Objective); err != nil {
 		return err
 	}
-	return d.checkReward(q.Reward)
+	return d.checkReward(q.Line, q.Reward)
+}
+
+// checkDailyObjective checks a kill_any, collect_any or enhance objective.
+func checkDailyObjective(o Objective) error {
+	switch o.Type {
+	case ObjKillAny, ObjCollectAny, ObjEnhance:
+	default:
+		return fmt.Errorf("objective type %q must be kill_any, collect_any or enhance", o.Type)
+	}
+	if o.Monster != "" || o.Map != "" || o.Region != "" {
+		return fmt.Errorf("objective %s names no monster, map or region", o.Type)
+	}
+	if o.Count < 1 || o.Count > maxQuestCount {
+		return fmt.Errorf("count %d must be in 1-%d", o.Count, maxQuestCount)
+	}
+	return checkChance(o, o.Type == ObjCollectAny)
+}
+
+// checkChance checks chance_bp and item_name: set for a collect type, unset
+// otherwise.
+func checkChance(o Objective, collect bool) error {
+	if !collect {
+		if o.ChanceBP != 0 || o.ItemName != "" {
+			return fmt.Errorf("chance_bp and item_name are for collect and collect_any only")
+		}
+		return nil
+	}
+	if o.ChanceBP < 1 || o.ChanceBP > 10000 {
+		return fmt.Errorf("chance_bp %d must be in 1-10000", o.ChanceBP)
+	}
+	if o.ItemName == "" {
+		return fmt.Errorf("item_name is empty")
+	}
+	return nil
 }
 
 func (d *Data) checkObjective(o Objective) error {
@@ -173,22 +227,22 @@ func (d *Data) checkObjective(o Objective) error {
 	if o.Map == "" || o.Region == "" {
 		return fmt.Errorf("objective needs map and region")
 	}
-	if o.Type == ObjKill {
-		if o.ChanceBP != 0 || o.ItemName != "" {
-			return fmt.Errorf("chance_bp and item_name are for collect only")
-		}
-		return nil
-	}
-	if o.ChanceBP < 1 || o.ChanceBP > 10000 {
-		return fmt.Errorf("chance_bp %d must be in 1-10000", o.ChanceBP)
-	}
-	if o.ItemName == "" {
-		return fmt.Errorf("item_name is empty")
-	}
-	return nil
+	return checkChance(o, o.Type == ObjCollect)
 }
 
-func (d *Data) checkReward(r QuestReward) error {
+func (d *Data) checkReward(line string, r QuestReward) error {
+	if r.ExpPct < 0 || r.ExpPct > maxExpPct {
+		return fmt.Errorf("reward exp_pct %d must be in 0-%d", r.ExpPct, maxExpPct)
+	}
+	if r.XuPerLevel < 0 {
+		return fmt.Errorf("reward xu_per_level %d must not be negative", r.XuPerLevel)
+	}
+	if line == LineMain && (r.ExpPct != 0 || r.XuPerLevel != 0) {
+		return fmt.Errorf("exp_pct and xu_per_level are for daily quests only")
+	}
+	if line == LineDaily && (r.Exp != 0 || r.Xu != 0 || r.SkillBook != 0 || len(r.Equipment) != 0) {
+		return fmt.Errorf("a daily reward has no exp, xu, equipment or skill_book")
+	}
 	if r.Exp < 0 {
 		return fmt.Errorf("reward exp %d must not be negative", r.Exp)
 	}
@@ -237,7 +291,7 @@ func (d *Data) validateQuests(maps map[string]*mapdata.Map) error {
 	}
 	for i := range d.Quests {
 		q := &d.Quests[i]
-		if o := q.Objective; o.Type != ObjTalk {
+		if o := q.Objective; o.Type == ObjKill || o.Type == ObjCollect {
 			m, ok := maps[o.Map]
 			if !ok {
 				return fmt.Errorf("gamedata: quest %q: unknown map %q", q.ID, o.Map)

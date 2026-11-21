@@ -1660,13 +1660,41 @@ func TestRepoQuests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Quests) != 25 || len(d.QuestByID) != 25 {
+	if len(d.Quests) != 28 || len(d.QuestByID) != 28 {
 		t.Fatalf("%d quests, %d by id", len(d.Quests), len(d.QuestByID))
 	}
 	for i, q := range d.Quests {
-		if d.QuestByID[q.ID] != &d.Quests[i] || q.Line != "main" {
+		line := LineMain
+		if i >= 25 {
+			line = LineDaily
+		}
+		if d.QuestByID[q.ID] != &d.Quests[i] || q.Line != line {
 			t.Fatalf("quest %d %q: index or line wrong", i, q.ID)
 		}
+	}
+	qua := NPCRef{Map: "ubuyashiki", NPC: "qua_truyen_tin"}
+	for _, id := range []string{"d_kill", "d_collect", "d_enhance"} {
+		q := d.QuestByID[id]
+		if q.MinLevel != 10 || q.Requires != "" || q.Giver != qua || q.TurnIn != qua ||
+			q.Reward.Exp != 0 || q.Reward.Xu != 0 || q.Reward.SkillBook != 0 || len(q.Reward.Equipment) != 0 {
+			t.Fatalf("%s = %+v", id, q)
+		}
+	}
+	if q := d.QuestByID["d_kill"]; q.Objective != (Objective{Type: ObjKillAny, Count: 40}) ||
+		q.Reward.ExpPct != 5 || q.Reward.XuPerLevel != 80 || len(q.Reward.Items) != 0 {
+		t.Fatalf("d_kill = %+v", q)
+	}
+	if q := d.QuestByID["d_collect"]; q.Objective != (Objective{Type: ObjCollectAny, Count: 20, ChanceBP: 4000, ItemName: "Huyết quỷ"}) ||
+		q.Reward.ExpPct != 5 || q.Reward.XuPerLevel != 80 || q.Objective.Need() != 20 {
+		t.Fatalf("d_collect = %+v", q)
+	}
+	if q := d.QuestByID["d_enhance"]; q.Objective != (Objective{Type: ObjEnhance, Count: 3}) ||
+		q.Reward.ExpPct != 0 || q.Reward.XuPerLevel != 40 ||
+		len(q.Reward.Items) != 1 || q.Reward.Items[0] != (StackReward{Code: "stone_enhance", Count: 5}) {
+		t.Fatalf("d_enhance = %+v", q)
+	}
+	if q := d.QuestByID["m01"]; q.Reward.ExpPct != 0 || q.Reward.XuPerLevel != 0 {
+		t.Fatalf("m01 reward = %+v", q.Reward)
 	}
 	q := d.QuestByID["m02"]
 	if q.Requires != "m01" || q.Objective.Type != ObjCollect || q.Objective.Need() != 6 || q.Objective.ChanceBP != 5000 ||
@@ -1788,7 +1816,30 @@ func TestParseQuestsRejects(t *testing.T) {
 		{"unknown objective field", set(0, "objective", "extra", 1), "unknown field"},
 		{"duplicate id", set(1, "id", "m01"), `quest "m01": duplicate id`},
 		{"empty id", set(1, "id", ""), "quest with empty id"},
-		{"bad line", set(1, "line", "daily"), `quest "m02": line "daily"`},
+		{"bad line", set(1, "line", "weekly"), `quest "m02": line "weekly"`},
+		{"main with a daily objective", set(0, "objective", obj{"type": "kill_any", "count": 5}), `quest "m01": objective type "kill_any" must be kill, collect or talk`},
+		{"main with exp pct", set(0, "reward", "exp_pct", 5), `quest "m01": exp_pct and xu_per_level are for daily quests only`},
+		{"main with xu per level", set(0, "reward", "xu_per_level", 5), `quest "m01": exp_pct and xu_per_level are for daily quests only`},
+		{"daily requires", set(25, "requires", "m01"), `quest "d_kill": a daily quest must not require another quest`},
+		{"daily with kill", set(25, "objective", obj{"type": "kill", "monster": "wanderer", "count": 5, "map": "kumotori_1", "region": "r1"}),
+			`quest "d_kill": objective type "kill" must be kill_any, collect_any or enhance`},
+		{"daily with talk", set(25, "objective", obj{"type": "talk"}), `quest "d_kill": objective type "talk" must be kill_any, collect_any or enhance`},
+		{"kill_any with monster", set(25, "objective", "monster", "wanderer"), `quest "d_kill": objective kill_any names no monster, map or region`},
+		{"enhance with region", set(27, "objective", "region", "r1"), `quest "d_enhance": objective enhance names no monster, map or region`},
+		{"kill_any count 0", set(25, "objective", "count", 0), `quest "d_kill": count 0`},
+		{"enhance count 1000", set(27, "objective", "count", 1000), `quest "d_enhance": count 1000`},
+		{"kill_any with chance", set(25, "objective", "chance_bp", 100), `quest "d_kill": chance_bp and item_name are for collect and collect_any only`},
+		{"enhance with item name", set(27, "objective", "item_name", "x"), `quest "d_enhance": chance_bp and item_name are for collect and collect_any only`},
+		{"collect_any without item name", del(26, "objective", "item_name"), `quest "d_collect": item_name is empty`},
+		{"collect_any chance 0", del(26, "objective", "chance_bp"), `quest "d_collect": chance_bp 0`},
+		{"collect_any chance 10001", set(26, "objective", "chance_bp", 10001), `quest "d_collect": chance_bp 10001`},
+		{"daily with exp", set(25, "reward", "exp", 100), `quest "d_kill": a daily reward has no exp, xu, equipment or skill_book`},
+		{"daily with xu", set(25, "reward", "xu", 100), `quest "d_kill": a daily reward has no exp, xu, equipment or skill_book`},
+		{"daily with a skill book", set(25, "reward", "skill_book", 1), `quest "d_kill": a daily reward has no exp, xu, equipment or skill_book`},
+		{"daily with equipment", set(25, "reward", "equipment", []any{obj{"tier": 10, "slot": "weapon"}}), `quest "d_kill": a daily reward has no exp, xu, equipment or skill_book`},
+		{"exp pct 101", set(25, "reward", "exp_pct", 101), `quest "d_kill": reward exp_pct 101 must be in 0-100`},
+		{"exp pct -1", set(25, "reward", "exp_pct", -1), `quest "d_kill": reward exp_pct -1 must be in 0-100`},
+		{"xu per level -1", set(25, "reward", "xu_per_level", -1), `quest "d_kill": reward xu_per_level -1 must not be negative`},
 		{"empty name", set(1, "name", ""), `quest "m02": name is empty`},
 		{"requires a later quest", set(1, "requires", "m03"), `quest "m02": requires "m03"`},
 		{"requires an unknown quest", set(1, "requires", "zz"), `quest "m02": requires "zz"`},

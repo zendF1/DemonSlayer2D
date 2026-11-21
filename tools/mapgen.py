@@ -12,7 +12,8 @@ training map an apothecary and a carriage. A carriage has a route to every
 other map, 50 Xu to the town, otherwise max(50, 20 x the target's lowest region
 min_level). Before writing, the script checks the NPCs in safe zones, reachable
 and 1.5 tiles apart. Phase 6b (spec 2.5) adds the role "quest": one quest npc
-per map, 2-4 tiles from default, no shop and no routes.
+per map, 2-4 tiles from default, no shop and no routes. Phase 6d (spec 2) adds
+a second quest npc to the town, qua_truyen_tin, who gives the daily quests.
 
 Rules (phase 4a spec 2.1-2.3): each map is declared with its size, wall
 rectangles (inside the border wall), safe zones, rest points, spawn points,
@@ -39,9 +40,10 @@ TYPES = ("town", "training", "battle", "instance")
 ARRIVAL_MIN_DISTANCE = 2  # tiles from every portal of the arrival's map
 ROLES = ("shop", "blacksmith", "carriage", "storage", "quest")
 STORAGE_MAX_DEFAULT_DISTANCE = 3.0  # phase 4c spec 2.2
-# Phase 6b spec 2.5: each map has one quest npc 2-4 tiles from default.
-QUEST_NPCS = {"kumotori_1": "tho_san", "ubuyashiki": "chi_huy", "sagiri_1": "truong_lang",
-              "sagiri_2": "trinh_sat", "fujikasane_1": "giam_khao"}
+# Phase 6b spec 2.5: each map has one quest npc 2-4 tiles from default; 6d
+# adds qua_truyen_tin (daily quests) to the town.
+QUEST_NPCS = {"kumotori_1": ["tho_san"], "ubuyashiki": ["chi_huy", "qua_truyen_tin"],
+              "sagiri_1": ["truong_lang"], "sagiri_2": ["trinh_sat"], "fujikasane_1": ["giam_khao"]}
 QUEST_DEFAULT_DISTANCE = (2.0, 4.0)
 NPC_MIN_DISTANCE = 1.5  # tiles between two NPCs of a map
 MIN_FARE = 50  # Xu; a trip to a map costs 20 x its lowest region level, at least this
@@ -134,6 +136,7 @@ MAPS = [
             npc("xa_phu", "Xa phu", "carriage", 20.5, 19.5),
             npc("thu_kho", "Thủ kho", "storage", 20.5, 14.5),
             npc("chi_huy", "Chỉ huy Sát Quỷ Đoàn", "quest", 18.5, 19.5),
+            npc("qua_truyen_tin", "Quạ truyền tin", "quest", 22.5, 19.5),
             portal("west", "kumotori_1"),
             portal("east", "sagiri_1"),
         ],
@@ -487,8 +490,8 @@ def check_map(m):
         if d > STORAGE_MAX_DEFAULT_DISTANCE:
             err(f"npc {n['id']} is {d:.2f} tiles from default, more than {STORAGE_MAX_DEFAULT_DISTANCE}")
     quest_ids = sorted(n["id"] for n in m["npcs"] if n["role"] == "quest")
-    if quest_ids != [QUEST_NPCS[m["id"]]]:
-        err(f"the map needs exactly one quest npc {QUEST_NPCS[m['id']]}, has {quest_ids}")
+    if quest_ids != sorted(QUEST_NPCS[m["id"]]):
+        err(f"the map needs exactly the quest npcs {QUEST_NPCS[m['id']]}, has {quest_ids}")
     for n in m["npcs"]:
         if n["role"] == "quest":
             d = math.hypot(n["x"] - spawns["default"]["x"], n["y"] - spawns["default"]["y"])

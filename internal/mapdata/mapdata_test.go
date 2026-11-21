@@ -867,8 +867,8 @@ func TestRepoMapsNPCs(t *testing.T) {
 	}
 	price := map[string]int64{"ubuyashiki": 50, "kumotori_1": 50, "sagiri_1": 120, "sagiri_2": 220, "fujikasane_1": 320}
 	town := loaded["ubuyashiki"]
-	if len(town.NPCs) != 5 {
-		t.Fatalf("ubuyashiki npcs %+v, want 5", town.NPCs)
+	if len(town.NPCs) != 6 { // 6d adds qua_truyen_tin
+		t.Fatalf("ubuyashiki npcs %+v, want 6", town.NPCs)
 	}
 	if n, ok := town.NPC("tap_hoa"); !ok || n.Role != RoleShop || n.Shop != "general" || n.Name != "Tạp hóa" {
 		t.Errorf("tap_hoa = %+v, %v", n, ok)
@@ -997,14 +997,14 @@ func TestRepoMapsQuestNPCs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]struct {
-		id, name string
-	}{
-		"kumotori_1":   {"tho_san", "Thợ săn già"},
-		"ubuyashiki":   {"chi_huy", "Chỉ huy Sát Quỷ Đoàn"},
-		"sagiri_1":     {"truong_lang", "Trưởng làng Sagiri"},
-		"sagiri_2":     {"trinh_sat", "Kiếm sĩ trinh sát"},
-		"fujikasane_1": {"giam_khao", "Giám khảo tuyển chọn"},
+	type want struct{ id, name string }
+	wants := map[string][]want{
+		"kumotori_1": {{"tho_san", "Thợ săn già"}},
+		// Phase 6d spec 2: the town also has the daily quest giver.
+		"ubuyashiki":   {{"chi_huy", "Chỉ huy Sát Quỷ Đoàn"}, {"qua_truyen_tin", "Quạ truyền tin"}},
+		"sagiri_1":     {{"truong_lang", "Trưởng làng Sagiri"}},
+		"sagiri_2":     {{"trinh_sat", "Kiếm sĩ trinh sát"}},
+		"fujikasane_1": {{"giam_khao", "Giám khảo tuyển chọn"}},
 	}
 	for id, m := range loaded {
 		var quests []NPC
@@ -1013,14 +1013,21 @@ func TestRepoMapsQuestNPCs(t *testing.T) {
 				quests = append(quests, n)
 			}
 		}
-		w := want[id]
-		if len(quests) != 1 || quests[0].ID != w.id || quests[0].Name != w.name || quests[0].Shop != "" || len(quests[0].Routes) != 0 {
-			t.Errorf("%s: quest npcs %+v, want %s %q", id, quests, w.id, w.name)
+		ws := wants[id]
+		if len(quests) != len(ws) {
+			t.Errorf("%s: quest npcs %+v, want %v", id, quests, ws)
 			continue
 		}
 		def := m.Spawns["default"]
-		if d := math.Hypot(float64(quests[0].Pos.X-def.X), float64(quests[0].Pos.Y-def.Y)); d < 2 || d > 4 {
-			t.Errorf("%s: %s %.2f tiles from default", id, w.id, d)
+		for i, w := range ws {
+			q := quests[i]
+			if q.ID != w.id || q.Name != w.name || q.Shop != "" || len(q.Routes) != 0 {
+				t.Errorf("%s: quest npc %+v, want %s %q", id, q, w.id, w.name)
+				continue
+			}
+			if d := math.Hypot(float64(q.Pos.X-def.X), float64(q.Pos.Y-def.Y)); d < 2 || d > 4 {
+				t.Errorf("%s: %s %.2f tiles from default", id, w.id, d)
+			}
 		}
 	}
 	if n, _ := loaded["kumotori_1"].NPC("tho_san"); n.Pos != (Point{5.5, 8.5}) {

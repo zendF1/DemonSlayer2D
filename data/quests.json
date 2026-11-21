@@ -29,6 +29,8 @@
       "reward": {
         "exp": 20,
         "xu": 40,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [
           {
             "code": "potion_hp_1",
@@ -70,6 +72,8 @@
       "reward": {
         "exp": 70,
         "xu": 96,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -104,6 +108,8 @@
       "reward": {
         "exp": 240,
         "xu": 192,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -140,6 +146,8 @@
       "reward": {
         "exp": 610,
         "xu": 192,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [
           {
             "code": "potion_hp_1",
@@ -175,6 +183,8 @@
       "reward": {
         "exp": 620,
         "xu": 200,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [
           {
             "code": "scroll_return",
@@ -210,6 +220,8 @@
       "reward": {
         "exp": 1220,
         "xu": 240,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -244,6 +256,8 @@
       "reward": {
         "exp": 2430,
         "xu": 480,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -280,6 +294,8 @@
       "reward": {
         "exp": 4340,
         "xu": 448,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -314,6 +330,8 @@
       "reward": {
         "exp": 7130,
         "xu": 640,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -350,6 +368,8 @@
       "reward": {
         "exp": 11270,
         "xu": 576,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -380,6 +400,8 @@
       "reward": {
         "exp": 9150,
         "xu": 400,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [
           {
             "code": "potion_hp_10",
@@ -424,6 +446,8 @@
       "reward": {
         "exp": 13460,
         "xu": 440,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -458,6 +482,8 @@
       "reward": {
         "exp": 26920,
         "xu": 1056,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -494,6 +520,8 @@
       "reward": {
         "exp": 39970,
         "xu": 960,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -528,6 +556,8 @@
       "reward": {
         "exp": 57410,
         "xu": 1248,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -564,6 +594,8 @@
       "reward": {
         "exp": 80170,
         "xu": 1120,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -594,6 +626,8 @@
       "reward": {
         "exp": 55950,
         "xu": 600,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [
           {
             "code": "scroll_return",
@@ -633,6 +667,8 @@
       "reward": {
         "exp": 149280,
         "xu": 1920,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -669,6 +705,8 @@
       "reward": {
         "exp": 197480,
         "xu": 1632,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -703,6 +741,8 @@
       "reward": {
         "exp": 255680,
         "xu": 2160,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -739,6 +779,8 @@
       "reward": {
         "exp": 326580,
         "xu": 1824,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 0
@@ -769,6 +811,8 @@
       "reward": {
         "exp": 206550,
         "xu": 800,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [
           {
             "code": "potion_hp_10",
@@ -813,6 +857,8 @@
       "reward": {
         "exp": 1090150,
         "xu": 1200,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 3
@@ -843,6 +889,8 @@
       "reward": {
         "exp": 3800410,
         "xu": 1600,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 4
@@ -873,9 +921,117 @@
       "reward": {
         "exp": 10358570,
         "xu": 2000,
+        "exp_pct": 0,
+        "xu_per_level": 0,
         "items": [],
         "equipment": [],
         "skill_book": 5
+      }
+    },
+    {
+      "id": "d_kill",
+      "line": "daily",
+      "name": "Lệnh diệt quỷ",
+      "min_level": 10,
+      "requires": "",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "qua_truyen_tin"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "qua_truyen_tin"
+      },
+      "objective": {
+        "type": "kill_any",
+        "count": 40
+      },
+      "text": {
+        "offer": "Lệnh của Sát Quỷ Đoàn hôm nay: hạ bốn mươi con quỷ ngang sức cậu.",
+        "progress": "Còn quỷ ngoài kia, hãy tìm những con ngang sức cậu.",
+        "done": "Bốn mươi con quỷ đã ngã xuống. Ta sẽ báo về Tổng hành dinh."
+      },
+      "reward": {
+        "exp": 0,
+        "xu": 0,
+        "exp_pct": 5,
+        "xu_per_level": 80,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "d_collect",
+      "line": "daily",
+      "name": "Huyết quỷ",
+      "min_level": 10,
+      "requires": "",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "qua_truyen_tin"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "qua_truyen_tin"
+      },
+      "objective": {
+        "type": "collect_any",
+        "count": 20,
+        "chance_bp": 4000,
+        "item_name": "Huyết quỷ"
+      },
+      "text": {
+        "offer": "Thầy lang cần huyết quỷ để nghiên cứu. Thu về hai mươi lọ từ quỷ ngang sức cậu.",
+        "progress": "Chưa đủ huyết quỷ, hãy tìm thêm.",
+        "done": "Đủ hai mươi lọ huyết quỷ rồi. Cảm ơn cậu."
+      },
+      "reward": {
+        "exp": 0,
+        "xu": 0,
+        "exp_pct": 5,
+        "xu_per_level": 80,
+        "items": [],
+        "equipment": [],
+        "skill_book": 0
+      }
+    },
+    {
+      "id": "d_enhance",
+      "line": "daily",
+      "name": "Rèn luyện",
+      "min_level": 10,
+      "requires": "",
+      "giver": {
+        "map": "ubuyashiki",
+        "npc": "qua_truyen_tin"
+      },
+      "turn_in": {
+        "map": "ubuyashiki",
+        "npc": "qua_truyen_tin"
+      },
+      "objective": {
+        "type": "enhance",
+        "count": 3
+      },
+      "text": {
+        "offer": "Kiếm sắc thì người mới mạnh. Hãy nhờ Thợ rèn cường hóa ba lần.",
+        "progress": "Thợ rèn đang đợi cậu ở lò rèn.",
+        "done": "Vũ khí của cậu đã được rèn giũa. Đây là đá cho lần sau."
+      },
+      "reward": {
+        "exp": 0,
+        "xu": 0,
+        "exp_pct": 0,
+        "xu_per_level": 40,
+        "items": [
+          {
+            "code": "stone_enhance",
+            "count": 5
+          }
+        ],
+        "equipment": [],
+        "skill_book": 0
       }
     }
   ]
