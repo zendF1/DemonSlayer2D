@@ -1065,16 +1065,20 @@ Các khoản tiêu hao Xu như bình thuốc, mở kho, cường hóa và tẩy 
 
 ## 8. Auto-play
 
-- Tự chọn quái và dùng kỹ năng theo thứ tự ưu tiên.
-- Tự nhặt theo bộ lọc phẩm chất/loại vật phẩm; có thể bỏ đồ Trắng.
-- Giữ phạm vi bãi gốc, quay lại nếu đi quá xa.
-- Dùng bình HP/MP theo phần trăm người chơi cài; ví dụ 50% là giá trị tham khảo.
-- Có định hướng tự hồi sinh, về thành mua thêm bình và trở lại bãi cũ; điều kiện, chi phí và tuyến đi chưa chốt.
-- **Khi auto đánh quái bị người chơi khác tấn công, tự chuyển mục tiêu sang người tấn công để phản công.**
-- Auto sử dụng cùng quy tắc kỹ năng và kiểm tra server như thao tác tay; không có thưởng combo.
-- Chạm nhiệm vụ chỉ tìm đường, không tự bật auto.
+Auto chạy hoàn toàn ở client (giai đoạn 6c, [spec](superpowers/specs/2026-11-20-giai-doan-6c-tu-dong-danh-design.md)); server không có trạng thái auto, chỉ nhận các lệnh thường (chọn mục tiêu, đánh, chiêu, dùng bình, nhặt, di chuyển) trong cùng giới hạn tần suất như người chơi giữ nút. Auto chỉ chạy khi client đang ở màn World.
 
-Chưa chốt khi nào ngừng truy đuổi người tấn công, cách chọn giữa nhiều người tấn công và thời điểm quay lại đánh quái.
+- Bật bằng nút Auto trên HUD khi còn sống, map có vùng quái và đứng ngoài khu an toàn; giữ nút để mở cài đặt.
+- **Bãi gốc:** vị trí, map và khu lúc bật, bán kính 10 ô. Chỉ chọn quái còn sống trong bãi, gần nhất trước (bằng nhau thì id nhỏ hơn). Giữ mục tiêu quái tới khi chết, bỏ khi quái ra ngoài bãi + 2 ô. Không có quái thì đi về tâm bãi nếu đang ngoài bãi, trong bãi thì đứng chờ quái hồi sinh.
+- **Chiêu:** thứ tự cố định ô thanh chiêu 5 → 4 → 3 → 2, rồi chém khi không ô nào dùng được; mỗi ô bật/tắt trong cài đặt. Cùng quy tắc kỹ năng và kiểm tra server như thao tác tay; không có thưởng combo.
+- **Bình:** uống bình HP/MP khi dưới ngưỡng người chơi cài (mặc định 50% và 30%, 10 đến 90%). Hết bình thì tiếp tục đánh, không tự đi mua.
+- **Nhặt:** chỉ đồ của mình trong bãi và chỉ khi không có mục tiêu, theo bộ lọc phẩm chất (Không / Tất cả / Từ Xanh / Từ Vàng, mặc định Từ Xanh) và công tắc nhặt đá. Hành trang không chứa được thì bỏ qua món đó; món bị từ chối nhặt thì bỏ qua 5 giây.
+- **Người chơi:** auto không bao giờ tự chọn người chơi làm mục tiêu, kể cả khi bật PK. **Khi bị người chơi khác đánh trúng và người đó đánh được theo bảng PK (không cùng tổ đội), auto chuyển mục tiêu sang người đó để phản công.**
+  - Bỏ người đó khi không còn đánh được (vào khu an toàn, hai bên tắt PK, chết, rời tầm nhìn), cách quá 8 ô, ra ngoài bãi + 5 ô, hoặc 10 giây không đánh trúng mình.
+  - Nhiều người cùng đánh: giữ người đang phản công tới khi bỏ theo luật trên; khi bỏ thì chuyển sang người đánh trúng mình gần đây nhất trong 10 giây; không còn ai thì quay lại đánh quái.
+- **Chạm mục tiêu:** chạm một quái hay người chơi khi auto đang bật thì đổi sang mục tiêu đó và auto vẫn chạy; mục tiêu chạm được giữ cho tới khi không còn hợp lệ. Mục tiêu không có đường đi tới thì bị bỏ qua 5 giây.
+- **Tắt auto:** bấm nút Auto, tự di chuyển, chạm đất/NPC/đồ, chạm dòng nhiệm vụ hay Đi tới, chết hoặc chuyển zone (trừ lộ trình Tiếp tục auto). Chạm nhiệm vụ chỉ tìm đường, không tự bật auto.
+- **Chết:** auto không tự hồi sinh hay về thành tiếp tế ở bản đầu. Sau khi hồi sinh, nút **Tiếp tục auto** đưa nhân vật về bãi cũ bằng lộ trình tìm đường (qua cổng nếu cần) rồi bật lại auto với bãi và cài đặt cũ. Người chơi tự tắt auto thì không có nút này.
+- Cài đặt lưu trên máy theo tên nhân vật.
 
 ## 9. Thú cưỡi, trợ thủ và thời trang
 
@@ -1089,7 +1093,7 @@ Chưa chốt khi nào ngừng truy đuổi người tấn công, cách chọn gi
 2. Sự kiện: lịch và thời lượng chính thức, mức điểm từng mục tiêu, các mốc thưởng, số lượng và tính khóa của phần thưởng, điều kiện ghi nhận tham gia; công thức ghép quà lễ hội và quy tắc xếp hạng đua top.
 3. Vô Hạn Thành: khoảng chờ Boss kế tiếp, xử lý hết giờ khi Boss còn sống, đồng điểm, điểm PK, rời/đổi bang, cách chia thưởng bang, quyền thành chủ cũ khi Quỷ Vương không bị hạ, thời hạn sở hữu, phạm vi chịu thuế, thời điểm thu và bên trả thuế.
 4. Diễn Võ: chọn thể thức 1vs1/3vs3, công thức xếp hạng, cách trao danh hiệu cho đội 3vs3 và phần thưởng khi đạt Top 1 nhiều tuần.
-5. Auto-play: điều kiện/chi phí hồi sinh và tiếp tế, chọn đối thủ khi nhiều người tấn công, giới hạn truy đuổi và thời điểm quay lại đánh quái. Thú cưỡi/trợ thủ: cách bố trí ô, số lượng hoạt động đồng thời, kỹ năng trợ thủ và sử dụng thú cưỡi khi chiến đấu.
+5. Auto-play: chỉ còn tự hồi sinh và tự về thành tiếp tế (điều kiện, chi phí), ngoài bản đầu. Thú cưỡi/trợ thủ: cách bố trí ô, số lượng hoạt động đồng thời, kỹ năng trợ thủ và sử dụng thú cưỡi khi chiến đấu.
 6. Kỹ thuật: công cụ và nền tảng triển khai, ngân sách hiệu năng, kích thước ô tọa độ thế giới, số ô mỗi giây của tốc độ di chuyển 1 (chốt sau chơi thử), sức chứa kênh thực tế và múi giờ reset nhiệm vụ.
 
 ## 11. Để sau v1.0.0.0
