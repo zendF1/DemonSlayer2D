@@ -22,6 +22,7 @@ import (
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
 	"demonslayer2d/internal/items"
+	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
 )
@@ -3072,5 +3073,219 @@ func TestDepartRunningZone(t *testing.T) {
 	}
 	if _, ok := ze.departed[3]; !ok {
 		t.Fatal("the evicted player's save is gone before Leave")
+	}
+}
+
+// ______________________TEST SHOP_____________________
+
+// shopZone is gearZone in an area with the Tạp hóa shop NPC 3 tiles east of
+// the player at (5.5, 5.5) and a blacksmith 4 tiles south, over data.
+func shopZone(t *testing.T, data *gamedata.Items, inv *items.Inventory) (*Zone, *player, *fakeSaver) {
+	t.Helper()
+	sv := &fakeSaver{}
+	npcs := map[string]mapdata.NPC{
+		"shop":  {ID: "shop", Role: mapdata.RoleShop, Shop: "general", Pos: mapdata.Point{X: 8.5, Y: 5.5}},
+		"smith": {ID: "smith", Role: mapdata.RoleBlacksmith, Pos: mapdata.Point{X: 5.5, Y: 9.5}},
+	}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Items: data, NPCs: npcs}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.Points = pb.CharClass_CHAR_CLASS_VIEM, 10, combat.Points{Str: 60, Vit: 30}
+	in.Xu, in.Inventory = 77, inv
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	out.take()
+	return z, z.players[1], sv
+}
+
+func shopInventory() *items.Inventory {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Bag[0] = &items.Item{Code: "potion_hp_1", Count: 5}
+	inv.Bag[1] = &items.Item{Code: "eq50_armor", Count: 1, Quality: 2, Enhance: 7}
+	inv.Bag[2] = &items.Item{Code: "stone_enhance", Count: 7}
+	inv.Bag[3] = &items.Item{Code: "stone_refine", Count: 2}
+	inv.Bag[4] = &items.Item{Code: "charm_protect", Count: 3}
+	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1}
+	return inv
+}
+
+func shopErr(t *testing.T, z *Zone, p *player, queued bool) pb.ErrorCode {
+	t.Helper()
+	out := p.out.(*fakeOut)
+	out.take()
+	itemNow(t, z, queued)
+	for _, e := range out.take() {
+		if e.Seq == 9 && e.GetError() != nil {
+			return e.GetError().Code
+		}
+	}
+	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+func TestShopErrors(t *testing.T) {
+	const (
+		dead   = pb.ErrorCode_ERROR_CODE_DEAD
+		bad    = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		far    = pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR
+		xuErr  = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+		full   = pb.ErrorCode_ERROR_CODE_BAG_FULL
+		notFnd = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+		nosell = pb.ErrorCode_ERROR_CODE_NOT_SELLABLE
+		ok     = pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	)
+	buy := func(npc, code string, n int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.Buy(1, 9, npc, code, n) }
+	}
+	sell := func(npc string, slot, n int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.Sell(1, 9, npc, slot, n) }
+	}
+	for _, c := range []struct {
+		name  string
+		dead  bool
+		x     float32 // player x, 0 for 5.5
+		fullB bool
+		xu    int64
+		cmd   func(*Zone) bool
+		want  pb.ErrorCode
+	}{
+		{"buy dead, no npc", true, 0, false, 77, buy("none", "potion_hp_1", 1), dead},
+		{"buy no npc", false, 0, false, 77, buy("none", "potion_hp_1", 1), bad},
+		{"buy blacksmith", false, 0, false, 77, buy("smith", "potion_hp_1", 1), bad},
+		{"buy too far", false, 4.9, false, 77, buy("shop", "potion_hp_1", 1), far},
+		{"buy 3.4 away", false, 5.1, false, 77, buy("shop", "potion_hp_1", 1), ok},
+		{"buy 3.6 away", false, 4.9, false, 77, buy("shop", "potion_hp_1", 1), far},
+		{"buy unknown code", false, 0, false, 77, buy("shop", "stone_enhance", 1), bad},
+		{"buy count 0", false, 0, false, 77, buy("shop", "potion_hp_1", 0), bad},
+		{"buy count 1000", false, 0, false, 77, buy("shop", "potion_hp_1", 1000), bad},
+		{"buy count huge", false, 0, false, 77, buy("shop", "potion_hp_1", 1<<30), bad},
+		{"buy short of xu", false, 0, false, 4, buy("shop", "potion_hp_1", 1), xuErr},
+		{"buy full bag", false, 0, true, 1000, buy("shop", "potion_hp_30", 1), full},
+		{"sell dead, no npc", true, 0, false, 77, sell("none", 60, 0), dead},
+		{"sell blacksmith", false, 0, false, 77, sell("smith", 0, 0), bad},
+		{"sell too far, bad slot", false, 4.9, false, 77, sell("shop", 60, 0), far},
+		{"sell slot -1", false, 0, false, 77, sell("shop", -1, 0), bad},
+		{"sell slot 60", false, 0, false, 77, sell("shop", 60, 0), bad},
+		{"sell empty slot, bad count", false, 0, false, 77, sell("shop", 9, -1), notFnd},
+		{"sell count -1", false, 0, false, 77, sell("shop", 0, -1), bad},
+		{"sell more than there is", false, 0, false, 77, sell("shop", 0, 6), bad},
+		{"sell ok", false, 0, false, 77, sell("shop", 0, 5), ok},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := shopZone(t, testItemData, shopInventory())
+			if c.fullB {
+				fillBag(p.inv)
+			}
+			if c.x != 0 {
+				p.pos.X = c.x
+			}
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			p.xu = c.xu
+			before, saves := p.inv.Clone(), len(sv.all())
+			if got := shopErr(t, z, p, c.cmd(z)); got != c.want {
+				t.Fatalf("code %v, want %v", got, c.want)
+			}
+			if c.want != ok {
+				if p.xu != c.xu || !reflect.DeepEqual(p.inv, before) || len(sv.all()) != saves {
+					t.Fatalf("a rejected request changed xu %d, inventory or saves", p.xu)
+				}
+			}
+		})
+	}
+}
+
+func TestBuyMergesStackAndSaves(t *testing.T) {
+	z, p, sv := shopZone(t, testItemData, shopInventory())
+	z.advance(time.Now())
+	p.xu = 100
+	out := p.out.(*fakeOut)
+	out.take()
+	saves := len(sv.all())
+	itemNow(t, z, z.Buy(1, 9, "shop", "potion_hp_1", 10))
+	if p.xu != 50 || p.inv.Bag[0].Count != 15 {
+		t.Fatalf("xu %d, stack %d, want 50 and 15", p.xu, p.inv.Bag[0].Count)
+	}
+	if len(sv.all()) != saves+1 {
+		t.Fatalf("saves %d, want %d", len(sv.all()), saves+1)
+	}
+	r := respFor(out.take(), 9, (*pb.Envelope).GetBuyResp)
+	if r == nil || r.Stats.Xu != 50 || len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != 0 {
+		t.Fatalf("reply %v", r)
+	}
+}
+
+func TestSellExamples(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		slot, count int
+		xu          int64
+		left        int // count left in the slot, 0 for empty
+	}{
+		{"Vàng armor tier 50", 1, 0, 1077, 0},
+		{"7 enhance stones", 2, 0, 77 + 35, 0},
+		{"refine stone", 3, 1, 77 + 50, 1},
+		{"part of a stack", 0, 2, 77 + 2, 3},
+		{"count 0 empties the slot", 0, 0, 77 + 5, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := shopZone(t, testItemData, shopInventory())
+			z.advance(time.Now())
+			out := p.out.(*fakeOut)
+			out.take()
+			saves := len(sv.all())
+			itemNow(t, z, z.Sell(1, 9, "shop", c.slot, c.count))
+			left := 0
+			if it := p.inv.Bag[c.slot]; it != nil {
+				left = it.Count
+			}
+			if p.xu != c.xu || left != c.left || len(sv.all()) != saves+1 {
+				t.Fatalf("xu %d left %d saves %d, want %d %d %d", p.xu, left, len(sv.all())-saves, c.xu, c.left, 1)
+			}
+			r := respFor(out.take(), 9, (*pb.Envelope).GetSellResp)
+			if r == nil || r.Stats.Xu != c.xu {
+				t.Fatalf("reply %v", r)
+			}
+		})
+	}
+}
+
+func TestSellNotSellable(t *testing.T) {
+	data := *testItemData
+	data.Stackables = maps.Clone(testItemData.Stackables)
+	s := data.Stackables["charm_protect"]
+	s.Sell = 0
+	data.Stackables["charm_protect"] = s
+	z, p, sv := shopZone(t, &data, shopInventory())
+	z.advance(time.Now())
+	before, saves := p.inv.Clone(), len(sv.all())
+	if got := shopErr(t, z, p, z.Sell(1, 9, "shop", 4, 0)); got != pb.ErrorCode_ERROR_CODE_NOT_SELLABLE {
+		t.Fatalf("code %v, want NOT_SELLABLE", got)
+	}
+	if p.xu != 77 || !reflect.DeepEqual(p.inv, before) || len(sv.all()) != saves {
+		t.Fatal("a refused sale changed something")
+	}
+}
+
+func TestPendingRefineSurvivesBuyNotSell(t *testing.T) {
+	z, p, _ := shopZone(t, testItemData, shopInventory())
+	z.advance(time.Now())
+	p.refine = &pendingRefine{}
+	itemNow(t, z, z.Buy(1, 9, "shop", "potion_hp_1", 1))
+	if p.refine == nil {
+		t.Fatal("a buy dropped the refine result")
+	}
+	itemNow(t, z, z.Sell(1, 10, "shop", 0, 1))
+	if p.refine != nil {
+		t.Fatal("a sale kept the refine result")
+	}
+}
+
+func TestNearRole(t *testing.T) {
+	z, p, _ := shopZone(t, testItemData, shopInventory())
+	if !z.nearRole(p, mapdata.RoleShop) || z.nearRole(p, mapdata.RoleBlacksmith) || z.nearRole(p, mapdata.RoleCarriage) {
+		t.Fatal("want near the shop (3 tiles) only, not the smith (4) or a carriage (none)")
 	}
 }

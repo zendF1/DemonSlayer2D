@@ -3,6 +3,7 @@ package zone
 import (
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/mapdata"
 )
 
 // Rect is a rectangle of tiles: X..X+W-1 by Y..Y+H-1.
@@ -45,6 +46,10 @@ type Area struct {
 	Exp      combat.ExpTable
 	Skills   map[string]gamedata.Skill
 	Items    *gamedata.Items
+	// NPCs are the map's NPCs by id; Town is the map a return scroll leads to
+	// (phase 4b spec 4.1).
+	NPCs map[string]mapdata.NPC
+	Town string
 }
 
 // InSafe reports whether the tile containing p is in a safe zone.

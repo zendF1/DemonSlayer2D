@@ -472,6 +472,10 @@ func (z *Zone) handle(c any) {
 		z.discard(c)
 	case sortBagCmd:
 		z.sortBag(c)
+	case buyCmd:
+		z.buy(c)
+	case sellCmd:
+		z.sell(c)
 	case enhanceCmd:
 		z.enhance(c)
 	case punchCmd:

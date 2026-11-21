@@ -375,6 +375,34 @@ func (c *Client) Discard(ctx context.Context, bagSlot, count int) (*pb.DiscardRe
 	return r, nil
 }
 
+// Buy buys count of code from the shop NPC npcID.
+func (c *Client) Buy(ctx context.Context, npcID, code string, count int) (*pb.BuyResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_BuyReq{BuyReq: &pb.BuyReq{
+		NpcId: npcID, Code: code, Count: int32(count)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetBuyResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to BuyReq: %v", resp)
+	}
+	return r, nil
+}
+
+// Sell sells count (0: all) of the item in bagSlot to the shop NPC npcID.
+func (c *Client) Sell(ctx context.Context, npcID string, bagSlot, count int) (*pb.SellResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_SellReq{SellReq: &pb.SellReq{
+		NpcId: npcID, BagSlot: int32(bagSlot), Count: int32(count)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetSellResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to SellReq: %v", resp)
+	}
+	return r, nil
+}
+
 // SortBag sorts the bag and returns every bag slot.
 func (c *Client) SortBag(ctx context.Context) (*pb.SortBagResp, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}})

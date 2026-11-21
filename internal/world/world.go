@@ -107,7 +107,13 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 // regions use, the EXP table, the skills and the item data into the zone's
 // view of the map. Region tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
-	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items}
+	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items, Town: m.Town}
+	if len(m.NPCs) > 0 {
+		a.NPCs = make(map[string]mapdata.NPC, len(m.NPCs))
+		for _, n := range m.NPCs {
+			a.NPCs[n.ID] = n
+		}
+	}
 	for _, sp := range m.Respawns {
 		a.Respawns = append(a.Respawns, zone.Vec2{X: sp.X, Y: sp.Y})
 	}
@@ -275,6 +281,19 @@ func (m *Membership) Discard(seq uint32, bagSlot, count int) bool {
 // SortBag queues sorting the bag; the zone answers seq on the outbox. It
 // reports false if the zone's inbox is full.
 func (m *Membership) SortBag(seq uint32) bool { return m.z.SortBag(m.EntityID, seq) }
+
+// Buy queues buying count of code from the shop NPC npcID; the zone answers
+// seq on the outbox. It reports false if the zone's inbox is full.
+func (m *Membership) Buy(seq uint32, npcID, code string, count int) bool {
+	return m.z.Buy(m.EntityID, seq, npcID, code, count)
+}
+
+// Sell queues selling count (0: all) of the item in bagSlot to the shop NPC
+// npcID; the zone answers seq on the outbox. It reports false if the zone's
+// inbox is full.
+func (m *Membership) Sell(seq uint32, npcID string, bagSlot, count int) bool {
+	return m.z.Sell(m.EntityID, seq, npcID, bagSlot, count)
+}
 
 // Enhance queues up to times attempts at enhancing the item ref points to,
 // with protection charms when protect is set; the zone answers seq on the

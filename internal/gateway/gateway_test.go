@@ -259,6 +259,8 @@ func TestItemRequestsNotInWorld(t *testing.T) {
 		"equip":    {Payload: &pb.Envelope_EquipReq{EquipReq: &pb.EquipReq{BagSlot: 1}}},
 		"unequip":  {Payload: &pb.Envelope_UnequipReq{UnequipReq: &pb.UnequipReq{EquipSlot: 1}}},
 		"discard":  {Payload: &pb.Envelope_DiscardReq{DiscardReq: &pb.DiscardReq{BagSlot: 1, Count: 1}}},
+		"buy":      {Payload: &pb.Envelope_BuyReq{BuyReq: &pb.BuyReq{NpcId: "shop", Code: "potion_hp_1", Count: 1}}},
+		"sell":     {Payload: &pb.Envelope_SellReq{SellReq: &pb.SellReq{NpcId: "shop", BagSlot: 1, Count: 1}}},
 		"sort bag": {Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}},
 		"enhance": {Payload: &pb.Envelope_EnhanceReq{EnhanceReq: &pb.EnhanceReq{
 			Item: &pb.ItemRef{Equipped: true, Slot: 0}, Times: 1}}},
