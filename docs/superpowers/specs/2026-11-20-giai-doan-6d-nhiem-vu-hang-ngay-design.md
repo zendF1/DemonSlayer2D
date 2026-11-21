@@ -1,6 +1,6 @@
 # Giai đoạn 6d — Nhiệm vụ hàng ngày
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng), chờ triển khai.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server (Task 1–6, 832e77f..a749d6f, gồm sửa lệch ngày giữa các khu 679d722; sửa sau review tổng: 9faaef1; protocol 15, không migration) và client (Task 7–10, 7e521ed..dff16c3; sửa sau review tổng: 6edc657); smoke OK.
 
 Phần cuối của Giai đoạn 6 (xem bảng chia ở [spec 6a](2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.2 (nhiệm vụ hàng ngày là nguồn EXP bổ sung), 4.2 (hàng ngày làm mới 00:00; diệt quái, nâng cấp), 5.8 (cửa sổ cấp ±10) và 3.3 (cường hóa); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như [spec 6b](2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md) (nhận, trả, tiến độ, khung theo dõi, lưu) và [spec 3b](2026-11-20-giai-doan-3b-cuong-hoa-design.md) (lệnh cường hóa). 6d chạy sau khi 6c đã triển khai (giao thức 14, migration 00009).
 
