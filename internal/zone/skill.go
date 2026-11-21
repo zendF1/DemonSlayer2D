@@ -53,7 +53,7 @@ func (z *Zone) queueCast(c castCmd) {
 // 4.6). Nothing lands in this tick. An error spends nothing.
 func (z *Zone) resolveCast(p *player, c *castCmd) {
 	s, n, code := z.checkCast(p, c.skillID)
-	var primary *monster
+	var primary foe
 	var dir Vec2
 	if code == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 		primary, dir, code = z.aim(p, c, s, n)
@@ -75,19 +75,22 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	switch {
 	case s.Shape == gamedata.ShapeCircleSelf:
 		// The named target only orders the hits; name it only if it was hit.
-		if primary != nil && len(hit) > 0 && hit[0] == primary {
-			ev.TargetId = primary.id
+		if primary.ok() && len(hit) > 0 && hit[0] == primary {
+			ev.TargetId = primary.id()
 		}
-	case primary != nil:
-		ev.TargetId = primary.id
+	case primary.ok():
+		ev.TargetId = primary.id()
 	}
 	// The cast is one action: every victim's damage comes from the caster's
-	// stats and level now, even if an earlier hit levels the caster up.
-	base, level := combat.SkillBase(p.stats, s.Damage == gamedata.DamageMagic, s.CoefPct[n-1]), p.level
-	for _, m := range hit {
-		due := z.tickNo + z.impactTicks(s.WindupMS, flightSec(flightDist(p.pos, land, s, primary, m), s.ProjectileSpeed))
-		z.schedule(impact{due: due, attacker: p.id, target: m.id, damage: z.damageTo(m, base, level), skillID: s.ID})
-		ev.Impacts = append(ev.Impacts, &pb.CastImpact{TargetId: m.id, ImpactMs: z.impactMS(due)})
+	// stats and level now, even if an earlier hit levels the caster up. A
+	// player victim takes it against its physical or magic defense by the
+	// skill's damage kind.
+	magic := s.Damage == gamedata.DamageMagic
+	base, level := combat.SkillBase(p.stats, magic, s.CoefPct[n-1]), p.level
+	for _, v := range hit {
+		due := z.tickNo + z.impactTicks(s.WindupMS, flightSec(flightDist(p.pos, land, s, primary, v), s.ProjectileSpeed))
+		z.schedule(z.hitOn(p, v, base, level, magic, s.ID, due))
+		ev.Impacts = append(ev.Impacts, &pb.CastImpact{TargetId: v.id(), ImpactMs: z.impactMS(due)})
 	}
 	z.events.casts = append(z.events.casts, ev)
 	if land != p.pos {
@@ -98,18 +101,18 @@ func (z *Zone) resolveCast(p *player, c *castCmd) {
 	}
 }
 
-// flightDist is how far a cast of s from from flies to victim m (attack
+// flightDist is how far a cast of s from from flies to victim v (attack
 // phases spec 2.2): from the caster to the primary target for single and
-// circle_target, to m itself for cone and line, and from from to the
+// circle_target, to v itself for cone and line, and from from to the
 // landing point land for a dash. circle_self has no projectile.
-func flightDist(from, land Vec2, s gamedata.Skill, primary, m *monster) float32 {
+func flightDist(from, land Vec2, s gamedata.Skill, primary, v foe) float32 {
 	switch {
 	case s.Dash:
 		return distance(from, land)
 	case s.Shape == gamedata.ShapeCone || s.Shape == gamedata.ShapeLine:
-		return distance(from, m.pos)
+		return distance(from, v.pos())
 	case s.Shape == gamedata.ShapeSingle || s.Shape == gamedata.ShapeCircleTarget:
-		return distance(from, primary.pos)
+		return distance(from, primary.pos())
 	}
 	return 0
 }
@@ -142,42 +145,42 @@ func (z *Zone) checkCast(p *player, skillID string) (gamedata.Skill, int, pb.Err
 // one the Cast event carries (spec 4.6): towards the target for single and
 // circle_target, the decided aim for cone and line, zero for circle_self.
 //
-// single and circle_target need a living monster within the level's range
-// plus attackRangeSlack and in sight, as a slash does. cone and line aim at a
-// living named monster at any range, else along the normalised dir; with
-// neither the cast is a BAD_REQUEST. Dash skills aim as single-target skills;
+// The named target is valid when it is a living monster or a player p may
+// hit (foeOf, phase 5a spec 4.4). single and circle_target need a valid one
+// within the level's range plus attackRangeSlack and in sight, as a slash
+// does; without one they answer foeOf's error. cone and line aim at a valid
+// named target at any range, else along the normalised dir; with neither the
+// cast is a BAD_REQUEST. An invalid named player counts as no target there,
+// as it does for circle_self. Dash skills aim as single-target skills;
 // resolveCast then moves the caster (dashLanding).
-func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill, n int) (*monster, Vec2, pb.ErrorCode) {
-	m := z.monsters[c.target]
-	if m != nil && m.dead {
-		m = nil
-	}
+func (z *Zone) aim(p *player, c *castCmd, s gamedata.Skill, n int) (foe, Vec2, pb.ErrorCode) {
+	f, code := z.foeOf(p, c.target)
 	switch s.Shape {
 	case gamedata.ShapeSingle, gamedata.ShapeCircleTarget:
-		if m == nil {
-			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
+		if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+			return foe{}, Vec2{}, code
 		}
-		if distance(p.pos, m.pos) > float32(s.Range[n-1])+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
-			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
+		if distance(p.pos, f.pos()) > float32(s.Range[n-1])+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, f.pos()) {
+			return foe{}, Vec2{}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
 		}
-		return m, dirTo(p.pos, m.pos), pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+		return f, dirTo(p.pos, f.pos()), pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	case gamedata.ShapeCone, gamedata.ShapeLine:
 		var d Vec2
-		if m != nil {
-			d = dirTo(p.pos, m.pos)
+		if f.ok() {
+			d = dirTo(p.pos, f.pos())
 		}
 		if d == (Vec2{}) {
 			d = unitDir(c.dir) // also when the target stands on the caster
 		}
-		if m == nil && d == (Vec2{}) {
-			return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		if !f.ok() && d == (Vec2{}) {
+			return foe{}, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 		}
-		return m, d, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+		return f, d, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	case gamedata.ShapeCircleSelf:
-		// No target needed; a living one named is only hit first.
-		return m, Vec2{}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+		// No target needed; a valid one named is only hit first.
+		return f, Vec2{}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	}
-	return nil, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	return foe{}, Vec2{}, pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 }
 
 // dashGap is how far short of its target a dash lands, in tiles.
@@ -191,13 +194,14 @@ const dashGap = 1
 //
 // The segment from p to the landing point is part of the one from p to
 // target, which aim has already found in sight, so it is not blocked either.
-func (z *Zone) dashLanding(p *player, target *monster) (Vec2, pb.ErrorCode) {
-	d := distance(p.pos, target.pos)
+func (z *Zone) dashLanding(p *player, target foe) (Vec2, pb.ErrorCode) {
+	at := target.pos()
+	d := distance(p.pos, at)
 	if d <= dashGap {
 		return p.pos, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 	}
-	u := dirTo(p.pos, target.pos)
-	land := Vec2{target.pos.X - u.X*dashGap, target.pos.Y - u.Y*dashGap}
+	u := dirTo(p.pos, at)
+	land := Vec2{at.X - u.X*dashGap, at.Y - u.Y*dashGap}
 	if !boxFits(z.area.Grid, land) || z.area.InSafe(land) {
 		return p.pos, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
 	}
@@ -217,24 +221,25 @@ func boxFits(g Grid, pos Vec2) bool {
 	return true
 }
 
-// victims are the monsters p's cast of s at skill level n hits, aimed at
-// primary along dir as aim decided, in hit order (phase 2 spec 4.4): the
-// primary target first if it is in the area, then the rest by distance to
-// the area's centre, ties by lower id, at most max_targets of them. Only
-// living monsters in sight of the area's origin count, and one standing on
-// the origin is always inside.
+// victims are the monsters and players p's cast of s at skill level n hits,
+// aimed at primary along dir as aim decided, in hit order (phase 2 spec 4.4,
+// phase 5a spec 4.4): the primary target first if it is in the area, then
+// the rest by distance to the area's centre, ties by lower id, whatever
+// their kind, at most max_targets of them. Only living monsters, and living
+// players other than p that pvpCheck lets p hit, in sight of the area's
+// origin count; one standing on the origin is always inside.
 //
 // circle_target's origin and centre are the primary target; the other
 // shapes' are the caster. A cone reaches range[n-1] within cone_deg/2 of
 // dir; a line runs range[n-1] along dir and is width wide. Neither adds
 // attackRangeSlack.
-func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary *monster, dir Vec2) []*monster {
+func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary foe, dir Vec2) []foe {
 	if s.Shape == gamedata.ShapeSingle {
-		return []*monster{primary}
+		return []foe{primary}
 	}
 	origin := p.pos
 	if s.Shape == gamedata.ShapeCircleTarget {
-		origin = primary.pos
+		origin = primary.pos()
 	}
 	var reach float32 // how far from the origin the area extends
 	var inArea func(v Vec2, d float32) bool
@@ -258,12 +263,13 @@ func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary *monster, dir
 	default:
 		return nil
 	}
-	inside := func(m *monster) bool {
-		if m.dead || lineBlocked(z.area.Grid, origin, m.pos) {
+	inside := func(f foe) bool {
+		pos := f.pos()
+		if f.ent().dead || lineBlocked(z.area.Grid, origin, pos) {
 			return false
 		}
-		v := Vec2{m.pos.X - origin.X, m.pos.Y - origin.Y}
-		d := distance(origin, m.pos)
+		v := Vec2{pos.X - origin.X, pos.Y - origin.Y}
+		d := distance(origin, pos)
 		if d == 0 {
 			return true
 		}
@@ -272,18 +278,25 @@ func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary *monster, dir
 		}
 		return inArea(v, d)
 	}
-	var out []*monster
-	if primary != nil && inside(primary) {
+	var out []foe
+	if primary.ok() && inside(primary) {
 		out = append(out, primary)
 	}
-	var rest []*monster
-	for _, m := range z.monstersInBox(Vec2{origin.X - reach, origin.Y - reach}, Vec2{origin.X + reach, origin.Y + reach}) {
-		if m != primary && inside(m) {
-			rest = append(rest, m)
+	var rest []foe
+	lo, hi := Vec2{origin.X - reach, origin.Y - reach}, Vec2{origin.X + reach, origin.Y + reach}
+	for _, m := range z.monstersInBox(lo, hi) {
+		if f := (foe{m: m}); f != primary && inside(f) {
+			rest = append(rest, f)
 		}
 	}
-	slices.SortFunc(rest, func(a, b *monster) int {
-		return cmp.Or(cmp.Compare(distance(origin, a.pos), distance(origin, b.pos)), cmp.Compare(a.id, b.id))
+	for _, e := range z.entitiesInBox(lo, hi, pb.EntityKind_ENTITY_KIND_PLAYER) {
+		c := z.players[e.id]
+		if f := (foe{p: c}); c != p && f != primary && inside(f) && z.pvpCheck(p, c) == pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+			rest = append(rest, f)
+		}
+	}
+	slices.SortFunc(rest, func(a, b foe) int {
+		return cmp.Or(cmp.Compare(distance(origin, a.pos()), distance(origin, b.pos())), cmp.Compare(a.id(), b.id()))
 	})
 	out = append(out, rest...)
 	return out[:min(len(out), s.MaxTargets[n-1])]
@@ -292,15 +305,26 @@ func (z *Zone) victims(p *player, s gamedata.Skill, n int, primary *monster, dir
 // monstersInBox returns the monsters, dead or alive, whose position lies in
 // the box from lo to hi. It looks only at the AOI cells the box overlaps.
 func (z *Zone) monstersInBox(lo, hi Vec2) []*monster {
-	c0, c1 := z.cellOf(lo), z.cellOf(hi)
 	var out []*monster
+	for _, e := range z.entitiesInBox(lo, hi, pb.EntityKind_ENTITY_KIND_MONSTER) {
+		out = append(out, z.monsters[e.id])
+	}
+	return out
+}
+
+// entitiesInBox returns the entities of kind, dead or alive, whose position
+// lies in the box from lo to hi. It looks only at the AOI cells the box
+// overlaps.
+func (z *Zone) entitiesInBox(lo, hi Vec2, kind pb.EntityKind) []*entity {
+	c0, c1 := z.cellOf(lo), z.cellOf(hi)
+	var out []*entity
 	for cx := c0.X; cx <= c1.X; cx++ {
 		for cy := c0.Y; cy <= c1.Y; cy++ {
-			for id, e := range z.cells[cellKey{cx, cy}] {
-				if e.kind != pb.EntityKind_ENTITY_KIND_MONSTER || e.pos.X < lo.X || e.pos.X > hi.X || e.pos.Y < lo.Y || e.pos.Y > hi.Y {
+			for _, e := range z.cells[cellKey{cx, cy}] {
+				if e.kind != kind || e.pos.X < lo.X || e.pos.X > hi.X || e.pos.Y < lo.Y || e.pos.Y > hi.Y {
 					continue
 				}
-				out = append(out, z.monsters[id])
+				out = append(out, e)
 			}
 		}
 	}

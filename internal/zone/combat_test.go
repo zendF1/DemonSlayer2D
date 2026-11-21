@@ -1830,8 +1830,10 @@ func TestAttackValidation(t *testing.T) {
 		}, Vec2{9.5, 5.5}, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
 		{"unknown id", func(z *Zone, m *monster) uint64 { return 999999 },
 			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		// A player id goes through the PK checks (TEST PVP ATTACKS); this
+		// area allows no PvP.
 		{"a player id", func(z *Zone, m *monster) uint64 { joinNow(t, z, 2, 31.5, 31.5); return 2 },
-			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
 		{"dead monster", func(z *Zone, m *monster) uint64 { m.dead = true; return m.id },
 			Vec2{31.5, 30.5}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"2.1 tiles away", func(z *Zone, m *monster) uint64 { return m.id },
@@ -3263,10 +3265,10 @@ func TestCastValidation(t *testing.T) {
 		}, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_MP},
 		{"unknown target", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { return 999999 },
 			pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
-		{"a player target", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
+		{"a player target in an area without PvP", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 {
 			joinNow(t, z, 2, 31.5, 31.5)
 			return 2
-		}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		}, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
 		{"a dead monster", near, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { m.dead = true; return m.id },
 			pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
 		{"5.51 tiles away", Vec2{36.01, 30.5}, "thuy_1", func(z *Zone, m *monster, p *player) uint64 { return m.id },
@@ -4800,5 +4802,450 @@ func TestDropAt(t *testing.T) {
 	}
 	if got := z.dropAt(pos, 1, 2); !near(got, Vec2{29.9, 30.5}) {
 		t.Fatalf("item off the wall at %v, want (29.9, 30.5)", got)
+	}
+}
+
+// ______________________TEST PVP ATTACKS_____________________
+
+// pvpHome is where pvpZone's monster stands, away from the fights.
+var pvpHome = Vec2{50.5, 50.5}
+
+// pvpZone is newFightZone with PvP allowed (a training map, phase 5a spec 2),
+// the repo skills and a level-12 monster at pvpHome that notices nobody.
+func pvpZone(t *testing.T) (*Zone, *monster) {
+	t.Helper()
+	z, m := newFightZone(t, 12, pvpHome)
+	z.area.Skills = repoSkills
+	z.area.PvP = true
+	m.region.Kind.DetectRange = 0.5
+	return z, m
+}
+
+// joinFighter joins a level-12 player id of class at pos with PK on or off
+// and skills learned.
+func joinFighter(t *testing.T, z *Zone, id uint64, pos Vec2, class pb.CharClass, pk bool, skills map[string]int) *fakeOut {
+	t.Helper()
+	in := info(id, pos.X, pos.Y)
+	in.Class, in.Level, in.PkOn, in.Skills = class, 12, pk, skills
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// Each check of phase 5a spec 4.3 with a player target, in order: a case
+// that breaks several checks is answered by the first. A refused slash
+// starts no cooldown, lands nothing and locks nobody.
+func TestPvPAttackValidation(t *testing.T) {
+	a0, b0 := Vec2{30.5, 30.5}, Vec2{31.5, 30.5}
+	aSafe, bSafe := Vec2{10.5, 5.5}, Vec2{9.5, 5.5} // tile 10 is outside the safe rect, tile 9 inside
+	two := func(z *Zone) uint64 { return 2 }
+	noPvP := func(z *Zone) uint64 { z.area.PvP = false; return 2 }
+	cooling := func(z *Zone) uint64 { z.players[1].slashReady = z.tickNo + 5; return 2 }
+	for _, c := range []struct {
+		name     string
+		aPK, bPK bool
+		a, b     Vec2
+		setup    func(z *Zone) uint64 // returns the target id
+		code     pb.ErrorCode
+	}{
+		{"self", true, true, a0, b0, func(z *Zone) uint64 { return 1 }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"a dead player", true, true, a0, b0, func(z *Zone) uint64 { z.players[2].dead = true; return 2 }, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+		{"an area without PvP", true, true, a0, b0, noPvP, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
+		{"target in a safe zone", true, true, aSafe, bSafe, two, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+		{"both PK off", false, false, a0, b0, two, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
+		{"2.1 tiles away", true, false, a0, Vec2{32.6, 30.5}, two, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		{"on cooldown", true, false, a0, b0, cooling, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN},
+		{"attacker in a safe zone", true, true, bSafe, aSafe, two, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+		{"no PvP, target in a safe zone, both PK off", false, false, aSafe, bSafe, noPvP, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
+		{"target in a safe zone, both PK off", false, false, aSafe, bSafe, two, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+		{"both PK off, far, on cooldown", false, false, a0, Vec2{33.5, 30.5}, cooling, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
+		{"far and on cooldown", true, false, a0, Vec2{33.5, 30.5}, cooling, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _ := pvpZone(t)
+			a := joinFighter(t, z, 1, c.a, pb.CharClass_CHAR_CLASS_VIEM, c.aPK, nil)
+			joinFighter(t, z, 2, c.b, pb.CharClass_CHAR_CLASS_THUY, c.bPK, nil)
+			target := c.setup(z)
+			b, last := z.players[2], z.players[1].slashReady
+			hp := b.hp
+			a.take()
+			attackNow(t, z, 1, 42, target)
+			settle(z)
+			envs := a.take()
+			if er := errorFor(envs, 42); er == nil || er.Code != c.code {
+				t.Fatalf("error %v, want %v with seq 42", er, c.code)
+			}
+			if attackRespAt(envs, 42) >= 0 || b.hp != hp || len(hitsIn(envs)) != 0 {
+				t.Fatalf("a refused slash landed: hp %d, want %d", b.hp, hp)
+			}
+			if got := z.players[1].slashReady; got != last {
+				t.Fatalf("slashReady %d, want %d", got, last)
+			}
+			if z.players[1].pvpUntil != 0 || b.pvpUntil != 0 {
+				t.Fatal("a refused slash locked PK")
+			}
+		})
+	}
+}
+
+// A (PK on) slashes B (PK off): the damage is PvPDamage against B's physical
+// defense, fixed at the press and landing at the impact tick; both see the
+// Hit and both get the 10 s PvP lock from that tick. B, PK off, may hit
+// back.
+func TestPvPSlashHits(t *testing.T) {
+	z, _ := pvpZone(t)
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	b := joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, false, nil)
+	z.advance(time.Now())
+	a.take()
+	b.take()
+	A, B := z.players[1], z.players[2]
+	B.stats.MagicDefense += 200 // so that hitting the wrong defense shows
+	want := combat.PvPDamage(combat.SlashBase(A.stats), B.stats.PhysDefense, A.level)
+	if want == combat.PvPDamage(combat.SlashBase(A.stats), B.stats.MagicDefense, A.level) {
+		t.Fatal("setup: physical and magic defense give the same damage")
+	}
+	hp := B.hp
+	attackNow(t, z, 1, 5, 2)
+	envs := a.take()
+	if attackRespAt(envs, 5) < 0 {
+		t.Fatalf("slash refused: %v", errorFor(envs, 5))
+	}
+	if cs := castsBy(envs, 1); len(cs) != 1 || cs[0].TargetId != 2 || !slices.Equal(impactIDs(cs[0]), []uint64{2}) {
+		t.Fatalf("casts %v, want one at player 2", cs)
+	}
+	if B.hp != hp || len(hitsIn(envs)) != 0 {
+		t.Fatal("the slash landed at the press")
+	}
+	settle(z)
+	if B.hp != hp-want {
+		t.Fatalf("hp %d, want %d - %d", B.hp, hp, want)
+	}
+	lock := z.tickNo + z.ticks(pvpLockSec)
+	if A.pvpUntil != lock || B.pvpUntil != lock {
+		t.Fatalf("pvpUntil %d and %d, want %d", A.pvpUntil, B.pvpUntil, lock)
+	}
+	h := &pb.Hit{AttackerId: 1, TargetId: 2, Damage: int32(want), HpAfter: int32(B.hp)}
+	for name, out := range map[string]*fakeOut{"attacker": a, "target": b} {
+		if hs := hitsIn(out.take()); len(hs) != 1 || hs[0].String() != h.String() {
+			t.Fatalf("%s got hits %v, want %v", name, hs, h)
+		}
+	}
+	ahp := A.hp
+	attackLand(t, z, 2, 6, 1)
+	if back := combat.PvPDamage(combat.SlashBase(B.stats), A.stats.PhysDefense, B.level); A.hp != ahp-back {
+		t.Fatalf("A hp %d, want %d - %d from B hitting back", A.hp, ahp, back)
+	}
+}
+
+// The PK rules are checked at the press only (phase 5a spec 1.3): a target
+// who walks into a safe zone or turns PK off before the impact is still
+// hit. One who leaves the zone is not, and the attacker is not locked. An
+// attacker who leaves still lands its hit, which locks the target.
+func TestPvPImpactAfterPress(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		aPK, bPK bool
+		a, b     Vec2
+		after    func(t *testing.T, z *Zone)
+		hit      bool
+	}{
+		{"target walks into a safe zone", true, false, Vec2{11.5, 5.5}, Vec2{10.5, 5.5},
+			func(t *testing.T, z *Zone) { teleport(z, 2, Vec2{9.5, 5.5}) }, true},
+		{"target turns PK off", false, true, Vec2{30.5, 30.5}, Vec2{31.5, 30.5},
+			func(t *testing.T, z *Zone) { z.players[2].pkOn = false }, true},
+		{"attacker leaves", true, false, Vec2{30.5, 30.5}, Vec2{31.5, 30.5},
+			func(t *testing.T, z *Zone) {
+				if err := <-z.leave(1); err != nil {
+					t.Fatal(err)
+				}
+			}, true},
+		{"target leaves", true, false, Vec2{30.5, 30.5}, Vec2{31.5, 30.5},
+			func(t *testing.T, z *Zone) {
+				if err := <-z.leave(2); err != nil {
+					t.Fatal(err)
+				}
+			}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _ := pvpZone(t)
+			joinFighter(t, z, 1, c.a, pb.CharClass_CHAR_CLASS_VIEM, c.aPK, nil)
+			v := joinFighter(t, z, 3, Vec2{c.b.X, c.b.Y + 3}, pb.CharClass_CHAR_CLASS_VIEM, false, nil) // a viewer
+			joinFighter(t, z, 2, c.b, pb.CharClass_CHAR_CLASS_THUY, c.bPK, nil)
+			A, B := z.players[1], z.players[2]
+			hp := B.hp
+			attackNow(t, z, 1, 5, 2)
+			c.after(t, z)
+			v.take()
+			settle(z)
+			hs := hitsIn(v.take())
+			if c.hit != (len(hs) == 1 && hs[0].TargetId == 2 && B.hp < hp) || (!c.hit && len(hs) != 0) {
+				t.Fatalf("hits %v hp %d of %d, want hit=%v", hs, B.hp, hp, c.hit)
+			}
+			lock := z.tickNo + z.ticks(pvpLockSec)
+			if c.hit && B.pvpUntil != lock {
+				t.Fatalf("target pvpUntil %d, want %d", B.pvpUntil, lock)
+			}
+			if wantA := map[bool]uint32{true: lock, false: 0}[c.hit]; z.players[1] != nil && A.pvpUntil != wantA {
+				t.Fatalf("attacker pvpUntil %d, want %d", A.pvpUntil, wantA)
+			}
+		})
+	}
+}
+
+// Two slashes on B due the same tick: the first brings it to 0 HP and kills
+// it, the second is dropped.
+func TestPvPSecondImpactOnKilledIsDropped(t *testing.T) {
+	z, _ := pvpZone(t)
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	joinFighter(t, z, 3, Vec2{32.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, false, nil)
+	B := z.players[2]
+	B.hp = 1
+	z.Attack(1, 5, 2)
+	z.Attack(3, 5, 2)
+	z.advance(time.Now())
+	if len(z.impacts) != 2 || z.impacts[0].due != z.impacts[1].due {
+		t.Fatalf("impacts %v, want two due the same tick", z.impacts)
+	}
+	settle(z)
+	envs := a.take()
+	if hs := hitsIn(envs); len(hs) != 1 || hs[0].AttackerId != 1 || hs[0].HpAfter != 0 {
+		t.Fatalf("hits %v, want only player 1's killing hit", hs)
+	}
+	if !B.dead || !slices.Equal(deathsIn(envs), []uint64{2}) {
+		t.Fatalf("dead %v deaths %v, want B dead once", B.dead, deathsIn(envs))
+	}
+}
+
+// PvP leaves monsters alone (phase 5a spec 4.6): a monster chasing A keeps
+// A when B hits A, and records nothing about B.
+func TestPvPDoesNotTurnMonster(t *testing.T) {
+	z, m := newFightZone(t, 12, Vec2{30.5, 33.5})
+	z.area.PvP = true
+	m.region.Kind.DetectRange = 0.5
+	joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, false, nil)
+	joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	engage(m, 1)
+	hp := z.players[1].hp
+	attackLand(t, z, 2, 5, 1)
+	for range 5 {
+		z.advance(time.Now())
+	}
+	if z.players[1].hp >= hp {
+		t.Fatal("B's slash did not land")
+	}
+	if _, ok := m.attackers[2]; ok || m.target != 1 || m.dmgBy[2] != 0 {
+		t.Fatalf("target %d attackers %v dmgBy %v, want the monster still on A and B unrecorded", m.target, m.attackers, m.dmgBy)
+	}
+}
+
+// ______________________TEST PVP SKILLS_____________________
+
+// A single magic skill on a player hits against its magic defense, with the
+// skill's id on the Hit and the player listed in the Cast.
+func TestPvPCastSingleUsesMagicDefense(t *testing.T) {
+	z, _ := pvpZone(t)
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, true, castSkills)
+	joinFighter(t, z, 2, Vec2{33.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, false, nil)
+	A, B := z.players[1], z.players[2]
+	B.stats.PhysDefense += 200 // so that hitting the wrong defense shows
+	s := repoSkills["thuy_1"]
+	base := combat.SkillBase(A.stats, true, s.CoefPct[0])
+	want := combat.PvPDamage(base, B.stats.MagicDefense, A.level)
+	if want == combat.PvPDamage(base, B.stats.PhysDefense, A.level) {
+		t.Fatal("setup: physical and magic defense give the same damage")
+	}
+	hp := B.hp
+	a.take()
+	castNow(t, z, 1, 5, "thuy_1", 2, Vec2{})
+	envs := a.take()
+	if castRespAt(envs, 5) < 0 {
+		t.Fatalf("cast refused: %v", errorFor(envs, 5))
+	}
+	if cs := castsBy(envs, 1); len(cs) != 1 || cs[0].TargetId != 2 || !slices.Equal(impactIDs(cs[0]), []uint64{2}) {
+		t.Fatalf("casts %v, want one at player 2", cs)
+	}
+	settle(z)
+	if hs := hitsBy(a.take(), 1); len(hs) != 1 || hs[0].TargetId != 2 || hs[0].SkillId != "thuy_1" || int(hs[0].Damage) != want || B.hp != hp-want {
+		t.Fatalf("hits %v hp %d, want one thuy_1 hit of %d", hs, B.hp, want)
+	}
+	if lock := z.tickNo + z.ticks(pvpLockSec); A.pvpUntil != lock || B.pvpUntil != lock {
+		t.Fatalf("pvpUntil %d and %d, want %d", A.pvpUntil, B.pvpUntil, lock)
+	}
+}
+
+// single and circle_target need a valid primary target, so a player who may
+// not be hit is answered with the error of phase 5a spec 4.2; nothing is
+// spent.
+func TestPvPCastTargetErrors(t *testing.T) {
+	a0, b0 := Vec2{30.5, 30.5}, Vec2{33.5, 30.5}
+	aSafe, bSafe := Vec2{12.5, 5.5}, Vec2{9.5, 5.5}
+	for _, skill := range []string{"thuy_1", "phong_4"} {
+		for _, c := range []struct {
+			name     string
+			aPK, bPK bool
+			a, b     Vec2
+			target   uint64
+			noPvP    bool
+			code     pb.ErrorCode
+		}{
+			{"self", true, true, a0, b0, 1, false, pb.ErrorCode_ERROR_CODE_INVALID_TARGET},
+			{"both PK off", false, false, a0, b0, 2, false, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
+			{"no PvP", true, true, a0, b0, 2, true, pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN},
+			{"target in a safe zone", true, false, aSafe, bSafe, 2, false, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE},
+			{"4.6 tiles away", true, false, a0, Vec2{35.1, 30.5}, 2, false, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE},
+		} {
+			t.Run(skill+" "+c.name, func(t *testing.T) {
+				if skill == "thuy_1" && c.code == pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE {
+					t.Skip("thuy_1 reaches 5.5 tiles")
+				}
+				z, _ := pvpZone(t)
+				z.area.PvP = !c.noPvP
+				class := classes.ToPB(repoSkills[skill].Class)
+				a := joinFighter(t, z, 1, c.a, class, c.aPK, map[string]int{skill: 1})
+				joinFighter(t, z, 2, c.b, pb.CharClass_CHAR_CLASS_VIEM, c.bPK, nil)
+				A, B := z.players[1], z.players[2]
+				mp, hp := A.mp, B.hp
+				a.take()
+				castNow(t, z, 1, 5, skill, c.target, Vec2{1, 0})
+				settle(z)
+				envs := a.take()
+				if er := errorFor(envs, 5); er == nil || er.Code != c.code {
+					t.Fatalf("error %v, want %v", er, c.code)
+				}
+				if A.mp != mp || A.skillReady[skill] != 0 || B.hp != hp || len(hitsIn(envs)) != 0 {
+					t.Fatalf("mp %d of %d ready %d hp %d of %d: a refused cast spent or landed", A.mp, mp, A.skillReady[skill], B.hp, hp)
+				}
+			})
+		}
+	}
+}
+
+// A cone naming a player who may not be hit fires along dir as if no target
+// were named and does not hit that player; naming one who may be hit aims
+// at them.
+func TestPvPConeNamedPlayer(t *testing.T) {
+	for _, pk := range []bool{false, true} {
+		z, _, a, ms := areaZone(t, "thuy_2", 1, Vec2{0, -3}) // a monster 3 tiles north
+		z.area.PvP = true
+		joinFighter(t, z, 2, Vec2{areaCaster.X + 2, areaCaster.Y}, pb.CharClass_CHAR_CLASS_VIEM, pk, nil) // 2 tiles east
+		B := z.players[2]
+		hp := B.hp
+		castLand(t, z, 1, 5, "thuy_2", 2, Vec2{0, -1})
+		envs := a.take()
+		if castRespAt(envs, 5) < 0 {
+			t.Fatalf("pk %v: cast refused: %v", pk, errorFor(envs, 5))
+		}
+		want, cast := idsOf(ms[0]), &pb.Cast{CasterId: 1, SkillId: "thuy_2", DirY: -1, Level: 1}
+		if pk {
+			want, cast = []uint64{2}, &pb.Cast{CasterId: 1, SkillId: "thuy_2", TargetId: 2, DirX: 1, Level: 1}
+		}
+		if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), want) || (B.hp < hp) != pk {
+			t.Fatalf("pk %v: hits %v hp %d of %d, want %v", pk, targetIDs(hs), B.hp, hp, want)
+		}
+		if cs := castsBy(envs, 1); len(cs) != 1 || untimed(cs[0]).String() != cast.String() {
+			t.Fatalf("pk %v: casts %v, want %v", pk, cs, cast)
+		}
+	}
+}
+
+// A self-centred circle by a PK-off caster hits monsters and PK-on players,
+// never PK-off ones, all under one target cap and one order: nearest to the
+// centre first, whatever their kind. Player damage is PvPDamage against
+// magic defense.
+func TestPvPCircleSelfMixed(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		lv       int
+		monsters []Vec2
+		on, off  Vec2  // where the PK-on and PK-off players stand
+		want     []int // indexes into the monsters, -1 for the PK-on player
+	}{
+		{"level 7, cap 4", 7, []Vec2{{2, 0}, {-2, 0}}, Vec2{0, 1.5}, Vec2{0, -1}, []int{-1, 0, 1}},
+		{"level 1, cap 2", 1, []Vec2{{1, 0}, {-2, 0}}, Vec2{0, 1.5}, Vec2{0, -0.5}, []int{0, -1}},
+		{"level 1, player nearest", 1, []Vec2{{1, 0}, {-2, 0}}, Vec2{0, 0.8}, Vec2{0, -0.5}, []int{-1, 0}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, a, ms := areaZone(t, "thuy_4", c.lv, c.monsters...)
+			z.area.PvP = true
+			at := func(o Vec2) Vec2 { return Vec2{areaCaster.X + o.X, areaCaster.Y + o.Y} }
+			joinFighter(t, z, 2, at(c.on), pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+			joinFighter(t, z, 3, at(c.off), pb.CharClass_CHAR_CLASS_VIEM, false, nil)
+			C, D := z.players[2], z.players[3]
+			C.stats.PhysDefense += 200 // so that hitting the wrong defense shows
+			chp, dhp := C.hp, D.hp
+			castNow(t, z, 1, 5, "thuy_4", 0, Vec2{})
+			var want []uint64
+			for _, i := range c.want {
+				if i < 0 {
+					want = append(want, 2)
+				} else {
+					want = append(want, ms[i].id)
+				}
+			}
+			envs := a.take()
+			if cs := castsBy(envs, 1); len(cs) != 1 || !slices.Equal(impactIDs(cs[0]), want) {
+				t.Fatalf("casts %v, want impacts on %v", cs, want)
+			}
+			settle(z)
+			if hs := hitsBy(a.take(), 1); !slices.Equal(targetIDs(hs), want) {
+				t.Fatalf("hits %v, want %v", targetIDs(hs), want)
+			}
+			s := repoSkills["thuy_4"]
+			dmg := combat.PvPDamage(combat.SkillBase(p.stats, true, s.CoefPct[c.lv-1]), C.stats.MagicDefense, p.level)
+			if C.hp != chp-dmg || D.hp != dhp {
+				t.Fatalf("PK-on hp %d of %d (want -%d), PK-off hp %d of %d (want untouched)", C.hp, chp, dmg, D.hp, dhp)
+			}
+		})
+	}
+}
+
+// A circle never hits a player standing in a safe zone, nor anyone in an
+// area without PvP.
+func TestPvPCircleSelfSkipsSafeAndNoPvP(t *testing.T) {
+	for _, noPvP := range []bool{false, true} {
+		z, _, a, _ := areaZone(t, "thuy_4", 1, Vec2{20, 20})
+		z.area.PvP = !noPvP
+		teleport(z, 1, Vec2{11.5, 5.5})
+		joinFighter(t, z, 2, Vec2{9.6, 5.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)  // in the safe zone, 1.9 away
+		joinFighter(t, z, 3, Vec2{12.5, 6.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil) // outside, 1.4 away
+		castLand(t, z, 1, 5, "thuy_4", 2, Vec2{})
+		envs := a.take()
+		if castRespAt(envs, 5) < 0 {
+			t.Fatalf("noPvP %v: cast refused: %v", noPvP, errorFor(envs, 5))
+		}
+		var want []uint64
+		if !noPvP {
+			want = []uint64{3}
+		}
+		if hs := hitsBy(envs, 1); !slices.Equal(targetIDs(hs), want) {
+			t.Fatalf("noPvP %v: hits %v, want %v", noPvP, targetIDs(hs), want)
+		}
+	}
+}
+
+// A dash at a player lands 1 tile short of them, as at a monster, and hits
+// against physical defense.
+func TestPvPDashOnPlayer(t *testing.T) {
+	start := Vec2{30.5, 30.5}
+	z, _, p, a := dashZone(t, start, pvpHome)
+	z.area.PvP = true
+	p.pkOn = true
+	off := polar(3.5, 30)
+	joinFighter(t, z, 2, Vec2{start.X + off.X, start.Y + off.Y}, pb.CharClass_CHAR_CLASS_THUY, false, nil)
+	B := z.players[2]
+	B.stats.MagicDefense += 200 // so that hitting the wrong defense shows
+	hp := B.hp
+	castNow(t, z, 1, 5, "viem_1", 2, Vec2{})
+	if d := distance(p.pos, B.pos); !near32(d, 1) {
+		t.Fatalf("landed %v, %v from the player, want 1", p.pos, d)
+	}
+	settle(z)
+	want := combat.PvPDamage(combat.SkillBase(p.stats, false, repoSkills["viem_1"].CoefPct[0]), B.stats.PhysDefense, p.level)
+	if hs := hitsBy(a.take(), 1); len(hs) != 1 || hs[0].TargetId != 2 || hs[0].SkillId != "viem_1" || B.hp != hp-want {
+		t.Fatalf("hits %v hp %d of %d, want one viem_1 hit of %d", hs, B.hp, hp, want)
 	}
 }

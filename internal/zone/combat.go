@@ -38,11 +38,18 @@ type tickEvents struct {
 // damagePlayer applies a hit of dmg from attacker to p and kills p at 0 HP.
 // ranged marks a monster's shot.
 func (z *Zone) damagePlayer(p *player, attacker uint64, dmg int, ranged bool) {
+	z.hurtPlayer(p, &pb.Hit{AttackerId: attacker, TargetId: p.id, Damage: int32(dmg), Ranged: ranged})
+}
+
+// hurtPlayer lands h, whose target is p, filling in its HP after; p dies at
+// 0 HP. A dead p takes nothing and no Hit is sent.
+func (z *Zone) hurtPlayer(p *player, h *pb.Hit) {
 	if p.dead {
 		return
 	}
-	p.hp = max(p.hp-dmg, 0)
-	z.events.hits = append(z.events.hits, &pb.Hit{AttackerId: attacker, TargetId: p.id, Damage: int32(dmg), HpAfter: int32(p.hp), Ranged: ranged})
+	p.hp = max(p.hp-int(h.Damage), 0)
+	h.HpAfter = int32(p.hp)
+	z.events.hits = append(z.events.hits, h)
 	if p.hp == 0 {
 		z.killPlayer(p)
 	}
@@ -174,48 +181,130 @@ func (z *Zone) resolveAttacks() {
 
 // resolveAttack checks p's slash c and starts it if it passes.
 func (z *Zone) resolveAttack(p *player, c *attackCmd) {
-	m, code := z.checkAttack(p, c.target)
+	f, code := z.checkAttack(p, c.target)
 	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 		z.replyError(p, c.seq, code)
 		return
 	}
 	p.slashReady = z.tickNo + z.ticks(combat.SlashCooldown.Seconds())
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_AttackResp{AttackResp: &pb.AttackResp{}}})
-	z.slash(p, m)
+	z.slash(p, f)
 }
 
-// checkAttack validates an attack by p on target in the order of spec 5.1.
-// It returns the target monster, or the error code to answer.
-func (z *Zone) checkAttack(p *player, target uint64) (*monster, pb.ErrorCode) {
+// foe is the target of a player's attack: a monster or another player,
+// exactly one of them set (phase 5a spec 4.2). The zero foe is no target.
+type foe struct {
+	m *monster
+	p *player
+}
+
+func (f foe) ok() bool { return f.m != nil || f.p != nil }
+
+func (f foe) ent() *entity {
+	if f.m != nil {
+		return &f.m.entity
+	}
+	return &f.p.entity
+}
+
+func (f foe) pos() Vec2  { return f.ent().pos }
+func (f foe) id() uint64 { return f.ent().id }
+
+// checkAttack validates an attack by p on target in the order of phase 5a
+// spec 4.3. It returns the target, or the error code to answer.
+func (z *Zone) checkAttack(p *player, target uint64) (foe, pb.ErrorCode) {
 	if p.dead {
-		return nil, pb.ErrorCode_ERROR_CODE_DEAD
+		return foe{}, pb.ErrorCode_ERROR_CODE_DEAD
 	}
 	if z.area.InSafe(p.pos) {
-		return nil, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE
+		return foe{}, pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE
 	}
-	m := z.monsters[target]
-	if m == nil || m.dead {
-		return nil, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
+	f, code := z.foeOf(p, target)
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		return foe{}, code
 	}
-	if distance(p.pos, m.pos) > combat.SlashRange+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, m.pos) {
-		return nil, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
+	if distance(p.pos, f.pos()) > combat.SlashRange+attackRangeSlack || lineBlocked(z.area.Grid, p.pos, f.pos()) {
+		return foe{}, pb.ErrorCode_ERROR_CODE_OUT_OF_RANGE
 	}
 	if z.tickNo < p.slashReady {
-		return nil, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN
+		return foe{}, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN
 	}
-	return m, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	return f, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
 }
 
-// slash starts p's default slash on m (attack phases spec 2): its damage is
+// foeOf finds the target id a named by its press: a living monster, or a
+// player a may hit (checkPlayerTarget). World ids are unique, so the
+// monsters are looked at first. Anything else is the error to answer.
+func (z *Zone) foeOf(a *player, id uint64) (foe, pb.ErrorCode) {
+	if m := z.monsters[id]; m != nil {
+		if m.dead {
+			return foe{}, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
+		}
+		return foe{m: m}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	}
+	b, code := z.checkPlayerTarget(a, id)
+	if code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		return foe{}, code
+	}
+	return foe{p: b}, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// checkPlayerTarget checks a player target id of a's slash or cast in the
+// order of phase 5a spec 4.2, after a's own DEAD and IN_SAFE_ZONE checks:
+// INVALID_TARGET when id is a itself, not a player in the zone or dead, then
+// the PK rules of pvpCheck.
+func (z *Zone) checkPlayerTarget(a *player, id uint64) (*player, pb.ErrorCode) {
+	b := z.players[id]
+	if b == nil || b == a || b.dead {
+		return nil, pb.ErrorCode_ERROR_CODE_INVALID_TARGET
+	}
+	if code := z.pvpCheck(a, b); code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		return nil, code
+	}
+	return b, pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// pvpCheck is steps 2 to 4 of phase 5a spec 4.2 for a hitting b, which area
+// skills also apply to each player in their area: PK_FORBIDDEN when the area
+// allows no PvP, IN_SAFE_ZONE when b stands in a safe zone, PK_FORBIDDEN
+// when the PK table does not let a hit b. Parties come with phase 5b.
+func (z *Zone) pvpCheck(a, b *player) pb.ErrorCode {
+	switch {
+	case !z.area.PvP:
+		return pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN
+	case z.area.InSafe(b.pos):
+		return pb.ErrorCode_ERROR_CODE_IN_SAFE_ZONE
+	case !combat.PvPAllowed(a.pkOn, b.pkOn, false):
+		return pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN
+	}
+	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// slash starts p's default slash on f (attack phases spec 2): its damage is
 // fixed now and lands SlashWindup later, with no flight. Viewers get a Cast
 // with an empty skill id.
-func (z *Zone) slash(p *player, m *monster) {
+func (z *Zone) slash(p *player, f foe) {
 	windup := int(combat.SlashWindup.Milliseconds())
 	due := z.tickNo + z.impactTicks(windup, 0)
-	z.schedule(impact{due: due, attacker: p.id, target: m.id, damage: z.damageTo(m, combat.SlashBase(p.stats), p.level)})
-	d := dirTo(p.pos, m.pos)
-	z.events.casts = append(z.events.casts, &pb.Cast{CasterId: p.id, TargetId: m.id, DirX: d.X, DirY: d.Y,
-		WindupMs: int32(windup), Impacts: []*pb.CastImpact{{TargetId: m.id, ImpactMs: z.impactMS(due)}}})
+	z.schedule(z.hitOn(p, f, combat.SlashBase(p.stats), p.level, false, "", due))
+	d := dirTo(p.pos, f.pos())
+	z.events.casts = append(z.events.casts, &pb.Cast{CasterId: p.id, TargetId: f.id(), DirX: d.X, DirY: d.Y,
+		WindupMs: int32(windup), Impacts: []*pb.CastImpact{{TargetId: f.id(), ImpactMs: z.impactMS(due)}}})
+}
+
+// hitOn is p's impact on f due at tick due, of base damage before f's
+// defense from an attacker of the given level: magic picks a player's magic
+// defense (a slash is physical); skillID is empty for a slash. The damage is
+// fixed now, at the press.
+func (z *Zone) hitOn(p *player, f foe, base, level int, magic bool, skillID string, due uint32) impact {
+	im := impact{due: due, attacker: p.id, target: f.id(), skillID: skillID}
+	if f.p != nil {
+		im.targetIsPlayer, im.attackerName = true, p.name
+		im.damage = z.damageToPlayer(f.p, base, level, magic)
+	} else {
+		im.damage = z.damageTo(f.m, base, level)
+	}
+	return im
 }
 
 // damageTo is the damage a hit of base damage before m's defense does to m,
@@ -223,6 +312,18 @@ func (z *Zone) slash(p *player, m *monster) {
 // applyToMonster lands it.
 func (z *Zone) damageTo(m *monster, base, level int) int {
 	return combat.Damage(base, z.area.Levels[m.level].Defense, level)
+}
+
+// damageToPlayer is the damage a player's hit of base damage before b's
+// defense does to b, from an attacker of the given level, against b's magic
+// defense when magic, else its physical one (phase 5a spec 4.5). Attacks fix
+// it at the press; applyPvP lands it.
+func (z *Zone) damageToPlayer(b *player, base, level int, magic bool) int {
+	def := b.stats.PhysDefense
+	if magic {
+		def = b.stats.MagicDefense
+	}
+	return combat.PvPDamage(base, def, level)
 }
 
 // killMonster makes m a corpse, gives killer its Xu and drops (game-design

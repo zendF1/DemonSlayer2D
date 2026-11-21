@@ -16,10 +16,15 @@ type impact struct {
 	due, seq  uint32
 	attacker  uint64
 	byMonster bool // the attacker is a monster and the target a player
-	target    uint64
-	damage    int
-	skillID   string // empty for a basic attack
-	ranged    bool   // a monster's shot
+	// targetIsPlayer marks a player's hit on another player (phase 5a spec
+	// 4.6); attackerName is then the attacker's name, kept for the death
+	// notice even if the attacker has left.
+	targetIsPlayer bool
+	attackerName   string
+	target         uint64
+	damage         int
+	skillID        string // empty for a basic attack
+	ranged         bool   // a monster's shot
 }
 
 // schedule queues im, keeping the queue ordered by due tick and then by
@@ -38,9 +43,12 @@ func (z *Zone) runImpacts() {
 	for len(z.impacts) > 0 && z.impacts[0].due <= z.tickNo {
 		im := z.impacts[0]
 		z.impacts = z.impacts[1:]
-		if im.byMonster {
+		switch {
+		case im.byMonster:
 			z.applyToPlayer(im)
-		} else {
+		case im.targetIsPlayer:
+			z.applyPvP(im)
+		default:
 			z.applyToMonster(im)
 		}
 	}
@@ -106,4 +114,25 @@ func (z *Zone) applyToPlayer(im impact) {
 	if p := z.players[im.target]; p != nil && !p.dead {
 		z.damagePlayer(p, im.attacker, im.damage, im.ranged)
 	}
+}
+
+// applyPvP lands a player's im on another player (phase 5a spec 4.6): it is
+// skipped if the target has left or is dead, a later impact on a player just
+// killed included. The PK rules were checked at the press, so it lands even
+// if the target has since walked into a safe zone or turned PK off, and even
+// if the attacker has died or left. The target and, if still in the zone,
+// the attacker cannot turn PK off for pvpLockSec from now. It never touches
+// monsters: no aggro, no damage share, no EXP. The impact that brings the
+// target to 0 HP is the killing blow.
+func (z *Zone) applyPvP(im impact) {
+	b := z.players[im.target]
+	if b == nil || b.dead {
+		return
+	}
+	lock := z.tickNo + z.ticks(pvpLockSec)
+	b.pvpUntil = lock
+	if a := z.players[im.attacker]; a != nil {
+		a.pvpUntil = lock
+	}
+	z.hurtPlayer(b, &pb.Hit{AttackerId: im.attacker, TargetId: b.id, Damage: int32(im.damage), SkillId: im.skillID})
 }
