@@ -744,3 +744,10 @@ func Link(maps map[string]*Map) error {
 	}
 	return nil
 }
+
+// PvP reports whether players may fight each other on this map outside safe
+// zones: training and battle maps (phase 5a spec 2).
+func (m *Map) PvP() bool { return m.Type == "training" || m.Type == "battle" }
+
+// PkPenalty reports whether dying to PK on this map costs EXP: training only.
+func (m *Map) PkPenalty() bool { return m.Type == "training" }

@@ -961,3 +961,20 @@ func TestRepoMapsStorage(t *testing.T) {
 		t.Errorf("kumotori thu_kho at %v, want (3.5, 7.5)", n.Pos)
 	}
 }
+
+// ______________________TEST MAP TYPES_____________________
+
+func TestMapTypePvPRules(t *testing.T) {
+	for _, c := range []struct {
+		typ          string
+		pvp, penalty bool
+	}{
+		{"town", false, false}, {"training", true, true},
+		{"battle", true, false}, {"instance", false, false},
+	} {
+		m := &Map{Type: c.typ}
+		if m.PvP() != c.pvp || m.PkPenalty() != c.penalty {
+			t.Errorf("%s: PvP=%v PkPenalty=%v, want %v %v", c.typ, m.PvP(), m.PkPenalty(), c.pvp, c.penalty)
+		}
+	}
+}

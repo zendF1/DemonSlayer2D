@@ -369,3 +369,57 @@ func TestBonusAdd(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+// ______________________TEST PVP_____________________
+
+func TestPvPAllowed(t *testing.T) {
+	for _, c := range []struct{ a, b, party, want bool }{
+		{false, false, false, false}, {true, false, false, true},
+		{false, true, false, true}, {true, true, false, true},
+		{false, false, true, false}, {true, false, true, false},
+		{false, true, true, false}, {true, true, true, false},
+	} {
+		if got := PvPAllowed(c.a, c.b, c.party); got != c.want {
+			t.Errorf("PvPAllowed(%v,%v,%v) = %v, want %v", c.a, c.b, c.party, got, c.want)
+		}
+	}
+}
+
+func TestPkExpLoss(t *testing.T) {
+	for _, c := range []struct{ in, want int64 }{{64000, 3200}, {130, 6}, {0, 0}, {-5, 0}} {
+		if got := PkExpLoss(c.in); got != c.want {
+			t.Errorf("PkExpLoss(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+func TestPvPDamageReference(t *testing.T) {
+	viem := Compute(false, 10, Points{Str: 60, Vit: 30}, Bonus{}, Passive{})
+	slash := PvPDamage(SlashBase(viem), viem.PhysDefense, 10)
+	if slash != 128 {
+		t.Fatalf("slash = %d, want 128", slash)
+	}
+	bth := PvPDamage(SkillBase(viem, false, 150), viem.PhysDefense, 10)
+	if bth != 192 {
+		t.Fatalf("Bat Tri Hoa = %d, want 192", bth)
+	}
+	if 9*bth < viem.MaxHP || 8*bth >= viem.MaxHP {
+		t.Fatalf("9 hits %d, 8 hits %d vs %d HP", 9*bth, 8*bth, viem.MaxHP)
+	}
+	thuy := Compute(true, 10, Points{Int: 60, Vit: 30}, Bonus{}, Passive{})
+	if thuy.MaxHP != 1430 || thuy.PhysDefense != 88 || thuy.MagicDefense != 88 {
+		t.Fatalf("thuy %+v", thuy)
+	}
+	if 8*PvPDamage(SkillBase(viem, false, 150), thuy.PhysDefense, 10) < thuy.MaxHP {
+		t.Fatal("eight Bat Tri Hoa should kill Thuy")
+	}
+}
+
+func TestPvPDamageMinimumOne(t *testing.T) {
+	if got := PvPDamage(1, 100000, 1); got != 1 {
+		t.Fatalf("got %d", got)
+	}
+	if got := PvPDamage(0, 0, 1); got != 1 {
+		t.Fatalf("got %d", got)
+	}
+}

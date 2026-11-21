@@ -201,3 +201,32 @@ func ExpShare(total int64, maxHP, damage int) int64 {
 	}
 	return total * int64(min(damage, maxHP)) / int64(maxHP)
 }
+
+// PvPFactor scales player-versus-player damage (game-design 2.2).
+const PvPFactor = 1.0
+
+// PvPDamage is max(1, floor(base * (1 - d / (d + 20 * L)) * PvPFactor)); defense
+// is the target's physical or magic defense by damage type (phase 5a spec 4.5).
+func PvPDamage(base, defense, attackerLevel int) int {
+	d, k := float64(defense), 20*float64(attackerLevel)
+	got := int(math.Floor(float64(base) * (1 - d/(d+k)) * PvPFactor))
+	if got < 1 {
+		return 1
+	}
+	return got
+}
+
+// PvPAllowed is the PK table of game-design 5.7: a player may hit another
+// when either one has PK on, unless they share a party (phase 5a spec 4.2).
+func PvPAllowed(attackerPK, targetPK, sameParty bool) bool {
+	return !sameParty && (attackerPK || targetPK)
+}
+
+// PkExpLoss is the EXP a PK-on victim loses on a PvP death: 5% of the EXP
+// needed for the next level, rounded down (phase 5a spec 4.7).
+func PkExpLoss(toNext int64) int64 {
+	if toNext < 0 {
+		return 0
+	}
+	return toNext * 5 / 100
+}
