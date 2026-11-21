@@ -1,6 +1,6 @@
 # Giai đoạn 4b — NPC, cửa hàng, bình thuốc, giấy về thành và xa phu
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế; server đã triển khai (protocol 10), client chờ (nhiệm vụ 11–14).
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server (Task 1–10, protocol 10) và client (Task 11–14, client 5212743; sửa sau review tổng: server bd67c04, client 6ef4d5c); smoke OK.
 
 Phần thứ hai của Giai đoạn 4 (xem bảng chia ở [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.7 (bình thuốc), 4.1 (NPC), 5.4 (địa điểm dịch vụ) và 7.1 (Xu); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như spec 4a và các spec Giai đoạn 3. 4b chạy sau khi 4a đã triển khai.
 
