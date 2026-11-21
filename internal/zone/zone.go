@@ -488,6 +488,16 @@ func (z *Zone) handle(c any) {
 		z.sortBag(c)
 	case buyCmd:
 		z.buy(c)
+	case stashOpenCmd:
+		z.stashOpen(c)
+	case stashDepositCmd:
+		z.stashDeposit(c)
+	case stashWithdrawCmd:
+		z.stashWithdraw(c)
+	case stashExpandCmd:
+		z.stashExpand(c)
+	case stashSortCmd:
+		z.stashSort(c)
 	case sellCmd:
 		z.sell(c)
 	case useItemCmd:

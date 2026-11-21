@@ -3798,3 +3798,304 @@ func TestSelfStatsLuong(t *testing.T) {
 		t.Fatalf("luong %d, want 42", s.GetLuong())
 	}
 }
+
+// ______________________TEST STASH____________________
+
+// stashZone is shopZone with a storage keeper 3 tiles east at "kho", a stash
+// of size slots holding stash, and Xu xu.
+func stashZone(t *testing.T, size int, stash map[int]*items.Item, bag *items.Inventory, xu int64) (*Zone, *player, *fakeSaver) {
+	t.Helper()
+	sv := &fakeSaver{}
+	npcs := map[string]mapdata.NPC{
+		"kho":  {ID: "kho", Role: mapdata.RoleStorage, Pos: mapdata.Point{X: 8.5, Y: 5.5}},
+		"shop": {ID: "shop", Role: mapdata.RoleShop, Shop: "general", Pos: mapdata.Point{X: 5.5, Y: 6.5}},
+	}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData, NPCs: npcs}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level = pb.CharClass_CHAR_CLASS_VIEM, 10
+	in.Xu, in.Inventory, in.AccountID = xu, bag, 7
+	in.Stash = make([]*items.Item, size)
+	for i, it := range stash {
+		in.Stash[i] = it
+	}
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	out.take()
+	return z, z.players[1], sv
+}
+
+func stashBag() *items.Inventory {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Bag[0] = &items.Item{Code: "stone_enhance", Count: 600}
+	inv.Bag[1] = &items.Item{Code: "eq50_armor", Count: 1, Quality: 2, Enhance: 7}
+	inv.Worn[0] = &items.Item{Code: "eq10_weapon_viem", Count: 1}
+	return inv
+}
+
+func TestStashErrorsInOrder(t *testing.T) {
+	const (
+		dead   = pb.ErrorCode_ERROR_CODE_DEAD
+		bad    = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		far    = pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR
+		xuErr  = pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+		bagF   = pb.ErrorCode_ERROR_CODE_BAG_FULL
+		stashF = pb.ErrorCode_ERROR_CODE_STASH_FULL
+		maxed  = pb.ErrorCode_ERROR_CODE_STASH_MAXED
+		notFnd = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+		ok     = pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	)
+	open := func(npc string) func(*Zone) bool { return func(z *Zone) bool { return z.StashOpen(1, 9, npc) } }
+	dep := func(npc string, slot int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.StashDeposit(1, 9, npc, slot) }
+	}
+	wd := func(npc string, slot int) func(*Zone) bool {
+		return func(z *Zone) bool { return z.StashWithdraw(1, 9, npc, slot) }
+	}
+	exp := func(npc string) func(*Zone) bool { return func(z *Zone) bool { return z.StashExpand(1, 9, npc) } }
+	srt := func(npc string) func(*Zone) bool { return func(z *Zone) bool { return z.StashSort(1, 9, npc) } }
+	full := func(n int) map[int]*items.Item { // n equipment pieces in slots 0..n-1
+		m := map[int]*items.Item{}
+		for i := 0; i < n; i++ {
+			m[i] = &items.Item{Code: "eq10_helmet", Count: 1}
+		}
+		return m
+	}
+	for _, c := range []struct {
+		name  string
+		dead  bool
+		x     float32 // player x, 0 for 5.5
+		size  int
+		stash map[int]*items.Item
+		fullB bool
+		xu    int64
+		cmd   func(*Zone) bool
+		want  pb.ErrorCode
+	}{
+		{"open dead, no npc", true, 0, 30, nil, false, 0, open("none"), dead},
+		{"open no npc", false, 0, 30, nil, false, 0, open("none"), bad},
+		{"open shop npc", false, 0, 30, nil, false, 0, open("shop"), bad},
+		{"open too far", false, 4.9, 30, nil, false, 0, open("kho"), far},
+		{"open ok", false, 0, 30, nil, false, 0, open("kho"), ok},
+		{"deposit dead", true, 0, 30, nil, false, 0, dep("none", 99), dead},
+		{"deposit shop npc, bad slot", false, 0, 30, nil, false, 0, dep("shop", 99), bad},
+		{"deposit too far, bad slot", false, 4.9, 30, nil, false, 0, dep("kho", 99), far},
+		{"deposit slot -1", false, 0, 30, nil, false, 0, dep("kho", -1), bad},
+		{"deposit slot 60", false, 0, 30, nil, false, 0, dep("kho", 60), bad},
+		{"deposit empty slot, full stash", false, 0, 3, full(3), false, 0, dep("kho", 9), notFnd},
+		{"deposit full stash", false, 0, 3, full(3), false, 0, dep("kho", 1), stashF},
+		{"deposit ok", false, 0, 30, nil, false, 0, dep("kho", 1), ok},
+		{"withdraw dead", true, 0, 30, nil, false, 0, wd("none", 99), dead},
+		{"withdraw no npc", false, 0, 30, nil, false, 0, wd("none", 0), bad},
+		{"withdraw too far", false, 4.9, 30, nil, false, 0, wd("kho", 99), far},
+		{"withdraw slot -1", false, 0, 30, nil, false, 0, wd("kho", -1), bad},
+		{"withdraw slot 30", false, 0, 30, nil, false, 0, wd("kho", 30), bad},
+		{"withdraw empty slot, full bag", false, 0, 30, nil, true, 0, wd("kho", 5), notFnd},
+		{"withdraw full bag", false, 0, 30, full(1), true, 0, wd("kho", 0), bagF},
+		{"withdraw ok", false, 0, 30, full(1), false, 0, wd("kho", 0), ok},
+		{"expand dead", true, 0, 120, nil, false, 0, exp("none"), dead},
+		{"expand shop npc", false, 0, 120, nil, false, 0, exp("shop"), bad},
+		{"expand too far, maxed", false, 4.9, 120, nil, false, 0, exp("kho"), far},
+		{"expand maxed, no xu", false, 0, 120, nil, false, 0, exp("kho"), maxed},
+		{"expand short of xu", false, 0, 30, nil, false, 19999, exp("kho"), xuErr},
+		{"expand ok", false, 0, 30, nil, false, 20000, exp("kho"), ok},
+		{"sort dead", true, 0, 30, nil, false, 0, srt("none"), dead},
+		{"sort shop npc", false, 0, 30, nil, false, 0, srt("shop"), bad},
+		{"sort too far", false, 4.9, 30, nil, false, 0, srt("kho"), far},
+		{"sort ok", false, 0, 30, nil, false, 0, srt("kho"), ok},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := stashZone(t, c.size, c.stash, stashBag(), c.xu)
+			if c.fullB {
+				fillBag(p.inv)
+			}
+			if c.x != 0 {
+				p.pos.X = c.x
+			}
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			beforeInv, beforeStash, saves := p.inv.Clone(), cloneSlots(p.stash), len(sv.all())
+			if got := shopErr(t, z, p, c.cmd(z)); got != c.want {
+				t.Fatalf("code %v, want %v", got, c.want)
+			}
+			if c.want != ok && (p.xu != c.xu || !reflect.DeepEqual(p.inv, beforeInv) ||
+				!reflect.DeepEqual(p.stash, beforeStash) || len(sv.all()) != saves) {
+				t.Fatal("a rejected request changed xu, the bag, the stash or the saves")
+			}
+		})
+	}
+}
+
+func TestStashDepositMergesStackAndSaves(t *testing.T) {
+	z, p, sv := stashZone(t, 30, map[int]*items.Item{0: {Code: "stone_enhance", Count: 500}}, stashBag(), 0)
+	z.advance(time.Now())
+	out := p.out.(*fakeOut)
+	out.take()
+	saves := len(sv.all())
+	itemNow(t, z, z.StashDeposit(1, 9, "kho", 0))
+	if p.stash[0].Count != 999 || p.stash[1] == nil || p.stash[1].Count != 101 || p.inv.Bag[0] != nil {
+		t.Fatalf("stash %v %v, bag %v, want 999 + 101 and an empty bag slot", p.stash[0], p.stash[1], p.inv.Bag[0])
+	}
+	all := sv.all()
+	if len(all) != saves+1 {
+		t.Fatalf("saves %d, want %d", len(all), saves+1)
+	}
+	acc := all[len(all)-1].Account
+	if acc == nil || acc.StashSize != 30 || acc.Stash[0].Count != 999 {
+		t.Fatalf("saved account part %+v", acc)
+	}
+	r := respFor(out.take(), 9, (*pb.Envelope).GetStashDepositResp)
+	if r == nil || len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != 0 || r.Update.Bag[0].Item != nil ||
+		len(r.Stash) != 2 || r.Stash[0].Slot != 0 || r.Stash[1].Slot != 1 || r.Stash[1].Item.Count != 101 {
+		t.Fatalf("reply %v", r)
+	}
+}
+
+func TestStashDepositKeepsEquipmentDetail(t *testing.T) {
+	z, p, _ := stashZone(t, 30, nil, stashBag(), 0)
+	z.advance(time.Now())
+	want := *p.inv.Bag[1]
+	itemNow(t, z, z.StashDeposit(1, 9, "kho", 1))
+	if p.inv.Bag[1] != nil || p.stash[0] == nil || !reflect.DeepEqual(*p.stash[0], want) {
+		t.Fatalf("stash slot 0 %v, want %v", p.stash[0], want)
+	}
+}
+
+func TestStashWithdrawAndSave(t *testing.T) {
+	z, p, sv := stashZone(t, 30, map[int]*items.Item{4: {Code: "stone_enhance", Count: 100}}, stashBag(), 0)
+	z.advance(time.Now())
+	out := p.out.(*fakeOut)
+	out.take()
+	saves := len(sv.all())
+	itemNow(t, z, z.StashWithdraw(1, 9, "kho", 4))
+	if p.stash[4] != nil || p.inv.Bag[0].Count != 700 {
+		t.Fatalf("stash %v, bag stack %v, want an empty slot and 700", p.stash[4], p.inv.Bag[0])
+	}
+	if len(sv.all()) != saves+1 {
+		t.Fatalf("saves %d, want %d", len(sv.all()), saves+1)
+	}
+	r := respFor(out.take(), 9, (*pb.Envelope).GetStashWithdrawResp)
+	if r == nil || len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != 0 || len(r.Stash) != 1 ||
+		r.Stash[0].Slot != 4 || r.Stash[0].Item != nil {
+		t.Fatalf("reply %v", r)
+	}
+}
+
+func TestStashFullAndBagFullChangeNothing(t *testing.T) {
+	// Two full 999 stacks in a 2-slot stash: 600 more stones have no room.
+	z, p, _ := stashZone(t, 2, map[int]*items.Item{0: {Code: "stone_enhance", Count: 999}, 1: {Code: "stone_enhance", Count: 999}}, stashBag(), 0)
+	z.advance(time.Now())
+	before := cloneSlots(p.stash)
+	got := shopErr(t, z, p, z.StashDeposit(1, 9, "kho", 0))
+	if got != pb.ErrorCode_ERROR_CODE_STASH_FULL || !reflect.DeepEqual(p.stash, before) || p.inv.Bag[0].Count != 600 {
+		t.Fatalf("code %v, stash %v, bag %v", got, p.stash, p.inv.Bag[0])
+	}
+}
+
+func TestStashExpandCostsAndMax(t *testing.T) {
+	z, p, sv := stashZone(t, 30, nil, stashBag(), 70000)
+	z.advance(time.Now())
+	out := p.out.(*fakeOut)
+	out.take()
+	saves := len(sv.all())
+	itemNow(t, z, z.StashExpand(1, 9, "kho"))
+	if len(p.stash) != 40 || p.xu != 50000 {
+		t.Fatalf("size %d xu %d, want 40 and 50000", len(p.stash), p.xu)
+	}
+	r := respFor(out.take(), 9, (*pb.Envelope).GetStashExpandResp)
+	if r == nil || r.Size != 40 || r.Stats.Xu != 50000 {
+		t.Fatalf("reply %v", r)
+	}
+	itemNow(t, z, z.StashExpand(1, 10, "kho"))
+	if len(p.stash) != 50 || p.xu != 10000 {
+		t.Fatalf("size %d xu %d, want 50 and 10000 (40,000 for the second step)", len(p.stash), p.xu)
+	}
+	if got := len(sv.all()); got != saves+2 {
+		t.Fatalf("saves %d, want %d", got, saves+2)
+	}
+	if st := sv.all()[len(sv.all())-1].Account; st == nil || st.StashSize != 50 {
+		t.Fatalf("saved account part %+v", st)
+	}
+	p.xu = 1 << 40
+	for len(p.stash) < 120 {
+		itemNow(t, z, z.StashExpand(1, 11, "kho"))
+	}
+	if got := shopErr(t, z, p, z.StashExpand(1, 9, "kho")); got != pb.ErrorCode_ERROR_CODE_STASH_MAXED {
+		t.Fatalf("at 120: %v, want STASH_MAXED", got)
+	}
+}
+
+// A size kept on load that is off the step grid grows to the next grid size
+// for that step's price; the last step is capped at max.
+func TestStashExpandOffGridSize(t *testing.T) {
+	z, p, _ := stashZone(t, 35, nil, stashBag(), 20000)
+	z.advance(time.Now())
+	itemNow(t, z, z.StashExpand(1, 9, "kho"))
+	if len(p.stash) != 40 || p.xu != 0 {
+		t.Fatalf("size %d xu %d, want 40 and 0", len(p.stash), p.xu)
+	}
+	z, p, _ = stashZone(t, 25, nil, stashBag(), 20000) // below base: first step
+	z.advance(time.Now())
+	itemNow(t, z, z.StashExpand(1, 9, "kho"))
+	if len(p.stash) != 40 || p.xu != 0 {
+		t.Fatalf("size %d xu %d, want 40 and 0", len(p.stash), p.xu)
+	}
+	z, p, _ = stashZone(t, 115, nil, stashBag(), 180000)
+	z.advance(time.Now())
+	itemNow(t, z, z.StashExpand(1, 9, "kho"))
+	if len(p.stash) != 120 || p.xu != 0 {
+		t.Fatalf("size %d xu %d, want 120 and 0 (step 9 = 180,000)", len(p.stash), p.xu)
+	}
+}
+
+func TestStashSortAndOpen(t *testing.T) {
+	z, p, sv := stashZone(t, 30, map[int]*items.Item{
+		5: {Code: "stone_enhance", Count: 100}, 9: {Code: "stone_enhance", Count: 200}}, stashBag(), 0)
+	z.advance(time.Now())
+	out := p.out.(*fakeOut)
+	out.take()
+	itemNow(t, z, z.StashOpen(1, 8, "kho"))
+	o := respFor(out.take(), 8, (*pb.Envelope).GetStashOpenResp)
+	if o == nil || o.Stash.Size != 30 || len(o.Stash.Items) != 2 || o.Stash.Items[0].Slot != 5 || o.Stash.Items[1].Slot != 9 {
+		t.Fatalf("open reply %v", o)
+	}
+	saves := len(sv.all())
+	itemNow(t, z, z.StashSort(1, 9, "kho"))
+	if p.stash[0] == nil || p.stash[0].Count != 300 || p.stash[1] != nil || p.stash[5] != nil {
+		t.Fatalf("sorted stash %v %v", p.stash[0], p.stash[1])
+	}
+	if len(sv.all()) != saves+1 {
+		t.Fatalf("saves %d, want %d", len(sv.all()), saves+1)
+	}
+	r := respFor(out.take(), 9, (*pb.Envelope).GetStashSortResp)
+	if r == nil || len(r.Stash) != 30 || r.Stash[0].Item.Count != 300 || r.Stash[9].Item != nil {
+		t.Fatalf("sort reply %v", r)
+	}
+}
+
+func TestPendingRefineAndStash(t *testing.T) {
+	stash := map[int]*items.Item{3: {Code: "stone_refine", Count: 1}}
+	for name, c := range map[string]struct {
+		cmd  func(*Zone) bool
+		drop bool
+	}{
+		"open":     {func(z *Zone) bool { return z.StashOpen(1, 9, "kho") }, false},
+		"expand":   {func(z *Zone) bool { return z.StashExpand(1, 9, "kho") }, false},
+		"deposit":  {func(z *Zone) bool { return z.StashDeposit(1, 9, "kho", 0) }, true},
+		"withdraw": {func(z *Zone) bool { return z.StashWithdraw(1, 9, "kho", 3) }, true},
+		"sort":     {func(z *Zone) bool { return z.StashSort(1, 9, "kho") }, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			z, p, _ := stashZone(t, 30, stash, stashBag(), 99999)
+			z.advance(time.Now())
+			p.refine = &pendingRefine{}
+			itemNow(t, z, c.cmd(z))
+			if (p.refine == nil) != c.drop {
+				t.Fatalf("refine dropped %v, want %v", p.refine == nil, c.drop)
+			}
+		})
+	}
+}

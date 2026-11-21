@@ -133,6 +133,36 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 		}
 		r := p.BuyReq
 		c.zoneBusyIfDropped(seq, c.member.Buy(seq, r.NpcId, r.Code, int(r.Count)))
+	case *pb.Envelope_StashOpenReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.StashOpenReq
+		c.zoneBusyIfDropped(seq, c.member.StashOpen(seq, r.NpcId))
+	case *pb.Envelope_StashDepositReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.StashDepositReq
+		c.zoneBusyIfDropped(seq, c.member.StashDeposit(seq, r.NpcId, int(r.BagSlot)))
+	case *pb.Envelope_StashWithdrawReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.StashWithdrawReq
+		c.zoneBusyIfDropped(seq, c.member.StashWithdraw(seq, r.NpcId, int(r.StashSlot)))
+	case *pb.Envelope_StashExpandReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.StashExpandReq
+		c.zoneBusyIfDropped(seq, c.member.StashExpand(seq, r.NpcId))
+	case *pb.Envelope_StashSortReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.StashSortReq
+		c.zoneBusyIfDropped(seq, c.member.StashSort(seq, r.NpcId))
 	case *pb.Envelope_SellReq:
 		if !c.inWorld(seq) {
 			return

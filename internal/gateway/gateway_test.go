@@ -255,13 +255,18 @@ func TestLearnSkillNotInWorld(t *testing.T) {
 // phase 3b spec 4.1, phase 3c spec 4.2-4.5).
 func TestItemRequestsNotInWorld(t *testing.T) {
 	for name, env := range map[string]*pb.Envelope{
-		"pickup":   {Payload: &pb.Envelope_PickupReq{PickupReq: &pb.PickupReq{ItemId: 5}}},
-		"equip":    {Payload: &pb.Envelope_EquipReq{EquipReq: &pb.EquipReq{BagSlot: 1}}},
-		"unequip":  {Payload: &pb.Envelope_UnequipReq{UnequipReq: &pb.UnequipReq{EquipSlot: 1}}},
-		"discard":  {Payload: &pb.Envelope_DiscardReq{DiscardReq: &pb.DiscardReq{BagSlot: 1, Count: 1}}},
-		"buy":      {Payload: &pb.Envelope_BuyReq{BuyReq: &pb.BuyReq{NpcId: "shop", Code: "potion_hp_1", Count: 1}}},
-		"sell":     {Payload: &pb.Envelope_SellReq{SellReq: &pb.SellReq{NpcId: "shop", BagSlot: 1, Count: 1}}},
-		"sort bag": {Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}},
+		"pickup":         {Payload: &pb.Envelope_PickupReq{PickupReq: &pb.PickupReq{ItemId: 5}}},
+		"equip":          {Payload: &pb.Envelope_EquipReq{EquipReq: &pb.EquipReq{BagSlot: 1}}},
+		"unequip":        {Payload: &pb.Envelope_UnequipReq{UnequipReq: &pb.UnequipReq{EquipSlot: 1}}},
+		"discard":        {Payload: &pb.Envelope_DiscardReq{DiscardReq: &pb.DiscardReq{BagSlot: 1, Count: 1}}},
+		"buy":            {Payload: &pb.Envelope_BuyReq{BuyReq: &pb.BuyReq{NpcId: "shop", Code: "potion_hp_1", Count: 1}}},
+		"sell":           {Payload: &pb.Envelope_SellReq{SellReq: &pb.SellReq{NpcId: "shop", BagSlot: 1, Count: 1}}},
+		"sort bag":       {Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}},
+		"stash open":     {Payload: &pb.Envelope_StashOpenReq{StashOpenReq: &pb.StashOpenReq{NpcId: "kho"}}},
+		"stash deposit":  {Payload: &pb.Envelope_StashDepositReq{StashDepositReq: &pb.StashDepositReq{NpcId: "kho", BagSlot: 1}}},
+		"stash withdraw": {Payload: &pb.Envelope_StashWithdrawReq{StashWithdrawReq: &pb.StashWithdrawReq{NpcId: "kho", StashSlot: 1}}},
+		"stash expand":   {Payload: &pb.Envelope_StashExpandReq{StashExpandReq: &pb.StashExpandReq{NpcId: "kho"}}},
+		"stash sort":     {Payload: &pb.Envelope_StashSortReq{StashSortReq: &pb.StashSortReq{NpcId: "kho"}}},
 		"enhance": {Payload: &pb.Envelope_EnhanceReq{EnhanceReq: &pb.EnhanceReq{
 			Item: &pb.ItemRef{Equipped: true, Slot: 0}, Times: 1}}},
 		"punch":         {Payload: &pb.Envelope_PunchReq{PunchReq: &pb.PunchReq{Item: &pb.ItemRef{Slot: 1}}}},

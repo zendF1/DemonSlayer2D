@@ -413,6 +413,76 @@ func (c *Client) Sell(ctx context.Context, npcID string, bagSlot, count int) (*p
 	return r, nil
 }
 
+// StashOpen sends StashOpenReq to the storage keeper npcID.
+func (c *Client) StashOpen(ctx context.Context, npcID string) (*pb.StashOpenResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_StashOpenReq{StashOpenReq: &pb.StashOpenReq{
+		NpcId: npcID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetStashOpenResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to StashOpenReq: %v", resp)
+	}
+	return r, nil
+}
+
+// StashDeposit sends StashDepositReq to the storage keeper npcID.
+func (c *Client) StashDeposit(ctx context.Context, npcID string, bagSlot int) (*pb.StashDepositResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_StashDepositReq{StashDepositReq: &pb.StashDepositReq{
+		NpcId: npcID, BagSlot: int32(bagSlot)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetStashDepositResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to StashDepositReq: %v", resp)
+	}
+	return r, nil
+}
+
+// StashWithdraw sends StashWithdrawReq to the storage keeper npcID.
+func (c *Client) StashWithdraw(ctx context.Context, npcID string, stashSlot int) (*pb.StashWithdrawResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_StashWithdrawReq{StashWithdrawReq: &pb.StashWithdrawReq{
+		NpcId: npcID, StashSlot: int32(stashSlot)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetStashWithdrawResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to StashWithdrawReq: %v", resp)
+	}
+	return r, nil
+}
+
+// StashExpand sends StashExpandReq to the storage keeper npcID.
+func (c *Client) StashExpand(ctx context.Context, npcID string) (*pb.StashExpandResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_StashExpandReq{StashExpandReq: &pb.StashExpandReq{
+		NpcId: npcID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetStashExpandResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to StashExpandReq: %v", resp)
+	}
+	return r, nil
+}
+
+// StashSort sends StashSortReq to the storage keeper npcID.
+func (c *Client) StashSort(ctx context.Context, npcID string) (*pb.StashSortResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_StashSortReq{StashSortReq: &pb.StashSortReq{
+		NpcId: npcID}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetStashSortResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to StashSortReq: %v", resp)
+	}
+	return r, nil
+}
+
 // UseItem drinks the potion in bagSlot.
 func (c *Client) UseItem(ctx context.Context, bagSlot int) (*pb.UseItemResp, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_UseItemReq{UseItemReq: &pb.UseItemReq{

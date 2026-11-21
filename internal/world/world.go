@@ -282,6 +282,33 @@ func (m *Membership) Discard(seq uint32, bagSlot, count int) bool {
 // reports false if the zone's inbox is full.
 func (m *Membership) SortBag(seq uint32) bool { return m.z.SortBag(m.EntityID, seq) }
 
+// StashOpen queues opening the stash at the storage keeper npcID; the zone
+// answers seq on the outbox. It never blocks and reports false if the zone's
+// inbox is full.
+func (m *Membership) StashOpen(seq uint32, npcID string) bool {
+	return m.z.StashOpen(m.EntityID, seq, npcID)
+}
+
+// StashDeposit queues moving the item in bagSlot into the stash.
+func (m *Membership) StashDeposit(seq uint32, npcID string, bagSlot int) bool {
+	return m.z.StashDeposit(m.EntityID, seq, npcID, bagSlot)
+}
+
+// StashWithdraw queues moving the item in stashSlot into the bag.
+func (m *Membership) StashWithdraw(seq uint32, npcID string, stashSlot int) bool {
+	return m.z.StashWithdraw(m.EntityID, seq, npcID, stashSlot)
+}
+
+// StashExpand queues growing the stash by one step.
+func (m *Membership) StashExpand(seq uint32, npcID string) bool {
+	return m.z.StashExpand(m.EntityID, seq, npcID)
+}
+
+// StashSort queues merging and sorting the stash.
+func (m *Membership) StashSort(seq uint32, npcID string) bool {
+	return m.z.StashSort(m.EntityID, seq, npcID)
+}
+
 // Buy queues buying count of code from the shop NPC npcID; the zone answers
 // seq on the outbox. It reports false if the zone's inbox is full.
 func (m *Membership) Buy(seq uint32, npcID, code string, count int) bool {
