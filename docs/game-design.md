@@ -1065,7 +1065,7 @@ Các khoản tiêu hao Xu như bình thuốc, mở kho, cường hóa và tẩy 
 
 ## 8. Auto-play
 
-Auto chạy hoàn toàn ở client (giai đoạn 6c, [spec](superpowers/specs/2026-11-20-giai-doan-6c-tu-dong-danh-design.md)); server không có trạng thái auto, chỉ nhận các lệnh thường (chọn mục tiêu, đánh, chiêu, dùng bình, nhặt, di chuyển) trong cùng giới hạn tần suất như người chơi giữ nút. Auto chỉ chạy khi client đang ở màn World.
+Auto chạy hoàn toàn ở client (giai đoạn 6c, [spec](superpowers/specs/2026-11-20-giai-doan-6c-tu-dong-danh-design.md)); server không có trạng thái auto, chỉ nhận các lệnh thường (đánh, chiêu, dùng bình, nhặt, di chuyển; việc chọn mục tiêu nằm ở client) trong cùng giới hạn tần suất như người chơi giữ nút. Auto chỉ chạy khi client đang ở màn World.
 
 - Bật bằng nút Auto trên HUD khi còn sống, map có vùng quái và đứng ngoài khu an toàn; giữ nút để mở cài đặt.
 - **Bãi gốc:** vị trí, map và khu lúc bật, bán kính 10 ô. Chỉ chọn quái còn sống trong bãi, gần nhất trước (bằng nhau thì id nhỏ hơn). Giữ mục tiêu quái tới khi chết, bỏ khi quái ra ngoài bãi + 2 ô. Không có quái thì đi về tâm bãi nếu đang ngoài bãi, trong bãi thì đứng chờ quái hồi sinh.
