@@ -768,3 +768,119 @@ func TestDevSetPlaceErrors(t *testing.T) {
 		t.Fatalf("after refused calls: %+v, %v", got, err)
 	}
 }
+
+// ______________________TEST ACCOUNT STASH_____________________
+
+func TestMigrationAddsAccountStash(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	db := stdlib.OpenDB(*schemaConfig(t, url, schema))
+	defer db.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 6); err != nil {
+		t.Fatal(err)
+	}
+	var acc, char int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO accounts (username, password_hash) VALUES ('old', 'h') RETURNING id`).Scan(&acc); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `INSERT INTO characters (account_id, slot, name, name_key, class, level, map_id, pos_x, pos_y)
+		VALUES ($1, 1, 'old', 'old', 'viem', 7, 'kumotori_1', 5.5, 5.5) RETURNING id`, acc).Scan(&char); err != nil {
+		t.Fatal(err)
+	}
+
+	st := openMigrated(t, url, schema)
+	c, err := st.GetCharacter(ctx, acc, char)
+	if err != nil || c.Account.ID != acc || c.Account.Luong != 0 || c.Account.StashSize != 30 ||
+		c.Account.Stash == nil || len(c.Account.Stash) != 0 {
+		t.Fatalf("migrated account %+v, %v, want 0 Luong, size 30, empty stash", c.Account, err)
+	}
+
+	if _, err := p.DownTo(ctx, 6); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	if err := db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'account_stash')
+		+ (SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'accounts' AND column_name IN ('luong', 'stash_size'))`,
+		schema).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("after down: %d stash objects left, %v", left, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveAndLoadAccountStash(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	st := openMigrated(t, url, schema)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	a, _ := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	b, _ := st.CreateCharacter(ctx, newChar(acc, 2, "Zenitsu"))
+
+	stash := testItems()[:3]
+	stash = append(stash, testItems()[3])
+	for i := range stash {
+		stash[i].Equipped, stash[i].Slot = false, i*5
+	}
+	state := store.CharState{ID: a.ID, MapID: "kumotori_1", Level: 1, HP: -1, MP: -1,
+		Account: &store.AccountState{ID: acc, Luong: 777, StashSize: 40, Stash: stash}}
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetCharacter(ctx, acc, a.ID)
+	if err != nil || got.Account.Luong != 777 || got.Account.StashSize != 40 || !reflect.DeepEqual(got.Account.Stash, stash) {
+		t.Fatalf("after save: %+v, %v\nwant stash %+v", got.Account, err, stash)
+	}
+
+	// The other character of the account loads the same stash; the list does not load it.
+	other, err := st.GetCharacter(ctx, acc, b.ID)
+	if err != nil || !reflect.DeepEqual(other.Account, got.Account) {
+		t.Fatalf("other character account %+v, %v, want %+v", other.Account, err, got.Account)
+	}
+	list, err := st.ListCharacters(ctx, acc)
+	if err != nil || len(list) != 2 || !reflect.DeepEqual(list[0].Account, store.AccountState{}) {
+		t.Fatalf("list %+v, %v, want a zero account part", list, err)
+	}
+
+	// A nil account part leaves the account alone.
+	state.Account = nil
+	state.Level = 9
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	if got2, err := st.GetCharacter(ctx, acc, a.ID); err != nil || got2.Level != 9 || !reflect.DeepEqual(got2.Account, got.Account) {
+		t.Fatalf("after nil account save: %+v, %v", got2.Account, err)
+	}
+
+	// An empty stash list deletes the old rows.
+	state.Account = &store.AccountState{ID: acc, Luong: 5, StashSize: 30}
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.GetCharacter(ctx, acc, a.ID)
+	if err != nil || got.Account.Luong != 5 || got.Account.StashSize != 30 || got.Account.Stash == nil || len(got.Account.Stash) != 0 {
+		t.Fatalf("after empty stash: %+v, %v", got.Account, err)
+	}
+
+	// Deleting the account takes its stash with it.
+	state.Account.Stash = stash
+	if err := st.SaveCharacterState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := pgx.ConnectConfig(ctx, schemaConfig(t, url, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close(ctx)
+	if _, err := raw.Exec(ctx, `DELETE FROM accounts WHERE id = $1`, acc); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := raw.QueryRow(ctx, `SELECT count(*) FROM account_stash WHERE account_id = $1`, acc).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("%d stash rows left after account delete, %v", n, err)
+	}
+}

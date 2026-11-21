@@ -37,6 +37,18 @@ type Character struct {
 	// bag first, then by slot; never nil on a loaded character.
 	Xu    int64
 	Items []ItemRow
+	// Account is the account part (Lượng, stash); only GetCharacter fills it.
+	Account AccountState
+}
+
+// AccountState is the account-owned data a character save may carry: Lượng,
+// the stash size and the stash rows (Equipped is always false, Slot is the
+// stash slot).
+type AccountState struct {
+	ID        int64
+	Luong     int64
+	StashSize int
+	Stash     []ItemRow
 }
 
 // ItemRow is one stored item: a bag slot (Equipped false) or a worn slot
@@ -96,6 +108,9 @@ type CharState struct {
 	// Items replaces every stored item of the character; nil saves none.
 	Xu    int64
 	Items []ItemRow
+	// Account, when not nil, is saved in the same transaction; nil writes
+	// nothing to the account.
+	Account *AccountState
 }
 
 const charColumns = `id, account_id, slot, name, class, level, exp, map_id, pos_x, pos_y,
@@ -212,6 +227,9 @@ func (s *Store) GetCharacter(ctx context.Context, accountID, charID int64) (Char
 		err = s.loadExtras(ctx, chars)
 		c = chars[0]
 	}
+	if err == nil {
+		err = s.loadAccount(ctx, &c)
+	}
 	if err != nil {
 		return Character{}, fmt.Errorf("store: get character: %w", err)
 	}
@@ -271,7 +289,56 @@ func saveState(ctx context.Context, tx pgx.Tx, st CharState) error {
 	if err := saveSkills(ctx, tx, st); err != nil {
 		return err
 	}
-	return saveItems(ctx, tx, st)
+	if err := saveItems(ctx, tx, st); err != nil {
+		return err
+	}
+	return saveAccount(ctx, tx, st.Account)
+}
+
+// saveAccount writes Lượng, the stash size and the stash rows; nil does nothing.
+func saveAccount(ctx context.Context, tx pgx.Tx, a *AccountState) error {
+	if a == nil {
+		return nil
+	}
+	tag, err := tx.Exec(ctx, `UPDATE accounts SET luong = $2, stash_size = $3 WHERE id = $1`, a.ID, a.Luong, a.StashSize)
+	if err != nil || tag.RowsAffected() == 0 {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM account_stash WHERE account_id = $1`, a.ID); err != nil {
+		return err
+	}
+	return insertItems(ctx, tx, "account_stash", "account_id", a.ID, false, a.Stash)
+}
+
+// loadAccount fills c.Account: the account columns, then the stash rows.
+func (s *Store) loadAccount(ctx context.Context, c *Character) error {
+	a := AccountState{ID: c.AccountID, Stash: []ItemRow{}}
+	if err := s.pool.QueryRow(ctx, `SELECT luong, stash_size FROM accounts WHERE id = $1`, c.AccountID).
+		Scan(&a.Luong, &a.StashSize); err != nil {
+		return err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT slot, code, count, quality, element, enhance, lines, hidden, pity, gems
+		FROM account_stash WHERE account_id = $1 ORDER BY slot`, c.AccountID)
+	if err != nil {
+		return err
+	}
+	var r ItemRow
+	_, err = pgx.ForEachRow(rows, []any{&r.Slot, &r.Code, &r.Count, &r.Quality, &r.Element,
+		&r.Enhance, &r.Lines, &r.Hidden, &r.Pity, &r.Gems}, func() error {
+		if len(r.Pity) == 0 {
+			r.Pity = nil
+		}
+		if len(r.Gems) == 0 {
+			r.Gems = nil
+		}
+		a.Stash = append(a.Stash, r)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	c.Account = a
+	return nil
 }
 
 func saveSkills(ctx context.Context, tx pgx.Tx, st CharState) error {
@@ -300,17 +367,24 @@ func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM character_items WHERE character_id = $1`, st.ID); err != nil {
 		return err
 	}
-	if len(st.Items) == 0 {
+	return insertItems(ctx, tx, "character_items", "character_id", st.ID, true, st.Items)
+}
+
+// insertItems inserts rows into table (a constant: character_items or
+// account_stash) under owner id, in one INSERT from unnest. withEquipped is
+// false for the stash, which has no equipped column.
+func insertItems(ctx context.Context, tx pgx.Tx, table, idCol string, id int64, withEquipped bool, items []ItemRow) error {
+	if len(items) == 0 {
 		return nil
 	}
-	n := len(st.Items)
+	n := len(items)
 	var (
 		equipped                             = make([]bool, n)
 		slot, count, quality, enhance        = make([]int32, n), make([]int32, n), make([]int32, n), make([]int32, n)
 		code, element, linesJSON, hiddenJSON = make([]string, n), make([]string, n), make([]string, n), make([]string, n)
 		pity, gems                           = make([]string, n), make([]string, n)
 	)
-	for i, r := range st.Items {
+	for i, r := range items {
 		equipped[i], code[i], element[i] = r.Equipped, r.Code, r.Element
 		slot[i], count[i], quality[i], enhance[i] = int32(r.Slot), int32(r.Count), int32(r.Quality), int32(r.Enhance)
 		var err error
@@ -322,13 +396,17 @@ func saveItems(ctx context.Context, tx pgx.Tx, st CharState) error {
 		}
 		pity[i], gems[i] = pityText(r.Pity), gemsText(r.Gems)
 	}
+	cols, sel := "slot", "s"
+	if withEquipped {
+		cols, sel = "equipped, slot", "e, s"
+	}
 	_, err := tx.Exec(ctx,
-		`INSERT INTO character_items (character_id, equipped, slot, code, count, quality, element, enhance, lines, hidden, pity, gems)
-		 SELECT $1, e, s, c, n, q, el, en, l::jsonb, h::jsonb, p::smallint[], g::text[]
+		`INSERT INTO `+table+` (`+idCol+`, `+cols+`, code, count, quality, element, enhance, lines, hidden, pity, gems)
+		 SELECT $1, `+sel+`, c, n, q, el, en, l::jsonb, h::jsonb, p::smallint[], g::text[]
 		 FROM unnest($2::bool[], $3::int[], $4::text[], $5::int[], $6::int[], $7::text[], $8::int[], $9::text[], $10::text[],
 		   $11::text[], $12::text[])
 		   AS u(e, s, c, n, q, el, en, l, h, p, g)`,
-		st.ID, equipped, slot, code, count, quality, element, enhance, linesJSON, hiddenJSON, pity, gems)
+		id, equipped, slot, code, count, quality, element, enhance, linesJSON, hiddenJSON, pity, gems)
 	return err
 }
 
