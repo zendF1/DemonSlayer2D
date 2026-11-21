@@ -803,7 +803,7 @@ Quy tắc **mở map theo tiến trình** và **Hạ Huyền/Thượng Huyền c
 - **Luật kiểm tra lúc bấm** (chém và chiêu): chính mình/không có/đã chết `INVALID_TARGET`; map cấm PK `PK_FORBIDDEN`; mục tiêu trong khu an toàn `IN_SAFE_ZONE`; bảng PK không cho `PK_FORBIDDEN`. Đòn chốt lúc bấm và trúng lúc chạm: mục tiêu chạy vào khu an toàn hoặc tắt PK sau khi bấm vẫn dính; rời zone hoặc đã chết thì đòn bị bỏ. Chiêu diện rộng bỏ người chơi không hợp lệ, vẫn ra theo hướng.
 - **Người kết liễu** tính theo đòn trúng làm HP về 0 (đòn người chơi hay quái), không theo ai đánh nhiều nhất. Người hạ không nhận EXP, Xu hay đồ.
 - Sát thương người đánh người: `max(1, floor(cơ sở × (1 − thủ / (thủ + 20 × cấp người đánh)) × 1,0))`, dùng thủ vật lý hay thủ phép của mục tiêu theo loại đòn.
-- **Người bật PK đánh được tất cả người chơi**, kể cả người đang tắt PK. **Người đang bật PK thì ai cũng đánh được**, kể cả người đang tắt PK. Hai người cùng tắt PK không thể tấn công nhau.
+- **Người bật PK đánh được tất cả người chơi**, kể cả người đang tắt PK. Hai người cùng tắt PK không thể tấn công nhau.
 
 | Người tấn công | Mục tiêu bật PK | Mục tiêu tắt PK |
 | --- | --- | --- |
