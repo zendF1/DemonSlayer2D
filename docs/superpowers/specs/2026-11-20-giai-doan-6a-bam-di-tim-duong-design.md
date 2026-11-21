@@ -1,6 +1,6 @@
 # Giai đoạn 6a — Bấm để đi, tìm đường A* và đi xuyên map
 
-Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế; client đang triển khai (tìm đường, đi theo đường, đồ thị map và lộ trình đã xong; nối dây vào màn World và giao diện đang làm), tài liệu server đã xong, server không đổi.
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ client (Task 1–6, client 1753a67; sửa sau review tổng: client b140dd8, dd7e6b7, 0496523) và tài liệu server (Task 7, 109fe9f); server không đổi (protocol 13); smoke OK.
 
 Spec này thiết kế phần đầu của Giai đoạn 6 (Nhiệm vụ và auto) cho client Godot (`../DemonSlayer2DGame`) và tài liệu của server (repo này). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.5 (tự chạy tới mục tiêu), 4.3 (tự tìm đường) và 5.2 (lớp va chạm phục vụ A*); game-design là chuẩn. Những gì không nhắc tới ở đây giữ nguyên như các spec trước, nhất là [spec 4a](2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md) (cổng, `portal_watch`, nạp lại màn World khi chuyển zone), [spec 4b](2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md) (NPC, `npc_loop`) và [spec client Giai đoạn 0](2026-11-19-giai-doan-0-client-design.md) (dự đoán di chuyển). Giai đoạn 3–5 được triển khai trước, nên spec này viết trên giao thức 13 và migration 00008.
 
