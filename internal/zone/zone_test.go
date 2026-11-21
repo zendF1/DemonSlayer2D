@@ -5446,6 +5446,56 @@ func TestDailyHandoff(t *testing.T) {
 	}
 }
 
+// A zone whose once-a-second day check has not yet seen midnight still
+// prunes a joining player by the clock: an entry of the new day, accepted in
+// a zone that already moved on, is kept, and one of the old day is dropped,
+// with the countdown of the new day. The zone's own players get the midnight
+// QuestLog in the same tick, and the joiner gets no second log.
+func TestDailyJoinUsesClockDay(t *testing.T) {
+	clock := &fakeClock{beforeMidnight}
+	yesterday := quest.Day(clock.t)
+	z, p, out, _ := dailyZone(t, 10, quest.Log{"d_collect": {State: quest.Active, Day: yesterday}}, clock)
+	clock.t = beforeMidnight.Add(time.Second) // 17:00:00.5 UTC, z still on yesterday
+	today := quest.Day(clock.t)
+
+	in := info(2, 6.5, 5.5)
+	in.Level, in.Quests = 10, quest.Log{
+		"d_kill":    {State: quest.Done, Progress: 30, Day: today},
+		"d_enhance": {State: quest.Active, Progress: 1, Day: yesterday},
+		"m01":       {State: quest.Done, Progress: 5},
+	}
+	out2 := &fakeOut{}
+	if err := z.join(in, out2); err != nil {
+		t.Fatal(err)
+	}
+	want := quest.Log{"d_kill": in.Quests["d_kill"], "m01": in.Quests["m01"]}
+	if !reflect.DeepEqual(z.players[2].quests, want) {
+		t.Fatalf("joiner log %v, want %v", z.players[2].quests, want)
+	}
+	r := out2.take()[0].GetEnterWorldResp()
+	if len(r.GetQuests().GetQuests()) != 2 || r.GetQuests().DailyResetMs != 86_399_500 {
+		t.Fatalf("EnterWorldResp quests %v", r.GetQuests())
+	}
+	if z.day != today {
+		t.Fatalf("zone day %d, want %d", z.day, today)
+	}
+
+	out.take()
+	z.advance(time.Now())
+	if ql := questLogsIn(out.take()); len(ql) != 1 || len(ql[0].Quests) != 0 {
+		t.Fatalf("player 1 QuestLog %v, want one with no quests", ql)
+	}
+	if len(p.quests) != 0 {
+		t.Fatalf("player 1 log %v, want empty", p.quests)
+	}
+	if ql := questLogsIn(out2.take()); len(ql) != 0 {
+		t.Fatalf("joiner got QuestLog %v after EnterWorldResp", ql)
+	}
+	if e := questErr(t, z, out2, func(z *Zone) bool { return z.QuestAccept(2, 9, "qua_truyen_tin", "d_kill") }); e != pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE {
+		t.Fatalf("second d_kill today: %v, want QUEST_NOT_AVAILABLE", e)
+	}
+}
+
 // d_enhance counts the attempts an EnhanceReq ran, after the loop and only
 // when it succeeds, capped at 3: times 5 stopping at the first success is
 // 1, two failed attempts with charms are 2, a refused request is 0. The

@@ -217,15 +217,21 @@ func (z *Zone) creditEnhance(p *player, attempts int) {
 	p.questChanged = append(p.questChanged, quest.CreditEnhance(z.area.Quests, p.quests, attempts)...)
 }
 
-// newDay checks the quest day once a second (phase 6d spec 4.2). When it
-// changes, every player loses the daily entries of other days and gets the
-// whole log in this tick's syncView, even with no daily entry, so the client
-// restarts its countdown. Nothing is saved at once: the next save carries
-// the pruned log.
+// newDay checks the quest day once a second (phase 6d spec 4.2).
 func (z *Zone) newDay() {
 	if z.tickNo%z.ticks(1) != 0 {
 		return
 	}
+	z.syncDay()
+}
+
+// syncDay moves the zone day to the clock's. When it changes, every player
+// loses the daily entries of other days and gets the whole log in this
+// tick's syncView, even with no daily entry, so the client restarts its
+// countdown. Nothing is saved at once: the next save carries the pruned log.
+// join calls it too, before adding the player, so a player coming from a
+// zone that already saw midnight is never pruned by a day that lags.
+func (z *Zone) syncDay() {
 	day := quest.Day(z.cfg.Now())
 	if day == z.day {
 		return

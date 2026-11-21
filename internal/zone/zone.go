@@ -672,6 +672,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	if p.quests == nil {
 		p.quests = quest.Log{}
 	}
+	z.syncDay()      // by the clock, not a zone day up to a second behind
 	z.pruneQuests(p) // a login or a handoff from a zone still on yesterday
 	if p.skills == nil {
 		p.skills = map[string]int{}
