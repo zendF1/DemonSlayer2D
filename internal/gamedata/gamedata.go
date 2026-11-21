@@ -56,7 +56,17 @@ type Kind struct {
 	// Rank is the monster's rank (normal, elite or boss); it picks the
 	// drop table and the reward multipliers.
 	Rank string `json:"rank"`
+	// HPPct scales the level table's HP and base EXP for this kind, and
+	// AttackPct its attack, in percent (50-200; phase 4d spec 2.6).
+	HPPct     int `json:"hp_pct"`
+	AttackPct int `json:"attack_pct"`
+	// DamageType says which player defense the kind's melee and shots meet:
+	// DamagePhys or DamageMagic, the damage kinds skills use too.
+	DamageType string `json:"damage_type"`
 }
+
+// Magic reports whether the kind's hits meet the player's magic defense.
+func (k Kind) Magic() bool { return k.DamageType == DamageMagic }
 
 // Level holds the monster stats of one level. Defense serves as both
 // physical and magic defense.
@@ -124,6 +134,16 @@ func Parse(b []byte) (*Data, error) {
 		}
 		if !slices.Contains(rankList, k.Rank) {
 			return nil, fmt.Errorf("gamedata: kind %q: rank %q must be normal, elite or boss", k.ID, k.Rank)
+		}
+		// A missing field decodes as zero or empty, so these checks also
+		// make all three required.
+		for name, v := range map[string]int{"hp_pct": k.HPPct, "attack_pct": k.AttackPct} {
+			if v < 50 || v > 200 {
+				return nil, fmt.Errorf("gamedata: kind %q: %s %d must be in 50-200", k.ID, name, v)
+			}
+		}
+		if k.DamageType != DamagePhys && k.DamageType != DamageMagic {
+			return nil, fmt.Errorf("gamedata: kind %q: damage_type %q must be phys or magic", k.ID, k.DamageType)
 		}
 		d.Kinds[k.ID] = k
 	}

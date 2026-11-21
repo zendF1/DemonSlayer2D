@@ -20,7 +20,7 @@ import (
 )
 
 const validJSON = `{
-  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15,"rank":"normal"}],
+  "kinds": [{"id":"a","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":0.8,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15,"rank":"normal","hp_pct":100,"attack_pct":100,"damage_type":"phys"}],
   "levels": [{"level":1,"hp":56,"attack":30,"defense":8,"exp":6},{"level":2,"hp":104,"attack":39,"defense":16,"exp":11}]
 }`
 
@@ -46,7 +46,8 @@ func TestParseKindFields(t *testing.T) {
 	}
 	want := Kind{ID: "a", Name: "A", AttackRange: 1.5, AttackSec: 1.5, Speed: 0.8, DetectRange: 5, ChaseRange: 10,
 		ShootSec: 2, ShootWindupSec: 0.5, RegionMargin: 3, ChaseSpeed: 1.2, SafeWaitSec: 5,
-		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8, MeleeWindupMS: 200, ShotSpeed: 15, Rank: RankNormal}
+		MarginGraceSec: 2, GrudgeSec: 10, RespawnSec: 8, MeleeWindupMS: 200, ShotSpeed: 15, Rank: RankNormal,
+		HPPct: 100, AttackPct: 100, DamageType: DamagePhys}
 	if k := d.Kinds["a"]; k != want {
 		t.Fatalf("kind %+v, want %+v", k, want)
 	}
@@ -55,8 +56,12 @@ func TestParseKindFields(t *testing.T) {
 func kindWith(field, value string) string {
 	fields := map[string]string{"attack_range": "1.5", "attack_sec": "1.5", "speed": "0.8", "detect_range": "5",
 		"chase_range": "10", "shoot_sec": "2", "shoot_windup_sec": "0.5", "region_margin": "3", "chase_speed": "1.2", "safe_wait_sec": "5",
-		"margin_grace_sec": "2", "grudge_sec": "10", "respawn_sec": "8", "melee_windup_ms": "200", "shot_speed": "15", "rank": `"normal"`}
+		"margin_grace_sec": "2", "grudge_sec": "10", "respawn_sec": "8", "melee_windup_ms": "200", "shot_speed": "15", "rank": `"normal"`,
+		"hp_pct": "100", "attack_pct": "100", "damage_type": `"phys"`}
 	fields[field] = value
+	if value == "" {
+		delete(fields, field) // an empty value leaves the field out
+	}
 	var parts []string
 	for k, v := range fields {
 		parts = append(parts, `"`+k+`":`+v)
@@ -135,7 +140,7 @@ func TestParseRejectsOldRangeFields(t *testing.T) {
 func TestParseErrors(t *testing.T) {
 	kind := func(id, speed string) string {
 		return `{"id":"` + id + `","name":"A","attack_range":1.5,"attack_sec":1.5,"speed":` + speed +
-			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15,"rank":"normal"}`
+			`,"detect_range":5,"chase_range":10,"shoot_sec":2,"shoot_windup_sec":0.5,"region_margin":3,"chase_speed":1.2,"safe_wait_sec":5,"margin_grace_sec":2,"grudge_sec":10,"respawn_sec":8,"melee_windup_ms":200,"shot_speed":15,"rank":"normal","hp_pct":100,"attack_pct":100,"damage_type":"phys"}`
 	}
 	lvl := `{"level":1,"hp":56,"attack":30,"defense":8,"exp":6}`
 	doc := func(kinds, levels string) string { return `{"kinds":[` + kinds + `],"levels":[` + levels + `]}` }
@@ -162,6 +167,48 @@ func TestParseErrors(t *testing.T) {
 func TestLoadMissingFile(t *testing.T) {
 	if _, err := Load(t.TempDir()); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+// ______________________TEST KIND TRAITS_____________________
+
+// Phase 4d spec 2.6: hp_pct and attack_pct are 50-200, damage_type is phys
+// or magic, and all three are required like every other kind field.
+func TestParseKindTraits(t *testing.T) {
+	d, err := Parse([]byte(kindWith("damage_type", `"magic"`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k := d.Kinds["a"]; !k.Magic() || k.DamageType != DamageMagic {
+		t.Fatalf("magic kind: %+v", k)
+	}
+	if d, err = Parse([]byte(validJSON)); err != nil || d.Kinds["a"].Magic() {
+		t.Fatalf("phys kind: %v %+v", err, d.Kinds["a"])
+	}
+	for _, ok := range []struct{ field, value string }{
+		{"hp_pct", "50"}, {"hp_pct", "200"}, {"attack_pct", "50"}, {"attack_pct", "200"}, {"hp_pct", "80"},
+	} {
+		if _, err := Parse([]byte(kindWith(ok.field, ok.value))); err != nil {
+			t.Errorf("%s %s must be accepted: %v", ok.field, ok.value, err)
+		}
+	}
+	for _, bad := range []struct{ field, value string }{
+		{"hp_pct", "49"}, {"hp_pct", "201"}, {"attack_pct", "0"}, {"attack_pct", "201"},
+		{"damage_type", `"fire"`}, {"damage_type", `""`},
+	} {
+		_, err := Parse([]byte(kindWith(bad.field, bad.value)))
+		if err == nil || !strings.Contains(err.Error(), bad.field) || !strings.Contains(err.Error(), `kind "a"`) {
+			t.Errorf("%s %s: err %v, want one naming the kind and the field", bad.field, bad.value, err)
+		}
+	}
+	for _, f := range []string{"hp_pct", "attack_pct", "damage_type"} {
+		doc := kindWith(f, "")
+		if strings.Contains(doc, f) {
+			t.Fatalf("setup: %s still in %s", f, doc)
+		}
+		if _, err := Parse([]byte(doc)); err == nil || !strings.Contains(err.Error(), f) {
+			t.Errorf("without %s: err %v, want one naming it", f, err)
+		}
 	}
 }
 
@@ -230,8 +277,9 @@ func TestRepoMonstersCoverLevels1To90(t *testing.T) {
 	}
 }
 
-// Phase 4a spec 2.4: six new normal kinds behave exactly like wanderer, and
-// the levels table is the one before they were added.
+// Phase 4a spec 2.4 and phase 4d spec 2.5: the normal kinds behave exactly
+// like wanderer except for the listed traits, and the levels table is the one
+// before they were added.
 func TestRepoMonsterKinds(t *testing.T) {
 	d, err := Load("../../data")
 	if err != nil {
@@ -242,11 +290,34 @@ func TestRepoMonsterKinds(t *testing.T) {
 		"mountain_demon": "Quỷ rừng núi", "ambusher": "Quỷ phục kích",
 		"mist_lurker": "Quỷ ẩn sương", "long_claw": "Quỷ vuốt dài",
 		"forest_demon": "Quỷ Rừng", "captive_demon": "Quỷ bị giam trên núi",
+		// Phase 4d spec 2.5, levels 21-90.
+		"big_demon": "Quỷ thân lớn", "many_arms": "Quỷ nhiều tay",
+		"marsh_demon": "Quỷ ven đầm", "mud_ambusher": "Quỷ phục kích dưới bùn",
+		"new_demon": "Quỷ mới biến đổi", "city_wanderer": "Quỷ lang thang đô thị",
+		"henchman": "Quỷ tay sai", "manor_woods": "Quỷ rừng ngoài dinh", "long_nail": "Quỷ móng dài",
+		"manor_dweller": "Quỷ trú trong dinh", "small_spider": "Nhện quỷ nhỏ",
+		"thread_puppet": "Con rối bị tơ điều khiển", "spider_demon": "Nhện quỷ", "silk_cocoon": "Quái kén tơ",
+		"silk_fiend": "Quái tơ nhện", "veteran_puppet": "Con rối tinh nhuệ",
+		"train_tentacle": "Xúc tu", "train_flesh": "Mô thịt", "train_nightmare": "Quái ác mộng",
+		"night_lurker": "Quỷ ẩn phố đêm", "sash_fragment": "Phân thể dải lụa",
+		"mask_demon": "Quỷ Mặt Nạ", "long_talon": "Quỷ Trảo Dài", "blood_fang": "Quỷ Huyết Nha",
+		"shadow_demon": "Quỷ Tàng Ảnh", "scale_serpent": "Quỷ Lân Xà",
 	}
-	if len(d.Kinds) != len(names) {
+	if len(d.Kinds) != len(names) || len(names) != 8+26 {
 		t.Fatalf("%d kinds, want %d", len(d.Kinds), len(names))
 	}
 	base := d.Kinds["wanderer"]
+	if base.HPPct != 100 || base.AttackPct != 100 || base.DamageType != DamagePhys || base.Magic() {
+		t.Fatalf("wanderer traits: %+v", base)
+	}
+	// The traits that differ from wanderer (phase 4d spec 2.5, 7g spec 2.3).
+	traits := map[string]func(*Kind){
+		"train_flesh":   func(k *Kind) { k.Speed = 0.6 },
+		"long_talon":    func(k *Kind) { k.AttackRange = 2.0 },
+		"blood_fang":    func(k *Kind) { k.HPPct, k.AttackPct = 80, 120 },
+		"shadow_demon":  func(k *Kind) { k.Speed, k.ChaseSpeed = 0.96, 1.44 },
+		"scale_serpent": func(k *Kind) { k.DamageType, k.DetectRange = DamageMagic, 4 },
+	}
 	for id, name := range names {
 		k, ok := d.Kinds[id]
 		if !ok {
@@ -256,10 +327,17 @@ func TestRepoMonsterKinds(t *testing.T) {
 		if k.Name != name {
 			t.Errorf("kind %s: name %q, want %q", id, k.Name, name)
 		}
-		k.ID, k.Name = base.ID, base.Name
-		if k != base {
-			t.Errorf("kind %s behaves differently from wanderer: %+v", id, k)
+		want := base
+		want.ID, want.Name = id, name
+		if f := traits[id]; f != nil {
+			f(&want)
 		}
+		if k != want {
+			t.Errorf("kind %s: %+v, want %+v", id, k, want)
+		}
+	}
+	if k := d.Kinds["scale_serpent"]; !k.Magic() {
+		t.Errorf("scale_serpent must deal magic damage: %+v", k)
 	}
 
 	raw, err := os.ReadFile("../../data/monsters.json")
