@@ -1,6 +1,6 @@
 # Giai đoạn 5b — Tổ đội và EXP chia sẻ
 
-Ngày: 2026-11-20. Trạng thái: Server đã triển khai, client chờ (nhiệm vụ 7–10).
+Ngày: 2026-11-20. Trạng thái: Đã duyệt thiết kế (người dùng đã ủy quyền chọn phương án khuyên dùng). Đã triển khai đủ server (Task 1–6, protocol 13) và client (Task 7–10, client 74281af; sửa sau review: client db314a9, e516114, server 5d61c60); smoke OK.
 
 Phần cuối của Giai đoạn 5 (xem bảng chia ở [spec 5a](2026-11-20-giai-doan-5a-pk-phat-exp-design.md) mục 1.1). Luật chơi lấy từ [game-design.md](../../game-design.md) mục 2.2 (thời gian lên cấp khi đi tổ đội), 5.7 (bộ lọc PK) và 5.8 (EXP tổ đội, quyền nhặt đồ); game-design là chuẩn, trừ luật 5% mà game-design 5.8 đã ghi là "sẽ được định lại ở Giai đoạn 5" — spec này định lại nó (mục 1.4). Những gì không nhắc tới ở đây giữ nguyên như spec 5a, các spec Giai đoạn 4 và [spec 3a](2026-11-20-giai-doan-3a-tui-do-roi-do-design.md). 5b chạy sau khi 5a đã triển khai (giao thức 12, migration 00008).
 
