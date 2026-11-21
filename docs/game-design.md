@@ -162,6 +162,7 @@ Nhân vật có vùng quét tròn hoặc elip để phát hiện thực thể xu
 - **Tầm phát hiện: 6 ô** quanh nhân vật để tìm mục tiêu mới.
 - **Tầm giữ khóa: 8 ô**. Mục tiêu đã khóa vẫn được giữ khi ra ngoài 6 ô nhưng chưa vượt 8 ô; tầm giữ khóa không thay thế tầm đánh riêng của từng kỹ năng.
 - Khi đã khóa mục tiêu nhưng ngoài tầm đánh, nhấn đánh/dùng kỹ năng sẽ tự chạy đến đủ tầm rồi thực hiện. Server vẫn kiểm tra mục tiêu, khoảng cách, vật cản, MP và hồi chiêu tại lúc xử lý đòn.
+- Khi mục tiêu ở sau tường, nhân vật chạy vòng theo đường A* của client (mục 4.3) tới đủ tầm thay vì đứng ép vào tường; tìm đường chạy hoàn toàn ở client, server chỉ nhận hướng di chuyển như thường.
 - Bỏ khóa khi khoảng cách vượt 8 ô hoặc một trong hai bên đổi map/khu.
 - Khi mục tiêu chết, chuyển sang mục tiêu hợp lệ khác trong tầm phát hiện; nếu không có thì bỏ mục tiêu đã chết.
 - NPC có thể là mục tiêu tương tác nhưng không mặc định là mục tiêu tấn công. Bộ lọc PK cần kiểm tra từng mục tiêu của kỹ năng nhiều mục tiêu.
@@ -700,6 +701,11 @@ Nhiệm vụ phục vụ hướng dẫn, luyện cấp và kiếm tài nguyên; 
 - Trong map dùng dữ liệu va chạm và tìm đường A*; giữa các map tìm chuỗi cổng phù hợp để đi đến map đích.
 - Đích có thông tin map và vị trí/vùng mục tiêu.
 - **Nhiệm vụ diệt quái chỉ đưa nhân vật tới bãi rồi dừng, không tự chọn quái hay bật auto đánh.**
+- **Phía client, không đổi giao thức.** Tìm đường và bấm để đi chạy ở client; server chỉ nhận hướng của `MoveInput` và kiểm tra từng bước như mọi lần di chuyển.
+- **Trong map:** A* tám hướng trên lớp va chạm (mục 5.2), không cắt góc tường, làm mượt đường bằng cách kéo dây. Chạm mặt đất để đi tới điểm đó; chạm ô tường thì đi tới ô đi được gần nhất trong 3 ô. Ô cổng bị tránh để đường đi không vô tình chuyển map, trừ cổng là đích của chặng.
+- **Giữa các map:** chọn chuỗi cổng ít nhất tới map đích, đi từng chặng và nạp lại màn khi qua cổng. Nhân vật không tự dùng Xa phu hay giấy về thành.
+- **Cửa sổ Bản đồ:** bản đồ thu nhỏ của map hiện tại (chạm để đi tới điểm) và danh sách map cùng NPC; nút Đi tới cạnh NPC ở map khác thì tự đi qua các cổng tới NPC rồi mở cửa sổ NPC.
+- Người chơi giành lại quyền điều khiển ngay: di chuyển tay, bấm Đánh, chọn chiêu, chết hay chạm điểm khác đều hủy đường đi.
 
 ## 5. Bản đồ, sinh quái và PK
 
