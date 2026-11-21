@@ -147,18 +147,19 @@ def strip_regions(kinds, levels, count, walls=(), x0=12, x1=62, height=48):
     return out
 
 
-def car_partition(y, gaps, x0=11, x1=63):
-    """Phase 4d spec 2.4 (mugen_*): a horizontal wall on row y from column x0
-    to x1 - 1 between two rows of cars, open at each gap (x, w), w >= 3."""
-    out, x = [], x0
-    for gx, gw in sorted(gaps):
-        if gw < 3 or gx < x:
-            raise SystemExit(f"mapgen: car partition row {y}: gap ({gx}, {gw}) narrower than 3 or overlapping")
-        if gx > x:
-            out.append((x, y, gx - x, 1))
-        x = gx + gw
-    if x < x1:
-        out.append((x, y, x1 - x, 1))
+def car_partition(x, gaps, y0=1, y1=47):
+    """Phase 4d spec 2.4 (mugen_*): a wall across the train, which runs west
+    to east: column x from row y0 to y1 - 1 between two cars, open at each
+    gap (y, h), h >= 3, so the player walks east from car to car."""
+    out, y = [], y0
+    for gy, gh in sorted(gaps):
+        if gh < 3 or gy < y:
+            raise SystemExit(f"mapgen: car wall column {x}: gap ({gy}, {gh}) narrower than 3 or overlapping")
+        if gy > y:
+            out.append((x, y, 1, gy - y))
+        y = gy + gh
+    if y < y1:
+        out.append((x, y, 1, y1 - y))
     return out
 
 
@@ -206,10 +207,12 @@ CHAIN_4D = [
      [(20, 4, 4, 4), (13, 13, 3, 3), (27, 16, 3, 3), (40, 4, 4, 4), (52, 8, 4, 4), (44, 16, 3, 3),
       (20, 40, 4, 4), (13, 32, 3, 3), (27, 29, 3, 3), (40, 40, 4, 4), (52, 36, 4, 4), (44, 29, 3, 3)]),
     ("mugen_1", "Chuyến Tàu Vô Tận – Các toa đầu", 66, ("train_tentacle", "train_flesh"),
-     # Car walls: two partitions split the map into three rows of cars.
-     car_partition(12, [(20, 4), (40, 4), (54, 4)]) + car_partition(36, [(16, 4), (34, 4), (52, 4)])),
+     # Car walls across the train split the map into four cars.
+     car_partition(25, [(6, 4), (22, 4), (38, 4)]) + car_partition(39, [(12, 3), (23, 3), (33, 4)])
+     + car_partition(53, [(8, 4), (22, 4), (40, 3)])),
     ("mugen_2", "Chuyến Tàu Vô Tận – Các toa cuối", 71, ("train_flesh", "train_nightmare"),
-     car_partition(14, [(16, 3), (30, 5), (48, 3)]) + car_partition(34, [(22, 4), (38, 3), (56, 4)])),
+     car_partition(22, [(4, 3), (22, 4), (41, 3)]) + car_partition(36, [(14, 4), (30, 4)])
+     + car_partition(50, [(5, 3), (22, 4), (38, 5)])),
     ("yoshiwara_1", "Yoshiwara – Ngõ đêm", 76, ("night_lurker", "sash_fragment"),
      # Lantern-lit houses of the pleasure district.
      [(14, 3, 6, 4), (23, 3, 6, 4), (14, 13, 6, 4), (36, 3, 6, 4), (45, 3, 6, 4), (36, 13, 6, 4), (53, 11, 5, 4),

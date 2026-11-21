@@ -137,9 +137,13 @@ func Parse(b []byte) (*Data, error) {
 		}
 		// A missing field decodes as zero or empty, so these checks also
 		// make all three required.
-		for name, v := range map[string]int{"hp_pct": k.HPPct, "attack_pct": k.AttackPct} {
-			if v < 50 || v > 200 {
-				return nil, fmt.Errorf("gamedata: kind %q: %s %d must be in 50-200", k.ID, name, v)
+		// Checked in a fixed order so the error is deterministic.
+		for _, f := range []struct {
+			name string
+			v    int
+		}{{"hp_pct", k.HPPct}, {"attack_pct", k.AttackPct}} {
+			if f.v < 50 || f.v > 200 {
+				return nil, fmt.Errorf("gamedata: kind %q: %s %d must be in 50-200", k.ID, f.name, f.v)
 			}
 		}
 		if k.DamageType != DamagePhys && k.DamageType != DamageMagic {

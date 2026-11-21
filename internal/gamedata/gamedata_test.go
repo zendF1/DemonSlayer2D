@@ -201,6 +201,16 @@ func TestParseKindTraits(t *testing.T) {
 			t.Errorf("%s %s: err %v, want one naming the kind and the field", bad.field, bad.value, err)
 		}
 	}
+	// Both pct fields bad: the error always names hp_pct first.
+	both := strings.Replace(kindWith("hp_pct", "10"), `"attack_pct":100`, `"attack_pct":300`, 1)
+	if !strings.Contains(both, `"attack_pct":300`) {
+		t.Fatalf("setup: %s", both)
+	}
+	for range 20 {
+		if _, err := Parse([]byte(both)); err == nil || !strings.Contains(err.Error(), "hp_pct 10") {
+			t.Fatalf("both pct fields bad: err %v, want hp_pct first", err)
+		}
+	}
 	for _, f := range []string{"hp_pct", "attack_pct", "damage_type"} {
 		doc := kindWith(f, "")
 		if strings.Contains(doc, f) {

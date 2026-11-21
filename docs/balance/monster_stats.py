@@ -3,6 +3,7 @@
 Run from any directory: python3 docs/balance/monster_stats.py
 Add --write-json to write data/monsters.json, or --print-json to print the
 same bytes to stdout (the Go test compares them with the committed file).
+--check runs every check, prints the Quỷ Huyết Nha row and writes nothing.
 
 Rules (phase 1 spec 2.3, phase 3a spec 2.2, game-design 5.9):
 - the reference character is Viem at level L with 10 * (L - 1) potential
@@ -190,6 +191,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write-json", action="store_true")
     parser.add_argument("--print-json", action="store_true")
+    parser.add_argument("--check", action="store_true", help="run every check and write nothing")
     args = parser.parse_args()
     levels, rows = build()
     for level, entry, hp_ref, hit in rows:
@@ -219,16 +221,18 @@ def main():
         assert kind["damage_type"] in ("phys", "magic"), kind
     assert KINDS[0]["hp_pct"] == KINDS[0]["attack_pct"] == 100 and KINDS[0]["damage_type"] == "phys"
     assert scale_pct(1000, 80) == 800 and scale_pct(1001, 80) == 801 and scale_pct(1001, 100) == 1001
-    # Phase 4d: adding kinds leaves the levels table as committed.
+    # Phase 4d: adding kinds leaves the levels table as committed. Delete this
+    # check when the levels table changes on purpose (and rerun exp_table.py).
     committed = Path(__file__).resolve().parents[2] / "data" / "monsters.json"
     if committed.exists():
         assert json.loads(committed.read_text(encoding="utf-8"))["levels"] == levels, "the levels table changed"
     if args.print_json:
         sys.stdout.write(to_json(levels))
         return
-    for level, entry, hp_ref, hit in rows:
-        print(f"L{level}: hp {entry['hp']} exp {entry['exp']} atk {entry['attack']} def {entry['defense']} "
-              f"hit {hit}/{hp_ref} ({100 * hit / hp_ref:.1f}%)")
+    if not args.check:
+        for level, entry, hp_ref, hit in rows:
+            print(f"L{level}: hp {entry['hp']} exp {entry['exp']} atk {entry['attack']} def {entry['defense']} "
+                  f"hit {hit}/{hp_ref} ({100 * hit / hp_ref:.1f}%)")
     print("kinds: " + ", ".join(f"{k['id']} ({k['name']})" for k in KINDS))
     blood = next(k for k in KINDS if k["id"] == "blood_fang")
     row = levels[88 - 1]
@@ -236,6 +240,9 @@ def main():
           f"hp {row['hp']} -> {scale_pct(row['hp'], blood['hp_pct'])}, "
           f"exp {row['exp']} -> {scale_pct(row['exp'], blood['hp_pct'])}, "
           f"attack {row['attack']} -> {scale_pct(row['attack'], blood['attack_pct'])}")
+    if args.check:
+        print("monster_stats checks pass")
+        return
     if args.write_json:
         path = Path(__file__).resolve().parents[2] / "data" / "monsters.json"
         path.parent.mkdir(exist_ok=True)
