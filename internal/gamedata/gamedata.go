@@ -196,6 +196,9 @@ func (d *Data) Validate(maps map[string]*mapdata.Map) error {
 			if d.Items == nil || !d.Items.hasShop(n.Shop) {
 				return fmt.Errorf("gamedata: map %q npc %q: unknown shop %q", id, n.ID, n.Shop)
 			}
+			if d.Items.Shops[n.Shop].Anywhere {
+				return fmt.Errorf("gamedata: map %q npc %q: shop %q is an anywhere shop", id, n.ID, n.Shop)
+			}
 		}
 	}
 	return nil

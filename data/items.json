@@ -7710,6 +7710,24 @@
           "price": 50
         }
       ]
+    },
+    {
+      "id": "luong",
+      "name": "Cửa hàng Lượng",
+      "currency": "luong",
+      "anywhere": true,
+      "goods": [
+        {
+          "code": "charm_protect",
+          "price": 2
+        }
+      ]
     }
-  ]
+  ],
+  "stash": {
+    "base": 30,
+    "step": 10,
+    "max": 120,
+    "expand_xu_per_step": 20000
+  }
 }

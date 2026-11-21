@@ -36,7 +36,8 @@ MAPS_DIR = Path(__file__).resolve().parents[1] / "maps"
 START_MAP = "kumotori_1"
 TYPES = ("town", "training", "battle", "instance")
 ARRIVAL_MIN_DISTANCE = 2  # tiles from every portal of the arrival's map
-ROLES = ("shop", "blacksmith", "carriage")
+ROLES = ("shop", "blacksmith", "carriage", "storage")
+STORAGE_MAX_DEFAULT_DISTANCE = 3.0  # phase 4c spec 2.2
 NPC_MIN_DISTANCE = 1.5  # tiles between two NPCs of a map
 MIN_FARE = 50  # Xu; a trip to a map costs 20 x its lowest region level, at least this
 FARE_PER_LEVEL = 20
@@ -105,7 +106,8 @@ def camp_west():
     default (respawn) spawn point in its middle and a bonfire."""
     return [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True),
             npc("duoc_su", "Dược sư", "shop", 8.5, 21.5, shop="apothecary"),
-            npc("xa_phu", "Xa phu", "carriage", 8.5, 27.5)]
+            npc("xa_phu", "Xa phu", "carriage", 8.5, 27.5),
+            npc("thu_kho", "Thủ kho", "storage", 8.5, 24.5)]
 
 
 # ______________________MAPS_____________________
@@ -124,6 +126,7 @@ MAPS = [
             npc("tap_hoa", "Tạp hóa", "shop", 23.5, 16.5, shop="general"),
             npc("tho_ren", "Thợ rèn", "blacksmith", 17.5, 16.5),
             npc("xa_phu", "Xa phu", "carriage", 20.5, 19.5),
+            npc("thu_kho", "Thủ kho", "storage", 20.5, 14.5),
             portal("west", "kumotori_1"),
             portal("east", "sagiri_1"),
         ],
@@ -139,6 +142,7 @@ MAPS = [
             spawn("default", 5.5, 5.5, respawn=True),
             npc("duoc_su", "Dược sư", "shop", 8.5, 3.5, shop="apothecary"),
             npc("xa_phu", "Xa phu", "carriage", 8.5, 7.5),
+            npc("thu_kho", "Thủ kho", "storage", 3.5, 7.5),
             portal("east", "ubuyashiki"),
             gate_safe("east"),
             region("r1", "wanderer", 1, 2, 8, [(12, 1, 20, 19), (1, 12, 11, 8)], (22.5, 10.5)),
@@ -467,6 +471,13 @@ def check_map(m):
             err(f"npc {n['id']} is outside the safe zones")
         elif tile(n) not in reach:
             err(f"npc {n['id']} is unreachable from default")
+    keepers = [n for n in m["npcs"] if n["role"] == "storage"]
+    if len(keepers) != 1 or keepers[0]["id"] != "thu_kho" or keepers[0]["name"] != "Thủ kho":
+        err("the map needs exactly one storage npc thu_kho (Thủ kho)")
+    for n in keepers:
+        d = math.hypot(n["x"] - spawns["default"]["x"], n["y"] - spawns["default"]["y"])
+        if d > STORAGE_MAX_DEFAULT_DISTANCE:
+            err(f"npc {n['id']} is {d:.2f} tiles from default, more than {STORAGE_MAX_DEFAULT_DISTANCE}")
     for i, a in enumerate(m["npcs"]):
         for b in m["npcs"][i + 1:]:
             if math.hypot(a["x"] - b["x"], a["y"] - b["y"]) < NPC_MIN_DISTANCE:

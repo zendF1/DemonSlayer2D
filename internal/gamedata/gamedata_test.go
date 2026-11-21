@@ -760,6 +760,7 @@ func itemsWithTiers(tiers ...int) obj {
 		"use_cooldown_sec":           obj{"hp": 10, "mp": 10},
 		"sell_equipment_xu_per_tier": []int{5, 10, 20, 40, 80},
 		"shops":                      shopList(),
+		"stash":                      obj{"base": 30, "step": 10, "max": 120, "expand_xu_per_step": 20000},
 		"drops": obj{
 			RankNormal: drop(3, 5, 500, 1, []int{8000, 1700, 300, 0, 0}, stack("stone_enhance", 2000, 1)),
 			RankElite:  drop(18, 30, 10000, 1, []int{0, 7500, 2500, 0, 0}, stack("stone_enhance", 10000, 3), stack("stone_refine", 1000, 1)),
@@ -830,7 +831,7 @@ func useList() []any {
 	}
 }
 
-// shopList is the two shops: general (9 goods, shops[0]) and apothecary (8).
+// shopList is the three shops: general (9 goods, shops[0]), apothecary (8) and the anywhere luong shop.
 func shopList() []any {
 	var goods []any
 	for i, p := range []int{5, 30, 100, 200, 25, 80, 160, 50} {
@@ -839,6 +840,8 @@ func shopList() []any {
 	return []any{
 		obj{"id": "general", "name": "Tạp hóa", "currency": "xu", "goods": append(slices.Clone(goods), obj{"code": "charm_protect", "price": 5000})},
 		obj{"id": "apothecary", "name": "Dược sư", "currency": "xu", "goods": goods},
+		obj{"id": "luong", "name": "Cửa hàng Lượng", "currency": "luong", "anywhere": true,
+			"goods": []any{obj{"code": "charm_protect", "price": 2}}},
 	}
 }
 
@@ -1434,7 +1437,7 @@ func TestRepoShopsData(t *testing.T) {
 		t.Fatal(err)
 	}
 	it := d.Items
-	if len(it.Stackables) != 26 || len(it.StackOrder) != 26 || len(it.Shops) != 2 {
+	if len(it.Stackables) != 26 || len(it.StackOrder) != 26 || len(it.Shops) != 3 {
 		t.Fatalf("%d stackables, %d shops", len(it.Stackables), len(it.Shops))
 	}
 	if len(it.Shops["general"].Goods) != 9 || len(it.Shops["apothecary"].Goods) != 8 {
@@ -1500,7 +1503,7 @@ func TestParseShopsRejects(t *testing.T) {
 		{"negative sell tier", func(d obj) { d["sell_equipment_xu_per_tier"] = []int{5, -1, 20, 40, 80} }, "sell_equipment_xu_per_tier[1] -1 must not be negative"},
 		{"duplicate shop id", shop(1, "id", "general"), `shop "general" is listed twice`},
 		{"shop without name", shop(0, "name", ""), `shop "general": name is empty`},
-		{"unknown currency", shop(0, "currency", "luong"), `shop "general": currency "luong" must be "xu"`},
+		{"unknown currency", shop(0, "currency", "gold"), `shop "general": currency "gold" must be "xu" or "luong"`},
 		{"no goods", shop(1, "goods", []any{}), `shop "apothecary": goods is empty`},
 		{"shop selling equipment", good(0, 0, "code", "eq10_armor"), `shop "general": "eq10_armor" is not a stackable`},
 		{"unknown good", good(0, 0, "code", "potion_x"), `shop "general": "potion_x" is not a stackable`},
@@ -1538,5 +1541,97 @@ func TestValidateRejectsUnknownShop(t *testing.T) {
 	delete(d.Items.Shops, "apothecary")
 	if err := d.Validate(maps); err == nil || !strings.Contains(err.Error(), `unknown shop "apothecary"`) {
 		t.Fatalf("want unknown shop error, got %v", err)
+	}
+}
+
+// ______________________TEST STASH DATA_____________________
+
+func TestRepoStashData(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := d.Items
+	if it.Stash != (StashRules{Base: 30, Step: 10, Max: 120, ExpandXuPerStep: 20000}) {
+		t.Fatalf("stash %+v", it.Stash)
+	}
+	for size, want := range map[int]int64{30: 20000, 40: 40000, 110: 180000} {
+		if c, ok := it.Stash.ExpandCost(size); !ok || c != want {
+			t.Errorf("ExpandCost(%d) = %d, %v; want %d", size, c, ok, want)
+		}
+	}
+	for _, size := range []int{120, 130, 29, 35} {
+		if _, ok := it.Stash.ExpandCost(size); ok {
+			t.Errorf("ExpandCost(%d) is allowed", size)
+		}
+	}
+	var total int64
+	for size := it.Stash.Base; size < it.Stash.Max; size += it.Stash.Step {
+		c, _ := it.Stash.ExpandCost(size)
+		total += c
+	}
+	if total != 900000 {
+		t.Errorf("total %d, want 900000", total)
+	}
+	l, ok := it.Shops["luong"]
+	if !ok || !l.Anywhere || l.Currency != CurrencyLuong || len(l.Goods) != 1 {
+		t.Fatalf("luong shop %+v", l)
+	}
+	if p, ok := l.Price("charm_protect"); !ok || p != 2 {
+		t.Fatalf("luong charm_protect: %d %v", p, ok)
+	}
+	if it.Shops["general"].Anywhere || it.Shops["apothecary"].Anywhere {
+		t.Fatal("an NPC shop is anywhere")
+	}
+	if it.BagSize != 60 {
+		t.Fatalf("bag_size %d", it.BagSize)
+	}
+}
+
+func TestParseStashRejects(t *testing.T) {
+	stash := func(f string, v any) func(obj) {
+		return func(d obj) { d["stash"].(obj)[f] = v }
+	}
+	tests := []struct {
+		name   string
+		mutate func(obj)
+		want   string
+	}{
+		{"base 0", stash("base", 0), "stash base 0 must be at least 1"},
+		{"step 0", stash("step", 0), "stash step 0 must be at least 1"},
+		{"max below base", stash("max", 20), "stash max 20 must be at least base 30"},
+		{"max not on a step", stash("max", 125), "must be a multiple of step 10"},
+		{"max 300", stash("max", 300), "stash max 300 must be at most 200"},
+		{"price 0", stash("expand_xu_per_step", 0), "expand_xu_per_step 0 must be at least 1"},
+		{"anywhere shop in xu", func(d obj) { d["shops"].([]any)[2].(obj)["currency"] = "xu" }, `shop "luong": an anywhere shop must use "luong"`},
+		{"unknown currency", func(d obj) { d["shops"].([]any)[2].(obj)["currency"] = "gold" }, `shop "luong": currency "gold"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := validItems()
+			tt.mutate(d)
+			_, err := ParseItems(itemsJSON(t, d))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsAnywhereShopNPC(t *testing.T) {
+	d, err := Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	maps, err := mapdata.LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	maps["ubuyashiki"].NPCs[0].Shop = "luong"
+	if maps["ubuyashiki"].NPCs[0].Role != mapdata.RoleShop {
+		t.Fatal("npc 0 of ubuyashiki is not a shop")
+	}
+	if err := d.Validate(maps); err == nil || !strings.Contains(err.Error(), `shop "luong" is an anywhere shop`) {
+		t.Fatalf("want anywhere shop error, got %v", err)
 	}
 }

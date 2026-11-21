@@ -867,8 +867,8 @@ func TestRepoMapsNPCs(t *testing.T) {
 	}
 	price := map[string]int64{"ubuyashiki": 50, "kumotori_1": 50, "sagiri_1": 120, "sagiri_2": 220, "fujikasane_1": 320}
 	town := loaded["ubuyashiki"]
-	if len(town.NPCs) != 3 {
-		t.Fatalf("ubuyashiki npcs %+v, want 3", town.NPCs)
+	if len(town.NPCs) != 4 {
+		t.Fatalf("ubuyashiki npcs %+v, want 4", town.NPCs)
 	}
 	if n, ok := town.NPC("tap_hoa"); !ok || n.Role != RoleShop || n.Shop != "general" || n.Name != "Tạp hóa" {
 		t.Errorf("tap_hoa = %+v, %v", n, ok)
@@ -883,8 +883,8 @@ func TestRepoMapsNPCs(t *testing.T) {
 	}
 	for _, id := range []string{"kumotori_1", "sagiri_1", "sagiri_2", "fujikasane_1"} {
 		m := loaded[id]
-		if len(m.NPCs) != 2 {
-			t.Errorf("%s npcs %+v, want 2", id, m.NPCs)
+		if len(m.NPCs) != 3 {
+			t.Errorf("%s npcs %+v, want 3", id, m.NPCs)
 		}
 		if n, ok := m.NPC("duoc_su"); !ok || n.Role != RoleShop || n.Shop != "apothecary" || n.Name != "Dược sư" {
 			t.Errorf("%s: duoc_su = %+v, %v", id, n, ok)
@@ -905,5 +905,59 @@ func TestRepoMapsNPCs(t *testing.T) {
 	}
 	if n, _ := k.NPC("xa_phu"); n.Pos != (Point{8.5, 7.5}) {
 		t.Errorf("kumotori xa_phu at %v, want (8.5, 7.5)", n.Pos)
+	}
+}
+
+// ______________________TEST STASH DATA_____________________
+
+func TestParseStorageNPC(t *testing.T) {
+	m, err := Parse(npcJSON(t, func(m map[string]any) {
+		m["npcs"] = append(m["npcs"].([]map[string]any),
+			map[string]any{"id": "kho", "name": "Thủ kho", "role": "storage", "x": 1.5, "y": 3.5})
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := m.NPC("kho"); !ok || n.Role != RoleStorage || n.Shop != "" || len(n.Routes) != 0 {
+		t.Fatalf("kho = %+v, %v", n, ok)
+	}
+	cases := map[string]func(n map[string]any){
+		`"kho": shop set on a non-shop npc`:       func(n map[string]any) { n["shop"] = "general" },
+		`"kho": routes set on a non-carriage npc`: func(n map[string]any) { n["routes"] = []map[string]any{{"map": "a", "xu": 50}} },
+	}
+	for want, mut := range cases {
+		_, err := Parse(npcJSON(t, func(m map[string]any) {
+			n := map[string]any{"id": "kho", "name": "Thủ kho", "role": "storage", "x": 1.5, "y": 3.5}
+			mut(n)
+			m["npcs"] = append(m["npcs"].([]map[string]any), n)
+		}))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want error containing %q, got %v", want, err)
+		}
+	}
+}
+
+// Phase 4c spec 2.2: every map has a storage keeper within 3 tiles of default.
+func TestRepoMapsStorage(t *testing.T) {
+	loaded, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded) != 5 {
+		t.Fatalf("%d maps", len(loaded))
+	}
+	for id, m := range loaded {
+		n, ok := m.NPC("thu_kho")
+		if !ok || n.Role != RoleStorage || n.Name != "Thủ kho" || n.Shop != "" || len(n.Routes) != 0 {
+			t.Errorf("%s: thu_kho = %+v, %v", id, n, ok)
+			continue
+		}
+		def := m.Spawns["default"]
+		if d := math.Hypot(float64(n.Pos.X-def.X), float64(n.Pos.Y-def.Y)); d > 3 {
+			t.Errorf("%s: thu_kho %.2f tiles from default", id, d)
+		}
+	}
+	if n, _ := loaded["kumotori_1"].NPC("thu_kho"); n.Pos != (Point{3.5, 7.5}) {
+		t.Errorf("kumotori thu_kho at %v, want (3.5, 7.5)", n.Pos)
 	}
 }

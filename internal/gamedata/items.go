@@ -216,13 +216,40 @@ type Use struct {
 }
 
 // Shop currencies.
-const CurrencyXu = "xu"
+const (
+	CurrencyXu    = "xu"
+	CurrencyLuong = "luong"
+)
+
+// maxStashSize bounds stash.max (phase 4c spec 2.1).
+const maxStashSize = 200
+
+// StashRules are the account stash sizes and the price of growing it
+// (phase 4c spec 2.1): it starts at Base slots and grows by Step slots up to
+// Max; the k-th expansion costs ExpandXuPerStep * k Xu.
+type StashRules struct {
+	Base            int   `json:"base"`
+	Step            int   `json:"step"`
+	Max             int   `json:"max"`
+	ExpandXuPerStep int64 `json:"expand_xu_per_step"`
+}
+
+// ExpandCost returns the Xu cost of growing a stash of size slots by Step;
+// false when it is already at Max (or size is not a size the rules reach).
+func (r StashRules) ExpandCost(size int) (int64, bool) {
+	if size < r.Base || size >= r.Max || (size-r.Base)%r.Step != 0 {
+		return 0, false
+	}
+	return r.ExpandXuPerStep * int64((size-r.Base)/r.Step+1), true
+}
 
 // Shop is an NPC shop (phase 4b spec 2.3).
 type Shop struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Currency string `json:"currency"`
+	// Anywhere shops open without an NPC (phase 4c); they sell for Lượng.
+	Anywhere bool   `json:"anywhere"`
 	Goods    []Good `json:"goods"`
 }
 
@@ -332,6 +359,8 @@ type Items struct {
 	SellEquipmentXuPerTier [5]int64
 	// Shops is keyed by shop id.
 	Shops map[string]Shop
+	// Stash is the account stash rules.
+	Stash StashRules
 
 	pieces map[pieceKey]string
 }
@@ -363,6 +392,7 @@ type itemsFile struct {
 	UseCooldownSec map[string]float64  `json:"use_cooldown_sec"`
 	SellEquipment  []int64             `json:"sell_equipment_xu_per_tier"`
 	Shops          []Shop              `json:"shops"`
+	Stash          StashRules          `json:"stash"`
 }
 
 type resonanceFile struct {
@@ -422,7 +452,7 @@ func ParseItems(b []byte) (*Items, error) {
 		Sockets: f.Sockets, Refine: f.Refine}
 	for _, step := range []func(*Items, *itemsFile) error{
 		parseScalars, parseSlots, parseLineStats, parseQualities, parseTiers, parseEquipment, parseStackables, parseDrops,
-		parseEnhance, parseRegen, parseResonance, parseSockets, parseRefine, parseUse, parseShops,
+		parseEnhance, parseRegen, parseResonance, parseSockets, parseRefine, parseUse, parseShops, parseStash,
 	} {
 		if err := step(it, &f); err != nil {
 			return nil, fmt.Errorf("gamedata: items: %w", err)
@@ -1049,8 +1079,11 @@ func parseShops(it *Items, f *itemsFile) error {
 		if s.Name == "" {
 			return fmt.Errorf("shop %q: name is empty", s.ID)
 		}
-		if s.Currency != CurrencyXu {
-			return fmt.Errorf("shop %q: currency %q must be %q", s.ID, s.Currency, CurrencyXu)
+		if s.Currency != CurrencyXu && s.Currency != CurrencyLuong {
+			return fmt.Errorf("shop %q: currency %q must be %q or %q", s.ID, s.Currency, CurrencyXu, CurrencyLuong)
+		}
+		if s.Anywhere && s.Currency != CurrencyLuong {
+			return fmt.Errorf("shop %q: an anywhere shop must use %q", s.ID, CurrencyLuong)
 		}
 		if len(s.Goods) == 0 {
 			return fmt.Errorf("shop %q: goods is empty", s.ID)
@@ -1070,6 +1103,27 @@ func parseShops(it *Items, f *itemsFile) error {
 		}
 		it.Shops[s.ID] = s
 	}
+	return nil
+}
+
+// parseStash checks the stash rules (phase 4c spec 2.1).
+func parseStash(it *Items, f *itemsFile) error {
+	r := f.Stash
+	switch {
+	case r.Base < 1:
+		return fmt.Errorf("stash base %d must be at least 1", r.Base)
+	case r.Step < 1:
+		return fmt.Errorf("stash step %d must be at least 1", r.Step)
+	case r.Max < r.Base:
+		return fmt.Errorf("stash max %d must be at least base %d", r.Max, r.Base)
+	case (r.Max-r.Base)%r.Step != 0:
+		return fmt.Errorf("stash max %d minus base %d must be a multiple of step %d", r.Max, r.Base, r.Step)
+	case r.Max > maxStashSize:
+		return fmt.Errorf("stash max %d must be at most %d", r.Max, maxStashSize)
+	case r.ExpandXuPerStep < 1:
+		return fmt.Errorf("stash expand_xu_per_step %d must be at least 1", r.ExpandXuPerStep)
+	}
+	it.Stash = r
 	return nil
 }
 

@@ -53,6 +53,7 @@ const (
 	RoleShop       = "shop"
 	RoleBlacksmith = "blacksmith"
 	RoleCarriage   = "carriage"
+	RoleStorage    = "storage"
 )
 
 // MinNPCDistance is the least distance, in tiles, between two NPCs of a map.
@@ -294,7 +295,7 @@ func (m *Map) parseNPCs(npcs []npcFile) error {
 			return fmt.Errorf("mapdata %s: npc %q: missing name", m.ID, nf.ID)
 		}
 		switch nf.Role {
-		case RoleShop, RoleBlacksmith, RoleCarriage:
+		case RoleShop, RoleBlacksmith, RoleCarriage, RoleStorage:
 		default:
 			return fmt.Errorf("mapdata %s: npc %q: invalid role %q", m.ID, nf.ID, nf.Role)
 		}

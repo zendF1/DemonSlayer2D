@@ -75,6 +75,8 @@ SELL_EQUIPMENT_XU_PER_TIER = [5, 10, 20, 40, 80]
 USE_COOLDOWN_SEC = {"hp": 10, "mp": 10}
 SELL_DIVISOR = 5  # potions and the scroll sell for buy price // 5
 CHARM_PRICE = 5000
+CHARM_LUONG_PRICE = 2  # phase 4c spec 2.1: placeholder until there is a top-up rate
+STASH = {"base": 30, "step": 10, "max": 120, "expand_xu_per_step": 20000}
 # Code, name, use level, effect, value, group, buy price (game-design 2.7).
 POTIONS = [
     ("potion_hp_1", "Bình HP cấp 1", 1, "hp_pct", 10, "hp", 5),
@@ -86,7 +88,7 @@ POTIONS = [
     ("potion_mp_50", "Bình MP cấp 50", 50, "mp", 400, "mp", 160),
 ]
 SCROLL = ("scroll_return", "Giấy về thành", 1, "return_town", 0, "", 50)
-SHOP_NAMES = {"general": "Tạp hóa", "apothecary": "Dược sư"}
+SHOP_NAMES = {"general": "Tạp hóa", "apothecary": "Dược sư", "luong": "Cửa hàng Lượng"}
 STONE = "stone_enhance"
 CHARM = "charm_protect"
 STONE_REFINE = "stone_refine"
@@ -217,7 +219,13 @@ def shops():
     scroll = [{"code": SCROLL[0], "price": SCROLL[6]}]
     charm = [{"code": CHARM, "price": CHARM_PRICE}]
     return [{"id": "general", "name": SHOP_NAMES["general"], "currency": "xu", "goods": potions + scroll + charm},
-            {"id": "apothecary", "name": SHOP_NAMES["apothecary"], "currency": "xu", "goods": potions + scroll}]
+            {"id": "apothecary", "name": SHOP_NAMES["apothecary"], "currency": "xu", "goods": potions + scroll},
+            luong_shop()]
+
+
+def luong_shop():
+    return {"id": "luong", "name": SHOP_NAMES["luong"], "currency": "luong", "anywhere": True,
+            "goods": [{"code": CHARM, "price": CHARM_LUONG_PRICE}]}
 
 
 def with_sell(stackables):
@@ -269,6 +277,7 @@ def build():
         "sockets": SOCKETS,
         "refine": REFINE,
         "shops": shops(),
+        "stash": STASH,
     }
 
 
@@ -332,15 +341,35 @@ def check_shops(data):
         assert group == "" or group in cool, s
     assert "potion_mp_1" not in by_code
     ids = [sh["id"] for sh in data["shops"]]
-    assert ids == ["general", "apothecary"] and len(set(ids)) == 2, ids
+    assert ids == ["general", "apothecary", "luong"] and len(set(ids)) == 3, ids
     for sh in data["shops"]:
-        assert sh["name"] and sh["currency"] == "xu" and sh["goods"], sh
+        assert sh["name"] and sh["currency"] in ("xu", "luong") and sh["goods"], sh
+        assert sh.get("anywhere", False) == (sh["id"] == "luong"), sh
+        assert not sh.get("anywhere") or sh["currency"] == "luong", sh
         codes = [g["code"] for g in sh["goods"]]
         assert len(codes) == len(set(codes)), sh
         for g in sh["goods"]:
             assert g["code"] in by_code and g["price"] >= 1, g
-            assert g["price"] == want[g["code"]][4] if g["code"] in want else g["price"] == CHARM_PRICE, g
+            if sh["id"] == "luong":
+                assert g["price"] == CHARM_LUONG_PRICE, g
+            else:
+                assert g["price"] == want[g["code"]][4] if g["code"] in want else g["price"] == CHARM_PRICE, g
+    assert [g["code"] for g in data["shops"][2]["goods"]] == [CHARM]
     assert len(data["shops"][0]["goods"]) == 9 and len(data["shops"][1]["goods"]) == 8
+    check_stash(data)
+
+
+def check_stash(data):
+    """Phase 4c spec 2.1: the load checks of the Go server and the prices."""
+    st = data["stash"]
+    assert set(st) == {"base", "step", "max", "expand_xu_per_step"}, st
+    assert st["base"] >= 1 and st["step"] >= 1 and st["max"] >= st["base"], st
+    assert (st["max"] - st["base"]) % st["step"] == 0 and st["max"] <= 200, st
+    assert st["expand_xu_per_step"] >= 1, st
+    assert st["max"] >= data["bag_size"] // 2, st
+    steps = (st["max"] - st["base"]) // st["step"]
+    assert sum(st["expand_xu_per_step"] * k for k in range(1, steps + 1)) == 900000, st
+    assert (st["base"], st["step"], st["max"]) == (30, 10, 120), st
 
 
 def check_forge(data):
