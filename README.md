@@ -2,10 +2,10 @@
 
 Go game server for DemonSlayer2D. The Godot client lives in a separate repository and generates its protocol code from [`proto/`](proto/) and reads maps from [`maps/`](maps/).
 
-The protocol version is 14 (`gateway.ProtocolVersion`). A login with any other
+The protocol version is 15 (`gateway.ProtocolVersion`). A login with any other
 version fails with `ERROR_CODE_VERSION_MISMATCH`, so bump it together with the client.
 
-Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md), [Phase 5b parties and shared EXP spec](docs/superpowers/specs/2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md), [Phase 6a click-to-move spec](docs/superpowers/specs/2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md), [Phase 6b quests and skill books spec](docs/superpowers/specs/2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md).
+Design documents: [game design](docs/game-design.md), [Phase 0 server spec](docs/superpowers/specs/2026-11-18-giai-doan-0-nen-mong-server-design.md), [Phase 2 skills spec](docs/superpowers/specs/2026-11-20-giai-doan-2-ky-nang-design.md), [Phase 3a bag, drops and equipment spec](docs/superpowers/specs/2026-11-20-giai-doan-3a-tui-do-roi-do-design.md), [Phase 3b enhancement spec](docs/superpowers/specs/2026-11-20-giai-doan-3b-cuong-hoa-design.md), [Phase 3c resonance, gems and refining spec](docs/superpowers/specs/2026-11-20-giai-doan-3c-tuong-sinh-kham-ngoc-tay-luyen-design.md), [Phase 4a maps, portals and zones spec](docs/superpowers/specs/2026-11-20-giai-doan-4a-nhieu-map-cong-khu-design.md), [Phase 4b NPCs, shops and potions spec](docs/superpowers/specs/2026-11-20-giai-doan-4b-npc-cua-hang-binh-thuoc-design.md), [Phase 4c stash, Lượng and respawn in place spec](docs/superpowers/specs/2026-11-20-giai-doan-4c-kho-luong-hoi-sinh-design.md), [Phase 5a PK mode and EXP penalty spec](docs/superpowers/specs/2026-11-20-giai-doan-5a-pk-phat-exp-design.md), [Phase 5b parties and shared EXP spec](docs/superpowers/specs/2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md), [Phase 6a click-to-move spec](docs/superpowers/specs/2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md), [Phase 6b quests and skill books spec](docs/superpowers/specs/2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md), [Phase 6c auto-combat spec](docs/superpowers/specs/2026-11-20-giai-doan-6c-tu-dong-danh-design.md), [Phase 6d daily quests spec](docs/superpowers/specs/2026-11-20-giai-doan-6d-nhiem-vu-hang-ngay-design.md).
 
 ## Requirements
 
@@ -144,12 +144,21 @@ development only. It reads `DATABASE_URL` and `DATA_DIR` (default `./data`):
 go run ./cmd/devquest -u tanjiro -reset                      # clear the log
 go run ./cmd/devquest -u tanjiro -done m10 -active m11       # m01-m10 done, m11 in progress
 go run ./cmd/devquest -u tanjiro -active m04 -progress 3
+go run ./cmd/devquest -u tanjiro -active d_kill -day-offset -1   # a daily from yesterday (pruned at join)
 ```
 
 `-done` sets a quest and its whole `requires` chain done; `-active` sets one in
 progress at `-progress` (a talk quest is always 1, clamped to the objective's
 count). An unknown id is refused before anything is written. The character must
 be offline.
+
+`-day-offset N` (with `-done` or `-active`) writes a daily quest's day as
+today plus N, where the day changes at 00:00 UTC+7 (`quest.Day`); main quests
+keep day 0.
+
+Daily quests (phase 6d): three quests from the Quạ truyền tin in the
+headquarters (`d_kill`, `d_collect`, `d_enhance`, from level 10), reset at
+00:00 UTC+7; unfinished or turned-in entries from an earlier day are dropped.
 
 ## Dev items
 

@@ -27,7 +27,7 @@ Ghi chú: Giai đoạn 4 chia thành 4a (năm map, cổng, đổi khu, điểm h
 
 Ghi chú: Giai đoạn 5 chia thành 5a (chế độ PK, đánh người chơi, phạt EXP; giao thức 12) và 5b (tổ đội 5 người, EXP chia sẻ); xem [spec 5a](2026-11-20-giai-doan-5a-pk-phat-exp-design.md) và [spec 5b](2026-11-20-giai-doan-5b-to-doi-exp-chia-se-design.md). Giai đoạn 5 xong khi 5b triển khai (giao thức 13).
 
-Ghi chú: Giai đoạn 6 chia thành 6a (bấm để đi, tìm đường A* ở client, đi xuyên map; giao thức 13 không đổi), 6b (nhiệm vụ chính tuyến, sách kỹ năng), 6c (auto đánh phía client) và 6d (nhiệm vụ hàng ngày); xem [spec 6a](2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md) mục 1.1, [6b](2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md), [6c](2026-11-20-giai-doan-6c-tu-dong-danh-design.md) và [6d](2026-11-20-giai-doan-6d-nhiem-vu-hang-ngay-design.md).
+Ghi chú: Giai đoạn 6 chia thành 6a (bấm để đi, tìm đường A* ở client, đi xuyên map; giao thức 13 không đổi), 6b (nhiệm vụ chính tuyến, sách kỹ năng), 6c (auto đánh phía client) và 6d (nhiệm vụ hàng ngày); xem [spec 6a](2026-11-20-giai-doan-6a-bam-di-tim-duong-design.md) mục 1.1, [6b](2026-11-20-giai-doan-6b-nhiem-vu-sach-ky-nang-design.md), [6c](2026-11-20-giai-doan-6c-tu-dong-danh-design.md) và [6d](2026-11-20-giai-doan-6d-nhiem-vu-hang-ngay-design.md). Giai đoạn 6 xong khi 6d triển khai (giao thức 15).
 
 ### 1.2. Ràng buộc
 

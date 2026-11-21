@@ -99,7 +99,7 @@ Càng lên cao càng cần nhiều EXP. EXP cần để lên từ cấp **L** l�
 - Từ cấp 10, HP quái tính theo nhân vật tham chiếu mặc trang bị thường +0 (mục 5.9), nên EXP gốc của quái và EXP lên cấp từ cấp 10 cao hơn bảng trước Giai đoạn 3 (ví dụ EXP gốc quái cấp 10 từ 125 thành 143); số quái cần hạ và giờ ước tính không đổi. Cấp 1–9 giữ nguyên vì chưa mặc được món nào.
 
 - Hệ số tăng 0,5 mỗi cấp nên không có bước nhảy: cấp 9→10 và cấp 10→11 đều mất khoảng 0,9–1,1 giờ đánh quái. Cấp 1–10 là giai đoạn làm quen; từ cấp 10 bắt đầu luyện cấp dài hạn.
-- Nhiệm vụ hàng ngày, chính tuyến, phụ tuyến và bang hội là nguồn EXP chính bổ sung ngoài đánh quái, nên thời gian lên cấp thực tế ngắn hơn bảng.
+- Nhiệm vụ hàng ngày, chính tuyến, phụ tuyến và bang hội là nguồn EXP chính bổ sung ngoài đánh quái (nhiệm vụ hàng ngày v1 trả 5% EXP một cấp cho mỗi nhiệm vụ diệt hoặc thu thập, mục 4.2), nên thời gian lên cấp thực tế ngắn hơn bảng.
 - EXP tổ đội (mục 5.8) cũng rút ngắn thời gian. Ước tính chỉ tính đánh quái, chưa gồm nhiệm vụ:
 
 | Cách chơi | Hệ số EXP từ quái | Lên cấp 10 | Lên cấp 50 | Lên cấp 90 |
@@ -690,12 +690,14 @@ Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám k
 | --- | --- |
 | Chính tuyến/hướng dẫn phát triển nhân vật | Hướng dẫn tính năng, hỗ trợ luyện cấp, thưởng EXP, trang bị tân thủ và sách học kỹ năng tương ứng các mốc cấp; không dùng để khóa map hay bắt đi theo cốt truyện nguyên tác |
 | Phụ tuyến | Khám phá map, nhận Xu, đá cường hóa, danh vọng |
-| Hàng ngày | Làm mới 00:00; hoạt động diệt quái, phó bản, nâng cấp… và điểm năng động |
+| Hàng ngày | Làm mới 00:00 UTC+7; hoạt động diệt quái, phó bản, nâng cấp… và điểm năng động |
 | Bang hội/tuần hoàn | Chuỗi hoạt động như áp tiêu, thu thập; thưởng cống hiến; dự kiến 10–20 vòng/ngày |
 
-Mẫu mục tiêu: diệt quái, thu thập vật phẩm, hái/đào tài nguyên, đưa thư/trò chuyện, săn Boss/vượt ải và hộ tống/áp tiêu. Vật phẩm nhiệm vụ có thể dùng kho riêng, không chiếm hành trang chính. **Không chia sẻ tiến độ nhiệm vụ qua tổ đội**; nhận EXP chia sẻ không tự cộng tiến độ nhiệm vụ. Múi giờ reset chưa chốt.
+Mẫu mục tiêu: diệt quái, thu thập vật phẩm, hái/đào tài nguyên, đưa thư/trò chuyện, săn Boss/vượt ải và hộ tống/áp tiêu. Vật phẩm nhiệm vụ có thể dùng kho riêng, không chiếm hành trang chính. **Không chia sẻ tiến độ nhiệm vụ qua tổ đội**; nhận EXP chia sẻ không tự cộng tiến độ nhiệm vụ. 
 
 Chuỗi chính tuyến v1 (Giai đoạn 6b) gồm 22 nhiệm vụ nối nhau cho cấp 1–20 đi qua Kumotori, Tổng hành dinh, Sagiri và Fujikasane, cộng 3 nhiệm vụ mốc cấp 30, 40, 50 trao sách 3–5; dữ liệu sinh từ `docs/balance/quest_data.py`. Mỗi nhiệm vụ có đúng một mục tiêu thuộc ba loại: diệt N con một loại quái, thu thập N vật phẩm nhiệm vụ rơi từ một loại quái theo tỷ lệ, hoặc đưa tin (đủ điều kiện ngay khi nhận, trả ở NPC khác). Vật phẩm nhiệm vụ không phải vật phẩm thật mà chỉ là bộ đếm của nhiệm vụ, không chiếm hành trang. Tiến độ chỉ tính cho **người kết liễu** con quái (như đồ rơi, kể cả khi người đó đang chết), không xét cửa sổ cấp và không chia qua tổ đội. Thưởng EXP theo % EXP một cấp (20% với diệt và thu thập, 10% với đưa tin), Xu theo cấp và số lượng, kèm bình thuốc, giấy về thành và vũ khí Trắng đúng class ở cấp 10, 20. Trả nhiệm vụ cần đủ chỗ trong hành trang cho cả lô thưởng, nếu không thì không trả gì.
+
+Nhiệm vụ hàng ngày v1 (Giai đoạn 6d) gồm ba nhiệm vụ nhận và trả ở Quạ truyền tin (Tổng hành dinh), mở từ cấp 10: Lệnh diệt quỷ (diệt 40 quái bất kỳ), Huyết quỷ (thu thập 20 Huyết quỷ rơi từ quái bất kỳ) và Rèn luyện (cường hóa 3 lần). Thưởng theo cấp người chơi: Lệnh diệt quỷ và Huyết quỷ trả 5% EXP một cấp và 80 Xu mỗi cấp; Rèn luyện trả 40 Xu mỗi cấp kèm 5 đá cường hóa. Ngày nhiệm vụ đổi lúc 00:00 giờ Việt Nam (UTC+7); khi đó mọi mục hàng ngày của ngày cũ (đang làm, đã xong hay đã trả) bị xóa; mục của hôm nay thì không nhận lại được, nên mỗi nhiệm vụ chỉ nhận thưởng một lần mỗi ngày. Diệt và thu thập chỉ tính khi quái trong khoảng ±10 cấp so với người kết liễu; cường hóa tính số lần thử thật sự đã chạy. Như chính tuyến, tiến độ chỉ tính cho người kết liễu và không chia qua tổ đội.
 
 Nhiệm vụ phục vụ hướng dẫn, luyện cấp và kiếm tài nguyên; không yêu cầu người chơi trải qua hành trình của Tanjiro. Cấp quái thể hiện độ khó và phân bố bãi, không phải điều kiện vượt map.
 
@@ -1094,7 +1096,7 @@ Auto chạy hoàn toàn ở client (giai đoạn 6c, [spec](superpowers/specs/20
 3. Vô Hạn Thành: khoảng chờ Boss kế tiếp, xử lý hết giờ khi Boss còn sống, đồng điểm, điểm PK, rời/đổi bang, cách chia thưởng bang, quyền thành chủ cũ khi Quỷ Vương không bị hạ, thời hạn sở hữu, phạm vi chịu thuế, thời điểm thu và bên trả thuế.
 4. Diễn Võ: chọn thể thức 1vs1/3vs3, công thức xếp hạng, cách trao danh hiệu cho đội 3vs3 và phần thưởng khi đạt Top 1 nhiều tuần.
 5. Auto-play: chỉ còn tự hồi sinh và tự về thành tiếp tế (điều kiện, chi phí), ngoài bản đầu. Thú cưỡi/trợ thủ: cách bố trí ô, số lượng hoạt động đồng thời, kỹ năng trợ thủ và sử dụng thú cưỡi khi chiến đấu.
-6. Kỹ thuật: công cụ và nền tảng triển khai, ngân sách hiệu năng, kích thước ô tọa độ thế giới, số ô mỗi giây của tốc độ di chuyển 1 (chốt sau chơi thử), sức chứa kênh thực tế và múi giờ reset nhiệm vụ.
+6. Kỹ thuật: công cụ và nền tảng triển khai, ngân sách hiệu năng, kích thước ô tọa độ thế giới, số ô mỗi giây của tốc độ di chuyển 1 (chốt sau chơi thử), sức chứa kênh thực tế.
 
 ## 11. Để sau v1.0.0.0
 
