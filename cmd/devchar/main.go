@@ -1,6 +1,6 @@
 // Command devchar changes an account's first character, for development only:
 //
-//	go run ./cmd/devchar -u USER [-level L] [-map ID -x X -y Y]
+//	go run ./cmd/devchar -u USER [-level L] [-map ID -x X -y Y] [-waive-books]
 //
 // -level (phase 2 spec 2.3) sets the level, EXP to 0, refunds every
 // potential point, recomputes the skill points (dropping every skill when
@@ -8,7 +8,9 @@
 // spec 6) moves the character to that map and position; the map is read
 // from MAPS_DIR (default ./maps) and an unknown map or a tile that is not
 // walkable is refused before anything is written. The two may be used
-// alone or together.
+// alone or together. -waive-books (phase 6b spec 7) sets the skill book
+// waiver to the level after any -level change, so every skill the character
+// can reach is learned without a book; without it the waiver is unchanged.
 //
 // It reads the database from DATABASE_URL. The character must be offline:
 // the server does not record who is online, so a running server's next
@@ -29,7 +31,7 @@ import (
 	"demonslayer2d/internal/store"
 )
 
-const usage = "usage: devchar -u USER [-level L] [-map ID -x X -y Y]"
+const usage = "usage: devchar -u USER [-level L] [-map ID -x X -y Y] [-waive-books]"
 
 func main() {
 	if err := run(os.Args[1:], os.Getenv, os.Stdout); err != nil {
@@ -46,12 +48,13 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 	mapID := fs.String("map", "", "map id to move the character to; needs -x and -y")
 	x := fs.Float64("x", 0, "x position on -map, in tiles")
 	y := fs.Float64("y", 0, "y position on -map, in tiles")
+	waive := fs.Bool("waive-books", false, "set the skill book waiver to the level (after -level)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
 	}
 	set := make(map[string]bool)
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
-	if *user == "" || fs.NArg() > 0 || (!set["level"] && !set["map"]) {
+	if *user == "" || fs.NArg() > 0 || (!set["level"] && !set["map"] && !*waive) {
 		return errors.New(usage)
 	}
 	if set["level"] && (*level < 1 || *level > combat.MaxLevel) {
@@ -89,6 +92,13 @@ func run(args []string, getenv func(string) string, out io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(out, "%s: level %d, %d free potential points, %d skill points\n", res.Name, res.Level, res.FreePoints, res.SkillPoints)
+	}
+	if *waive {
+		res, err := st.DevWaiveBooks(ctx, *user)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "%s: skill book waiver %d\n", res.Name, res.Level)
 	}
 	if set["map"] {
 		res, err := st.DevSetPlace(ctx, *user, *mapID, pos.X, pos.Y)

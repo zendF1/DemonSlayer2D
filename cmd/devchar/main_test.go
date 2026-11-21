@@ -153,3 +153,46 @@ func TestRunSetsLevelAndPlace(t *testing.T) {
 		t.Fatalf("missing account: %v", err)
 	}
 }
+
+// ______________________TEST WAIVE BOOKS_____________________
+
+func TestRunWaivesBooks(t *testing.T) {
+	st, url := devDB(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, store.NewCharacter{AccountID: acc, Slot: 1, Name: "Tanjiro", NameKey: "tanjiro",
+		Class: "viem", MapID: "kumotori_1", X: 5.5, Y: 5.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vars := map[string]string{"DATABASE_URL": url, "MAPS_DIR": mapsDir}
+	waiver := func() int {
+		t.Helper()
+		got, err := st.GetCharacter(ctx, acc, c.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.SkillBookWaiver
+	}
+	if err := st.DevSetWaiver(ctx, c.ID, 4); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run([]string{"-u", "owner", "-level", "10"}, env(vars), &out); err != nil || waiver() != 4 {
+		t.Fatalf("without the flag: waiver %d, %v, want 4", waiver(), err)
+	}
+	out.Reset()
+	if err := run([]string{"-u", "owner", "-level", "10", "-waive-books"}, env(vars), &out); err != nil || waiver() != 10 {
+		t.Fatalf("with the flag: waiver %d, %v, want 10", waiver(), err)
+	}
+	if !strings.Contains(out.String(), "skill book waiver 10") {
+		t.Fatalf("output %q", out.String())
+	}
+	// Alone it uses the current level.
+	if err := st.DevSetWaiver(ctx, c.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"-u", "owner", "-waive-books"}, env(vars), &out); err != nil || waiver() != 10 {
+		t.Fatalf("-waive-books alone: waiver %d, %v, want 10", waiver(), err)
+	}
+}

@@ -39,8 +39,22 @@ type Character struct {
 	Items []ItemRow
 	// PkOn is whether PK mode is on.
 	PkOn bool
+	// Quests are the quest log rows, ordered by quest id; never nil on a
+	// loaded character.
+	Quests []QuestRow
+	// SkillBookWaiver is the highest learn level whose skills need no book.
+	SkillBookWaiver int
 	// Account is the account part (Lượng, stash); only GetCharacter fills it.
 	Account AccountState
+}
+
+// QuestRow is one stored quest log entry. State is 1 (in progress) or 2
+// (done); Day is 0 for the main line.
+type QuestRow struct {
+	QuestID  string
+	State    int16
+	Progress int
+	Day      int32
 }
 
 // AccountState is the account-owned data a character save may carry: Lượng,
@@ -112,19 +126,23 @@ type CharState struct {
 	Items []ItemRow
 	// PkOn is saved with every state.
 	PkOn bool
+	// Quests replaces every stored quest row of the character; nil saves
+	// none. SkillBookWaiver is saved with every state.
+	Quests          []QuestRow
+	SkillBookWaiver int
 	// Account, when not nil, is saved in the same transaction; nil writes
 	// nothing to the account.
 	Account *AccountState
 }
 
 const charColumns = `id, account_id, slot, name, class, level, exp, map_id, pos_x, pos_y,
-	str, agi, vit, int, free_points, COALESCE(hp, -1), COALESCE(mp, -1), skill_points, xu, pk_on`
+	str, agi, vit, int, free_points, COALESCE(hp, -1), COALESCE(mp, -1), skill_points, xu, pk_on, skill_book_waiver`
 
 // scanCharacter reads charColumns; the skills and items come from loadExtras.
 func scanCharacter(row pgx.Row) (Character, error) {
-	c := Character{Skills: map[string]int{}, Items: []ItemRow{}}
+	c := Character{Skills: map[string]int{}, Items: []ItemRow{}, Quests: []QuestRow{}}
 	err := row.Scan(&c.ID, &c.AccountID, &c.Slot, &c.Name, &c.Class, &c.Level, &c.Exp, &c.MapID, &c.X, &c.Y,
-		&c.Points.Str, &c.Points.Agi, &c.Points.Vit, &c.Points.Int, &c.FreePoints, &c.HP, &c.MP, &c.SkillPoints, &c.Xu, &c.PkOn)
+		&c.Points.Str, &c.Points.Agi, &c.Points.Vit, &c.Points.Int, &c.FreePoints, &c.HP, &c.MP, &c.SkillPoints, &c.Xu, &c.PkOn, &c.SkillBookWaiver)
 	return c, err
 }
 
@@ -133,7 +151,64 @@ func (s *Store) loadExtras(ctx context.Context, chars []Character) error {
 	if err := s.loadSkills(ctx, chars); err != nil {
 		return err
 	}
-	return loadItems(ctx, s.pool, chars)
+	if err := loadItems(ctx, s.pool, chars); err != nil {
+		return err
+	}
+	return loadQuests(ctx, s.pool, chars)
+}
+
+// loadQuests fills the Quests of chars with one query, ordered by quest id.
+func loadQuests(ctx context.Context, q querier, chars []Character) error {
+	if len(chars) == 0 {
+		return nil
+	}
+	byID := make(map[int64]*Character, len(chars))
+	ids := make([]int64, len(chars))
+	for i := range chars {
+		byID[chars[i].ID] = &chars[i]
+		ids[i] = chars[i].ID
+	}
+	rows, err := q.Query(ctx, `SELECT character_id, quest_id, state, progress, day
+		FROM character_quests WHERE character_id = ANY($1) ORDER BY character_id, quest_id`, ids)
+	if err != nil {
+		return err
+	}
+	var (
+		charID int64
+		r      QuestRow
+	)
+	_, err = pgx.ForEachRow(rows, []any{&charID, &r.QuestID, &r.State, &r.Progress, &r.Day}, func() error {
+		c := byID[charID]
+		c.Quests = append(c.Quests, r)
+		return nil
+	})
+	return err
+}
+
+// saveQuests replaces the character's quest rows: a delete, then one INSERT
+// from unnest.
+func saveQuests(ctx context.Context, tx pgx.Tx, id int64, quests []QuestRow) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM character_quests WHERE character_id = $1`, id); err != nil {
+		return err
+	}
+	if len(quests) == 0 {
+		return nil
+	}
+	n := len(quests)
+	var (
+		qid      = make([]string, n)
+		state    = make([]int16, n)
+		progress = make([]int32, n)
+		day      = make([]int32, n)
+	)
+	for i, r := range quests {
+		qid[i], state[i], progress[i], day[i] = r.QuestID, r.State, int32(r.Progress), r.Day
+	}
+	_, err := tx.Exec(ctx,
+		`INSERT INTO character_quests (character_id, quest_id, state, progress, day)
+		 SELECT $1, * FROM unnest($2::text[], $3::smallint[], $4::int[], $5::int[])`,
+		id, qid, state, progress, day)
+	return err
 }
 
 // querier is what loadItems needs from a pool or a transaction.
@@ -271,7 +346,7 @@ func (s *Store) DeleteCharacter(ctx context.Context, accountID, charID int64) er
 }
 
 // SaveCharacterState writes position, level, EXP, points, HP, MP, skill
-// points, Xu, skills and items in one transaction. A missing character is not
+// points, Xu, skills, items and quests in one transaction. A missing character is not
 // an error.
 func (s *Store) SaveCharacterState(ctx context.Context, st CharState) error {
 	if err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error { return saveState(ctx, tx, st) }); err != nil {
@@ -284,9 +359,9 @@ func saveState(ctx context.Context, tx pgx.Tx, st CharState) error {
 	tag, err := tx.Exec(ctx,
 		`UPDATE characters SET map_id = $2, pos_x = $3, pos_y = $4, level = $5, exp = $6,
 		 str = $7, agi = $8, vit = $9, int = $10, free_points = $11,
-		 hp = NULLIF($12::int, -1), mp = NULLIF($13::int, -1), skill_points = $14, xu = $15, pk_on = $16, updated_at = now() WHERE id = $1`,
+		 hp = NULLIF($12::int, -1), mp = NULLIF($13::int, -1), skill_points = $14, xu = $15, pk_on = $16, skill_book_waiver = $17, updated_at = now() WHERE id = $1`,
 		st.ID, st.MapID, st.X, st.Y, st.Level, st.Exp,
-		st.Points.Str, st.Points.Agi, st.Points.Vit, st.Points.Int, st.FreePoints, st.HP, st.MP, st.SkillPoints, st.Xu, st.PkOn)
+		st.Points.Str, st.Points.Agi, st.Points.Vit, st.Points.Int, st.FreePoints, st.HP, st.MP, st.SkillPoints, st.Xu, st.PkOn, st.SkillBookWaiver)
 	if err != nil || tag.RowsAffected() == 0 {
 		return err // a deleted character has no skills or items to replace
 	}
@@ -294,6 +369,9 @@ func saveState(ctx context.Context, tx pgx.Tx, st CharState) error {
 		return err
 	}
 	if err := saveItems(ctx, tx, st); err != nil {
+		return err
+	}
+	if err := saveQuests(ctx, tx, st.ID, st.Quests); err != nil {
 		return err
 	}
 	return saveAccount(ctx, tx, st.Account)

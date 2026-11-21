@@ -174,3 +174,82 @@ func (s *Store) DevAddLuong(ctx context.Context, username string, n int64) (int6
 	}
 	return total, nil
 }
+
+// DevQuestResult is what DevEditQuests left the first character with.
+type DevQuestResult struct {
+	ID   int64
+	Name string
+	Rows []QuestRow
+}
+
+// DevEditQuests changes the quest rows of the first character (lowest slot)
+// of username, for development only (phase 6b spec 7). In one transaction it
+// locks the character, loads its rows (by quest id) and replaces them all
+// with the list edit returns; an error from edit aborts the transaction and
+// nothing is written. The character must be offline: a running server's next
+// save of it overwrites the change.
+func (s *Store) DevEditQuests(ctx context.Context, username string, edit func(rows []QuestRow) ([]QuestRow, error)) (DevQuestResult, error) {
+	var res DevQuestResult
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		charID, name, err := lockFirstCharacter(ctx, tx, username)
+		if err != nil {
+			return err
+		}
+		chars := []Character{{ID: charID, Quests: []QuestRow{}}}
+		if err := loadQuests(ctx, tx, chars); err != nil {
+			return err
+		}
+		rows, err := edit(chars[0].Quests)
+		if err != nil {
+			return err
+		}
+		if err := saveQuests(ctx, tx, charID, rows); err != nil {
+			return err
+		}
+		res = DevQuestResult{ID: charID, Name: name, Rows: rows}
+		return nil
+	})
+	if err != nil {
+		return DevQuestResult{}, fmt.Errorf("store: dev edit quests: %w", err)
+	}
+	return res, nil
+}
+
+// DevSetQuests replaces every quest row of the character charID, for
+// development only (e2e tests). The character must be offline.
+func (s *Store) DevSetQuests(ctx context.Context, charID int64, rows []QuestRow) error {
+	if err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error { return saveQuests(ctx, tx, charID, rows) }); err != nil {
+		return fmt.Errorf("store: dev set quests: %w", err)
+	}
+	return nil
+}
+
+// DevSetWaiver sets the skill book waiver of the character charID, for
+// development only. The character must be offline.
+func (s *Store) DevSetWaiver(ctx context.Context, charID int64, w int) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE characters SET skill_book_waiver = $2, updated_at = now() WHERE id = $1`, charID, w); err != nil {
+		return fmt.Errorf("store: dev set waiver: %w", err)
+	}
+	return nil
+}
+
+// DevWaiveBooks sets the skill book waiver of the first character (lowest
+// slot) of username to its current level, for development only, and returns
+// its name and level. The character must be offline.
+func (s *Store) DevWaiveBooks(ctx context.Context, username string) (DevResult, error) {
+	var res DevResult
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		charID, name, err := lockFirstCharacter(ctx, tx, username)
+		if err != nil {
+			return err
+		}
+		res.Name = name
+		return tx.QueryRow(ctx,
+			`UPDATE characters SET skill_book_waiver = level, updated_at = now() WHERE id = $1 RETURNING level`,
+			charID).Scan(&res.Level)
+	})
+	if err != nil {
+		return DevResult{}, fmt.Errorf("store: dev waive books: %w", err)
+	}
+	return res, nil
+}

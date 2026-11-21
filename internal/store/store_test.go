@@ -982,3 +982,125 @@ func TestSaveAndLoadPkOnAndNegativeExp(t *testing.T) {
 		t.Fatal("PK did not turn off")
 	}
 }
+
+// ______________________TEST QUESTS_____________________
+
+func TestMigrationAddsQuests(t *testing.T) {
+	url, schema := storetest.Schema(t)
+	ctx := context.Background()
+	db := stdlib.OpenDB(*schemaConfig(t, url, schema))
+	defer db.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 8); err != nil {
+		t.Fatal(err)
+	}
+	var acc, char int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO accounts (username, password_hash) VALUES ('old', 'h') RETURNING id`).Scan(&acc); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `INSERT INTO characters (account_id, slot, name, name_key, class, level, map_id, pos_x, pos_y)
+		VALUES ($1, 1, 'old', 'old', 'viem', 25, 'kumotori_1', 5.5, 5.5) RETURNING id`, acc).Scan(&char); err != nil {
+		t.Fatal(err)
+	}
+
+	st := openMigrated(t, url, schema)
+	c, err := st.GetCharacter(ctx, acc, char)
+	if err != nil || c.SkillBookWaiver != 25 || len(c.Quests) != 0 {
+		t.Fatalf("migrated character: waiver %d, quests %+v, %v, want waiver 25 and no quests", c.SkillBookWaiver, c.Quests, err)
+	}
+	nc, err := st.CreateCharacter(ctx, newChar(acc, 2, "Fresh"))
+	if err != nil || nc.SkillBookWaiver != 0 {
+		t.Fatalf("new character waiver %d, %v, want 0", nc.SkillBookWaiver, err)
+	}
+
+	if _, err := p.DownTo(ctx, 8); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM information_schema.columns WHERE table_schema = $1
+		AND ((table_name = 'characters' AND column_name = 'skill_book_waiver') OR table_name = 'character_quests')`,
+		schema).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("after down: %d quest columns or tables left, %v", left, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveAndLoadQuests(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, err := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	save := func(waiver int, q []store.QuestRow) {
+		t.Helper()
+		if err := st.SaveCharacterState(ctx, store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 5, HP: -1, MP: -1,
+			Quests: q, SkillBookWaiver: waiver}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []store.QuestRow{
+		{QuestID: "m01", State: 2},
+		{QuestID: "m02", State: 2},
+		{QuestID: "m03", State: 1, Progress: 3, Day: 0},
+	}
+	save(7, want)
+	got, err := st.GetCharacter(ctx, acc, c.ID)
+	if err != nil || !reflect.DeepEqual(got.Quests, want) || got.SkillBookWaiver != 7 {
+		t.Fatalf("after save: quests %+v waiver %d, %v, want %+v waiver 7", got.Quests, got.SkillBookWaiver, err, want)
+	}
+	list, err := st.ListCharacters(ctx, acc)
+	if err != nil || len(list) != 1 || !reflect.DeepEqual(list[0].Quests, want) || list[0].SkillBookWaiver != 7 {
+		t.Fatalf("list: %+v, %v", list, err)
+	}
+
+	// A save with one entry replaces all rows.
+	save(7, []store.QuestRow{{QuestID: "m09", State: 1, Progress: 1}})
+	got, _ = st.GetCharacter(ctx, acc, c.ID)
+	if !reflect.DeepEqual(got.Quests, []store.QuestRow{{QuestID: "m09", State: 1, Progress: 1}}) {
+		t.Fatalf("after second save: %+v", got.Quests)
+	}
+	// A bad state is refused and the old rows stay.
+	err = st.SaveCharacterState(ctx, store.CharState{ID: c.ID, MapID: "kumotori_1", Level: 5, HP: -1, MP: -1,
+		Quests: []store.QuestRow{{QuestID: "m01", State: 3}}})
+	if err == nil {
+		t.Fatal("state 3 saved")
+	}
+	if got, _ = st.GetCharacter(ctx, acc, c.ID); len(got.Quests) != 1 || got.Quests[0].QuestID != "m09" {
+		t.Fatalf("after refused save: %+v", got.Quests)
+	}
+	save(7, nil)
+	if got, _ = st.GetCharacter(ctx, acc, c.ID); len(got.Quests) != 0 {
+		t.Fatalf("after empty save: %+v", got.Quests)
+	}
+}
+
+func TestDevSetQuestsAndWaiver(t *testing.T) {
+	st := storetest.New(t)
+	ctx := context.Background()
+	acc, _ := st.CreateAccount(ctx, "owner", "h")
+	c, _ := st.CreateCharacter(ctx, newChar(acc, 1, "Tanjiro"))
+	rows := []store.QuestRow{{QuestID: "m01", State: 2}, {QuestID: "m02", State: 1, Progress: 2}}
+	if err := st.DevSetQuests(ctx, c.ID, rows); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DevSetWaiver(ctx, c.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := st.GetCharacter(ctx, acc, c.ID)
+	if !reflect.DeepEqual(got.Quests, rows) || got.SkillBookWaiver != 10 {
+		t.Fatalf("got %+v waiver %d", got.Quests, got.SkillBookWaiver)
+	}
+	if err := st.DevSetQuests(ctx, c.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = st.GetCharacter(ctx, acc, c.ID); len(got.Quests) != 0 {
+		t.Fatalf("after reset %+v", got.Quests)
+	}
+}
