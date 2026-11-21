@@ -74,5 +74,10 @@
     {"id": "r2", "monster": "wanderer", "min_level": 2, "max_level": 3, "count": 7, "rects": [{"x": 32, "y": 1, "w": 31, "h": 19}], "nest": {"x": 47.5, "y": 9.5}},
     {"id": "r3", "monster": "snow_ghoul", "min_level": 3, "max_level": 4, "count": 7, "rects": [{"x": 1, "y": 21, "w": 31, "h": 26}], "nest": {"x": 15.5, "y": 34.5}},
     {"id": "r4", "monster": "snow_ghoul", "min_level": 4, "max_level": 5, "count": 8, "rects": [{"x": 32, "y": 21, "w": 31, "h": 26}], "nest": {"x": 52.5, "y": 40.5}}
+  ],
+  "town": "ubuyashiki",
+  "npcs": [
+    {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 3.5},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 7.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}]}
   ]
 }

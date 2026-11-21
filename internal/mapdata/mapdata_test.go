@@ -704,3 +704,202 @@ func TestRepoMapsPortalGraph(t *testing.T) {
 		t.Errorf("kumotori_1 respawns %v at %v, want default at (5.5, 5.5)", k.RespawnIDs, k.Respawns)
 	}
 }
+
+// ______________________TEST NPCS_____________________
+
+// npcJSON is portalJSON with a town and two NPCs inside the camp: smith (a
+// blacksmith) at (3.5, 1.5) and cart (a carriage with one route) at (3.5, 5.5).
+func npcJSON(t *testing.T, mutate func(m map[string]any)) []byte {
+	t.Helper()
+	return portalJSON(t, func(m map[string]any) {
+		m["town"] = "t1"
+		m["npcs"] = []map[string]any{
+			{"id": "smith", "name": "Thợ rèn", "role": "blacksmith", "x": 3.5, "y": 1.5},
+			{"id": "cart", "name": "Xa phu", "role": "carriage", "x": 3.5, "y": 5.5,
+				"routes": []map[string]any{{"map": "a", "xu": 50}}},
+		}
+		if mutate != nil {
+			mutate(m)
+		}
+	})
+}
+
+func npcAt(m map[string]any, i int) map[string]any { return m["npcs"].([]map[string]any)[i] }
+
+func TestParseNPCs(t *testing.T) {
+	m, err := Parse(npcJSON(t, func(m map[string]any) {
+		m["npcs"] = append(m["npcs"].([]map[string]any),
+			map[string]any{"id": "shop", "name": "Tạp hóa", "role": "shop", "shop": "general", "x": 1.5, "y": 3.5})
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Town != "t1" || len(m.NPCs) != 3 {
+		t.Fatalf("town %q, npcs %+v", m.Town, m.NPCs)
+	}
+	if m.NPCs[0].ID != "smith" || m.NPCs[1].ID != "cart" || m.NPCs[2].ID != "shop" {
+		t.Fatalf("npcs not in file order: %+v", m.NPCs)
+	}
+	cart, ok := m.NPC("cart")
+	if !ok || cart.Role != RoleCarriage || cart.Pos != (Point{3.5, 5.5}) ||
+		len(cart.Routes) != 1 || cart.Routes[0] != (Route{Map: "a", Xu: 50}) {
+		t.Fatalf("cart = %+v, %v", cart, ok)
+	}
+	if shop, _ := m.NPC("shop"); shop.Role != RoleShop || shop.Shop != "general" {
+		t.Fatalf("shop = %+v", shop)
+	}
+	if _, ok := m.NPC("nobody"); ok {
+		t.Fatal("NPC found an unknown id")
+	}
+	// No npcs at all is fine.
+	if m, err := Parse(portalJSON(t, nil)); err != nil || len(m.NPCs) != 0 {
+		t.Fatalf("map without npcs: %v %v", m, err)
+	}
+}
+
+func TestParseNPCErrors(t *testing.T) {
+	cases := map[string]func(m map[string]any){
+		`outside the safe zones`: func(m map[string]any) { npcAt(m, 0)["x"], npcAt(m, 0)["y"] = 8.5, 3.5 },
+		`is not walkable`:        func(m map[string]any) { setTiles(m, '#', [2]int{3, 1}) },
+		`unreachable from default`: func(m map[string]any) {
+			setTiles(m, '#', [2]int{2, 6}, [2]int{1, 5})
+			npcAt(m, 0)["x"], npcAt(m, 0)["y"] = 1.5, 6.5
+		},
+		`duplicate npc "smith"`:               func(m map[string]any) { npcAt(m, 1)["id"] = "smith" },
+		`npc without id`:                      func(m map[string]any) { npcAt(m, 0)["id"] = "" },
+		`npc "smith": missing name`:           func(m map[string]any) { npcAt(m, 0)["name"] = "" },
+		`invalid role "wizard"`:               func(m map[string]any) { npcAt(m, 0)["role"] = "wizard" },
+		`"smith": shop set on a non-shop npc`: func(m map[string]any) { npcAt(m, 0)["shop"] = "general" },
+		`"smith": role shop needs a shop`:     func(m map[string]any) { npcAt(m, 0)["role"] = "shop" },
+		`"smith": routes set on a non-carriage npc`: func(m map[string]any) {
+			npcAt(m, 0)["routes"] = []map[string]any{{"map": "a", "xu": 50}}
+		},
+		`"cart": a carriage needs routes`: func(m map[string]any) { delete(npcAt(m, 1), "routes") },
+		`"cart": route to "a": xu must be at least 1`: func(m map[string]any) {
+			npcAt(m, 1)["routes"] = []map[string]any{{"map": "a", "xu": 0}}
+		},
+		`"cart": duplicate route to "a"`: func(m map[string]any) {
+			npcAt(m, 1)["routes"] = []map[string]any{{"map": "a", "xu": 50}, {"map": "a", "xu": 60}}
+		},
+		`"cart": route to its own map`: func(m map[string]any) {
+			npcAt(m, 1)["routes"] = []map[string]any{{"map": "t1", "xu": 50}}
+		},
+		`closer than 1.5 tiles`: func(m map[string]any) { npcAt(m, 1)["x"], npcAt(m, 1)["y"] = 3.5, 2.5 },
+	}
+	for want, mut := range cases {
+		_, err := Parse(npcJSON(t, mut))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want error containing %q, got %v", want, err)
+		}
+	}
+	// Exactly 1.5 tiles apart is allowed.
+	if _, err := Parse(npcJSON(t, func(m map[string]any) { npcAt(m, 1)["x"], npcAt(m, 1)["y"] = 3.5, 3.0 })); err != nil {
+		t.Errorf("1.5 tiles apart: %v", err)
+	}
+}
+
+// townPair is linkPair with a as the town (all walkable tiles safe, no region)
+// and b a training map whose town is a; the mutations run afterwards.
+func townPair(t *testing.T, mutateA, mutateB func(m map[string]any)) map[string]*Map {
+	t.Helper()
+	return linkPair(t, func(m map[string]any) {
+		m["type"], m["town"] = "town", "a"
+		m["safe_zones"] = []map[string]any{{"id": "town", "x": 1, "y": 1, "w": 14, "h": 6}}
+		m["regions"] = []map[string]any{}
+		if mutateA != nil {
+			mutateA(m)
+		}
+	}, func(m map[string]any) {
+		m["town"] = "a"
+		m["npcs"] = []map[string]any{{"id": "cart", "name": "Xa phu", "role": "carriage", "x": 3.5, "y": 5.5,
+			"routes": []map[string]any{{"map": "a", "xu": 50}}}}
+		if mutateB != nil {
+			mutateB(m)
+		}
+	})
+}
+
+func TestLinkTown(t *testing.T) {
+	if err := Link(townPair(t, nil, nil)); err != nil {
+		t.Fatalf("a valid pair: %v", err)
+	}
+	cases := map[string][2]func(m map[string]any){
+		`mapdata b: town "zzz" is not a map`:     {nil, func(m map[string]any) { m["town"] = "zzz" }},
+		`mapdata b: town "b" is not a town`:      {nil, func(m map[string]any) { m["town"] = "b" }},
+		`mapdata a: a town must be its own town`: {func(m map[string]any) { m["town"] = "b" }, nil},
+		`mapdata b: npc "cart": route to unknown map "zzz"`: {nil, func(m map[string]any) {
+			npcAt(m, 0)["routes"] = []map[string]any{{"map": "zzz", "xu": 50}}
+		}},
+	}
+	for want, mut := range cases {
+		err := Link(townPair(t, mut[0], mut[1]))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want error containing %q, got %v", want, err)
+		}
+	}
+}
+
+// Phase 4b spec 2.2: the NPCs of the five maps.
+func TestRepoMapsNPCs(t *testing.T) {
+	loaded, err := LoadDir("../../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, m := range loaded {
+		if m.Town != "ubuyashiki" {
+			t.Errorf("%s: town %q, want ubuyashiki", id, m.Town)
+		}
+	}
+	routes := func(m *Map) map[string]int64 {
+		cart, ok := m.NPC("xa_phu")
+		if !ok || cart.Role != RoleCarriage || cart.Name != "Xa phu" || len(cart.Routes) != 4 {
+			t.Fatalf("%s: xa_phu = %+v, %v", m.ID, cart, ok)
+		}
+		out := map[string]int64{}
+		for _, r := range cart.Routes {
+			out[r.Map] = r.Xu
+		}
+		return out
+	}
+	price := map[string]int64{"ubuyashiki": 50, "kumotori_1": 50, "sagiri_1": 120, "sagiri_2": 220, "fujikasane_1": 320}
+	town := loaded["ubuyashiki"]
+	if len(town.NPCs) != 3 {
+		t.Fatalf("ubuyashiki npcs %+v, want 3", town.NPCs)
+	}
+	if n, ok := town.NPC("tap_hoa"); !ok || n.Role != RoleShop || n.Shop != "general" || n.Name != "Tạp hóa" {
+		t.Errorf("tap_hoa = %+v, %v", n, ok)
+	}
+	if n, ok := town.NPC("tho_ren"); !ok || n.Role != RoleBlacksmith || n.Name != "Thợ rèn" {
+		t.Errorf("tho_ren = %+v, %v", n, ok)
+	}
+	for to, xu := range routes(town) {
+		if to == "ubuyashiki" || xu != price[to] {
+			t.Errorf("ubuyashiki route %s %d, want %d", to, xu, price[to])
+		}
+	}
+	for _, id := range []string{"kumotori_1", "sagiri_1", "sagiri_2", "fujikasane_1"} {
+		m := loaded[id]
+		if len(m.NPCs) != 2 {
+			t.Errorf("%s npcs %+v, want 2", id, m.NPCs)
+		}
+		if n, ok := m.NPC("duoc_su"); !ok || n.Role != RoleShop || n.Shop != "apothecary" || n.Name != "Dược sư" {
+			t.Errorf("%s: duoc_su = %+v, %v", id, n, ok)
+		}
+		got := routes(m)
+		if _, self := got[id]; self {
+			t.Errorf("%s: route to itself", id)
+		}
+		for to, xu := range got {
+			if xu != price[to] {
+				t.Errorf("%s route %s %d, want %d", id, to, xu, price[to])
+			}
+		}
+	}
+	k := loaded["kumotori_1"]
+	if n, _ := k.NPC("duoc_su"); n.Pos != (Point{8.5, 3.5}) {
+		t.Errorf("kumotori duoc_su at %v, want (8.5, 3.5)", n.Pos)
+	}
+	if n, _ := k.NPC("xa_phu"); n.Pos != (Point{8.5, 7.5}) {
+		t.Errorf("kumotori xa_phu at %v, want (8.5, 7.5)", n.Pos)
+	}
+}

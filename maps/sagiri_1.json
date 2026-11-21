@@ -76,5 +76,10 @@
     {"id": "r2", "monster": "mountain_demon", "min_level": 7, "max_level": 8, "count": 7, "rects": [{"x": 1, "y": 24, "w": 31, "h": 23}], "nest": {"x": 16.5, "y": 36.5}},
     {"id": "r3", "monster": "ambusher", "min_level": 8, "max_level": 9, "count": 7, "rects": [{"x": 32, "y": 1, "w": 31, "h": 23}], "nest": {"x": 47.5, "y": 10.5}},
     {"id": "r4", "monster": "ambusher", "min_level": 9, "max_level": 10, "count": 8, "rects": [{"x": 32, "y": 24, "w": 31, "h": 23}], "nest": {"x": 47.5, "y": 36.5}}
+  ],
+  "town": "ubuyashiki",
+  "npcs": [
+    {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 21.5},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 27.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "kumotori_1", "xu": 50}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}]}
   ]
 }

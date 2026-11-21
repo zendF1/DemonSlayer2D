@@ -54,5 +54,11 @@
     {"id": "to_kumotori_1", "x": 1, "y": 14, "w": 1, "h": 4, "to_map": "kumotori_1", "to_spawn": "from_ubuyashiki"},
     {"id": "to_sagiri_1", "x": 38, "y": 14, "w": 1, "h": 4, "to_map": "sagiri_1", "to_spawn": "from_ubuyashiki"}
   ],
-  "regions": []
+  "regions": [],
+  "town": "ubuyashiki",
+  "npcs": [
+    {"id": "tap_hoa", "name": "Tạp hóa", "role": "shop", "shop": "general", "x": 23.5, "y": 16.5},
+    {"id": "tho_ren", "name": "Thợ rèn", "role": "blacksmith", "x": 17.5, "y": 16.5},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 20.5, "y": 19.5, "routes": [{"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}, {"map": "fujikasane_1", "xu": 320}]}
+  ]
 }

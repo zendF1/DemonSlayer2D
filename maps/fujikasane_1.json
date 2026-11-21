@@ -73,5 +73,10 @@
     {"id": "r2", "monster": "forest_demon", "min_level": 17, "max_level": 18, "count": 7, "rects": [{"x": 1, "y": 24, "w": 31, "h": 23}], "nest": {"x": 18.5, "y": 39.5}},
     {"id": "r3", "monster": "captive_demon", "min_level": 18, "max_level": 19, "count": 7, "rects": [{"x": 32, "y": 1, "w": 31, "h": 23}], "nest": {"x": 45.5, "y": 8.5}},
     {"id": "r4", "monster": "captive_demon", "min_level": 19, "max_level": 20, "count": 8, "rects": [{"x": 32, "y": 24, "w": 31, "h": 23}], "nest": {"x": 45.5, "y": 39.5}}
+  ],
+  "town": "ubuyashiki",
+  "npcs": [
+    {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 21.5},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 27.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "sagiri_2", "xu": 220}]}
   ]
 }

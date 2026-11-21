@@ -76,5 +76,10 @@
     {"id": "r2", "monster": "mist_lurker", "min_level": 12, "max_level": 13, "count": 7, "rects": [{"x": 1, "y": 24, "w": 31, "h": 23}], "nest": {"x": 17.5, "y": 37.5}},
     {"id": "r3", "monster": "long_claw", "min_level": 13, "max_level": 14, "count": 7, "rects": [{"x": 32, "y": 1, "w": 31, "h": 23}], "nest": {"x": 46.5, "y": 8.5}},
     {"id": "r4", "monster": "long_claw", "min_level": 14, "max_level": 15, "count": 8, "rects": [{"x": 32, "y": 24, "w": 31, "h": 23}], "nest": {"x": 46.5, "y": 37.5}}
+  ],
+  "town": "ubuyashiki",
+  "npcs": [
+    {"id": "duoc_su", "name": "Dược sư", "role": "shop", "shop": "apothecary", "x": 8.5, "y": 21.5},
+    {"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 8.5, "y": 27.5, "routes": [{"map": "ubuyashiki", "xu": 50}, {"map": "kumotori_1", "xu": 50}, {"map": "sagiri_1", "xu": 120}, {"map": "fujikasane_1", "xu": 320}]}
   ]
 }

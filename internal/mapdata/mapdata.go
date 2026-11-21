@@ -40,7 +40,46 @@ type Map struct {
 	// Portals are in file order.
 	Portals []Portal
 
+	// Town is the map a return scroll leads to (itself for a town).
+	Town string
+	// NPCs are in file order.
+	NPCs []NPC
+
 	blocked []bool
+}
+
+// NPC roles.
+const (
+	RoleShop       = "shop"
+	RoleBlacksmith = "blacksmith"
+	RoleCarriage   = "carriage"
+)
+
+// MinNPCDistance is the least distance, in tiles, between two NPCs of a map.
+const MinNPCDistance = 1.5
+
+// NPC stands at Pos in a safe zone. Shop is the shop id of a RoleShop NPC;
+// Routes are the destinations of a RoleCarriage NPC.
+type NPC struct {
+	ID, Name, Role, Shop string
+	Pos                  Point
+	Routes               []Route
+}
+
+// Route is a carriage trip to the default spawn point of Map for Xu.
+type Route struct {
+	Map string
+	Xu  int64
+}
+
+// NPC returns the NPC with this id.
+func (m *Map) NPC(id string) (NPC, bool) {
+	for _, n := range m.NPCs {
+		if n.ID == id {
+			return n, true
+		}
+	}
+	return NPC{}, false
 }
 
 // Portal moves a player who walks into Rect to the spawn point ToSpawn of map ToMap.
@@ -127,6 +166,21 @@ type portalFile struct {
 	ToSpawn string `json:"to_spawn"`
 }
 
+type routeFile struct {
+	Map string `json:"map"`
+	Xu  int64  `json:"xu"`
+}
+
+type npcFile struct {
+	ID     string      `json:"id"`
+	Name   string      `json:"name"`
+	Role   string      `json:"role"`
+	Shop   string      `json:"shop"`
+	X      float32     `json:"x"`
+	Y      float32     `json:"y"`
+	Routes []routeFile `json:"routes"`
+}
+
 type mapFile struct {
 	ID          string       `json:"id"`
 	Name        string       `json:"name"`
@@ -140,6 +194,8 @@ type mapFile struct {
 	RestPoints  []RestPoint  `json:"rest_points"`
 	Regions     []Region     `json:"regions"`
 	Portals     []portalFile `json:"portals"`
+	Town        string       `json:"town"`
+	NPCs        []npcFile    `json:"npcs"`
 }
 
 // Parse decodes and validates one map file.
@@ -217,7 +273,74 @@ func Parse(data []byte) (*Map, error) {
 	if err := m.Reachable(); err != nil {
 		return nil, err
 	}
+	m.Town = f.Town
+	if err := m.parseNPCs(f.NPCs); err != nil {
+		return nil, err
+	}
 	return m, nil
+}
+
+// parseNPCs validates the NPCs on this map; Link checks their routes' targets.
+func (m *Map) parseNPCs(npcs []npcFile) error {
+	reach := m.reachSet()
+	for _, nf := range npcs {
+		if nf.ID == "" {
+			return fmt.Errorf("mapdata %s: npc without id", m.ID)
+		}
+		if _, dup := m.NPC(nf.ID); dup {
+			return fmt.Errorf("mapdata %s: duplicate npc %q", m.ID, nf.ID)
+		}
+		if nf.Name == "" {
+			return fmt.Errorf("mapdata %s: npc %q: missing name", m.ID, nf.ID)
+		}
+		switch nf.Role {
+		case RoleShop, RoleBlacksmith, RoleCarriage:
+		default:
+			return fmt.Errorf("mapdata %s: npc %q: invalid role %q", m.ID, nf.ID, nf.Role)
+		}
+		if nf.Role == RoleShop && nf.Shop == "" {
+			return fmt.Errorf("mapdata %s: npc %q: role shop needs a shop", m.ID, nf.ID)
+		}
+		if nf.Role != RoleShop && nf.Shop != "" {
+			return fmt.Errorf("mapdata %s: npc %q: shop set on a non-shop npc", m.ID, nf.ID)
+		}
+		if nf.Role == RoleCarriage && len(nf.Routes) == 0 {
+			return fmt.Errorf("mapdata %s: npc %q: a carriage needs routes", m.ID, nf.ID)
+		}
+		if nf.Role != RoleCarriage && len(nf.Routes) > 0 {
+			return fmt.Errorf("mapdata %s: npc %q: routes set on a non-carriage npc", m.ID, nf.ID)
+		}
+		n := NPC{ID: nf.ID, Name: nf.Name, Role: nf.Role, Shop: nf.Shop, Pos: Point{nf.X, nf.Y}}
+		seen := map[string]bool{}
+		for _, r := range nf.Routes {
+			switch {
+			case r.Xu < 1:
+				return fmt.Errorf("mapdata %s: npc %q: route to %q: xu must be at least 1", m.ID, nf.ID, r.Map)
+			case r.Map == m.ID:
+				return fmt.Errorf("mapdata %s: npc %q: route to its own map", m.ID, nf.ID)
+			case seen[r.Map]:
+				return fmt.Errorf("mapdata %s: npc %q: duplicate route to %q", m.ID, nf.ID, r.Map)
+			}
+			seen[r.Map] = true
+			n.Routes = append(n.Routes, Route(r))
+		}
+		if !m.Walkable(n.Pos) {
+			return fmt.Errorf("mapdata %s: npc %q at (%.2f, %.2f) is not walkable", m.ID, n.ID, n.Pos.X, n.Pos.Y)
+		}
+		if !m.InSafeZone(n.Pos) {
+			return fmt.Errorf("mapdata %s: npc %q is outside the safe zones", m.ID, n.ID)
+		}
+		if !reach(n.Pos) {
+			return fmt.Errorf("mapdata %s: npc %q is unreachable from default", m.ID, n.ID)
+		}
+		for _, o := range m.NPCs {
+			if math.Hypot(float64(o.Pos.X-n.Pos.X), float64(o.Pos.Y-n.Pos.Y)) < MinNPCDistance {
+				return fmt.Errorf("mapdata %s: npcs %q and %q are closer than %.1f tiles", m.ID, o.ID, n.ID, MinNPCDistance)
+			}
+		}
+		m.NPCs = append(m.NPCs, n)
+	}
+	return nil
 }
 
 // parseTriggers fills and validates safe zones, rest points and regions.
@@ -320,11 +443,9 @@ func (m *Map) parsePortals(portals []portalFile) error {
 	return nil
 }
 
-// Reachable checks that, walking in four directions over walkable tiles from
-// the tile of the default spawn point, a player reaches every spawn point, at
-// least one tile of every portal, every region's nest and every rest point's
-// centre.
-func (m *Map) Reachable() error {
+// reachSet returns a test for whether the tile containing a point is walkable
+// and reachable, in four directions, from the tile of the default spawn point.
+func (m *Map) reachSet() func(Point) bool {
 	tileOf := func(p Point) [2]int {
 		return [2]int{int(math.Floor(float64(p.X))), int(math.Floor(float64(p.Y)))}
 	}
@@ -343,10 +464,18 @@ func (m *Map) Reachable() error {
 			}
 		}
 	}
-	reached := func(p Point) bool {
+	return func(p Point) bool {
 		t := tileOf(p)
 		return !m.Blocked(t[0], t[1]) && seen[t[1]*m.Width+t[0]]
 	}
+}
+
+// Reachable checks that, walking in four directions over walkable tiles from
+// the tile of the default spawn point, a player reaches every spawn point, at
+// least one tile of every portal, every region's nest and every rest point's
+// centre.
+func (m *Map) Reachable() error {
+	reached := m.reachSet()
 	ids := make([]string, 0, len(m.Spawns))
 	for id := range m.Spawns {
 		ids = append(ids, id)
@@ -361,7 +490,7 @@ func (m *Map) Reachable() error {
 		ok := false
 		for ty := p.Rect.Y; ty < p.Rect.Y+p.Rect.H && !ok; ty++ {
 			for tx := p.Rect.X; tx < p.Rect.X+p.Rect.W && !ok; tx++ {
-				ok = seen[ty*m.Width+tx]
+				ok = reached(Point{float32(tx) + 0.5, float32(ty) + 0.5})
 			}
 		}
 		if !ok {
@@ -553,7 +682,33 @@ func LoadDir(dir string) (map[string]*Map, error) {
 	return out, nil
 }
 
-// Link checks the portals across maps (phase 4a spec 2.1): each portal leads
+// linkTown checks the town and the carriage routes of m against the other maps.
+// A map without a town (an empty field) is left alone; the real maps all have one.
+func linkTown(maps map[string]*Map, m *Map) error {
+	if m.Type == "town" && m.Town != "" && m.Town != m.ID {
+		return fmt.Errorf("mapdata %s: a town must be its own town, not %q", m.ID, m.Town)
+	}
+	if m.Town != "" {
+		town, ok := maps[m.Town]
+		switch {
+		case !ok:
+			return fmt.Errorf("mapdata %s: town %q is not a map", m.ID, m.Town)
+		case town.Type != "town":
+			return fmt.Errorf("mapdata %s: town %q is not a town", m.ID, m.Town)
+		}
+	}
+	for _, n := range m.NPCs {
+		for _, r := range n.Routes {
+			if _, ok := maps[r.Map]; !ok {
+				return fmt.Errorf("mapdata %s: npc %q: route to unknown map %q", m.ID, n.ID, r.Map)
+			}
+		}
+	}
+	return nil
+}
+
+// Link checks the town and routes (phase 4b spec 2.1) and the portals across
+// maps (phase 4a spec 2.1): each portal leads
 // to a loaded map and one of its spawn points, at least MinArrivalDistance
 // tiles from every portal of that map. Whether every map can be reached and
 // every portal has a reverse is checked by tests on the real maps, so tests
@@ -566,6 +721,9 @@ func Link(maps map[string]*Map) error {
 	slices.Sort(ids)
 	for _, id := range ids {
 		m := maps[id]
+		if err := linkTown(maps, m); err != nil {
+			return err
+		}
 		for _, p := range m.Portals {
 			target, ok := maps[p.ToMap]
 			if !ok {

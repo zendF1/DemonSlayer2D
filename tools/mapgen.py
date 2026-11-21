@@ -6,6 +6,13 @@ Run from any directory:
   python3 tools/mapgen.py --check    compare with maps/*.json, print the maps
                                      that differ and exit 1 (a Go test runs it)
 
+Phase 4b (spec 2.1-2.2) adds to every map "town" (the map a return scroll leads
+to) and "npcs": the town has a general shop, a blacksmith and a carriage, each
+training map an apothecary and a carriage. A carriage has a route to every
+other map, 50 Xu to the town, otherwise max(50, 20 x the target's lowest region
+min_level). Before writing, the script checks the NPCs in safe zones, reachable
+and 1.5 tiles apart.
+
 Rules (phase 4a spec 2.1-2.3): each map is declared with its size, wall
 rectangles (inside the border wall), safe zones, rest points, spawn points,
 portals, monster regions and min_zones. A portal is a 1 x 4 tile rectangle in
@@ -29,6 +36,10 @@ MAPS_DIR = Path(__file__).resolve().parents[1] / "maps"
 START_MAP = "kumotori_1"
 TYPES = ("town", "training", "battle", "instance")
 ARRIVAL_MIN_DISTANCE = 2  # tiles from every portal of the arrival's map
+ROLES = ("shop", "blacksmith", "carriage")
+NPC_MIN_DISTANCE = 1.5  # tiles between two NPCs of a map
+MIN_FARE = 50  # Xu; a trip to a map costs 20 x its lowest region level, at least this
+FARE_PER_LEVEL = 20
 
 
 # ______________________DECLARATION HELPERS_____________________
@@ -63,6 +74,11 @@ def portal(side, to_map):
     return ("portal", {"side": side, "to_map": to_map})
 
 
+def npc(npc_id, name, role, x, y, shop=None):
+    """An NPC (phase 4b spec 2.2); a carriage's routes are computed in build_map."""
+    return ("npc", {"id": npc_id, "name": name, "role": role, "shop": shop, "x": float(x), "y": float(y)})
+
+
 def region(region_id, monster, lo, hi, count, rects, nest):
     return ("region", {
         "id": region_id, "monster": monster, "min_level": lo, "max_level": hi, "count": count,
@@ -87,7 +103,9 @@ def camp_west():
     """The camp of a new training map (spec 2.3): a 10 x 10 safe zone against
     the west wall at mid height, holding the west portal and its arrival, the
     default (respawn) spawn point in its middle and a bonfire."""
-    return [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True)]
+    return [safe("camp", 1, 19, 10, 10), rest("bonfire", 4.5, 21.5), spawn("default", 6.5, 24.5, respawn=True),
+            npc("duoc_su", "Dược sư", "shop", 8.5, 21.5, shop="apothecary"),
+            npc("xa_phu", "Xa phu", "carriage", 8.5, 27.5)]
 
 
 # ______________________MAPS_____________________
@@ -103,6 +121,9 @@ MAPS = [
             wall(5, 24, 6, 5), wall(15, 25, 10, 4), wall(29, 24, 6, 5),
             rest("bonfire", 20.5, 12.5),
             spawn("default", 20.5, 16.5, respawn=True),
+            npc("tap_hoa", "Tạp hóa", "shop", 23.5, 16.5, shop="general"),
+            npc("tho_ren", "Thợ rèn", "blacksmith", 17.5, 16.5),
+            npc("xa_phu", "Xa phu", "carriage", 20.5, 19.5),
             portal("west", "kumotori_1"),
             portal("east", "sagiri_1"),
         ],
@@ -116,6 +137,8 @@ MAPS = [
             safe("camp", 1, 1, 10, 10),
             rest("bonfire", 3.5, 3.5),
             spawn("default", 5.5, 5.5, respawn=True),
+            npc("duoc_su", "Dược sư", "shop", 8.5, 3.5, shop="apothecary"),
+            npc("xa_phu", "Xa phu", "carriage", 8.5, 7.5),
             portal("east", "ubuyashiki"),
             gate_safe("east"),
             region("r1", "wanderer", 1, 2, 8, [(12, 1, 20, 19), (1, 12, 11, 8)], (22.5, 10.5)),
@@ -188,6 +211,23 @@ def gate_rect(side, width, height):
     return {"x": x, "y": height // 2 - 4, "w": 6, "h": 8}
 
 
+def town_id(specs):
+    """The map a return scroll leads to: the one map of type town."""
+    towns = [mid for mid, s in specs.items() if s["type"] == "town"]
+    if len(towns) != 1:
+        raise SystemExit(f"mapgen: want exactly one town map, got {towns}")
+    return towns[0]
+
+
+def fare(target):
+    """Carriage price to a map (phase 4b spec 2.2): 50 to the town, otherwise
+    20 x the lowest region min_level of the target, at least 50."""
+    levels = [v["min_level"] for kind, v in target["parts"] if kind == "region"]
+    if target["type"] == "town" or not levels:
+        return MIN_FARE
+    return max(MIN_FARE, FARE_PER_LEVEL * min(levels))
+
+
 def build_map(spec, specs):
     """The JSON object of one map (spec 2.1 key order) and its collision grid."""
     width, height = spec["width"], spec["height"]
@@ -195,7 +235,7 @@ def build_map(spec, specs):
         raise SystemExit(f"mapgen {spec['id']}: size {width} x {height} must be even in height and at least 8")
     grid = [["#" if x in (0, width - 1) or y in (0, height - 1) else "." for x in range(width)]
             for y in range(height)]
-    safe_zones, rest_points, spawns, portals, regions = [], [], [], [], []
+    safe_zones, rest_points, spawns, portals, regions, npcs = [], [], [], [], [], []
     for kind, value in spec["parts"]:
         if kind == "wall":
             x, y, w, h = value
@@ -215,6 +255,15 @@ def build_map(spec, specs):
                             "to_map": value["to_map"], "to_spawn": "from_" + spec["id"]})
         elif kind == "region":
             regions.append(value)
+        elif kind == "npc":
+            n = {"id": value["id"], "name": value["name"], "role": value["role"]}
+            if value["shop"]:
+                n["shop"] = value["shop"]
+            n["x"], n["y"] = value["x"], value["y"]
+            if value["role"] == "carriage":
+                n["routes"] = [{"map": mid, "xu": fare(target)}
+                               for mid, target in specs.items() if mid != spec["id"]]
+            npcs.append(n)
         else:
             raise AssertionError(kind)
     # Arrivals: from_<other> beside this map's portal back to <other>.
@@ -230,6 +279,7 @@ def build_map(spec, specs):
         "collision": ["".join(row) for row in grid],
         "safe_zones": safe_zones, "rest_points": rest_points, "spawn_points": spawns,
         "portals": portals, "regions": regions,
+        "town": town_id(specs), "npcs": npcs,
     }
     return out
 
@@ -395,6 +445,32 @@ def check_map(m):
             err(f"region {r['id']}: nest is not on a region tile")
     # Reachability from the default tile.
     reach = g.reachable(tile(spawns["default"]))
+    npc_ids = set()
+    for n in m["npcs"]:
+        if not n["id"] or n["id"] in npc_ids:
+            err(f"npc id {n['id']!r} is empty or duplicate")
+        npc_ids.add(n["id"])
+        if not n["name"]:
+            err(f"npc {n['id']} has no name")
+        if n["role"] not in ROLES:
+            err(f"npc {n['id']}: invalid role {n['role']}")
+        if ("shop" in n) != (n["role"] == "shop") or n.get("shop") == "":
+            err(f"npc {n['id']}: shop must be set exactly for the shop role")
+        routes = n.get("routes", [])
+        if bool(routes) != (n["role"] == "carriage"):
+            err(f"npc {n['id']}: routes must be set exactly for the carriage role")
+        if len({r["map"] for r in routes}) != len(routes) or any(r["map"] == mid or r["xu"] < 1 for r in routes):
+            err(f"npc {n['id']}: routes must be distinct, not to this map, with xu >= 1")
+        if g.blocked(*tile(n)):
+            err(f"npc {n['id']} is not walkable")
+        elif not g.safe_tile(*tile(n)):
+            err(f"npc {n['id']} is outside the safe zones")
+        elif tile(n) not in reach:
+            err(f"npc {n['id']} is unreachable from default")
+    for i, a in enumerate(m["npcs"]):
+        for b in m["npcs"][i + 1:]:
+            if math.hypot(a["x"] - b["x"], a["y"] - b["y"]) < NPC_MIN_DISTANCE:
+                err(f"npcs {a['id']} and {b['id']} are closer than {NPC_MIN_DISTANCE} tiles")
     for sp in m["spawn_points"]:
         if tile(sp) not in reach:
             err(f"spawn point {sp['id']} is unreachable from default")
@@ -414,6 +490,15 @@ def check_world(built):
     """The cross-map rules: targets, arrivals, reverse portals, connectivity."""
     errs = []
     for mid, m in built.items():
+        town = built.get(m["town"])
+        if town is None or town["type"] != "town" or (m["type"] == "town" and m["town"] != mid):
+            errs.append(f"{mid}: town {m['town']} is not a valid town")
+        for n in m["npcs"]:
+            for r in n.get("routes", []):
+                if r["map"] not in built:
+                    errs.append(f"{mid}: npc {n['id']}: route to unknown map {r['map']}")
+                elif r["xu"] != fare(SPECS[r["map"]]):
+                    errs.append(f"{mid}: npc {n['id']}: route to {r['map']} costs {r['xu']}, want {fare(SPECS[r['map']])}")
         for p in m["portals"]:
             target = built.get(p["to_map"])
             if target is None:
@@ -439,6 +524,9 @@ def check_world(built):
         if mid not in seen:
             errs.append(f"{mid}: unreachable from {START_MAP} through portals")
     return errs
+
+
+SPECS = {s["id"]: s for s in MAPS}
 
 
 def build():
