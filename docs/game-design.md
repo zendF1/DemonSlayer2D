@@ -678,7 +678,7 @@ NPC chủ yếu tập trung ở làng, thành và doanh trại an toàn; có bi�
 - NPC giao nhiệm vụ/hướng dẫn: trưởng làng, chỉ huy, sứ giả môn phái…; không bắt người chơi diễn lại cốt truyện nguyên tác.
 - NPC hoạt động: bang hội, lôi đài, sự kiện, thương nhân theo giờ.
 
-Bố trí hiện có (Giai đoạn 4b, 4c): Tổng hành dinh có Tạp hóa, Thợ rèn, Xa phu, Thủ kho; trại của mỗi map luyện cấp có Dược sư, Xa phu và Thủ kho. NPC là dữ liệu của map, không phải thực thể trong zone. Giấy về thành đưa nhân vật về Tổng hành dinh, dùng được ở map không phải thành, kể cả khi đang giao chiến.
+Bố trí hiện có (Giai đoạn 4b, 4c): Tổng hành dinh có Tạp hóa, Thợ rèn, Xa phu, Thủ kho; trại của mỗi map luyện cấp có Dược sư, Xa phu và Thủ kho. Từ Giai đoạn 4d, Xa phu ở Tổng hành dinh và ở trại của mọi map luyện cấp có tuyến tới mọi map luyện cấp khác (18 map): tuyến về thành đứng đầu, rồi các map theo cấp thấp nhất tăng dần. NPC là dữ liệu của map, không phải thực thể trong zone. Giấy về thành đưa nhân vật về Tổng hành dinh, dùng được ở map không phải thành, kể cả khi đang giao chiến.
 
 Năm NPC nhiệm vụ (Giai đoạn 6b): Thợ săn già ở Kumotori, Chỉ huy Sát Quỷ Đoàn ở Tổng hành dinh, Trưởng làng ở Sagiri 1, Kiếm sĩ trinh sát ở Sagiri 2 và Giám khảo tuyển chọn ở Fujikasane.
 
@@ -695,7 +695,7 @@ Biểu tượng nhiệm vụ: dấu ! vàng khi có nhiệm vụ mới; ? xám k
 
 Mẫu mục tiêu: diệt quái, thu thập vật phẩm, hái/đào tài nguyên, đưa thư/trò chuyện, săn Boss/vượt ải và hộ tống/áp tiêu. Vật phẩm nhiệm vụ có thể dùng kho riêng, không chiếm hành trang chính. **Không chia sẻ tiến độ nhiệm vụ qua tổ đội**; nhận EXP chia sẻ không tự cộng tiến độ nhiệm vụ.
 
-Chuỗi chính tuyến v1 (Giai đoạn 6b) gồm 22 nhiệm vụ nối nhau cho cấp 1–20 đi qua Kumotori, Tổng hành dinh, Sagiri và Fujikasane, cộng 3 nhiệm vụ mốc cấp 30, 40, 50 trao sách 3–5; dữ liệu sinh từ `docs/balance/quest_data.py`. Mỗi nhiệm vụ có đúng một mục tiêu thuộc ba loại: diệt N con một loại quái, thu thập N vật phẩm nhiệm vụ rơi từ một loại quái theo tỷ lệ, hoặc đưa tin (đủ điều kiện ngay khi nhận, trả ở NPC khác). Vật phẩm nhiệm vụ không phải vật phẩm thật mà chỉ là bộ đếm của nhiệm vụ, không chiếm hành trang. Tiến độ chỉ tính cho **người kết liễu** con quái (như đồ rơi, kể cả khi người đó đang chết), không xét cửa sổ cấp và không chia qua tổ đội. Thưởng EXP theo % EXP một cấp (20% với diệt và thu thập, 10% với đưa tin), Xu theo cấp và số lượng, kèm bình thuốc, giấy về thành và vũ khí Trắng đúng class ở cấp 10, 20. Trả nhiệm vụ cần đủ chỗ trong hành trang cho cả lô thưởng, nếu không thì không trả gì.
+Chuỗi chính tuyến v1 (Giai đoạn 6b) gồm 22 nhiệm vụ nối nhau cho cấp 1–20 đi qua Kumotori, Tổng hành dinh, Sagiri và Fujikasane, cộng 3 nhiệm vụ mốc cấp 30, 40, 50 trao sách 3–5; chính tuyến v1 dừng ở cấp 20, sau đó chỉ có ba nhiệm vụ mốc này (Giai đoạn 4d không thêm nhiệm vụ cho các map cấp 21–90); dữ liệu sinh từ `docs/balance/quest_data.py`. Mỗi nhiệm vụ có đúng một mục tiêu thuộc ba loại: diệt N con một loại quái, thu thập N vật phẩm nhiệm vụ rơi từ một loại quái theo tỷ lệ, hoặc đưa tin (đủ điều kiện ngay khi nhận, trả ở NPC khác). Vật phẩm nhiệm vụ không phải vật phẩm thật mà chỉ là bộ đếm của nhiệm vụ, không chiếm hành trang. Tiến độ chỉ tính cho **người kết liễu** con quái (như đồ rơi, kể cả khi người đó đang chết), không xét cửa sổ cấp và không chia qua tổ đội. Thưởng EXP theo % EXP một cấp (20% với diệt và thu thập, 10% với đưa tin), Xu theo cấp và số lượng, kèm bình thuốc, giấy về thành và vũ khí Trắng đúng class ở cấp 10, 20. Trả nhiệm vụ cần đủ chỗ trong hành trang cho cả lô thưởng, nếu không thì không trả gì.
 
 Nhiệm vụ hàng ngày v1 (Giai đoạn 6d) gồm ba nhiệm vụ nhận và trả ở Quạ truyền tin (Tổng hành dinh), mở từ cấp 10: Lệnh diệt quỷ (diệt 40 quái bất kỳ), Huyết quỷ (thu thập 20 Huyết quỷ rơi từ quái bất kỳ) và Rèn luyện (cường hóa 3 lần). Thưởng theo cấp người chơi: Lệnh diệt quỷ và Huyết quỷ trả 5% EXP một cấp và 80 Xu mỗi cấp; Rèn luyện trả 40 Xu mỗi cấp kèm 5 đá cường hóa. Ngày nhiệm vụ đổi lúc 00:00 giờ Việt Nam (UTC+7); khi đó mọi mục hàng ngày của ngày cũ (đang làm, đã xong hay đã trả) bị xóa; mục của hôm nay thì không nhận lại được, nên mỗi nhiệm vụ chỉ nhận thưởng một lần mỗi ngày. Diệt và thu thập chỉ tính khi quái trong khoảng ±10 cấp so với người kết liễu; cường hóa tính số lần thử thật sự đã chạy. Như chính tuyến, tiến độ chỉ tính cho người kết liễu và không chia qua tổ đội.
 
@@ -766,32 +766,35 @@ Khung cấp **1–90** được giữ làm cơ sở thiết kế ban đầu, ch�
 
 Cấp và danh sách dưới đây đã chốt cho bản đầu, cân chỉnh tiếp qua chơi thử. Quái có dấu (*) là tên/biến thể sáng tạo cho game, không khẳng định là nhân vật có trong nguyên tác. Các tên có sẵn được dùng làm hình ảnh và chủ đề gameplay, không bắt buộc tái hiện hoàn cảnh xuất hiện trong truyện.
 
-| Vùng / map nhỏ | Cấp quái thường | Quái thường | Tinh anh / thủ lĩnh |
-| --- | --- | --- | --- |
-| Kumotori – Đường núi tuyết | 1–5 | Quỷ lang thang, quỷ đói trong tuyết (*) | Quỷ lang thang đầu đàn (*) — cấp 6 |
-| Sagiri – Chân núi, đường đến ngôi đền | 6–10 | Quỷ rừng núi, quỷ phục kích (*) | Quỷ Đền — cấp 10 |
-| Sagiri – Rừng sương mù | 11–15 | Quỷ ẩn sương, quỷ vuốt dài (*) | Quỷ săn đêm (*) — cấp 15 |
-| Fujikasane – Rừng tuyển chọn | 16–20 | Quỷ Rừng, các quỷ bị giam trên núi (*) | Quỷ Rừng tinh anh (*) — cấp 20 |
-| Fujikasane – Vùng sâu | 21–25 | Quỷ thân lớn, quỷ nhiều tay cấp thấp (*) | Quỷ Tay — cấp 25 |
-| Thị trấn Tây Bắc – Ngoại ô, đầm lầy | 26–30 | Quỷ ven đầm, quỷ phục kích dưới bùn (*) | Quỷ Đầm Lầy — cấp 30 |
-| Asakusa – Ngõ tối, khu ngoại vi | 31–35 | Quỷ mới biến đổi, quỷ lang thang đô thị (*) | Quỷ Asakusa — cấp 35 |
-| Asakusa – Khu chiến đấu | 36–40 | Quỷ tay sai (*) | Yahaba — cấp 39; Susamaru — cấp 40 |
-| Dinh thự Trống – Rừng ngoài dinh | 41–45 | Quỷ rừng, quỷ móng dài (*) | Quỷ Sừng — cấp 45 |
-| Dinh thự Trống – Hành lang, phòng trống | 46–50 | Quỷ trú trong dinh (*) | Quỷ Lưỡi — cấp 48; Kyogai — cấp 50 |
-| Natagumo – Bìa rừng | 51–55 | Nhện quỷ nhỏ, con rối bị tơ điều khiển (*) | Quỷ Không Đầu — cấp 55 |
-| Natagumo – Rừng tơ nhện | 56–60 | Nhện quỷ, quái kén tơ (*) | Quỷ Nhện Anh — cấp 58; Quỷ Nhện Chị/Em Gái — cấp 60 |
-| Natagumo – Vùng lõi | 61–65 | Quái tơ nhện, con rối tinh anh (*) | Quỷ Nhện Mẹ — cấp 62; Quỷ Nhện Bố — cấp 64; Rui — cấp 65 |
-| Chuyến Tàu Vô Tận | 66–75 | Xúc tu, mô thịt, quái ác mộng (*) | Enmu — cấp 75 |
-| Yoshiwara – Ngõ đêm, đường ngầm | 76–85 | Quỷ ẩn phố đêm, phân thể dải lụa (*) | Dải lụa tinh anh (*) — cấp 85 |
-| Yoshiwara – Hầm Ngầm | 86–90 | Quỷ Mặt Nạ 86, Quỷ Trảo Dài 87, Quỷ Huyết Nha 88, Quỷ Tàng Ảnh 89, Quỷ Lân Xà 90 (*) | Quỷ Rắn — cấp 90; săn tự do, không chặn đường qua map |
+| Vùng / map nhỏ | Map (id) | Cấp quái thường | Quái thường | Tinh anh / thủ lĩnh |
+| --- | --- | --- | --- | --- |
+| Kumotori – Đường núi tuyết | `kumotori_1` | 1–5 | Quỷ lang thang, quỷ đói trong tuyết (*) | Quỷ lang thang đầu đàn (*) — cấp 6 |
+| Sagiri – Chân núi, đường đến ngôi đền | `sagiri_1` | 6–10 | Quỷ rừng núi, quỷ phục kích (*) | Quỷ Đền — cấp 10 |
+| Sagiri – Rừng sương mù | `sagiri_2` | 11–15 | Quỷ ẩn sương, quỷ vuốt dài (*) | Quỷ săn đêm (*) — cấp 15 |
+| Fujikasane – Rừng tuyển chọn | `fujikasane_1` | 16–20 | Quỷ Rừng, các quỷ bị giam trên núi (*) | Quỷ Rừng tinh anh (*) — cấp 20 |
+| Fujikasane – Vùng sâu | `fujikasane_2` | 21–25 | Quỷ thân lớn, Quỷ nhiều tay (*) | Quỷ Tay — cấp 25 |
+| Thị trấn Tây Bắc – Ngoại ô, đầm lầy | `tay_bac_1` | 26–30 | Quỷ ven đầm, quỷ phục kích dưới bùn (*) | Quỷ Đầm Lầy — cấp 30 |
+| Asakusa – Ngõ tối, khu ngoại vi | `asakusa_1` | 31–35 | Quỷ mới biến đổi, quỷ lang thang đô thị (*) | Quỷ Asakusa — cấp 35 |
+| Asakusa – Khu chiến đấu | `asakusa_2` | 36–40 | Quỷ tay sai (*) | Yahaba — cấp 39; Susamaru — cấp 40 |
+| Dinh thự Trống – Rừng ngoài dinh | `tsuzumi_1` | 41–45 | Quỷ rừng ngoài dinh, quỷ móng dài (*) | Quỷ Sừng — cấp 45 |
+| Dinh thự Trống – Hành lang, phòng trống | `tsuzumi_2` | 46–50 | Quỷ trú trong dinh (*) | Quỷ Lưỡi — cấp 48; Kyogai — cấp 50 |
+| Natagumo – Bìa rừng | `natagumo_1` | 51–55 | Nhện quỷ nhỏ, con rối bị tơ điều khiển (*) | Quỷ Không Đầu — cấp 55 |
+| Natagumo – Rừng tơ nhện | `natagumo_2` | 56–60 | Nhện quỷ, quái kén tơ (*) | Quỷ Nhện Anh — cấp 58; Quỷ Nhện Chị/Em Gái — cấp 60 |
+| Natagumo – Vùng lõi | `natagumo_3` | 61–65 | Quái tơ nhện, Con rối tinh nhuệ (*) | Quỷ Nhện Mẹ — cấp 62; Quỷ Nhện Bố — cấp 64; Rui — cấp 65 |
+| Chuyến Tàu Vô Tận | `mugen_1` (66–70), `mugen_2` (71–75) | 66–75 | Xúc tu, mô thịt, quái ác mộng (*) | Enmu — cấp 75 |
+| Yoshiwara – Ngõ đêm, đường ngầm | `yoshiwara_1` (76–80), `yoshiwara_2` (81–85) | 76–85 | Quỷ ẩn phố đêm, phân thể dải lụa (*) | Dải lụa tinh anh (*) — cấp 85 |
+| Yoshiwara – Hầm Ngầm | `yoshiwara_3` | 86–90 | Quỷ Mặt Nạ 86, Quỷ Trảo Dài 87, Quỷ Huyết Nha 88, Quỷ Tàng Ảnh 89, Quỷ Lân Xà 90 (*) | Quỷ Rắn — cấp 90; săn tự do, không chặn đường qua map |
 
+- Giai đoạn 4d chia các vùng 5 cấp thành từng map riêng, mỗi map 5 cấp, nối bằng cổng theo thứ tự cấp. Hai vùng 10 cấp chia hai map (Chuyến Tàu: `mugen_1`, `mugen_2`; Yoshiwara – Ngõ đêm, đường ngầm: `yoshiwara_1`, `yoshiwara_2`); các toa và dải của Chuyến Tàu là vách trang trí của map. Ba tên đã sửa so với bản đầu: "Quỷ rừng ngoài dinh" (tránh trùng "Quỷ Rừng" của Fujikasane), "Con rối tinh nhuệ" (tránh nhầm với nhãn hạng "Tinh anh") và "Quỷ nhiều tay" (bỏ "cấp thấp", chỉ là mô tả).
 - Tinh anh/thủ lĩnh trong map luyện cấp dùng quy tắc hồi sinh 5 hoặc 10 phút từ lúc bị hạ, không phải mục tiêu vượt ải một lần để mở vùng tiếp theo.
 - **Tất cả Boss Thượng Huyền chỉ xuất hiện trong sự kiện.** Akaza không có ở bản đồ Chuyến Tàu Vô Tận thường; Daki và Gyutaro không có ở bản đồ luyện cấp Yoshiwara. Không thay bằng Boss kết vùng bắt buộc.
 - Enmu là thủ lĩnh cấp 75 ở bản đồ thường, hồi sinh 10 phút; bản sự kiện có cấu hình riêng tại mục 5.13. Không yêu cầu hạ Enmu để đi map khác.
 - Quỷ Rắn đặt ở Yoshiwara — Hầm Ngầm, cấp 90, thủ lĩnh hồi sinh 10 phút. Dùng hình ảnh nhân vật làm gameplay, không tạo phó bản hồi ức bắt buộc.
 - Chỉ số, kỹ năng, mật độ và rơi đồ dùng bộ số bản đầu tại các mục 5.9–5.13; không mặc định tái hiện mọi khả năng nguyên tác.
 
-**Map đã làm (Giai đoạn 4a):** năm map, sinh bằng `tools/mapgen.py`, nối thành một chuỗi cổng Kumotori ↔ Ubuyashiki ↔ Sagiri 1 ↔ Sagiri 2 ↔ Fujikasane. Cổng là dải 1 × 4 ô sát tường tây hoặc đông; bước vào là sang map kế bên. Nhân vật mới bắt đầu ở Kumotori. Tinh anh và thủ lĩnh chưa có; các vùng từ cấp 21 làm sau bằng cùng script.
+**Map đã làm (Giai đoạn 4a):** năm map, sinh bằng `tools/mapgen.py`, nối thành một chuỗi cổng Kumotori ↔ Ubuyashiki ↔ Sagiri 1 ↔ Sagiri 2 ↔ Fujikasane. Cổng là dải 1 × 4 ô sát tường tây hoặc đông; bước vào là sang map kế bên. Nhân vật mới bắt đầu ở Kumotori. Tinh anh và thủ lĩnh chưa có.
+
+**Map đã làm (Giai đoạn 4d):** mười bốn map luyện cấp cho cấp 21–90 (`fujikasane_2` … `yoshiwara_3`, id ở cột Map của bảng trên), 64 × 48, 4 vùng × 30 quái, nối tiếp `fujikasane_1` bằng chuỗi cổng đông-tây; từ `kumotori_1` tới `yoshiwara_3` qua 18 cổng. Mỗi map có trại với Dược sư, Xa phu, Thủ kho và không có `min_level`. Quái thường là 26 loại mới (tổng 34 loại), cùng bảng `levels` với loại cũ.
 
 | id | Map | Loại | Cấp quái thường | Quái thường (id) | Số khu tối thiểu |
 | --- | --- | --- | --- | --- | --- |
@@ -936,6 +939,13 @@ Chiêu vùng của tinh anh đánh tối đa **3 người**, thủ lĩnh tối �
 | Quỷ Huyết Nha | 88 | Công +20%, HP −20% so với chuẩn cùng cấp |
 | Quỷ Tàng Ảnh | 89 | Tốc độ chạy +20% so với quái thường |
 | Quỷ Lân Xà | 90 | Phun độc tầm 4 ô, sát thương phép |
+
+Map `yoshiwara_3` (4d) có năm vùng × 6 con, mỗi loại quái một vùng, cấp tăng dần từ tây sang đông (86 tới 90); vùng là năm dải dọc sau trại. Các đặc điểm trên là dữ liệu của loại quái, gồm ba trường `hp_pct`, `attack_pct` (50–200, chuẩn 100) và `damage_type` (`phys` hoặc `magic`):
+
+- Quỷ Huyết Nha: `hp_pct` 80, `attack_pct` 120. HP và EXP gốc nhân cùng `hp_pct` (EXP vẫn bằng HP × r(L), mục 5.8); công nhân `attack_pct`; phòng thủ không đổi. Làm tròn lên.
+- Quỷ Lân Xà: `damage_type` `magic`, đánh trúng phòng thủ phép của người chơi thay vì phòng thủ vật lý; `detect_range` 4.
+- Quỷ Tàng Ảnh: tốc độ 0,96 và tốc độ đuổi 1,44 (+20%).
+- Quỷ Trảo Dài: tầm đánh 2 ô, bằng tầm cận chiến chuẩn của quái thường, nên không khác quái chuẩn về tầm.
 
 Đây là quái sáng tạo cho game. Quỷ Rắn cấp 90 là thủ lĩnh săn tự do trong cùng vùng; Daki/Gyutaro chỉ xuất hiện ở sự kiện.
 

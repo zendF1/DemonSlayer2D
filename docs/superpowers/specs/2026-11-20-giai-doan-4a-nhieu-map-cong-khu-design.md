@@ -27,7 +27,7 @@ Người dùng đã ủy quyền chọn phương án khuyên dùng cho mọi quy
 | Vấn đề | Quyết định | Lý do |
 | --- | --- | --- |
 | Chia giai đoạn | 4a, 4b, 4c như mục 1.1 | Mỗi phần một kế hoạch vừa sức và kết thúc bằng thứ chơi được; 4c gom hai thứ theo tài khoản (kho, Lượng) |
-| Lượng nội dung | Năm map: Tổng hành dinh Ubuyashiki (thành), Kumotori (1–5), Sagiri – Chân núi (6–10), Sagiri – Rừng sương mù (11–15), Fujikasane – Rừng tuyển chọn (16–20). Các vùng 21–90 của game-design 5.5 làm sau bằng cùng script | Đủ cho một vòng chơi từ cấp 1 tới khoảng cấp 20 và có một thành dịch vụ; quái từ cấp 10 cần trang bị của Giai đoạn 3 |
+| Lượng nội dung | Năm map: Tổng hành dinh Ubuyashiki (thành), Kumotori (1–5), Sagiri – Chân núi (6–10), Sagiri – Rừng sương mù (11–15), Fujikasane – Rừng tuyển chọn (16–20). Các vùng 21–90 của game-design 5.5 làm sau bằng cùng script (đã làm ở [Giai đoạn 4d](2026-11-20-giai-doan-4d-the-gioi-mo-rong-design.md): 14 map) | Đủ cho một vòng chơi từ cấp 1 tới khoảng cấp 20 và có một thành dịch vụ; quái từ cấp 10 cần trang bị của Giai đoạn 3 |
 | Cách soạn map | Script `tools/mapgen.py` sinh `maps/*.json` từ khai báo hình chữ nhật (tường, khu an toàn, vùng quái, cổng); không sửa tay JSON. Script tự kiểm tra và có `--check`; test Go so file đã commit với script | `kumotori_1.json` hiện được soạn tay; năm map với lưới 64 × 48 sửa tay rất dễ sai, nhất là cổng hai chiều |
 | `kumotori_1` | Sinh lại bằng script với cùng tường, trại, lửa trại và bốn vùng quái; thêm cổng phía đông, điểm đến và một khu an toàn ở cổng | Vị trí đã lưu của nhân vật vẫn hợp lệ |
 | Đồ thị cổng | Chuỗi Kumotori ↔ Ubuyashiki ↔ Sagiri 1 ↔ Sagiri 2 ↔ Fujikasane | Thành nằm giữa map tân thủ và vùng cấp 6+, người chơi tự đi ngang qua và gặp dịch vụ (4b) |
