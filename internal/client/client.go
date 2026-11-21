@@ -233,6 +233,16 @@ func (c *Client) ChangeZone(ctx context.Context, no int) (*pb.EnterWorldResp, er
 	return enterResp(c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_ChangeZoneReq{ChangeZoneReq: &pb.ChangeZoneReq{Zone: int32(no)}}}))
 }
 
+// ReturnTown reads the return scroll in bagSlot and returns the town's EnterWorldResp.
+func (c *Client) ReturnTown(ctx context.Context, bagSlot int) (*pb.EnterWorldResp, error) {
+	return enterResp(c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_ReturnTownReq{ReturnTownReq: &pb.ReturnTownReq{BagSlot: int32(bagSlot)}}}))
+}
+
+// Travel rides route (0-based) of the carriage NPC npcID and returns the target's EnterWorldResp.
+func (c *Client) Travel(ctx context.Context, npcID string, route int) (*pb.EnterWorldResp, error) {
+	return enterResp(c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_TravelReq{TravelReq: &pb.TravelReq{NpcId: npcID, Route: int32(route)}}}))
+}
+
 // ZoneList returns the running zones of the current map.
 func (c *Client) ZoneList(ctx context.Context) ([]*pb.ZoneInfo, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_ZoneListReq{ZoneListReq: &pb.ZoneListReq{}}})

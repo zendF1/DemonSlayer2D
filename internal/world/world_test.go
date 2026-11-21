@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"os"
@@ -1026,6 +1027,10 @@ func portalMaps(t *testing.T) map[string]*mapdata.Map {
 	m2 := parse(map[string]any{"id": "m2", "name": "M2", "min_zones": 1,
 		"spawn_points": []map[string]any{{"id": "default", "x": 2.5, "y": 2.5, "respawn": true}, {"id": "from_m1", "x": 3.5, "y": 10.5}},
 		"portals":      []map[string]any{{"id": "west", "x": 0, "y": 8, "w": 1, "h": 4, "to_map": "m1", "to_spawn": "from_m2"}},
+		"npcs": []map[string]any{
+			{"id": "xa_phu", "name": "Xa phu", "role": "carriage", "x": 10.5, "y": 15.5, "routes": []map[string]any{{"map": "m1", "xu": 120}}},
+			{"id": "ren", "name": "Tho ren", "role": "blacksmith", "x": 15.5, "y": 15.5},
+		},
 	})
 	maps := map[string]*mapdata.Map{"m1": m1, "m2": m2}
 	if err := mapdata.Link(maps); err != nil {
@@ -1279,11 +1284,34 @@ func TestPortalRefused(t *testing.T) {
 type fakeDeparting struct {
 	dead, ready bool
 	pos         zone.Vec2
+	level       int
+	xu          int64
+	bag         []*items.Item
+	near        pb.ErrorCode // NearNPC's answer
+	// What the check asked to take.
+	tookXu              int64
+	tookSlot, tookCount int
 }
 
-func (d fakeDeparting) Dead() bool            { return d.dead }
-func (d fakeDeparting) Pos() zone.Vec2        { return d.pos }
-func (d fakeDeparting) ZoneChangeReady() bool { return d.ready }
+func (d *fakeDeparting) Dead() bool            { return d.dead }
+func (d *fakeDeparting) Pos() zone.Vec2        { return d.pos }
+func (d *fakeDeparting) ZoneChangeReady() bool { return d.ready }
+func (d *fakeDeparting) Level() int            { return d.level }
+func (d *fakeDeparting) Xu() int64             { return d.xu }
+func (d *fakeDeparting) NearNPC(id, role string) pb.ErrorCode {
+	if id != "xa_phu" || role != mapdata.RoleCarriage {
+		return pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	}
+	return d.near
+}
+func (d *fakeDeparting) ItemAt(i int) (*items.Item, bool) {
+	if i < 0 || i >= len(d.bag) {
+		return nil, false
+	}
+	return d.bag[i], true
+}
+func (d *fakeDeparting) TakeXu(n int64)        { d.tookXu = n }
+func (d *fakeDeparting) TakeItem(i, count int) { d.tookSlot, d.tookCount = i, count }
 
 // The zone-side checks in spec 3.3 and 3.4 order: DEAD first.
 func TestTransferChecks(t *testing.T) {
@@ -1299,7 +1327,7 @@ func TestTransferChecks(t *testing.T) {
 		{fakeDeparting{pos: near}, 0},
 		{fakeDeparting{pos: in}, 0},
 	} {
-		if got := portalCheck(rect)(tc.d); got != tc.want {
+		if got := portalCheck(rect)(&tc.d); got != tc.want {
 			t.Errorf("portal check %+v = %v, want %v", tc.d, got, tc.want)
 		}
 	}
@@ -1312,7 +1340,7 @@ func TestTransferChecks(t *testing.T) {
 		{fakeDeparting{}, pb.ErrorCode_ERROR_CODE_ON_COOLDOWN},
 		{fakeDeparting{ready: true}, 0},
 	} {
-		if got := zoneChangeCheck(tc.d); got != tc.want {
+		if got := zoneChangeCheck(&tc.d); got != tc.want {
 			t.Errorf("zone change check %+v = %v, want %v", tc.d, got, tc.want)
 		}
 	}
@@ -1543,5 +1571,243 @@ func TestTransferJoinFailsAfterDeparture(t *testing.T) {
 	}
 	if s := slotOf(w, "m2", 1); s.reserved.Load() != 0 {
 		t.Fatalf("m2 zone 1 holds %d seats, want none", s.reserved.Load())
+	}
+}
+
+// ______________________TEST SCROLL AND CARRIAGE_____________________
+
+func scroll(slot int) TransferReq { return TransferReq{Kind: TransferScroll, BagSlot: slot} }
+
+func travel(npc string, r int) TransferReq {
+	return TransferReq{Kind: TransferTravel, NPCID: npc, Route: r}
+}
+
+// enterChar puts c into the world and returns its membership after its EnterWorldResp.
+func enterChar(t *testing.T, w *World, c store.Character) (*Membership, *recOut) {
+	t.Helper()
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out.enterResp(t)
+	return m, out
+}
+
+func stackRow(slot int, code string, n int) store.ItemRow {
+	return store.ItemRow{Slot: slot, Code: code, Count: n, Lines: []store.ItemLine{}, Hidden: []store.ItemLine{}}
+}
+
+// savedCount is the count of code in a saved bag.
+func savedCount(st store.CharState, code string) int {
+	n := 0
+	for _, r := range st.Items {
+		if r.Code == code && !r.Equipped {
+			n += r.Count
+		}
+	}
+	return n
+}
+
+// The scroll's zone checks in spec 4.5 order (steps 2-6); only a pass asks
+// for one scroll.
+func TestScrollCheck(t *testing.T) {
+	d := realItems()
+	high := *d
+	high.Stackables = maps.Clone(d.Stackables)
+	st := high.Stackables["scroll_return"]
+	u := *st.Use
+	u.Level = 5
+	st.Use = &u
+	high.Stackables["scroll_return"] = st
+	bag := []*items.Item{
+		{Code: "potion_hp_1", Count: 4}, nil, {Code: "scroll_return", Count: 3},
+		{Code: "stone_enhance", Count: 2}, {Code: "eq10_boots", Count: 1},
+	}
+	for _, tc := range []struct {
+		name  string
+		d     *gamedata.Items
+		dead  bool
+		slot  int
+		level int
+		want  pb.ErrorCode
+	}{
+		{"dead", d, true, 2, 10, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"dead with a bad slot", d, true, -1, 10, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"slot below 0", d, false, -1, 10, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"slot past the bag", d, false, 5, 10, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"empty slot", d, false, 1, 10, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		{"a potion", d, false, 0, 10, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"a stone", d, false, 3, 10, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"equipment", d, false, 4, 10, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"level too low", &high, false, 2, 4, pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW},
+		{"level enough", &high, false, 2, 5, 0},
+		{"ok", d, false, 2, 1, 0},
+	} {
+		fd := &fakeDeparting{dead: tc.dead, level: tc.level, bag: bag}
+		got := scrollCheck(tc.d, tc.slot)(fd)
+		if got != tc.want {
+			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+		}
+		wantSlot, wantCount := 0, 0
+		if tc.want == 0 {
+			wantSlot, wantCount = tc.slot, 1
+		}
+		if fd.tookSlot != wantSlot || fd.tookCount != wantCount || fd.tookXu != 0 {
+			t.Errorf("%s: took slot %d count %d xu %d, want slot %d count %d", tc.name, fd.tookSlot, fd.tookCount, fd.tookXu, wantSlot, wantCount)
+		}
+	}
+}
+
+// The carriage's zone checks in spec 4.6 order (steps 2-4); only a pass asks
+// for the price.
+func TestCarriageCheck(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		d    fakeDeparting
+		want pb.ErrorCode
+	}{
+		{"dead", fakeDeparting{dead: true, near: pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR}, pb.ErrorCode_ERROR_CODE_DEAD},
+		{"too far", fakeDeparting{near: pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR}, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
+		{"xu short", fakeDeparting{xu: 119}, pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU},
+		{"exact xu", fakeDeparting{xu: 120}, 0},
+		{"more xu", fakeDeparting{xu: 5000}, 0},
+	} {
+		fd := tc.d
+		if got := carriageCheck("xa_phu", 120)(&fd); got != tc.want {
+			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+		}
+		want := int64(0)
+		if tc.want == 0 {
+			want = 120
+		}
+		if fd.tookXu != want || fd.tookCount != 0 {
+			t.Errorf("%s: took xu %d count %d, want xu %d", tc.name, fd.tookXu, fd.tookCount, want)
+		}
+	}
+}
+
+// A scroll in the town is refused by the world; zone refusals leave the
+// player and the stack as they are. A scroll from a training map lands at the
+// town's default spawn with one scroll fewer, in the handoff and in the
+// departure save.
+func TestReturnScroll(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 10, portalMaps(t), sv)
+	c := char(1, "m2", 5.5, 5.5)
+	c.Items = []store.ItemRow{stackRow(2, "scroll_return", 3)}
+	inTown, _ := enterChar(t, w, c)
+	if _, saved, err := w.Transfer(context.Background(), inTown, scroll(2)); transferCode(err) != pb.ErrorCode_ERROR_CODE_BAD_REQUEST || saved != nil {
+		t.Fatalf("a scroll in the town: %v (saved %v), want BAD_REQUEST", err, saved)
+	}
+
+	c = char(2, "m1", 9.5, 9.5)
+	c.Items = []store.ItemRow{stackRow(0, "potion_hp_1", 4), stackRow(2, "scroll_return", 3)}
+	m, out := enterChar(t, w, c)
+	for _, tc := range []struct {
+		slot int
+		want pb.ErrorCode
+	}{
+		{-1, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{60, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{1, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		{0, pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+	} {
+		if _, saved, err := w.Transfer(context.Background(), m, scroll(tc.slot)); transferCode(err) != tc.want || saved != nil {
+			t.Fatalf("slot %d: %v (saved %v), want %v", tc.slot, err, saved, tc.want)
+		}
+	}
+	if s := slotOf(w, "m2", 1); s.reserved.Load() != 0 || s.z.Count() != 1 {
+		t.Fatalf("m2 zone 1 reserved %d count %d after refusals, want 0 1", s.reserved.Load(), s.z.Count())
+	}
+	if _, ok := sv.last(2); ok {
+		t.Fatal("a refused scroll saved the player")
+	}
+
+	req := scroll(2)
+	req.RespSeq = 5
+	nm, saved, err := w.Transfer(context.Background(), m, req)
+	if err != nil || saved != nil || nm.MapID != "m2" || nm.ZoneNo != 1 {
+		t.Fatalf("scroll: %+v %v (saved %v), want m2 zone 1", nm, err, saved)
+	}
+	r, seq := out.enterRespSeq(t)
+	if seq != 5 || r.MapId != "m2" || r.X != 2.5 || r.Y != 2.5 {
+		t.Fatalf("EnterWorldResp seq %d %v, want seq 5 at m2 default (2.5, 2.5)", seq, r)
+	}
+	scrolls := 0
+	for _, e := range r.Inventory.Bag {
+		if e.Slot == 2 && e.Item.Code == "scroll_return" {
+			scrolls = int(e.Item.Count)
+		}
+	}
+	if scrolls != 2 {
+		t.Fatalf("handoff bag %v, want 2 scrolls in slot 2", r.Inventory.Bag)
+	}
+	if st, ok := sv.last(2); !ok || st.MapID != "m2" || st.X != 2.5 || st.Y != 2.5 || savedCount(st, "scroll_return") != 2 ||
+		savedCount(st, "potion_hp_1") != 4 {
+		t.Fatalf("departure save %+v, want m2 (2.5, 2.5) with 2 scrolls and 4 potions", st)
+	}
+	if n := slotOf(w, "m1", 1).z.Count(); n != 0 {
+		t.Fatalf("m1 zone 1 count %d, want 0", n)
+	}
+}
+
+// Carriage refusals in spec 4.6 order: the world's (no such carriage, route
+// out of range) before the zone's (too far, Xu short); a refusal changes
+// nothing. A ride takes exactly the route's price and lands at the target's
+// default spawn.
+func TestCarriage(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 10, portalMaps(t), sv)
+	far := char(1, "m2", 3.5, 15.5) // 7 tiles from xa_phu
+	far.Xu = 5000
+	fm, _ := enterChar(t, w, far)
+	poor := char(2, "m2", 10.5, 13.5) // 2 tiles from xa_phu
+	poor.Xu = 119
+	pm, _ := enterChar(t, w, poor)
+	for _, tc := range []struct {
+		name string
+		m    *Membership
+		req  TransferReq
+		want pb.ErrorCode
+	}{
+		{"unknown npc", pm, travel("nope", 0), pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"not a carriage", pm, travel("ren", 0), pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"route past the end", pm, travel("xa_phu", 1), pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"route below 0", pm, travel("xa_phu", -1), pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"far, route past the end", fm, travel("xa_phu", 1), pb.ErrorCode_ERROR_CODE_BAD_REQUEST},
+		{"too far", fm, travel("xa_phu", 0), pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
+		{"xu short", pm, travel("xa_phu", 0), pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU},
+	} {
+		if _, saved, err := w.Transfer(context.Background(), tc.m, tc.req); transferCode(err) != tc.want || saved != nil {
+			t.Fatalf("%s: %v (saved %v), want %v", tc.name, err, saved, tc.want)
+		}
+	}
+	if s := slotOf(w, "m1", 1); s.reserved.Load() != 0 || s.z.Count() != 0 {
+		t.Fatalf("m1 zone 1 reserved %d count %d after refusals, want 0 0", s.reserved.Load(), s.z.Count())
+	}
+	// The poor rider is still in m2 with all its Xu.
+	if err := <-pm.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	if st, ok := sv.last(2); !ok || st.MapID != "m2" || st.Xu != 119 {
+		t.Fatalf("save after leaving %+v, want m2 with 119 Xu", st)
+	}
+
+	rich := char(3, "m2", 11.5, 15.5)
+	rich.Xu = 500
+	rm, out := enterChar(t, w, rich)
+	req := travel("xa_phu", 0)
+	req.RespSeq = 8
+	nm, saved, err := w.Transfer(context.Background(), rm, req)
+	if err != nil || saved != nil || nm.MapID != "m1" || nm.ZoneNo != 1 {
+		t.Fatalf("ride: %+v %v (saved %v), want m1 zone 1", nm, err, saved)
+	}
+	r, seq := out.enterRespSeq(t)
+	if seq != 8 || r.MapId != "m1" || r.X != 2.5 || r.Y != 2.5 || r.Stats.Xu != 380 {
+		t.Fatalf("EnterWorldResp seq %d %v, want seq 8 at m1 default (2.5, 2.5) with 380 Xu", seq, r)
+	}
+	if st, ok := sv.last(3); !ok || st.MapID != "m1" || st.X != 2.5 || st.Y != 2.5 || st.Xu != 380 {
+		t.Fatalf("departure save %+v, want m1 (2.5, 2.5) with 380 Xu", st)
 	}
 }

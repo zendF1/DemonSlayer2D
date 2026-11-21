@@ -286,11 +286,13 @@ func TestItemRequestsNotInWorld(t *testing.T) {
 }
 
 // The transfer and zone list requests need a character in the world (phase
-// 4a spec 3.3-3.5).
+// 4a spec 3.3-3.5, phase 4b spec 4.5-4.6).
 func TestTransferRequestsNotInWorld(t *testing.T) {
 	for name, env := range map[string]*pb.Envelope{
 		"use portal":  {Payload: &pb.Envelope_UsePortalReq{UsePortalReq: &pb.UsePortalReq{PortalId: "gate_east"}}},
 		"change zone": {Payload: &pb.Envelope_ChangeZoneReq{ChangeZoneReq: &pb.ChangeZoneReq{Zone: 2}}},
+		"return town": {Payload: &pb.Envelope_ReturnTownReq{ReturnTownReq: &pb.ReturnTownReq{BagSlot: 3}}},
+		"travel":      {Payload: &pb.Envelope_TravelReq{TravelReq: &pb.TravelReq{NpcId: "xa_phu", Route: 1}}},
 		"zone list":   {Payload: &pb.Envelope_ZoneListReq{ZoneListReq: &pb.ZoneListReq{}}},
 	} {
 		t.Run(name, func(t *testing.T) {

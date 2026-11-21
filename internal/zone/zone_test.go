@@ -3543,3 +3543,98 @@ func TestForgeBlacksmithRange(t *testing.T) {
 		}
 	}
 }
+
+// ______________________TEST SCROLL AND CARRIAGE_____________________
+
+// The departure costs apply only once the check has passed: the handoff and
+// the departure save both show them. A check that asks for costs and then
+// refuses changes nothing.
+func TestDepartCosts(t *testing.T) {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Bag[3] = &items.Item{Code: "scroll_return", Count: 3}
+	z, p, _, sv := gearZone(t, inv)
+	var seen *items.Item
+	refused := departNow(t, z, 1, Departure{To: Place{MapID: "m2"}, Check: func(d *Departing) pb.ErrorCode {
+		if it, ok := d.ItemAt(3); ok {
+			seen = it
+		}
+		if _, ok := d.ItemAt(len(p.inv.Bag)); ok {
+			t.Error("ItemAt past the bag reported ok")
+		}
+		if it, ok := d.ItemAt(0); !ok || it != nil {
+			t.Errorf("ItemAt of an empty slot = %v %v, want nil true", it, ok)
+		}
+		if d.Level() != 10 || d.Xu() != 77 {
+			t.Errorf("level %d xu %d, want 10 77", d.Level(), d.Xu())
+		}
+		d.TakeXu(70)
+		d.TakeItem(3, 1)
+		return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+	}})
+	if refused.code != pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU || refused.saved != nil {
+		t.Fatalf("result %+v, want a NOT_ENOUGH_XU refusal", refused)
+	}
+	if seen == nil || seen.Code != "scroll_return" || seen.Count != 3 {
+		t.Fatalf("ItemAt(3) = %v, want the scroll stack", seen)
+	}
+	if p.xu != 77 || p.inv.Bag[3].Count != 3 || z.players[1] != p || len(sv.all()) != 0 {
+		t.Fatalf("xu %d scrolls %d saves %d after a refusal, want 77 3 0", p.xu, p.inv.Bag[3].Count, len(sv.all()))
+	}
+
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{2.5, 2.5}}, Check: func(d *Departing) pb.ErrorCode {
+		d.TakeXu(70)
+		d.TakeItem(3, 1)
+		return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	}})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED || r.err != nil || r.saved == nil {
+		t.Fatalf("result %+v, want a departure", r)
+	}
+	if r.info.Xu != 7 || r.info.Inventory.Bag[3].Count != 2 {
+		t.Fatalf("handoff xu %d scrolls %d, want 7 2", r.info.Xu, r.info.Inventory.Bag[3].Count)
+	}
+	saves := sv.all()
+	st := saves[len(saves)-1]
+	var scrolls int
+	for _, it := range st.Items {
+		if it.Code == "scroll_return" {
+			scrolls = it.Count
+		}
+	}
+	if st.MapID != "m2" || st.Xu != 7 || scrolls != 2 {
+		t.Fatalf("departure save %+v, want m2 with 7 Xu and 2 scrolls", st)
+	}
+}
+
+// The last scroll of a stack leaves the slot empty in the handoff.
+func TestDepartTakesLastItem(t *testing.T) {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Bag[0] = &items.Item{Code: "scroll_return", Count: 1}
+	z, _, _, _ := gearZone(t, inv)
+	r := departNow(t, z, 1, Departure{To: Place{MapID: "m2"}, Check: func(d *Departing) pb.ErrorCode {
+		d.TakeItem(0, 1)
+		return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	}})
+	if r.code != 0 || r.err != nil || r.info.Inventory.Bag[0] != nil {
+		t.Fatalf("result %+v, want a departure with slot 0 empty", r)
+	}
+}
+
+// NearNPC is the zone's NPC reach check on the live player.
+func TestDepartNearNPC(t *testing.T) {
+	z, _, _, _ := gearZone(t, items.NewInventory(testItemData.BagSize))
+	z.area.NPCs = map[string]mapdata.NPC{
+		"xe":  {ID: "xe", Role: mapdata.RoleCarriage, Pos: mapdata.Point{X: 8.5, Y: 5.5}},
+		"xa":  {ID: "xa", Role: mapdata.RoleCarriage, Pos: mapdata.Point{X: 20.5, Y: 5.5}},
+		"ren": {ID: "ren", Role: mapdata.RoleBlacksmith, Pos: mapdata.Point{X: 5.5, Y: 7.5}},
+	}
+	var got []pb.ErrorCode
+	departNow(t, z, 1, Departure{Check: func(d *Departing) pb.ErrorCode {
+		got = []pb.ErrorCode{d.NearNPC("xe", mapdata.RoleCarriage), d.NearNPC("xa", mapdata.RoleCarriage),
+			d.NearNPC("ren", mapdata.RoleCarriage), d.NearNPC("nope", mapdata.RoleCarriage)}
+		return pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+	}})
+	want := []pb.ErrorCode{0, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR, pb.ErrorCode_ERROR_CODE_BAD_REQUEST, pb.ErrorCode_ERROR_CODE_BAD_REQUEST}
+	if !slices.Equal(got, want) {
+		t.Fatalf("NearNPC %v, want %v", got, want)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
 )
 
@@ -42,14 +43,61 @@ type Departure struct {
 }
 
 // Departing is the zone's view of a departing player for Departure.Check.
-// It is valid only during the check.
+// It is valid only during the check. TakeXu and TakeItem only record the
+// transfer's cost; the zone applies it to the player, before building the
+// handoff, only when the check returns no code (phase 4b spec 4.5, 4.6).
 type Departing struct {
 	z *Zone
 	p *player
+	// xu and the item to take once the check has passed.
+	xu        int64
+	takeSlot  int
+	takeCount int
 }
 
 func (d *Departing) Dead() bool { return d.p.dead }
 func (d *Departing) Pos() Vec2  { return d.p.pos }
+func (d *Departing) Level() int { return d.p.level }
+func (d *Departing) Xu() int64  { return d.p.xu }
+
+// NearNPC is BAD_REQUEST when the map has no NPC id of the role and
+// NPC_TOO_FAR when the player is out of its reach; UNSPECIFIED means ok.
+func (d *Departing) NearNPC(id, role string) pb.ErrorCode {
+	_, code := d.z.nearNPC(d.p, id, role)
+	return code
+}
+
+// ItemAt is the item in bag slot bagSlot, nil for an empty slot; ok is false
+// when the slot is out of range. The item must not be changed.
+func (d *Departing) ItemAt(bagSlot int) (it *items.Item, ok bool) {
+	if bagSlot < 0 || bagSlot >= len(d.p.inv.Bag) {
+		return nil, false
+	}
+	return d.p.inv.Bag[bagSlot], true
+}
+
+// TakeXu charges n Xu once the check has passed.
+func (d *Departing) TakeXu(n int64) { d.xu = n }
+
+// TakeItem takes count (at least 1) of the stack in bagSlot once the check
+// has passed.
+func (d *Departing) TakeItem(bagSlot, count int) { d.takeSlot, d.takeCount = bagSlot, count }
+
+// pay applies the recorded cost to the live player. It refuses with a code,
+// changing nothing, when the cost no longer fits (the check should have
+// said so).
+func (d *Departing) pay() pb.ErrorCode {
+	if d.xu < 0 || d.xu > d.p.xu {
+		return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+	}
+	if d.takeCount > 0 {
+		if _, err := d.p.inv.TakeSlot(d.takeSlot, d.takeCount); err != nil {
+			return itemErrorCode(err)
+		}
+	}
+	d.p.xu -= d.xu
+	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
 
 // ZoneChangeReady reports whether the zone-change cooldown has run out.
 func (d *Departing) ZoneChangeReady() bool { return d.z.tickNo >= d.p.zoneReady }
@@ -96,7 +144,8 @@ func (z *Zone) Depart(ctx context.Context, id uint64, d Departure) (info PlayerI
 	return r.info, r.saved, r.code, r.err
 }
 
-// depart runs a departure on the zone goroutine. On success it removes the
+// depart runs a departure on the zone goroutine. Once the check passes, the
+// cost it recorded is applied to the player. On success it removes the
 // player as leaving does, makes monsters let it go as killPlayer does, drops
 // the monster shots flying at it, and saves it at the destination. Its own
 // attacks in flight land without it, as after a logout; its pending slash
@@ -108,7 +157,12 @@ func (z *Zone) depart(c departCmd) departResult {
 		return departResult{err: ErrNotInZone}
 	}
 	if c.d.Check != nil {
-		if code := c.d.Check(&Departing{z: z, p: p}); code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		d := &Departing{z: z, p: p}
+		if code := c.d.Check(d); code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+			return departResult{code: code}
+		}
+		// The cost goes before the handoff, so it and the save show it.
+		if code := d.pay(); code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
 			return departResult{code: code}
 		}
 	}

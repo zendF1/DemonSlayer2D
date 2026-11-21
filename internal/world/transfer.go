@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"demonslayer2d/internal/gamedata"
+	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/zone"
@@ -16,15 +18,21 @@ type TransferKind int
 const (
 	TransferPortal TransferKind = iota + 1 // walk into a portal (spec 3.3)
 	TransferZone                           // switch to another zone of the same map (spec 3.4)
+	TransferScroll                         // read a return scroll (phase 4b spec 4.5)
+	TransferTravel                         // ride a carriage (phase 4b spec 4.6)
 )
 
 // TransferReq asks to move a player: through the portal PortalID of its map,
-// or to zone number Zone of its map. The new zone answers RespSeq with
-// EnterWorldResp.
+// to zone number Zone of its map, to its town with the scroll in bag slot
+// BagSlot, or along route Route (0-based) of the carriage NPC NPCID. The new
+// zone answers RespSeq with EnterWorldResp.
 type TransferReq struct {
 	Kind     TransferKind
 	PortalID string
 	Zone     int
+	BagSlot  int
+	NPCID    string
+	Route    int
 	RespSeq  uint32
 }
 
@@ -46,6 +54,13 @@ type departState interface {
 	Dead() bool
 	Pos() zone.Vec2
 	ZoneChangeReady() bool
+	Level() int
+	Xu() int64
+	NearNPC(id, role string) pb.ErrorCode
+	ItemAt(bagSlot int) (*items.Item, bool)
+	// TakeXu and TakeItem record the cost, applied only when the check passes.
+	TakeXu(n int64)
+	TakeItem(bagSlot, count int)
 }
 
 // portalCheck is the zone side of a portal (spec 3.3 steps 2-3).
@@ -71,6 +86,50 @@ func zoneChangeCheck(d departState) pb.ErrorCode {
 		return pb.ErrorCode_ERROR_CODE_ON_COOLDOWN
 	}
 	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+// scrollCheck is the zone side of a return scroll in bag slot bagSlot
+// (phase 4b spec 4.5 steps 2-6); a pass costs one scroll.
+func scrollCheck(d *gamedata.Items, bagSlot int) func(departState) pb.ErrorCode {
+	return func(s departState) pb.ErrorCode {
+		if s.Dead() {
+			return pb.ErrorCode_ERROR_CODE_DEAD
+		}
+		it, ok := s.ItemAt(bagSlot)
+		switch {
+		case !ok:
+			return pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		case it == nil:
+			return pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+		}
+		use := d.Stackables[it.Code].Use
+		switch {
+		case use == nil || use.Effect != gamedata.EffectReturnTown:
+			return pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		case s.Level() < use.Level:
+			return pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
+		}
+		s.TakeItem(bagSlot, 1)
+		return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	}
+}
+
+// carriageCheck is the zone side of a ride with the carriage npcID for xu
+// (phase 4b spec 4.6 steps 2-4); a pass costs the price.
+func carriageCheck(npcID string, xu int64) func(departState) pb.ErrorCode {
+	return func(s departState) pb.ErrorCode {
+		if s.Dead() {
+			return pb.ErrorCode_ERROR_CODE_DEAD
+		}
+		if code := s.NearNPC(npcID, mapdata.RoleCarriage); code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+			return code
+		}
+		if s.Xu() < xu {
+			return pb.ErrorCode_ERROR_CODE_NOT_ENOUGH_XU
+		}
+		s.TakeXu(xu)
+		return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	}
 }
 
 // route is where a transfer goes and how (spec 3.2 step 1).
@@ -111,8 +170,42 @@ func (w *World) route(m *Membership, req TransferReq) (route, error) {
 		}
 		return route{to: zone.Place{MapID: m.MapID}, prefer: req.Zone, exact: true,
 			check: zoneChangeCheck, keepPos: true, zoneChange: true}, nil
+	case TransferScroll:
+		if here.Town == here.ID {
+			return route{}, refuse(pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
+		}
+		to, err := w.defaultOf(here.Town)
+		if err != nil {
+			return route{}, err
+		}
+		return route{to: to, prefer: m.ZoneNo, check: scrollCheck(w.items, req.BagSlot)}, nil
+	case TransferTravel:
+		n, ok := here.NPC(req.NPCID)
+		if !ok || n.Role != mapdata.RoleCarriage || req.Route < 0 || req.Route >= len(n.Routes) {
+			return route{}, refuse(pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
+		}
+		r := n.Routes[req.Route]
+		to, err := w.defaultOf(r.Map)
+		if err != nil {
+			return route{}, err
+		}
+		return route{to: to, prefer: m.ZoneNo, check: carriageCheck(n.ID, r.Xu)}, nil
 	}
 	return route{}, refuse(pb.ErrorCode_ERROR_CODE_BAD_REQUEST)
+}
+
+// defaultOf is the default spawn point of mapID (the scroll and the
+// carriage land there).
+func (w *World) defaultOf(mapID string) (zone.Place, error) {
+	target := w.maps[mapID]
+	if target == nil {
+		return zone.Place{}, fmt.Errorf("world: transfer to unknown map %q", mapID)
+	}
+	sp, ok := target.Spawns["default"]
+	if !ok {
+		return zone.Place{}, fmt.Errorf("world: map %q has no default spawn", mapID)
+	}
+	return zone.Place{MapID: mapID, Pos: zone.Vec2{X: sp.X, Y: sp.Y}}, nil
 }
 
 // Transfer moves the player of m to another zone (spec 3.2): it resolves the

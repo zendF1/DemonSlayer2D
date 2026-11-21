@@ -204,6 +204,17 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 			return
 		}
 		c.handleTransfer(ctx, seq, world.TransferReq{Kind: world.TransferZone, Zone: int(p.ChangeZoneReq.Zone)})
+	case *pb.Envelope_ReturnTownReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.handleTransfer(ctx, seq, world.TransferReq{Kind: world.TransferScroll, BagSlot: int(p.ReturnTownReq.BagSlot)})
+	case *pb.Envelope_TravelReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		r := p.TravelReq
+		c.handleTransfer(ctx, seq, world.TransferReq{Kind: world.TransferTravel, NPCID: r.NpcId, Route: int(r.Route)})
 	case *pb.Envelope_ZoneListReq:
 		if !c.inWorld(seq) {
 			return
