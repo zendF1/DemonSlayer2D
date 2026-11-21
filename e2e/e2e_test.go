@@ -1462,3 +1462,129 @@ func TestPortalsOverWebSocket(t *testing.T) {
 		t.Fatalf("re-entered %v, want kumotori_1 zone 1 at (%v, %v) with no cooldowns", again, back.X, back.Y)
 	}
 }
+
+// ______________________TEST SHOPS_____________________
+
+// slotOf is the bag slot an inventory update shows holding code.
+func slotOf(t *testing.T, u *pb.InventoryUpdate, code string) int {
+	t.Helper()
+	for _, s := range u.GetBag() {
+		if s.GetItem().GetCode() == code {
+			return int(s.Slot)
+		}
+	}
+	t.Fatalf("no %s in the update %v", code, u)
+	return -1
+}
+
+// Phase 4b spec 8: a character with 10,000 Xu beside the Kumotori
+// apothecary buys 3 level 1 HP potions (-15 Xu), is refused drinking one at full
+// HP, sells one back (+1 Xu), buys a return scroll and reads it to arrive at the
+// default point of Ubuyashiki. Beside the Ubuyashiki carriage driver it rides to
+// sagiri_1 for 120 Xu and arrives at that map's default point. NPC positions
+// come from the loaded maps.
+func TestShopsOverWebSocket(t *testing.T) {
+	s := startServer(t)
+	ctx := ctxT(t)
+	loaded, err := mapdata.LoadDir("../maps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	apothecary, ok := loaded["kumotori_1"].NPC("duoc_su")
+	if !ok {
+		t.Fatal("kumotori_1 has no duoc_su")
+	}
+	carriage, ok := loaded["ubuyashiki"].NPC("xa_phu")
+	if !ok {
+		t.Fatal("ubuyashiki has no xa_phu")
+	}
+	routeToSagiri := -1
+	for i, r := range carriage.Routes {
+		if r.Map == "sagiri_1" {
+			routeToSagiri = i
+		}
+	}
+	if routeToSagiri < 0 {
+		t.Fatalf("the Ubuyashiki carriage has no route to sagiri_1: %v", carriage.Routes)
+	}
+	fare := carriage.Routes[routeToSagiri].Xu
+	townDefault := loaded["ubuyashiki"].Spawns["default"]
+	sagiriDefault := loaded["sagiri_1"].Spawns["default"]
+
+	p := newPlayer(t, s, "yuki01", "Yuki", pb.CharClass_CHAR_CLASS_VIEM)
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevGiveItem(ctx, "yuki01", nil, 10000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "yuki01", "kumotori_1", apothecary.Pos.X+1, apothecary.Pos.Y); err != nil {
+		t.Fatal(err)
+	}
+	ew, err := p.c.EnterWorld(ctx, p.charID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ew.MapId != "kumotori_1" || ew.Stats.GetXu() != 10000 {
+		t.Fatalf("entered %v, want kumotori_1 with 10,000 Xu", ew)
+	}
+
+	// Buy 3 potions at 5 Xu.
+	buy, err := p.c.Buy(ctx, "duoc_su", "potion_hp_1", 3)
+	if err != nil {
+		t.Fatalf("buy: %v", err)
+	}
+	if buy.Stats.GetXu() != 10000-15 {
+		t.Fatalf("Xu %d after buying 3 potions, want 9,985", buy.Stats.GetXu())
+	}
+	slot := slotOf(t, buy.Update, "potion_hp_1")
+	if got := buy.Update.Bag[0].GetItem().GetCount(); got != 3 {
+		t.Fatalf("bought stack %v, want 3 potions", buy.Update.Bag[0])
+	}
+	// At full HP a potion is refused and kept.
+	if _, err := p.c.UseItem(ctx, slot); client.Code(err) != pb.ErrorCode_ERROR_CODE_ALREADY_FULL {
+		t.Fatalf("drink at full HP: %v, want ALREADY_FULL", err)
+	}
+	sold, err := p.c.Sell(ctx, "duoc_su", slot, 1)
+	if err != nil {
+		t.Fatalf("sell: %v", err)
+	}
+	if sold.Stats.GetXu() != 10000-15+1 {
+		t.Fatalf("Xu %d after selling one potion, want 9,986", sold.Stats.GetXu())
+	}
+
+	// A return scroll at 50 Xu takes the character to the town.
+	scroll, err := p.c.Buy(ctx, "duoc_su", "scroll_return", 1)
+	if err != nil {
+		t.Fatalf("buy scroll: %v", err)
+	}
+	if scroll.Stats.GetXu() != 9986-50 {
+		t.Fatalf("Xu %d after the scroll, want 9,936", scroll.Stats.GetXu())
+	}
+	town, err := p.c.ReturnTown(ctx, slotOf(t, scroll.Update, "scroll_return"))
+	if err != nil {
+		t.Fatalf("return scroll: %v", err)
+	}
+	if town.MapId != "ubuyashiki" || town.X != townDefault.X || town.Y != townDefault.Y {
+		t.Fatalf("arrived %v, want ubuyashiki at (%v, %v)", town, townDefault.X, townDefault.Y)
+	}
+
+	// Beside the town carriage driver, ride to Sagiri.
+	if err := p.c.LeaveWorld(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.DevSetPlace(ctx, "yuki01", "ubuyashiki", carriage.Pos.X-1, carriage.Pos.Y); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.c.EnterWorld(ctx, p.charID); err != nil {
+		t.Fatal(err)
+	}
+	sag, err := p.c.Travel(ctx, "xa_phu", routeToSagiri)
+	if err != nil {
+		t.Fatalf("carriage: %v", err)
+	}
+	if sag.MapId != "sagiri_1" || sag.X != sagiriDefault.X || sag.Y != sagiriDefault.Y ||
+		sag.Stats.GetXu() != 9936-fare {
+		t.Fatalf("arrived %v, want sagiri_1 at (%v, %v) with %d Xu", sag, sagiriDefault.X, sagiriDefault.Y, 9936-fare)
+	}
+}
