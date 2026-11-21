@@ -371,13 +371,16 @@ func (c *conn) handleTransfer(ctx context.Context, seq uint32, req world.Transfe
 	req.RespSeq = seq
 	m, saved, err := c.srv.deps.World.Transfer(rctx, c.member, req)
 	if saved != nil {
-		// The character left its zone but the world stopped before it joined
-		// the next one: it is saved at the destination, so wait for that save
-		// (Done must only close after it) and close the connection.
+		// The character left its zone but joined no other (the world stopped,
+		// or the join failed): it is saved at the destination, so wait for that
+		// save (Done must only close after it) and close the connection.
 		c.member = nil
 		c.state = stateAuthed
+		if !errors.Is(err, world.ErrStopped) {
+			c.log.Error("transfer lost the character between zones", "account_id", c.accountID, "err", err)
+		}
 		c.waitSaved(saved, "save on transfer")
-		c.Kick(pb.KickReason_KICK_REASON_SERVER_SHUTDOWN)
+		c.Kick(lostKick(err))
 		return
 	}
 	var refused *world.TransferError
@@ -385,9 +388,20 @@ func (c *conn) handleTransfer(ctx context.Context, seq uint32, req world.Transfe
 	case errors.As(err, &refused):
 		c.fail(seq, refused.Code, refused.Code.String())
 	case err != nil:
-		// zone.ErrNotInZone: the zone evicted the character and is kicking
-		// this connection; the old membership still answers Leave with its save.
-		c.failErr(seq, err)
+		// The character is still in its zone. On a kick the old membership
+		// still answers Leave with its save when the connection closes.
+		code, kick := transferFailure(err)
+		switch {
+		case kick != 0:
+			c.log.Info("transfer while the zone is closing", "account_id", c.accountID, "err", err)
+			c.Kick(kick)
+		case code == pb.ErrorCode_ERROR_CODE_INTERNAL:
+			c.log.Error("transfer failed", "account_id", c.accountID, "err", err)
+			c.fail(seq, code, code.String())
+		default:
+			c.log.Warn("transfer failed", "account_id", c.accountID, "err", err)
+			c.fail(seq, code, code.String())
+		}
 	default:
 		c.member = m
 		c.log.Info("transfer", "account_id", c.accountID, "map", m.MapID, "zone", m.ZoneNo)

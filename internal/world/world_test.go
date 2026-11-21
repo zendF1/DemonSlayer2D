@@ -1475,3 +1475,68 @@ func TestTransferWorldStopsMidway(t *testing.T) {
 		t.Fatalf("transfer: %+v %v (saved %v), want a membership or ErrStopped with the save", nm, err, saved)
 	}
 }
+
+// The world stops after the departure and before the join: Transfer reports
+// ErrStopped with the departure save, which yields once the player is saved
+// at the destination.
+func TestTransferStoppedAfterDeparture(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var w *World
+	sv := hookSaver{onSave: func(st store.CharState) {
+		if st.MapID == "m2" { // the departure save, on the old zone's goroutine
+			cancel()
+			<-slotOf(w, "m2", 1).z.Done() // the destination is gone before the join
+		}
+	}}
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, portalMaps(t), testMonsters, sv, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Start(ctx)
+	defer w.Wait()
+	m, _ := enterAt(t, w, 1, "m1", 18.5, 10.0)
+	nm, saved, err := w.Transfer(context.Background(), m, portal("east"))
+	if !errors.Is(err, ErrStopped) || saved == nil || nm != nil {
+		t.Fatalf("transfer: %+v %v (saved %v), want ErrStopped with the save", nm, err, saved)
+	}
+	if e := <-saved; e != nil {
+		t.Fatal(e)
+	}
+}
+
+// The destination join fails while the world runs: Transfer reports the join
+// error, not ErrStopped, with the departure save, and the player is in no
+// zone, saved at the destination.
+func TestTransferJoinFailsAfterDeparture(t *testing.T) {
+	sv := &recSaver{}
+	w := startWorldSaver(t, 10, portalMaps(t), sv)
+	m, _ := enterAt(t, w, 1, "m1", 18.5, 10.0)
+	// Another player under the same entity id already stands in m2 zone 1, so
+	// the zone refuses the join as a duplicate.
+	dup := char(2, "m2", 5.5, 5.5)
+	info := zone.PlayerInfo{EntityID: m.EntityID, CharID: dup.ID, Name: "dup", Class: pb.CharClass_CHAR_CLASS_VIEM, Level: 1,
+		Pos: zone.Vec2{X: 5.5, Y: 5.5}, HP: -1, MP: -1, Skills: w.knownSkills(dup), Inventory: w.knownItems(dup)}
+	if err := slotOf(w, "m2", 1).z.Join(context.Background(), info, newRecOut()); err != nil {
+		t.Fatal(err)
+	}
+	nm, saved, err := w.Transfer(context.Background(), m, portal("east"))
+	if err == nil || errors.Is(err, ErrStopped) || saved == nil || nm != nil {
+		t.Fatalf("transfer: %+v %v (saved %v), want the join error with the save", nm, err, saved)
+	}
+	if e := <-saved; e != nil {
+		t.Fatal(e)
+	}
+	if st, ok := sv.last(1); !ok || st.MapID != "m2" {
+		t.Fatalf("last save of character 1 %+v, want one on m2", st)
+	}
+	if n := slotOf(w, "m1", 1).z.Count(); n != 0 {
+		t.Fatalf("m1 zone 1 has %d players, want the departed one gone", n)
+	}
+	if s := slotOf(w, "m2", 1); s.reserved.Load() != 0 {
+		t.Fatalf("m2 zone 1 holds %d seats, want none", s.reserved.Load())
+	}
+}

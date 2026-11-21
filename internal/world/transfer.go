@@ -122,11 +122,14 @@ func (w *World) route(m *Membership, req TransferReq) (route, error) {
 //
 // It must run on the goroutine that owns m (the connection's), so no other
 // request reaches the old zone after the departure. A refusal is a
-// *TransferError and leaves the player in m. After the departure the join
-// does not give up on ctx, only when the world stops: then the player is in
-// no zone, the error is ErrStopped (or the join error) and the returned
-// channel yields the departure save, which the caller waits for before
-// closing the connection. The channel is nil in every other case.
+// *TransferError and leaves the player in m; so does every other error
+// before the departure (ctx running out while the old zone's inbox is full,
+// zone.ErrNotInZone, zone.ErrZoneClosed, ErrStopped). After the departure
+// the join does not give up on ctx. If it still fails, the player is in no
+// zone and the returned channel yields the departure save, which the caller
+// waits for before closing the connection; the error is then ErrStopped when
+// the world has stopped, else the join error (zone.ErrZoneFull after ten
+// tries, or a failed join). The channel is nil in every other case.
 func (w *World) Transfer(ctx context.Context, m *Membership, req TransferReq) (*Membership, <-chan error, error) {
 	r, err := w.route(m, req)
 	if err != nil {
@@ -157,6 +160,8 @@ func (w *World) Transfer(ctx context.Context, m *Membership, req TransferReq) (*
 	if err != nil {
 		if w.ctx.Err() != nil {
 			err = ErrStopped
+		} else {
+			err = fmt.Errorf("world: join after departure: %w", err)
 		}
 		return nil, saved, err
 	}

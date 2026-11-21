@@ -23,6 +23,7 @@ import (
 	"demonslayer2d/internal/auth"
 	"demonslayer2d/internal/pb"
 	"demonslayer2d/internal/store"
+	"demonslayer2d/internal/world"
 	"demonslayer2d/internal/zone"
 )
 
@@ -97,6 +98,46 @@ func TestErrorCode(t *testing.T) {
 	for err, want := range cases {
 		if got := errorCode(fmt.Errorf("wrapped: %w", err)); got != want {
 			t.Errorf("errorCode(%v) = %v, want %v", err, got, want)
+		}
+	}
+}
+
+// A transfer that fails other than by a refusal is answered with a code the
+// client can show, or closes the connection with a fitting kick (phase 4a
+// spec 3.2): a busy old zone is RATE_LIMITED, a stopping world or zone is
+// SERVER_SHUTDOWN, anything else INTERNAL.
+func TestTransferFailure(t *testing.T) {
+	cases := map[error]struct {
+		code pb.ErrorCode
+		kick pb.KickReason
+	}{
+		context.DeadlineExceeded: {code: pb.ErrorCode_ERROR_CODE_RATE_LIMITED},
+		context.Canceled:         {code: pb.ErrorCode_ERROR_CODE_RATE_LIMITED},
+		world.ErrStopped:         {kick: pb.KickReason_KICK_REASON_SERVER_SHUTDOWN},
+		zone.ErrZoneClosed:       {kick: pb.KickReason_KICK_REASON_SERVER_SHUTDOWN},
+		zone.ErrNotInZone:        {kick: pb.KickReason_KICK_REASON_SERVER_SHUTDOWN},
+		errors.New("boom"):       {code: pb.ErrorCode_ERROR_CODE_INTERNAL},
+	}
+	for err, want := range cases {
+		code, kick := transferFailure(fmt.Errorf("wrapped: %w", err))
+		if code != want.code || kick != want.kick {
+			t.Errorf("transferFailure(%v) = %v %v, want %v %v", err, code, kick, want.code, want.kick)
+		}
+	}
+}
+
+// A character that left its zone but joined no other is kicked
+// SERVER_SHUTDOWN when the world stopped and ZONE_RESTART otherwise, so it
+// logs in again instead of being told the server is down.
+func TestLostInTransferKick(t *testing.T) {
+	cases := map[error]pb.KickReason{
+		world.ErrStopped:                     pb.KickReason_KICK_REASON_SERVER_SHUTDOWN,
+		zone.ErrZoneFull:                     pb.KickReason_KICK_REASON_ZONE_RESTART,
+		errors.New("zone: duplicate entity"): pb.KickReason_KICK_REASON_ZONE_RESTART,
+	}
+	for err, want := range cases {
+		if got := lostKick(fmt.Errorf("wrapped: %w", err)); got != want {
+			t.Errorf("lostKick(%v) = %v, want %v", err, got, want)
 		}
 	}
 }
