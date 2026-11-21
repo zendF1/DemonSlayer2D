@@ -103,6 +103,16 @@ var testMonsters = &gamedata.Data{
 	Items: realItems(),
 }
 
+// testMonsters carries the committed quests.json, so that stored quest rows
+// of the real quest ids survive Enter.
+func init() {
+	d, err := gamedata.Load("../../data")
+	if err != nil {
+		panic(err)
+	}
+	testMonsters.Quests, testMonsters.QuestByID = d.Quests, d.QuestByID
+}
+
 // realItems is the committed items.json.
 func realItems() *gamedata.Items {
 	b, err := os.ReadFile("../../data/items.json")
@@ -2332,4 +2342,59 @@ func TestQuestsAndWaiverSurviveSaves(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("leave")
+}
+
+// Enter drops stored quests unknown to quests.json with a warning, clamps
+// progress to the objective and resets the day of main-line quests; the
+// zone saves the cleaned log.
+func TestEnterCleansQuests(t *testing.T) {
+	var logBuf lockedBuf
+	sv := &recSaver{}
+	w, err := New(Config{
+		StartMap: "m1", TickRate: 50, MoveSpeed: 4, AOICellSize: 10, ZoneCapacity: 10,
+		SaveInterval: time.Minute, IdleZoneTTL: 5 * time.Minute, JanitorEvery: time.Hour,
+	}, testMaps(t), testMonsters, sv, slog.New(slog.NewTextHandler(&logBuf, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.Start(ctx)
+	t.Cleanup(func() { cancel(); w.Wait() })
+	c := char(3, "m1", 2.5, 2.5)
+	c.Quests = []store.QuestRow{
+		{QuestID: "gone", State: 1, Progress: 3},
+		{QuestID: "m01", State: 2, Progress: 99},
+		{QuestID: "m02", State: 1, Progress: 99},
+		{QuestID: "m03", State: 1, Progress: 4, Day: 5},
+	}
+	out := newRecOut()
+	m, err := w.Enter(context.Background(), EnterRequest{Char: c, Out: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []*pb.QuestEntry{
+		{QuestId: "m01", State: pb.QuestState_QUEST_STATE_DONE, Progress: 5},
+		{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 6},
+		{QuestId: "m03", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 4},
+	}
+	got := out.enterResp(t).GetQuests().GetQuests()
+	if len(got) != len(want) {
+		t.Fatalf("EnterWorldResp quests %v, want %v", got, want)
+	}
+	for i := range want {
+		if !proto.Equal(got[i], want[i]) {
+			t.Fatalf("EnterWorldResp quests %v, want %v", got, want)
+		}
+	}
+	if err := <-m.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := sv.last(3)
+	rows := []store.QuestRow{{QuestID: "m01", State: 2, Progress: 5}, {QuestID: "m02", State: 1, Progress: 6}, {QuestID: "m03", State: 1, Progress: 4}}
+	if !reflect.DeepEqual(st.Quests, rows) {
+		t.Fatalf("saved quests %+v, want %+v", st.Quests, rows)
+	}
+	if s := logBuf.String(); !strings.Contains(s, "dropped stored quest") || !strings.Contains(s, "quest=gone") {
+		t.Fatalf("log %q, want a warning for quest gone", s)
+	}
 }

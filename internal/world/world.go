@@ -19,6 +19,7 @@ import (
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/party"
 	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/quest"
 	"demonslayer2d/internal/store"
 	"demonslayer2d/internal/zone"
 )
@@ -51,6 +52,8 @@ type World struct {
 	// skills is skills.json by id and items is items.json, shared and read-only.
 	skills map[string]gamedata.Skill
 	items  *gamedata.Items
+	// quests holds quests.json (QuestByID), shared and read-only.
+	quests map[string]*gamedata.Quest
 	saver  zone.Saver
 	log    *slog.Logger
 	start  mapdata.Point
@@ -106,7 +109,7 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 		areas[id] = areaOf(mp, monsters)
 	}
 	return &World{
-		cfg: cfg, maps: maps, areas: areas, skills: monsters.Skills, items: monsters.Items, saver: saver, log: log,
+		cfg: cfg, maps: maps, areas: areas, skills: monsters.Skills, items: monsters.Items, quests: monsters.QuestByID, saver: saver, log: log,
 		start:    m.Spawns["default"],
 		zones:    make(map[string][]*slot),
 		online:   make(map[int64]Session),
@@ -117,11 +120,11 @@ func New(cfg Config, maps map[string]*mapdata.Map, monsters *gamedata.Data, save
 }
 
 // areaOf converts a map's collision and triggers, the monster data its
-// regions use, the EXP table, the skills and the item data into the zone's
-// view of the map. Region tiles are computed here once.
+// regions use, the EXP table, the skills, the item and the quest data into
+// the zone's view of the map. Region tiles are computed here once.
 func areaOf(m *mapdata.Map, d *gamedata.Data) zone.Area {
 	a := zone.Area{Grid: m, Levels: d.Levels, Exp: d.Exp, Skills: d.Skills, Items: d.Items, Town: m.Town,
-		PvP: m.PvP(), PkPenalty: m.PkPenalty()}
+		PvP: m.PvP(), PkPenalty: m.PkPenalty(), Quests: d}
 	if len(m.NPCs) > 0 {
 		a.NPCs = make(map[string]mapdata.NPC, len(m.NPCs))
 		for _, n := range m.NPCs {
@@ -472,7 +475,7 @@ func (w *World) Enter(ctx context.Context, req EnterRequest) (*Membership, error
 		Luong:           req.Char.Account.Luong,
 		Stash:           w.knownStash(req.Char),
 		PkOn:            req.Char.PkOn,
-		Quests:          slices.Clone(req.Char.Quests),
+		Quests:          w.knownQuests(req.Char),
 		SkillBookWaiver: req.Char.SkillBookWaiver,
 		RespSeq:         req.RespSeq,
 	}
@@ -511,6 +514,26 @@ func (w *World) knownSkills(c store.Character) map[string]int {
 		out[id] = lv
 	}
 	return out
+}
+
+// knownQuests is c's stored quest rows as a quest log (phase 6b spec 3):
+// a quest no longer in quests.json is dropped with a warning, progress is
+// clamped to [0, the objective's need] and a main-line quest gets day 0.
+func (w *World) knownQuests(c store.Character) quest.Log {
+	log := make(quest.Log, len(c.Quests))
+	for _, r := range c.Quests {
+		q, ok := w.quests[r.QuestID]
+		if !ok {
+			w.log.Warn("dropped stored quest", "char", c.ID, "quest", r.QuestID, "state", r.State, "progress", r.Progress)
+			continue
+		}
+		e := quest.Entry{State: quest.State(r.State), Progress: min(max(r.Progress, 0), q.Objective.Need()), Day: r.Day}
+		if q.Line == gamedata.LineMain {
+			e.Day = 0
+		}
+		log[q.ID] = e
+	}
+	return log
 }
 
 // knownBag is c's stored bag and worn items as an inventory (knownItems).

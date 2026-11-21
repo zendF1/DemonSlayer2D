@@ -25,6 +25,7 @@ import (
 	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/mapdata"
 	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/quest"
 	"demonslayer2d/internal/store"
 )
 
@@ -4681,5 +4682,476 @@ func TestLeveledHook(t *testing.T) {
 	z.gainExp(p, 1000)
 	if len(calls) != 0 {
 		t.Fatalf("calls %v at the level cap, want none", calls)
+	}
+}
+
+// ____TEST QUESTS____
+
+// testQuestData is the real game data: quests.json with the skills its
+// books teach.
+var testQuestData = func() *gamedata.Data {
+	d, err := gamedata.Load("../../data")
+	if err != nil {
+		panic(err)
+	}
+	return d
+}()
+
+// questZone joins a Viêm of the given level as player 1 at (5.5, 5.5) of
+// mapID, with the real quest and item data, the quest NPCs tho_san and
+// chi_huy 3 tiles east and south and a shop NPC 3 tiles west. Its outbox
+// is emptied.
+func questZone(t *testing.T, mapID string, level int, log quest.Log) (*Zone, *player, *fakeOut, *fakeSaver) {
+	t.Helper()
+	sv := &fakeSaver{}
+	npcs := map[string]mapdata.NPC{
+		"tho_san": {ID: "tho_san", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 8.5, Y: 5.5}},
+		"chi_huy": {ID: "chi_huy", Role: mapdata.RoleQuest, Pos: mapdata.Point{X: 5.5, Y: 8.5}},
+		"shop":    {ID: "shop", Role: mapdata.RoleShop, Shop: "general", Pos: mapdata.Point{X: 2.5, Y: 5.5}},
+	}
+	cfg := testConfig(10)
+	cfg.MapID = mapID
+	z := New(cfg, Area{Grid: openGrid(64, 64), Exp: testExp, Items: testItemData, NPCs: npcs, Skills: testQuestData.Skills,
+		Quests: testQuestData}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Class, in.Level, in.Points = pb.CharClass_CHAR_CLASS_VIEM, level, combat.Points{Str: 60, Vit: 30}
+	in.Xu, in.Inventory, in.Quests = 77, items.NewInventory(testItemData.BagSize), log
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	out.take()
+	return z, z.players[1], out, sv
+}
+
+// questErr runs cmd for player 1 with seq 9 and returns its error code,
+// UNSPECIFIED when it was not refused.
+func questErr(t *testing.T, z *Zone, out *fakeOut, cmd func(z *Zone) bool) pb.ErrorCode {
+	t.Helper()
+	out.take()
+	itemNow(t, z, cmd(z))
+	if er := errorFor(out.take(), 9); er != nil {
+		return er.Code
+	}
+	return pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+}
+
+func accept(npc, q string) func(*Zone) bool {
+	return func(z *Zone) bool { return z.QuestAccept(1, 9, npc, q) }
+}
+
+func turnIn(npc, q string) func(*Zone) bool {
+	return func(z *Zone) bool { return z.QuestTurnIn(1, 9, npc, q) }
+}
+
+type questCase struct {
+	name  string
+	mapID string
+	level int
+	log   quest.Log
+	setup func(z *Zone, p *player)
+	cmd   func(*Zone) bool
+	want  pb.ErrorCode
+}
+
+// runQuestErrors checks each refusal and that it changes nothing: no save,
+// the same log, bag, Xu and EXP.
+func runQuestErrors(t *testing.T, cases []questCase) {
+	t.Helper()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mapID := c.mapID
+			if mapID == "" {
+				mapID = "kumotori_1"
+			}
+			level := c.level
+			if level == 0 {
+				level = 1
+			}
+			z, p, out, sv := questZone(t, mapID, level, c.log.Clone())
+			if c.setup != nil {
+				c.setup(z, p)
+			}
+			bag, log, xu, exp := p.inv.Clone(), p.quests.Clone(), p.xu, p.exp
+			if got := questErr(t, z, out, c.cmd); got != c.want {
+				t.Fatalf("code %v, want %v", got, c.want)
+			}
+			if n := len(sv.all()); n != 0 {
+				t.Fatalf("%d saves after a refusal", n)
+			}
+			if !reflect.DeepEqual(p.inv, bag) || !reflect.DeepEqual(p.quests, log) || p.xu != xu || p.exp != exp {
+				t.Fatalf("refusal changed the player: log %v xu %d exp %d", p.quests, p.xu, p.exp)
+			}
+		})
+	}
+}
+
+func TestQuestAcceptErrorsInOrder(t *testing.T) {
+	const (
+		dead  = pb.ErrorCode_ERROR_CODE_DEAD
+		bad   = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		far   = pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR
+		notAv = pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE
+		low   = pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
+	)
+	kill := func(_ *Zone, p *player) { p.dead = true }
+	away := func(_ *Zone, p *player) { p.pos = Vec2{30.5, 30.5} }
+	runQuestErrors(t, []questCase{
+		{name: "dead first", setup: func(z *Zone, p *player) { kill(z, p); away(z, p) }, cmd: accept("nope", "zzz"), want: dead},
+		{name: "no such npc", cmd: accept("nope", "m01"), want: bad},
+		{name: "not a quest npc", cmd: accept("shop", "m01"), want: bad},
+		{name: "far before the quest", setup: away, cmd: accept("tho_san", "zzz"), want: far},
+		{name: "no such quest", cmd: accept("tho_san", "zzz"), want: bad},
+		{name: "another npc gives it", cmd: accept("chi_huy", "m01"), want: bad},
+		{name: "given on another map", mapID: "ubuyashiki", cmd: accept("tho_san", "m01"), want: bad},
+		{name: "requires before level", cmd: accept("tho_san", "m02"), want: notAv},
+		{name: "already active", log: quest.Log{"m01": {State: quest.Active}}, cmd: accept("tho_san", "m01"), want: notAv},
+		{name: "already done", level: 5, log: quest.Log{"m01": {State: quest.Done, Progress: 5}}, cmd: accept("tho_san", "m01"), want: notAv},
+		{name: "level", log: quest.Log{"m01": {State: quest.Done, Progress: 5}}, cmd: accept("tho_san", "m02"), want: low},
+	})
+}
+
+func TestQuestTurnInErrorsInOrder(t *testing.T) {
+	const (
+		dead      = pb.ErrorCode_ERROR_CODE_DEAD
+		bad       = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		far       = pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR
+		notActive = pb.ErrorCode_ERROR_CODE_QUEST_NOT_ACTIVE
+		notDone   = pb.ErrorCode_ERROR_CODE_QUEST_NOT_COMPLETE
+		full      = pb.ErrorCode_ERROR_CODE_BAG_FULL
+	)
+	ready := quest.Log{"m01": {State: quest.Active, Progress: 5}}
+	away := func(_ *Zone, p *player) { p.pos = Vec2{30.5, 30.5} }
+	runQuestErrors(t, []questCase{
+		{name: "dead first", log: ready, setup: func(z *Zone, p *player) { p.dead = true; away(z, p) }, cmd: turnIn("nope", "zzz"), want: dead},
+		{name: "no such npc", log: ready, cmd: turnIn("nope", "m01"), want: bad},
+		{name: "not a quest npc", log: ready, cmd: turnIn("shop", "m01"), want: bad},
+		{name: "far before the quest", log: ready, setup: away, cmd: turnIn("tho_san", "zzz"), want: far},
+		{name: "no such quest", log: ready, cmd: turnIn("tho_san", "zzz"), want: bad},
+		{name: "not taken", cmd: turnIn("tho_san", "m01"), want: notActive},
+		{name: "done", log: quest.Log{"m01": {State: quest.Done, Progress: 5}}, cmd: turnIn("tho_san", "m01"), want: notActive},
+		// m06 is turned in to truong_lang: not active comes before the NPC.
+		{name: "not active before npc", cmd: turnIn("tho_san", "m06"), want: notActive},
+		{name: "another npc takes it", log: ready, cmd: turnIn("chi_huy", "m01"), want: bad},
+		{name: "taken on another map", mapID: "ubuyashiki", log: ready, cmd: turnIn("tho_san", "m01"), want: bad},
+		{name: "not complete", log: quest.Log{"m01": {State: quest.Active, Progress: 4}}, cmd: turnIn("tho_san", "m01"), want: notDone},
+		{name: "bag full", log: ready, setup: func(_ *Zone, p *player) { fillBag(p.inv) }, cmd: turnIn("tho_san", "m01"), want: full},
+	})
+}
+
+// Accepting a talk quest starts it at progress 1 (a kill quest at 0),
+// saves once and answers the entry.
+func TestQuestAccept(t *testing.T) {
+	z, p, out, sv := questZone(t, "kumotori_1", 1, nil)
+	out.take()
+	itemNow(t, z, z.QuestAccept(1, 9, "tho_san", "m01"))
+	r := respFor(out.take(), 9, (*pb.Envelope).GetQuestAcceptResp)
+	want := &pb.QuestEntry{QuestId: "m01", State: pb.QuestState_QUEST_STATE_ACTIVE}
+	if r == nil || !proto.Equal(r.Quest, want) || p.quests["m01"] != (quest.Entry{State: quest.Active}) {
+		t.Fatalf("resp %v log %v, want m01 active at 0", r, p.quests)
+	}
+	saves := sv.all()
+	if len(saves) != 1 || !reflect.DeepEqual(saves[0].Quests, []store.QuestRow{{QuestID: "m01", State: 1}}) {
+		t.Fatalf("saves %+v, want one with m01 active", saves)
+	}
+
+	log := quest.Log{"m04": {State: quest.Done, Progress: 6}}
+	z, p, out, _ = questZone(t, "kumotori_1", 5, log)
+	itemNow(t, z, z.QuestAccept(1, 9, "tho_san", "m05"))
+	r = respFor(out.take(), 9, (*pb.Envelope).GetQuestAcceptResp)
+	if r == nil || r.Quest.Progress != 1 || p.quests["m05"] != (quest.Entry{State: quest.Active, Progress: 1}) {
+		t.Fatalf("talk resp %v log %v, want m05 active at 1", r, p.quests)
+	}
+}
+
+// Turning m01 in pays 20 EXP, 40 Xu and 5 HP potions, marks it done,
+// saves and answers what changed; the waiting refine result stays, and the
+// next quest of the chain can be taken.
+func TestQuestTurnInM01(t *testing.T) {
+	z, p, out, sv := questZone(t, "kumotori_1", 1, quest.Log{"m01": {State: quest.Active, Progress: 5}})
+	p.inv.Bag[0] = &items.Item{Code: "potion_hp_1", Count: 3}
+	pending := &pendingRefine{}
+	p.refine = pending
+	p.level = 2 // m02 needs level 2
+	itemNow(t, z, z.QuestTurnIn(1, 9, "tho_san", "m01"))
+	r := respFor(out.take(), 9, (*pb.Envelope).GetQuestTurnInResp)
+	if r == nil || r.QuestId != "m01" || r.Exp != 20 || r.Xu != 40 {
+		t.Fatalf("resp %v, want m01 paying 20 EXP and 40 Xu", r)
+	}
+	if p.exp != 20 || p.xu != 117 || p.inv.Bag[0].Count != 8 || p.quests["m01"].State != quest.Done || p.refine != pending {
+		t.Fatalf("exp %d xu %d potions %d log %v refine %v", p.exp, p.xu, p.inv.Bag[0].Count, p.quests, p.refine)
+	}
+	if len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != 0 || r.Update.Bag[0].Item.Count != 8 || r.Stats.Xu != 117 || r.Stats.Exp != 20 {
+		t.Fatalf("update %v stats %v", r.Update, r.Stats)
+	}
+	saves := sv.all()
+	if len(saves) != 1 || saves[0].Xu != 117 || !reflect.DeepEqual(saves[0].Quests, []store.QuestRow{{QuestID: "m01", State: 2, Progress: 5}}) {
+		t.Fatalf("saves %+v, want one with m01 done", saves)
+	}
+	if got := questErr(t, z, out, accept("tho_san", "m01")); got != pb.ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE {
+		t.Fatalf("accept m01 again: %v", got)
+	}
+	if got := questErr(t, z, out, accept("tho_san", "m02")); got != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("accept m02: %v", got)
+	}
+}
+
+// m11 turned in to chi_huy by a Viêm pays the first book and a white +0
+// tier-10 Viêm weapon; with a waiver of 10 the book is left out.
+func TestQuestTurnInM11(t *testing.T) {
+	for _, c := range []struct {
+		waiver int
+		book   bool
+	}{{0, true}, {10, false}} {
+		z, p, out, _ := questZone(t, "ubuyashiki", 10, quest.Log{"m11": {State: quest.Active, Progress: 1}})
+		p.bookWaiver = c.waiver
+		p.inv.Bag[1] = &items.Item{Code: "stone_enhance", Count: 2}
+		itemNow(t, z, z.QuestTurnIn(1, 9, "chi_huy", "m11"))
+		r := respFor(out.take(), 9, (*pb.Envelope).GetQuestTurnInResp)
+		if r == nil {
+			t.Fatalf("waiver %d: no QuestTurnInResp", c.waiver)
+		}
+		got := map[string]*items.Item{}
+		for _, it := range p.inv.Bag {
+			if it != nil {
+				got[it.Code] = it
+			}
+		}
+		w := got["eq10_weapon_viem"]
+		if w == nil || !reflect.DeepEqual(*w, items.Item{Code: "eq10_weapon_viem", Count: 1}) {
+			t.Fatalf("waiver %d: weapon %+v, want white +0 with no lines", c.waiver, w)
+		}
+		if b := got["book_viem_1"]; (b != nil) != c.book || (b != nil && b.Count != 1) {
+			t.Fatalf("waiver %d: book %+v, want %v", c.waiver, b, c.book)
+		}
+		if got["potion_hp_10"].Count != 10 || got["potion_mp_10"].Count != 10 {
+			t.Fatalf("waiver %d: potions %v", c.waiver, got)
+		}
+		n := 4
+		if !c.book {
+			n = 3
+		}
+		if len(r.Update.Bag) != n || len(r.Update.Equipped) != 0 {
+			t.Fatalf("waiver %d: update %v, want %d bag slots", c.waiver, r.Update, n)
+		}
+		for i := 1; i < len(r.Update.Bag); i++ {
+			if r.Update.Bag[i-1].Slot >= r.Update.Bag[i].Slot {
+				t.Fatalf("update slots not ascending: %v", r.Update.Bag)
+			}
+		}
+	}
+}
+
+// A bag with room for all but the book refuses m11 with BAG_FULL.
+func TestQuestTurnInAllOrNothing(t *testing.T) {
+	z, p, out, sv := questZone(t, "ubuyashiki", 10, quest.Log{"m11": {State: quest.Active, Progress: 1}})
+	fillBag(p.inv)
+	for i := range 3 {
+		p.inv.Bag[i] = nil
+	}
+	bag := p.inv.Clone()
+	if got := questErr(t, z, out, turnIn("chi_huy", "m11")); got != pb.ErrorCode_ERROR_CODE_BAG_FULL {
+		t.Fatalf("code %v, want BAG_FULL", got)
+	}
+	if !reflect.DeepEqual(p.inv, bag) || p.quests["m11"].State != quest.Active || p.xu != 77 || len(sv.all()) != 0 {
+		t.Fatal("a refused turn-in changed the player")
+	}
+}
+
+// A turn-in that crosses a level sends LevelUp in the next WorldTick and
+// tells the Leveled hook.
+func TestQuestTurnInLevelsUp(t *testing.T) {
+	z, p, out, _ := questZone(t, "kumotori_1", 1, quest.Log{"m01": {State: quest.Active, Progress: 5}})
+	var leveled []int
+	z.cfg.Leveled = func(_ uint64, lv int) { leveled = append(leveled, lv) }
+	p.exp = testExp.ToNext(1) - 10
+	itemNow(t, z, z.QuestTurnIn(1, 9, "tho_san", "m01"))
+	envs := out.take()
+	wt := lastTick(envs)
+	if p.level != 2 || p.exp != 10 || wt == nil || len(wt.LevelUps) != 1 || wt.LevelUps[0].Level != 2 || !slices.Equal(leveled, []int{2}) {
+		t.Fatalf("level %d exp %d tick %v hook %v, want level 2 with a LevelUp", p.level, p.exp, wt, leveled)
+	}
+}
+
+// questKillZone is lootZone with the real quest data and a Viêm player 1
+// next to the monster with log.
+func questKillZone(t *testing.T, log quest.Log) (*Zone, *monster, *fakeOut) {
+	t.Helper()
+	z, m := lootZone(t, testItemData)
+	z.area.Quests = testQuestData
+	in := info(1, 31.5, 30.5)
+	in.Class, in.Quests = pb.CharClass_CHAR_CLASS_VIEM, log
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	return z, m, out
+}
+
+// questProgressIn is every QuestProgress in envs.
+func questProgressIn(envs []*pb.Envelope) []*pb.QuestProgress {
+	var out []*pb.QuestProgress
+	for _, e := range envs {
+		if q := e.GetQuestProgress(); q != nil {
+			out = append(out, q)
+		}
+	}
+	return out
+}
+
+// The killer's active quests on the monster's kind go up by one, both of
+// them; the others stay. QuestProgress (seq 0) comes after that tick's
+// WorldTick and before SelfStats, with only the changed entries, and is
+// sent once. Credit is not saved at once.
+func TestQuestCreditKiller(t *testing.T) {
+	log := quest.Log{
+		"m01": {State: quest.Active, Progress: 2},
+		"m02": {State: quest.Active},
+		"m03": {State: quest.Active},
+		"m04": {State: quest.Done, Progress: 6},
+	}
+	z, m, out := questKillZone(t, log)
+	sv := z.saver.(*fakeSaver)
+	z.rng = rand.New(winSource{}) // every collect roll hits
+	out.take()
+	attackLand(t, z, 1, 1, m.id)
+	p := z.players[1]
+	if !m.dead || p.quests["m01"].Progress != 3 || p.quests["m02"].Progress != 1 || p.quests["m03"].Progress != 0 {
+		t.Fatalf("dead %v log %v, want m01 3 and m02 1", m.dead, p.quests)
+	}
+	envs := out.take()
+	qi, wi, si := -1, -1, -1
+	for i, e := range envs {
+		switch {
+		case e.GetQuestProgress() != nil:
+			qi = i
+		case e.GetWorldTick() != nil && qi < 0:
+			wi = i
+		case e.GetSelfStats() != nil && qi >= 0 && si < 0:
+			si = i
+		}
+	}
+	qp := questProgressIn(envs)
+	want := []*pb.QuestEntry{
+		{QuestId: "m01", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 3},
+		{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 1},
+	}
+	if len(qp) != 1 || len(qp[0].Quests) != 2 || !proto.Equal(qp[0].Quests[0], want[0]) || !proto.Equal(qp[0].Quests[1], want[1]) {
+		t.Fatalf("QuestProgress %v, want one with m01 3 and m02 1", qp)
+	}
+	if envs[qi].Seq != 0 || wi < 0 || wi > qi || si < qi {
+		t.Fatalf("order: WorldTick %d QuestProgress %d SelfStats %d seq %d", wi, qi, si, envs[qi].Seq)
+	}
+	for _, st := range sv.all() {
+		t.Fatalf("credit saved %+v", st)
+	}
+	z.advance(time.Now())
+	if qp := questProgressIn(out.take()); len(qp) != 0 {
+		t.Fatalf("QuestProgress sent again: %v", qp)
+	}
+}
+
+// Only the killer is credited: a player who only did damage and a teammate
+// in the same zone get nothing.
+func TestQuestCreditOnlyKiller(t *testing.T) {
+	active := quest.Log{"m01": {State: quest.Active}}
+	z, m, out1 := questKillZone(t, active.Clone())
+	m.hp = 1000
+	for _, id := range []uint64{2, 3} {
+		in := info(id, 29.5, 30.5+float32(id-2))
+		in.Class, in.Quests = pb.CharClass_CHAR_CLASS_VIEM, active.Clone()
+		if err := z.join(in, &fakeOut{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	partied(z, 7, 1, 3)
+	attackLand(t, z, 2, 1, m.id) // damage only
+	if m.dead {
+		t.Fatal("the first slash killed")
+	}
+	m.hp = 1
+	z.players[2].slashReady = 0
+	out1.take()
+	attackLand(t, z, 1, 1, m.id)
+	if !m.dead || z.players[1].quests["m01"].Progress != 1 {
+		t.Fatalf("dead %v killer log %v", m.dead, z.players[1].quests)
+	}
+	for _, id := range []uint64{2, 3} {
+		if pr := z.players[id].quests["m01"].Progress; pr != 0 {
+			t.Fatalf("player %d progress %d, want 0", id, pr)
+		}
+	}
+}
+
+// A killer who died before the impact lands is credited; one who left the
+// zone is not, and nobody else is.
+func TestQuestCreditDeadOrGoneKiller(t *testing.T) {
+	z, m, _ := questKillZone(t, quest.Log{"m01": {State: quest.Active}})
+	attackNow(t, z, 1, 1, m.id)
+	p := z.players[1]
+	z.damagePlayer(p, killer{}, 10000, false)
+	settle(z)
+	if !p.dead || !m.dead || p.quests["m01"].Progress != 1 {
+		t.Fatalf("dead %v/%v log %v, want the dead killer credited", p.dead, m.dead, p.quests)
+	}
+
+	z, m, _ = questKillZone(t, quest.Log{"m01": {State: quest.Active}})
+	in := info(2, 29.5, 30.5)
+	in.Quests = quest.Log{"m01": {State: quest.Active}}
+	out2 := &fakeOut{}
+	if err := z.join(in, out2); err != nil {
+		t.Fatal(err)
+	}
+	attackNow(t, z, 1, 1, m.id)
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	out2.take()
+	settle(z)
+	if !m.dead || z.players[2].quests["m01"].Progress != 0 || len(questProgressIn(out2.take())) != 0 {
+		t.Fatalf("dead %v other log %v, want nobody credited", m.dead, z.players[2].quests)
+	}
+}
+
+// EnterWorldResp lists every quest entry and the waiver; the handoff and
+// every save carry deep copies of both.
+func TestQuestsJoinSaveAndHandoff(t *testing.T) {
+	log := quest.Log{"m02": {State: quest.Active, Progress: 3}, "m01": {State: quest.Done, Progress: 5}}
+	sv := &fakeSaver{}
+	z := New(testConfig(10), Area{Grid: openGrid(64, 64), Exp: testExp, Quests: testQuestData}, sv, quietLog())
+	in := info(1, 5.5, 5.5)
+	in.Quests, in.SkillBookWaiver = log, 12
+	out := &fakeOut{}
+	if err := z.join(in, out); err != nil {
+		t.Fatal(err)
+	}
+	r := out.take()[0].GetEnterWorldResp()
+	want := []*pb.QuestEntry{
+		{QuestId: "m01", State: pb.QuestState_QUEST_STATE_DONE, Progress: 5},
+		{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 3},
+	}
+	if r.SkillBookWaiver != 12 || len(r.Quests.GetQuests()) != 2 || !proto.Equal(r.Quests.Quests[0], want[0]) || !proto.Equal(r.Quests.Quests[1], want[1]) {
+		t.Fatalf("EnterWorldResp quests %v waiver %d", r.Quests, r.SkillBookWaiver)
+	}
+	p := z.players[1]
+	log["m03"] = quest.Entry{State: quest.Active}
+	if _, ok := p.quests["m03"]; ok {
+		t.Fatal("join shares the log")
+	}
+	st := z.state(p)
+	rows := []store.QuestRow{{QuestID: "m01", State: 2, Progress: 5}, {QuestID: "m02", State: 1, Progress: 3}}
+	if !reflect.DeepEqual(st.Quests, rows) || st.SkillBookWaiver != 12 {
+		t.Fatalf("state quests %+v waiver %d", st.Quests, st.SkillBookWaiver)
+	}
+	res := departNow(t, z, 1, Departure{To: Place{MapID: "m2", Pos: Vec2{5.5, 5.5}}, Check: notDead})
+	if res.err != nil || res.info.SkillBookWaiver != 12 || !reflect.DeepEqual(res.info.Quests, quest.Log{"m02": {State: quest.Active, Progress: 3}, "m01": {State: quest.Done, Progress: 5}}) {
+		t.Fatalf("handoff quests %v waiver %d err %v", res.info.Quests, res.info.SkillBookWaiver, res.err)
+	}
+	res.info.Quests["m01"] = quest.Entry{}
+	if p.quests["m01"].State != quest.Done {
+		t.Fatal("handoff shares the log")
+	}
+	if saves := sv.all(); len(saves) == 0 || !reflect.DeepEqual(saves[len(saves)-1].Quests, rows) || saves[len(saves)-1].SkillBookWaiver != 12 {
+		t.Fatalf("departure save %+v", saves)
 	}
 }

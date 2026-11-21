@@ -360,9 +360,10 @@ func (z *Zone) damageToPlayer(b *player, base, level int, magic bool) int {
 }
 
 // killMonster makes m a corpse, gives killer its Xu and drops (game-design
-// 5.8, phase 3a spec 4.3) and schedules its region's respawn. killer is the
-// player whose impact brought m to 0 HP, nil if it has left the zone. Its EXP
-// has already been paid hit by hit.
+// 5.8, phase 3a spec 4.3) and its quest credit (phase 6b spec 4.3), and
+// schedules its region's respawn. killer is the player whose impact brought
+// m to 0 HP, nil if it has left the zone. Its EXP has already been paid hit
+// by hit.
 func (z *Zone) killMonster(m *monster, killer *player) {
 	m.dead, m.diedAt = true, z.tickNo
 	z.stopMonster(m)
@@ -371,6 +372,7 @@ func (z *Zone) killMonster(m *monster, killer *player) {
 	z.events.deaths = append(z.events.deaths, &pb.Death{Id: m.id})
 	m.region.pending = append(m.region.pending, m.diedAt+z.ticks(m.region.Kind.RespawnSec))
 	z.loot(m, killer)
+	z.creditQuests(m, killer)
 }
 
 // replyError answers seq with an ErrorResp carrying code.

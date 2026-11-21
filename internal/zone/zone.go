@@ -19,6 +19,7 @@ import (
 	"demonslayer2d/internal/combat"
 	"demonslayer2d/internal/items"
 	"demonslayer2d/internal/pb"
+	"demonslayer2d/internal/quest"
 	"demonslayer2d/internal/store"
 )
 
@@ -95,10 +96,10 @@ type PlayerInfo struct {
 	Cooldowns map[string]time.Duration
 	// PkOn is whether PK mode is on (phase 5a spec 4.1).
 	PkOn bool
-	// Quests and SkillBookWaiver (phase 6b) are the quest log rows and the
-	// skill book waiver; the zone keeps them untouched and saves them with
-	// every state. Join deep-copies Quests.
-	Quests          []store.QuestRow
+	// Quests is the quest log, already checked against Area.Quests, and
+	// SkillBookWaiver the highest learn level whose skills need no book
+	// (phase 6b spec 4.1). Join copies Quests; every save carries both.
+	Quests          quest.Log
 	SkillBookWaiver int
 	// Party is the session's party-id cell (phase 5b spec 4.1): the party
 	// service writes it, the zone only reads it, and the handoff carries the
@@ -116,14 +117,16 @@ const slowTick = 50 * time.Millisecond
 
 type player struct {
 	entity
-	// quests and skillBookWaiver are carried for the saves; only the zone
-	// goroutine touches them.
-	quests          []store.QuestRow
-	skillBookWaiver int
-	charID          int64
-	out             Outbox
-	inputSeq        uint32
-	visible         map[uint64]struct{}
+	// quests is the quest log, never nil; questChanged lists the ids that
+	// kill credit changed this tick, sent as QuestProgress by syncView.
+	// bookWaiver is the skill book waiver (phase 6b spec 4.1).
+	quests       quest.Log
+	questChanged []string
+	bookWaiver   int
+	charID       int64
+	out          Outbox
+	inputSeq     uint32
+	visible      map[uint64]struct{}
 
 	// Progression; level and hp live in entity.
 	stats      combat.Stats
@@ -617,6 +620,10 @@ func (z *Zone) handle(c any) {
 		z.refine(c)
 	case refineChooseCmd:
 		z.refineChoose(c)
+	case questAcceptCmd:
+		z.questAccept(c)
+	case questTurnInCmd:
+		z.questTurnIn(c)
 	}
 }
 
@@ -646,7 +653,10 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		xu: info.Xu, accountID: info.AccountID, luong: info.Luong, stash: cloneSlots(info.Stash),
 	}
 	p.pkOn = info.PkOn
-	p.quests, p.skillBookWaiver = slices.Clone(info.Quests), info.SkillBookWaiver
+	p.quests, p.bookWaiver = info.Quests.Clone(), info.SkillBookWaiver
+	if p.quests == nil {
+		p.quests = quest.Log{}
+	}
 	if p.skills == nil {
 		p.skills = map[string]int{}
 	}
@@ -674,18 +684,20 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 	z.addToCell(&p.entity)
 	z.setCount()
 	out.Send(&pb.Envelope{Seq: info.RespSeq, Payload: &pb.Envelope_EnterWorldResp{EnterWorldResp: &pb.EnterWorldResp{
-		SelfEntityId: info.EntityID,
-		MapId:        z.cfg.MapID,
-		Zone:         int32(z.cfg.ZoneNo),
-		X:            p.pos.X,
-		Y:            p.pos.Y,
-		ServerTick:   z.tickNo,
-		MoveSpeed:    z.cfg.MoveSpeed,
-		TickRate:     uint32(z.cfg.TickRate),
-		Stats:        z.selfStats(p),
-		Skills:       skillLevels(p),
-		Inventory:    z.inventory(p),
-		Cooldowns:    z.cooldownList(p),
+		SelfEntityId:    info.EntityID,
+		MapId:           z.cfg.MapID,
+		Zone:            int32(z.cfg.ZoneNo),
+		X:               p.pos.X,
+		Y:               p.pos.Y,
+		ServerTick:      z.tickNo,
+		MoveSpeed:       z.cfg.MoveSpeed,
+		TickRate:        uint32(z.cfg.TickRate),
+		Stats:           z.selfStats(p),
+		Skills:          skillLevels(p),
+		Inventory:       z.inventory(p),
+		Cooldowns:       z.cooldownList(p),
+		Quests:          &pb.QuestLog{Quests: questEntries(p, slices.Sorted(maps.Keys(p.quests)))},
+		SkillBookWaiver: int32(p.bookWaiver),
 	}}})
 	return nil
 }
@@ -750,14 +762,15 @@ func (z *Zone) evictAll(reason pb.KickReason) {
 // saves its real HP and MP rather than -1. Every state carries the account
 // part (phase 4c spec 1.2): the saver keeps only the newest state of a
 // character, so a state without it could drop an earlier stash or Lượng
-// change. Only a player without an account (tests) saves none.
+// change. Only a player without an account (tests) saves none. Every state
+// also carries the whole quest log and the book waiver (phase 6b spec 3).
 func (z *Zone) state(p *player) store.CharState {
 	// The saver runs on another goroutine, so it gets its own skill map and
 	// item rows that share nothing with p (phase 3a spec 3).
 	st := store.CharState{ID: p.charID, MapID: z.cfg.MapID, X: p.pos.X, Y: p.pos.Y, Level: p.level, Exp: p.exp,
 		Points: p.points, FreePoints: p.freePoints, HP: p.hp, MP: p.mp,
 		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Items: itemRows(p.inv), PkOn: p.pkOn,
-		Quests: slices.Clone(p.quests), SkillBookWaiver: p.skillBookWaiver}
+		Quests: questRows(p.quests), SkillBookWaiver: p.bookWaiver}
 	if p.accountID != 0 {
 		st.Account = &store.AccountState{ID: p.accountID, Luong: p.luong, StashSize: len(p.stash),
 			Stash: slotRows(nil, false, p.stash)}
@@ -885,8 +898,9 @@ func inventoryUpdate(inv *items.Inventory, bag, equip []int) *pb.InventoryUpdate
 }
 
 // syncView sends p its EntityLeave/EntityEnter messages and WorldTick, with
-// this tick's events about the entities p sees, then SelfStats if p's stats
-// changed. It returns false if p's outbox is full.
+// this tick's events about the entities p sees, then its DeathNotice and the
+// QuestProgress of the quests credited this tick, if any, then SelfStats if
+// p's stats changed. It returns false if p's outbox is full.
 func (z *Zone) syncView(p *player) bool {
 	ok := true
 	send := func(env *pb.Envelope) {
@@ -925,6 +939,12 @@ func (z *Zone) syncView(p *player) bool {
 	if p.deathNotice != nil {
 		send(&pb.Envelope{Payload: &pb.Envelope_DeathNotice{DeathNotice: p.deathNotice}})
 		p.deathNotice = nil
+	}
+	if len(p.questChanged) > 0 {
+		slices.Sort(p.questChanged)
+		ids := slices.Compact(p.questChanged)
+		send(&pb.Envelope{Payload: &pb.Envelope_QuestProgress{QuestProgress: &pb.QuestProgress{Quests: questEntries(p, ids)}}})
+		p.questChanged = nil
 	}
 	if p.statsDirty {
 		p.statsDirty = false

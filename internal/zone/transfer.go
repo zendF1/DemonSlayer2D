@@ -215,9 +215,9 @@ func (z *Zone) depart(c departCmd) departResult {
 }
 
 // handoff is p's live state for the next zone (phase 4a spec 3.2.1): HP and
-// MP as they are, Lượng, PK mode, deep copies of the skills, items and
-// stash, and the cooldowns still running, the PvP lock among them. Pos and
-// RespSeq are left for the caller.
+// MP as they are, Lượng, PK mode, the book waiver, deep copies of the
+// skills, items, stash and quest log, and the cooldowns still running, the
+// PvP lock among them. Pos and RespSeq are left for the caller.
 func (z *Zone) handoff(p *player) PlayerInfo {
 	return PlayerInfo{
 		EntityID: p.id, CharID: p.charID, Name: p.name, Class: p.class, Level: p.level, Exp: p.exp,
@@ -225,7 +225,7 @@ func (z *Zone) handoff(p *player) PlayerInfo {
 		SkillPoints: p.skillPoints, Skills: maps.Clone(p.skills), Xu: p.xu, Inventory: p.inv.Clone(),
 		AccountID: p.accountID, Luong: p.luong, Stash: cloneSlots(p.stash),
 		Cooldowns: z.cooldownsOf(p), PkOn: p.pkOn, Party: p.party,
-		Quests: slices.Clone(p.quests), SkillBookWaiver: p.skillBookWaiver,
+		Quests: p.quests.Clone(), SkillBookWaiver: p.bookWaiver,
 	}
 }
 

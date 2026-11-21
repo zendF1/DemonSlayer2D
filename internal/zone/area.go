@@ -54,6 +54,10 @@ type Area struct {
 	// and PkPenalty whether a PK-on player killed by one loses EXP (phase 5a
 	// spec 2), both from the map type.
 	PvP, PkPenalty bool
+	// Quests is the game data whose quests (QuestByID) and skills, for the
+	// book rewards, the quest commands and kill credit use (phase 6b spec
+	// 4.1); shared and read-only. nil means no quests.
+	Quests *gamedata.Data
 }
 
 // InSafe reports whether the tile containing p is in a safe zone.
