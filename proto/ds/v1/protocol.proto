@@ -102,6 +102,17 @@ message Envelope {
     SetPkReq set_pk_req = 105;
     SetPkResp set_pk_resp = 106;
     DeathNotice death_notice = 107;
+    PartyInviteReq party_invite_req = 108;
+    PartyInviteResp party_invite_resp = 109;
+    PartyInvite party_invite = 110;
+    PartyAnswerReq party_answer_req = 111;
+    PartyAnswerResp party_answer_resp = 112;
+    PartyLeaveReq party_leave_req = 113;
+    PartyLeaveResp party_leave_resp = 114;
+    PartyKickReq party_kick_req = 115;
+    PartyKickResp party_kick_resp = 116;
+    PartyState party_state = 117;
+    PartyNotice party_notice = 118;
   }
 }
 
@@ -122,8 +133,8 @@ enum ErrorCode {
   ERROR_CODE_ALREADY_IN_WORLD = 13;
   ERROR_CODE_ZONE_FULL = 14;
   ERROR_CODE_INTERNAL = 15;
-  // The target does not exist, is dead, is the caster itself or is neither a
-  // monster nor a player.
+  // The target does not exist, is dead, is the caster itself, is neither a
+  // monster nor a player, or no player with that id is in the world.
   ERROR_CODE_INVALID_TARGET = 16;
   ERROR_CODE_OUT_OF_RANGE = 17;
   ERROR_CODE_ON_COOLDOWN = 18;
@@ -178,12 +189,24 @@ enum ErrorCode {
   ERROR_CODE_STASH_MAXED = 43;
   // The wallet holds too little Luong.
   ERROR_CODE_NOT_ENOUGH_LUONG = 44;
-  // The target is a player the PK rules, the map type or the party do not
-  // allow to attack.
+  // The target is a player the PK rules or the map type do not allow to
+  // attack, or a party member.
   ERROR_CODE_PK_FORBIDDEN = 45;
   // PK cannot be turned off, nor the world left, yet: the character fought
   // a player recently.
   ERROR_CODE_IN_PVP_COMBAT = 46;
+  // The party already has 5 members.
+  ERROR_CODE_PARTY_FULL = 47;
+  // The target already belongs to a party.
+  ERROR_CODE_ALREADY_IN_PARTY = 48;
+  // Only the party leader may do this.
+  ERROR_CODE_NOT_PARTY_LEADER = 49;
+  // The character is not in a party.
+  ERROR_CODE_NOT_IN_PARTY = 50;
+  // The invite is gone: expired, withdrawn or never sent.
+  ERROR_CODE_INVITE_NOT_FOUND = 51;
+  // The target already holds an invite from someone else.
+  ERROR_CODE_INVITE_PENDING = 52;
 }
 
 enum KickReason {
@@ -860,4 +883,76 @@ message DeathNotice {
   bool by_player = 3;
   // EXP taken as the PK penalty; 0 when none.
   int64 exp_lost = 4;
+}
+
+// One party member as every member sees it. id is the entity id, kept
+// across zone changes.
+message PartyMember {
+  uint64 id = 1;
+  string name = 2;
+  CharClass char_class = 3;
+  int32 level = 4;
+  string map_id = 5;
+  int32 zone = 6;
+}
+
+enum PartyNoticeKind {
+  PARTY_NOTICE_KIND_UNSPECIFIED = 0;
+  PARTY_NOTICE_KIND_JOINED = 1;          // name joined the party
+  PARTY_NOTICE_KIND_LEFT = 2;            // name left the party
+  PARTY_NOTICE_KIND_KICKED = 3;          // the leader removed name
+  PARTY_NOTICE_KIND_YOU_WERE_KICKED = 4; // the leader removed you
+  PARTY_NOTICE_KIND_DECLINED = 5;        // name declined your invite
+  PARTY_NOTICE_KIND_DISBANDED = 6;       // you were the last member
+  PARTY_NOTICE_KIND_NEW_LEADER = 7;      // name now leads the party
+}
+
+// Invites the player with target_id to the sender's party (created on the
+// first accepted invite); the answer is PartyInviteResp.
+message PartyInviteReq {
+  uint64 target_id = 1;
+}
+
+message PartyInviteResp {}
+
+// Pushed with seq = 0 to the invited player; expires_ms is the time left.
+message PartyInvite {
+  uint64 from_id = 1;
+  string from_name = 2;
+  int32 from_level = 3;
+  CharClass from_class = 4;
+  int32 expires_ms = 5;
+}
+
+// Accepts or declines the invite from from_id; the answer is PartyAnswerResp.
+message PartyAnswerReq {
+  uint64 from_id = 1;
+  bool accept = 2;
+}
+
+message PartyAnswerResp {}
+
+// Leaves the party; the answer is PartyLeaveResp.
+message PartyLeaveReq {}
+
+message PartyLeaveResp {}
+
+// The leader removes member_id; the answer is PartyKickResp.
+message PartyKickReq {
+  uint64 member_id = 1;
+}
+
+message PartyKickResp {}
+
+// Pushed with seq = 0 whenever the party changes. No members means the
+// character is not in a party.
+message PartyState {
+  uint64 leader_id = 1;
+  repeated PartyMember members = 2;
+}
+
+// Pushed with seq = 0 to tell a member what just happened.
+message PartyNotice {
+  PartyNoticeKind kind = 1;
+  string name = 2;
 }

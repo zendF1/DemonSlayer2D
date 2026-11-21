@@ -40,8 +40,8 @@ const (
 	ErrorCode_ERROR_CODE_ALREADY_IN_WORLD ErrorCode = 13
 	ErrorCode_ERROR_CODE_ZONE_FULL        ErrorCode = 14
 	ErrorCode_ERROR_CODE_INTERNAL         ErrorCode = 15
-	// The target does not exist, is dead, is the caster itself or is neither a
-	// monster nor a player.
+	// The target does not exist, is dead, is the caster itself, is neither a
+	// monster nor a player, or no player with that id is in the world.
 	ErrorCode_ERROR_CODE_INVALID_TARGET ErrorCode = 16
 	ErrorCode_ERROR_CODE_OUT_OF_RANGE   ErrorCode = 17
 	ErrorCode_ERROR_CODE_ON_COOLDOWN    ErrorCode = 18
@@ -96,12 +96,24 @@ const (
 	ErrorCode_ERROR_CODE_STASH_MAXED ErrorCode = 43
 	// The wallet holds too little Luong.
 	ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG ErrorCode = 44
-	// The target is a player the PK rules, the map type or the party do not
-	// allow to attack.
+	// The target is a player the PK rules or the map type do not allow to
+	// attack, or a party member.
 	ErrorCode_ERROR_CODE_PK_FORBIDDEN ErrorCode = 45
 	// PK cannot be turned off, nor the world left, yet: the character fought
 	// a player recently.
 	ErrorCode_ERROR_CODE_IN_PVP_COMBAT ErrorCode = 46
+	// The party already has 5 members.
+	ErrorCode_ERROR_CODE_PARTY_FULL ErrorCode = 47
+	// The target already belongs to a party.
+	ErrorCode_ERROR_CODE_ALREADY_IN_PARTY ErrorCode = 48
+	// Only the party leader may do this.
+	ErrorCode_ERROR_CODE_NOT_PARTY_LEADER ErrorCode = 49
+	// The character is not in a party.
+	ErrorCode_ERROR_CODE_NOT_IN_PARTY ErrorCode = 50
+	// The invite is gone: expired, withdrawn or never sent.
+	ErrorCode_ERROR_CODE_INVITE_NOT_FOUND ErrorCode = 51
+	// The target already holds an invite from someone else.
+	ErrorCode_ERROR_CODE_INVITE_PENDING ErrorCode = 52
 )
 
 // Enum value maps for ErrorCode.
@@ -154,6 +166,12 @@ var (
 		44: "ERROR_CODE_NOT_ENOUGH_LUONG",
 		45: "ERROR_CODE_PK_FORBIDDEN",
 		46: "ERROR_CODE_IN_PVP_COMBAT",
+		47: "ERROR_CODE_PARTY_FULL",
+		48: "ERROR_CODE_ALREADY_IN_PARTY",
+		49: "ERROR_CODE_NOT_PARTY_LEADER",
+		50: "ERROR_CODE_NOT_IN_PARTY",
+		51: "ERROR_CODE_INVITE_NOT_FOUND",
+		52: "ERROR_CODE_INVITE_PENDING",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":          0,
@@ -203,6 +221,12 @@ var (
 		"ERROR_CODE_NOT_ENOUGH_LUONG":     44,
 		"ERROR_CODE_PK_FORBIDDEN":         45,
 		"ERROR_CODE_IN_PVP_COMBAT":        46,
+		"ERROR_CODE_PARTY_FULL":           47,
+		"ERROR_CODE_ALREADY_IN_PARTY":     48,
+		"ERROR_CODE_NOT_PARTY_LEADER":     49,
+		"ERROR_CODE_NOT_IN_PARTY":         50,
+		"ERROR_CODE_INVITE_NOT_FOUND":     51,
+		"ERROR_CODE_INVITE_PENDING":       52,
 	}
 )
 
@@ -408,6 +432,70 @@ func (EntityKind) EnumDescriptor() ([]byte, []int) {
 	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{3}
 }
 
+type PartyNoticeKind int32
+
+const (
+	PartyNoticeKind_PARTY_NOTICE_KIND_UNSPECIFIED     PartyNoticeKind = 0
+	PartyNoticeKind_PARTY_NOTICE_KIND_JOINED          PartyNoticeKind = 1 // name joined the party
+	PartyNoticeKind_PARTY_NOTICE_KIND_LEFT            PartyNoticeKind = 2 // name left the party
+	PartyNoticeKind_PARTY_NOTICE_KIND_KICKED          PartyNoticeKind = 3 // the leader removed name
+	PartyNoticeKind_PARTY_NOTICE_KIND_YOU_WERE_KICKED PartyNoticeKind = 4 // the leader removed you
+	PartyNoticeKind_PARTY_NOTICE_KIND_DECLINED        PartyNoticeKind = 5 // name declined your invite
+	PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED       PartyNoticeKind = 6 // you were the last member
+	PartyNoticeKind_PARTY_NOTICE_KIND_NEW_LEADER      PartyNoticeKind = 7 // name now leads the party
+)
+
+// Enum value maps for PartyNoticeKind.
+var (
+	PartyNoticeKind_name = map[int32]string{
+		0: "PARTY_NOTICE_KIND_UNSPECIFIED",
+		1: "PARTY_NOTICE_KIND_JOINED",
+		2: "PARTY_NOTICE_KIND_LEFT",
+		3: "PARTY_NOTICE_KIND_KICKED",
+		4: "PARTY_NOTICE_KIND_YOU_WERE_KICKED",
+		5: "PARTY_NOTICE_KIND_DECLINED",
+		6: "PARTY_NOTICE_KIND_DISBANDED",
+		7: "PARTY_NOTICE_KIND_NEW_LEADER",
+	}
+	PartyNoticeKind_value = map[string]int32{
+		"PARTY_NOTICE_KIND_UNSPECIFIED":     0,
+		"PARTY_NOTICE_KIND_JOINED":          1,
+		"PARTY_NOTICE_KIND_LEFT":            2,
+		"PARTY_NOTICE_KIND_KICKED":          3,
+		"PARTY_NOTICE_KIND_YOU_WERE_KICKED": 4,
+		"PARTY_NOTICE_KIND_DECLINED":        5,
+		"PARTY_NOTICE_KIND_DISBANDED":       6,
+		"PARTY_NOTICE_KIND_NEW_LEADER":      7,
+	}
+)
+
+func (x PartyNoticeKind) Enum() *PartyNoticeKind {
+	p := new(PartyNoticeKind)
+	*p = x
+	return p
+}
+
+func (x PartyNoticeKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PartyNoticeKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_ds_v1_protocol_proto_enumTypes[4].Descriptor()
+}
+
+func (PartyNoticeKind) Type() protoreflect.EnumType {
+	return &file_ds_v1_protocol_proto_enumTypes[4]
+}
+
+func (x PartyNoticeKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PartyNoticeKind.Descriptor instead.
+func (PartyNoticeKind) EnumDescriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{4}
+}
+
 // Names must also be valid in GDScript: the client generates code with
 // godobuf. Do not name a field `message` or `class`, or a message `Error`.
 // Renames keep field numbers, so the wire format is unchanged.
@@ -500,6 +588,17 @@ type Envelope struct {
 	//	*Envelope_SetPkReq
 	//	*Envelope_SetPkResp
 	//	*Envelope_DeathNotice
+	//	*Envelope_PartyInviteReq
+	//	*Envelope_PartyInviteResp
+	//	*Envelope_PartyInvite
+	//	*Envelope_PartyAnswerReq
+	//	*Envelope_PartyAnswerResp
+	//	*Envelope_PartyLeaveReq
+	//	*Envelope_PartyLeaveResp
+	//	*Envelope_PartyKickReq
+	//	*Envelope_PartyKickResp
+	//	*Envelope_PartyState
+	//	*Envelope_PartyNotice
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1269,6 +1368,105 @@ func (x *Envelope) GetDeathNotice() *DeathNotice {
 	return nil
 }
 
+func (x *Envelope) GetPartyInviteReq() *PartyInviteReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyInviteReq); ok {
+			return x.PartyInviteReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyInviteResp() *PartyInviteResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyInviteResp); ok {
+			return x.PartyInviteResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyInvite() *PartyInvite {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyInvite); ok {
+			return x.PartyInvite
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyAnswerReq() *PartyAnswerReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyAnswerReq); ok {
+			return x.PartyAnswerReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyAnswerResp() *PartyAnswerResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyAnswerResp); ok {
+			return x.PartyAnswerResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyLeaveReq() *PartyLeaveReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyLeaveReq); ok {
+			return x.PartyLeaveReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyLeaveResp() *PartyLeaveResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyLeaveResp); ok {
+			return x.PartyLeaveResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyKickReq() *PartyKickReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyKickReq); ok {
+			return x.PartyKickReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyKickResp() *PartyKickResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyKickResp); ok {
+			return x.PartyKickResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyState() *PartyState {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyState); ok {
+			return x.PartyState
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetPartyNotice() *PartyNotice {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_PartyNotice); ok {
+			return x.PartyNotice
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1593,6 +1791,50 @@ type Envelope_DeathNotice struct {
 	DeathNotice *DeathNotice `protobuf:"bytes,107,opt,name=death_notice,json=deathNotice,proto3,oneof"`
 }
 
+type Envelope_PartyInviteReq struct {
+	PartyInviteReq *PartyInviteReq `protobuf:"bytes,108,opt,name=party_invite_req,json=partyInviteReq,proto3,oneof"`
+}
+
+type Envelope_PartyInviteResp struct {
+	PartyInviteResp *PartyInviteResp `protobuf:"bytes,109,opt,name=party_invite_resp,json=partyInviteResp,proto3,oneof"`
+}
+
+type Envelope_PartyInvite struct {
+	PartyInvite *PartyInvite `protobuf:"bytes,110,opt,name=party_invite,json=partyInvite,proto3,oneof"`
+}
+
+type Envelope_PartyAnswerReq struct {
+	PartyAnswerReq *PartyAnswerReq `protobuf:"bytes,111,opt,name=party_answer_req,json=partyAnswerReq,proto3,oneof"`
+}
+
+type Envelope_PartyAnswerResp struct {
+	PartyAnswerResp *PartyAnswerResp `protobuf:"bytes,112,opt,name=party_answer_resp,json=partyAnswerResp,proto3,oneof"`
+}
+
+type Envelope_PartyLeaveReq struct {
+	PartyLeaveReq *PartyLeaveReq `protobuf:"bytes,113,opt,name=party_leave_req,json=partyLeaveReq,proto3,oneof"`
+}
+
+type Envelope_PartyLeaveResp struct {
+	PartyLeaveResp *PartyLeaveResp `protobuf:"bytes,114,opt,name=party_leave_resp,json=partyLeaveResp,proto3,oneof"`
+}
+
+type Envelope_PartyKickReq struct {
+	PartyKickReq *PartyKickReq `protobuf:"bytes,115,opt,name=party_kick_req,json=partyKickReq,proto3,oneof"`
+}
+
+type Envelope_PartyKickResp struct {
+	PartyKickResp *PartyKickResp `protobuf:"bytes,116,opt,name=party_kick_resp,json=partyKickResp,proto3,oneof"`
+}
+
+type Envelope_PartyState struct {
+	PartyState *PartyState `protobuf:"bytes,117,opt,name=party_state,json=partyState,proto3,oneof"`
+}
+
+type Envelope_PartyNotice struct {
+	PartyNotice *PartyNotice `protobuf:"bytes,118,opt,name=party_notice,json=partyNotice,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -1752,6 +1994,28 @@ func (*Envelope_SetPkReq) isEnvelope_Payload() {}
 func (*Envelope_SetPkResp) isEnvelope_Payload() {}
 
 func (*Envelope_DeathNotice) isEnvelope_Payload() {}
+
+func (*Envelope_PartyInviteReq) isEnvelope_Payload() {}
+
+func (*Envelope_PartyInviteResp) isEnvelope_Payload() {}
+
+func (*Envelope_PartyInvite) isEnvelope_Payload() {}
+
+func (*Envelope_PartyAnswerReq) isEnvelope_Payload() {}
+
+func (*Envelope_PartyAnswerResp) isEnvelope_Payload() {}
+
+func (*Envelope_PartyLeaveReq) isEnvelope_Payload() {}
+
+func (*Envelope_PartyLeaveResp) isEnvelope_Payload() {}
+
+func (*Envelope_PartyKickReq) isEnvelope_Payload() {}
+
+func (*Envelope_PartyKickResp) isEnvelope_Payload() {}
+
+func (*Envelope_PartyState) isEnvelope_Payload() {}
+
+func (*Envelope_PartyNotice) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -7427,11 +7691,606 @@ func (x *DeathNotice) GetExpLost() int64 {
 	return 0
 }
 
+// One party member as every member sees it. id is the entity id, kept
+// across zone changes.
+type PartyMember struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	CharClass     CharClass              `protobuf:"varint,3,opt,name=char_class,json=charClass,proto3,enum=ds.v1.CharClass" json:"char_class,omitempty"`
+	Level         int32                  `protobuf:"varint,4,opt,name=level,proto3" json:"level,omitempty"`
+	MapId         string                 `protobuf:"bytes,5,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	Zone          int32                  `protobuf:"varint,6,opt,name=zone,proto3" json:"zone,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyMember) Reset() {
+	*x = PartyMember{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyMember) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyMember) ProtoMessage() {}
+
+func (x *PartyMember) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyMember.ProtoReflect.Descriptor instead.
+func (*PartyMember) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *PartyMember) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *PartyMember) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PartyMember) GetCharClass() CharClass {
+	if x != nil {
+		return x.CharClass
+	}
+	return CharClass_CHAR_CLASS_UNSPECIFIED
+}
+
+func (x *PartyMember) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *PartyMember) GetMapId() string {
+	if x != nil {
+		return x.MapId
+	}
+	return ""
+}
+
+func (x *PartyMember) GetZone() int32 {
+	if x != nil {
+		return x.Zone
+	}
+	return 0
+}
+
+// Invites the player with target_id to the sender's party (created on the
+// first accepted invite); the answer is PartyInviteResp.
+type PartyInviteReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetId      uint64                 `protobuf:"varint,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyInviteReq) Reset() {
+	*x = PartyInviteReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[101]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyInviteReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyInviteReq) ProtoMessage() {}
+
+func (x *PartyInviteReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[101]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyInviteReq.ProtoReflect.Descriptor instead.
+func (*PartyInviteReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{101}
+}
+
+func (x *PartyInviteReq) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+type PartyInviteResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyInviteResp) Reset() {
+	*x = PartyInviteResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyInviteResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyInviteResp) ProtoMessage() {}
+
+func (x *PartyInviteResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyInviteResp.ProtoReflect.Descriptor instead.
+func (*PartyInviteResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{102}
+}
+
+// Pushed with seq = 0 to the invited player; expires_ms is the time left.
+type PartyInvite struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FromId        uint64                 `protobuf:"varint,1,opt,name=from_id,json=fromId,proto3" json:"from_id,omitempty"`
+	FromName      string                 `protobuf:"bytes,2,opt,name=from_name,json=fromName,proto3" json:"from_name,omitempty"`
+	FromLevel     int32                  `protobuf:"varint,3,opt,name=from_level,json=fromLevel,proto3" json:"from_level,omitempty"`
+	FromClass     CharClass              `protobuf:"varint,4,opt,name=from_class,json=fromClass,proto3,enum=ds.v1.CharClass" json:"from_class,omitempty"`
+	ExpiresMs     int32                  `protobuf:"varint,5,opt,name=expires_ms,json=expiresMs,proto3" json:"expires_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyInvite) Reset() {
+	*x = PartyInvite{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyInvite) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyInvite) ProtoMessage() {}
+
+func (x *PartyInvite) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyInvite.ProtoReflect.Descriptor instead.
+func (*PartyInvite) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *PartyInvite) GetFromId() uint64 {
+	if x != nil {
+		return x.FromId
+	}
+	return 0
+}
+
+func (x *PartyInvite) GetFromName() string {
+	if x != nil {
+		return x.FromName
+	}
+	return ""
+}
+
+func (x *PartyInvite) GetFromLevel() int32 {
+	if x != nil {
+		return x.FromLevel
+	}
+	return 0
+}
+
+func (x *PartyInvite) GetFromClass() CharClass {
+	if x != nil {
+		return x.FromClass
+	}
+	return CharClass_CHAR_CLASS_UNSPECIFIED
+}
+
+func (x *PartyInvite) GetExpiresMs() int32 {
+	if x != nil {
+		return x.ExpiresMs
+	}
+	return 0
+}
+
+// Accepts or declines the invite from from_id; the answer is PartyAnswerResp.
+type PartyAnswerReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FromId        uint64                 `protobuf:"varint,1,opt,name=from_id,json=fromId,proto3" json:"from_id,omitempty"`
+	Accept        bool                   `protobuf:"varint,2,opt,name=accept,proto3" json:"accept,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyAnswerReq) Reset() {
+	*x = PartyAnswerReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyAnswerReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyAnswerReq) ProtoMessage() {}
+
+func (x *PartyAnswerReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyAnswerReq.ProtoReflect.Descriptor instead.
+func (*PartyAnswerReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{104}
+}
+
+func (x *PartyAnswerReq) GetFromId() uint64 {
+	if x != nil {
+		return x.FromId
+	}
+	return 0
+}
+
+func (x *PartyAnswerReq) GetAccept() bool {
+	if x != nil {
+		return x.Accept
+	}
+	return false
+}
+
+type PartyAnswerResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyAnswerResp) Reset() {
+	*x = PartyAnswerResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyAnswerResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyAnswerResp) ProtoMessage() {}
+
+func (x *PartyAnswerResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyAnswerResp.ProtoReflect.Descriptor instead.
+func (*PartyAnswerResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{105}
+}
+
+// Leaves the party; the answer is PartyLeaveResp.
+type PartyLeaveReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyLeaveReq) Reset() {
+	*x = PartyLeaveReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyLeaveReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyLeaveReq) ProtoMessage() {}
+
+func (x *PartyLeaveReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyLeaveReq.ProtoReflect.Descriptor instead.
+func (*PartyLeaveReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{106}
+}
+
+type PartyLeaveResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyLeaveResp) Reset() {
+	*x = PartyLeaveResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyLeaveResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyLeaveResp) ProtoMessage() {}
+
+func (x *PartyLeaveResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyLeaveResp.ProtoReflect.Descriptor instead.
+func (*PartyLeaveResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{107}
+}
+
+// The leader removes member_id; the answer is PartyKickResp.
+type PartyKickReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      uint64                 `protobuf:"varint,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyKickReq) Reset() {
+	*x = PartyKickReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[108]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyKickReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyKickReq) ProtoMessage() {}
+
+func (x *PartyKickReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[108]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyKickReq.ProtoReflect.Descriptor instead.
+func (*PartyKickReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{108}
+}
+
+func (x *PartyKickReq) GetMemberId() uint64 {
+	if x != nil {
+		return x.MemberId
+	}
+	return 0
+}
+
+type PartyKickResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyKickResp) Reset() {
+	*x = PartyKickResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyKickResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyKickResp) ProtoMessage() {}
+
+func (x *PartyKickResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyKickResp.ProtoReflect.Descriptor instead.
+func (*PartyKickResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{109}
+}
+
+// Pushed with seq = 0 whenever the party changes. No members means the
+// character is not in a party.
+type PartyState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LeaderId      uint64                 `protobuf:"varint,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	Members       []*PartyMember         `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyState) Reset() {
+	*x = PartyState{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyState) ProtoMessage() {}
+
+func (x *PartyState) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyState.ProtoReflect.Descriptor instead.
+func (*PartyState) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *PartyState) GetLeaderId() uint64 {
+	if x != nil {
+		return x.LeaderId
+	}
+	return 0
+}
+
+func (x *PartyState) GetMembers() []*PartyMember {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+// Pushed with seq = 0 to tell a member what just happened.
+type PartyNotice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          PartyNoticeKind        `protobuf:"varint,1,opt,name=kind,proto3,enum=ds.v1.PartyNoticeKind" json:"kind,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyNotice) Reset() {
+	*x = PartyNotice{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyNotice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyNotice) ProtoMessage() {}
+
+func (x *PartyNotice) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyNotice.ProtoReflect.Descriptor instead.
+func (*PartyNotice) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *PartyNotice) GetKind() PartyNoticeKind {
+	if x != nil {
+		return x.Kind
+	}
+	return PartyNoticeKind_PARTY_NOTICE_KIND_UNSPECIFIED
+}
+
+func (x *PartyNotice) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x8d$\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xc7)\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -7536,7 +8395,19 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
 	"set_pk_req\x18i \x01(\v2\x0f.ds.v1.SetPkReqH\x00R\bsetPkReq\x122\n" +
 	"\vset_pk_resp\x18j \x01(\v2\x10.ds.v1.SetPkRespH\x00R\tsetPkResp\x127\n" +
-	"\fdeath_notice\x18k \x01(\v2\x12.ds.v1.DeathNoticeH\x00R\vdeathNoticeB\t\n" +
+	"\fdeath_notice\x18k \x01(\v2\x12.ds.v1.DeathNoticeH\x00R\vdeathNotice\x12A\n" +
+	"\x10party_invite_req\x18l \x01(\v2\x15.ds.v1.PartyInviteReqH\x00R\x0epartyInviteReq\x12D\n" +
+	"\x11party_invite_resp\x18m \x01(\v2\x16.ds.v1.PartyInviteRespH\x00R\x0fpartyInviteResp\x127\n" +
+	"\fparty_invite\x18n \x01(\v2\x12.ds.v1.PartyInviteH\x00R\vpartyInvite\x12A\n" +
+	"\x10party_answer_req\x18o \x01(\v2\x15.ds.v1.PartyAnswerReqH\x00R\x0epartyAnswerReq\x12D\n" +
+	"\x11party_answer_resp\x18p \x01(\v2\x16.ds.v1.PartyAnswerRespH\x00R\x0fpartyAnswerResp\x12>\n" +
+	"\x0fparty_leave_req\x18q \x01(\v2\x14.ds.v1.PartyLeaveReqH\x00R\rpartyLeaveReq\x12A\n" +
+	"\x10party_leave_resp\x18r \x01(\v2\x15.ds.v1.PartyLeaveRespH\x00R\x0epartyLeaveResp\x12;\n" +
+	"\x0eparty_kick_req\x18s \x01(\v2\x13.ds.v1.PartyKickReqH\x00R\fpartyKickReq\x12>\n" +
+	"\x0fparty_kick_resp\x18t \x01(\v2\x14.ds.v1.PartyKickRespH\x00R\rpartyKickResp\x124\n" +
+	"\vparty_state\x18u \x01(\v2\x11.ds.v1.PartyStateH\x00R\n" +
+	"partyState\x127\n" +
+	"\fparty_notice\x18v \x01(\v2\x12.ds.v1.PartyNoticeH\x00R\vpartyNoticeB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -7923,8 +8794,43 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\vkiller_name\x18\x02 \x01(\tR\n" +
 	"killerName\x12\x1b\n" +
 	"\tby_player\x18\x03 \x01(\bR\bbyPlayer\x12\x19\n" +
-	"\bexp_lost\x18\x04 \x01(\x03R\aexpLost*\xfa\n" +
+	"\bexp_lost\x18\x04 \x01(\x03R\aexpLost\"\xa3\x01\n" +
+	"\vPartyMember\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12/\n" +
 	"\n" +
+	"char_class\x18\x03 \x01(\x0e2\x10.ds.v1.CharClassR\tcharClass\x12\x14\n" +
+	"\x05level\x18\x04 \x01(\x05R\x05level\x12\x15\n" +
+	"\x06map_id\x18\x05 \x01(\tR\x05mapId\x12\x12\n" +
+	"\x04zone\x18\x06 \x01(\x05R\x04zone\"-\n" +
+	"\x0ePartyInviteReq\x12\x1b\n" +
+	"\ttarget_id\x18\x01 \x01(\x04R\btargetId\"\x11\n" +
+	"\x0fPartyInviteResp\"\xb2\x01\n" +
+	"\vPartyInvite\x12\x17\n" +
+	"\afrom_id\x18\x01 \x01(\x04R\x06fromId\x12\x1b\n" +
+	"\tfrom_name\x18\x02 \x01(\tR\bfromName\x12\x1d\n" +
+	"\n" +
+	"from_level\x18\x03 \x01(\x05R\tfromLevel\x12/\n" +
+	"\n" +
+	"from_class\x18\x04 \x01(\x0e2\x10.ds.v1.CharClassR\tfromClass\x12\x1d\n" +
+	"\n" +
+	"expires_ms\x18\x05 \x01(\x05R\texpiresMs\"A\n" +
+	"\x0ePartyAnswerReq\x12\x17\n" +
+	"\afrom_id\x18\x01 \x01(\x04R\x06fromId\x12\x16\n" +
+	"\x06accept\x18\x02 \x01(\bR\x06accept\"\x11\n" +
+	"\x0fPartyAnswerResp\"\x0f\n" +
+	"\rPartyLeaveReq\"\x10\n" +
+	"\x0ePartyLeaveResp\"+\n" +
+	"\fPartyKickReq\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\x04R\bmemberId\"\x0f\n" +
+	"\rPartyKickResp\"W\n" +
+	"\n" +
+	"PartyState\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\x04R\bleaderId\x12,\n" +
+	"\amembers\x18\x02 \x03(\v2\x12.ds.v1.PartyMemberR\amembers\"M\n" +
+	"\vPartyNotice\x12*\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x16.ds.v1.PartyNoticeKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name*\xb4\f\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -7973,7 +8879,13 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x16ERROR_CODE_STASH_MAXED\x10+\x12\x1f\n" +
 	"\x1bERROR_CODE_NOT_ENOUGH_LUONG\x10,\x12\x1b\n" +
 	"\x17ERROR_CODE_PK_FORBIDDEN\x10-\x12\x1c\n" +
-	"\x18ERROR_CODE_IN_PVP_COMBAT\x10.*\x84\x02\n" +
+	"\x18ERROR_CODE_IN_PVP_COMBAT\x10.\x12\x19\n" +
+	"\x15ERROR_CODE_PARTY_FULL\x10/\x12\x1f\n" +
+	"\x1bERROR_CODE_ALREADY_IN_PARTY\x100\x12\x1f\n" +
+	"\x1bERROR_CODE_NOT_PARTY_LEADER\x101\x12\x1b\n" +
+	"\x17ERROR_CODE_NOT_IN_PARTY\x102\x12\x1f\n" +
+	"\x1bERROR_CODE_INVITE_NOT_FOUND\x103\x12\x1d\n" +
+	"\x19ERROR_CODE_INVITE_PENDING\x104*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -7996,7 +8908,16 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x17ENTITY_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ENTITY_KIND_PLAYER\x10\x01\x12\x17\n" +
 	"\x13ENTITY_KIND_MONSTER\x10\x02\x12\x14\n" +
-	"\x10ENTITY_KIND_ITEM\x10\x03B\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
+	"\x10ENTITY_KIND_ITEM\x10\x03*\x96\x02\n" +
+	"\x0fPartyNoticeKind\x12!\n" +
+	"\x1dPARTY_NOTICE_KIND_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18PARTY_NOTICE_KIND_JOINED\x10\x01\x12\x1a\n" +
+	"\x16PARTY_NOTICE_KIND_LEFT\x10\x02\x12\x1c\n" +
+	"\x18PARTY_NOTICE_KIND_KICKED\x10\x03\x12%\n" +
+	"!PARTY_NOTICE_KIND_YOU_WERE_KICKED\x10\x04\x12\x1e\n" +
+	"\x1aPARTY_NOTICE_KIND_DECLINED\x10\x05\x12\x1f\n" +
+	"\x1bPARTY_NOTICE_KIND_DISBANDED\x10\x06\x12 \n" +
+	"\x1cPARTY_NOTICE_KIND_NEW_LEADER\x10\aB\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
 
 var (
 	file_ds_v1_protocol_proto_rawDescOnce sync.Once
@@ -8010,272 +8931,300 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 	return file_ds_v1_protocol_proto_rawDescData
 }
 
-var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 100)
+var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 112)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
 	(CharClass)(0),             // 2: ds.v1.CharClass
 	(EntityKind)(0),            // 3: ds.v1.EntityKind
-	(*Envelope)(nil),           // 4: ds.v1.Envelope
-	(*ErrorResp)(nil),          // 5: ds.v1.ErrorResp
-	(*RegisterReq)(nil),        // 6: ds.v1.RegisterReq
-	(*RegisterResp)(nil),       // 7: ds.v1.RegisterResp
-	(*LoginReq)(nil),           // 8: ds.v1.LoginReq
-	(*LoginResp)(nil),          // 9: ds.v1.LoginResp
-	(*CharSummary)(nil),        // 10: ds.v1.CharSummary
-	(*CharListReq)(nil),        // 11: ds.v1.CharListReq
-	(*CharListResp)(nil),       // 12: ds.v1.CharListResp
-	(*CreateCharReq)(nil),      // 13: ds.v1.CreateCharReq
-	(*CreateCharResp)(nil),     // 14: ds.v1.CreateCharResp
-	(*DeleteCharReq)(nil),      // 15: ds.v1.DeleteCharReq
-	(*DeleteCharResp)(nil),     // 16: ds.v1.DeleteCharResp
-	(*EnterWorldReq)(nil),      // 17: ds.v1.EnterWorldReq
-	(*EnterWorldResp)(nil),     // 18: ds.v1.EnterWorldResp
-	(*Cooldown)(nil),           // 19: ds.v1.Cooldown
-	(*LeaveWorldReq)(nil),      // 20: ds.v1.LeaveWorldReq
-	(*LeaveWorldResp)(nil),     // 21: ds.v1.LeaveWorldResp
-	(*MoveInput)(nil),          // 22: ds.v1.MoveInput
-	(*EntityEnter)(nil),        // 23: ds.v1.EntityEnter
-	(*EntityLeave)(nil),        // 24: ds.v1.EntityLeave
-	(*EntityMove)(nil),         // 25: ds.v1.EntityMove
-	(*WorldTick)(nil),          // 26: ds.v1.WorldTick
-	(*LookChange)(nil),         // 27: ds.v1.LookChange
-	(*Ping)(nil),               // 28: ds.v1.Ping
-	(*Pong)(nil),               // 29: ds.v1.Pong
-	(*Kicked)(nil),             // 30: ds.v1.Kicked
-	(*AttackReq)(nil),          // 31: ds.v1.AttackReq
-	(*AttackResp)(nil),         // 32: ds.v1.AttackResp
-	(*AllocatePointsReq)(nil),  // 33: ds.v1.AllocatePointsReq
-	(*AllocatePointsResp)(nil), // 34: ds.v1.AllocatePointsResp
-	(*RespawnReq)(nil),         // 35: ds.v1.RespawnReq
-	(*RespawnResp)(nil),        // 36: ds.v1.RespawnResp
-	(*SelfStats)(nil),          // 37: ds.v1.SelfStats
-	(*Hit)(nil),                // 38: ds.v1.Hit
-	(*Death)(nil),              // 39: ds.v1.Death
-	(*HpChange)(nil),           // 40: ds.v1.HpChange
-	(*LevelUp)(nil),            // 41: ds.v1.LevelUp
-	(*LearnSkillReq)(nil),      // 42: ds.v1.LearnSkillReq
-	(*LearnSkillResp)(nil),     // 43: ds.v1.LearnSkillResp
-	(*CastReq)(nil),            // 44: ds.v1.CastReq
-	(*CastResp)(nil),           // 45: ds.v1.CastResp
-	(*SkillLevel)(nil),         // 46: ds.v1.SkillLevel
-	(*Cast)(nil),               // 47: ds.v1.Cast
-	(*CastImpact)(nil),         // 48: ds.v1.CastImpact
-	(*ItemInfo)(nil),           // 49: ds.v1.ItemInfo
-	(*ItemLine)(nil),           // 50: ds.v1.ItemLine
-	(*ItemSlot)(nil),           // 51: ds.v1.ItemSlot
-	(*Inventory)(nil),          // 52: ds.v1.Inventory
-	(*InventoryUpdate)(nil),    // 53: ds.v1.InventoryUpdate
-	(*PickupReq)(nil),          // 54: ds.v1.PickupReq
-	(*PickupResp)(nil),         // 55: ds.v1.PickupResp
-	(*EquipReq)(nil),           // 56: ds.v1.EquipReq
-	(*EquipResp)(nil),          // 57: ds.v1.EquipResp
-	(*UnequipReq)(nil),         // 58: ds.v1.UnequipReq
-	(*UnequipResp)(nil),        // 59: ds.v1.UnequipResp
-	(*DiscardReq)(nil),         // 60: ds.v1.DiscardReq
-	(*DiscardResp)(nil),        // 61: ds.v1.DiscardResp
-	(*SortBagReq)(nil),         // 62: ds.v1.SortBagReq
-	(*SortBagResp)(nil),        // 63: ds.v1.SortBagResp
-	(*ItemRef)(nil),            // 64: ds.v1.ItemRef
-	(*EnhanceReq)(nil),         // 65: ds.v1.EnhanceReq
-	(*EnhanceResp)(nil),        // 66: ds.v1.EnhanceResp
-	(*PunchReq)(nil),           // 67: ds.v1.PunchReq
-	(*PunchResp)(nil),          // 68: ds.v1.PunchResp
-	(*SocketReq)(nil),          // 69: ds.v1.SocketReq
-	(*SocketResp)(nil),         // 70: ds.v1.SocketResp
-	(*UnsocketReq)(nil),        // 71: ds.v1.UnsocketReq
-	(*UnsocketResp)(nil),       // 72: ds.v1.UnsocketResp
-	(*RefineReq)(nil),          // 73: ds.v1.RefineReq
-	(*RefineResp)(nil),         // 74: ds.v1.RefineResp
-	(*RefineChooseReq)(nil),    // 75: ds.v1.RefineChooseReq
-	(*RefineChooseResp)(nil),   // 76: ds.v1.RefineChooseResp
-	(*UsePortalReq)(nil),       // 77: ds.v1.UsePortalReq
-	(*ChangeZoneReq)(nil),      // 78: ds.v1.ChangeZoneReq
-	(*ZoneListReq)(nil),        // 79: ds.v1.ZoneListReq
-	(*ZoneListResp)(nil),       // 80: ds.v1.ZoneListResp
-	(*ZoneInfo)(nil),           // 81: ds.v1.ZoneInfo
-	(*BuyReq)(nil),             // 82: ds.v1.BuyReq
-	(*BuyResp)(nil),            // 83: ds.v1.BuyResp
-	(*SellReq)(nil),            // 84: ds.v1.SellReq
-	(*SellResp)(nil),           // 85: ds.v1.SellResp
-	(*UseItemReq)(nil),         // 86: ds.v1.UseItemReq
-	(*UseItemResp)(nil),        // 87: ds.v1.UseItemResp
-	(*ReturnTownReq)(nil),      // 88: ds.v1.ReturnTownReq
-	(*TravelReq)(nil),          // 89: ds.v1.TravelReq
-	(*Stash)(nil),              // 90: ds.v1.Stash
-	(*StashOpenReq)(nil),       // 91: ds.v1.StashOpenReq
-	(*StashOpenResp)(nil),      // 92: ds.v1.StashOpenResp
-	(*StashDepositReq)(nil),    // 93: ds.v1.StashDepositReq
-	(*StashDepositResp)(nil),   // 94: ds.v1.StashDepositResp
-	(*StashWithdrawReq)(nil),   // 95: ds.v1.StashWithdrawReq
-	(*StashWithdrawResp)(nil),  // 96: ds.v1.StashWithdrawResp
-	(*StashExpandReq)(nil),     // 97: ds.v1.StashExpandReq
-	(*StashExpandResp)(nil),    // 98: ds.v1.StashExpandResp
-	(*StashSortReq)(nil),       // 99: ds.v1.StashSortReq
-	(*StashSortResp)(nil),      // 100: ds.v1.StashSortResp
-	(*SetPkReq)(nil),           // 101: ds.v1.SetPkReq
-	(*SetPkResp)(nil),          // 102: ds.v1.SetPkResp
-	(*DeathNotice)(nil),        // 103: ds.v1.DeathNotice
+	(PartyNoticeKind)(0),       // 4: ds.v1.PartyNoticeKind
+	(*Envelope)(nil),           // 5: ds.v1.Envelope
+	(*ErrorResp)(nil),          // 6: ds.v1.ErrorResp
+	(*RegisterReq)(nil),        // 7: ds.v1.RegisterReq
+	(*RegisterResp)(nil),       // 8: ds.v1.RegisterResp
+	(*LoginReq)(nil),           // 9: ds.v1.LoginReq
+	(*LoginResp)(nil),          // 10: ds.v1.LoginResp
+	(*CharSummary)(nil),        // 11: ds.v1.CharSummary
+	(*CharListReq)(nil),        // 12: ds.v1.CharListReq
+	(*CharListResp)(nil),       // 13: ds.v1.CharListResp
+	(*CreateCharReq)(nil),      // 14: ds.v1.CreateCharReq
+	(*CreateCharResp)(nil),     // 15: ds.v1.CreateCharResp
+	(*DeleteCharReq)(nil),      // 16: ds.v1.DeleteCharReq
+	(*DeleteCharResp)(nil),     // 17: ds.v1.DeleteCharResp
+	(*EnterWorldReq)(nil),      // 18: ds.v1.EnterWorldReq
+	(*EnterWorldResp)(nil),     // 19: ds.v1.EnterWorldResp
+	(*Cooldown)(nil),           // 20: ds.v1.Cooldown
+	(*LeaveWorldReq)(nil),      // 21: ds.v1.LeaveWorldReq
+	(*LeaveWorldResp)(nil),     // 22: ds.v1.LeaveWorldResp
+	(*MoveInput)(nil),          // 23: ds.v1.MoveInput
+	(*EntityEnter)(nil),        // 24: ds.v1.EntityEnter
+	(*EntityLeave)(nil),        // 25: ds.v1.EntityLeave
+	(*EntityMove)(nil),         // 26: ds.v1.EntityMove
+	(*WorldTick)(nil),          // 27: ds.v1.WorldTick
+	(*LookChange)(nil),         // 28: ds.v1.LookChange
+	(*Ping)(nil),               // 29: ds.v1.Ping
+	(*Pong)(nil),               // 30: ds.v1.Pong
+	(*Kicked)(nil),             // 31: ds.v1.Kicked
+	(*AttackReq)(nil),          // 32: ds.v1.AttackReq
+	(*AttackResp)(nil),         // 33: ds.v1.AttackResp
+	(*AllocatePointsReq)(nil),  // 34: ds.v1.AllocatePointsReq
+	(*AllocatePointsResp)(nil), // 35: ds.v1.AllocatePointsResp
+	(*RespawnReq)(nil),         // 36: ds.v1.RespawnReq
+	(*RespawnResp)(nil),        // 37: ds.v1.RespawnResp
+	(*SelfStats)(nil),          // 38: ds.v1.SelfStats
+	(*Hit)(nil),                // 39: ds.v1.Hit
+	(*Death)(nil),              // 40: ds.v1.Death
+	(*HpChange)(nil),           // 41: ds.v1.HpChange
+	(*LevelUp)(nil),            // 42: ds.v1.LevelUp
+	(*LearnSkillReq)(nil),      // 43: ds.v1.LearnSkillReq
+	(*LearnSkillResp)(nil),     // 44: ds.v1.LearnSkillResp
+	(*CastReq)(nil),            // 45: ds.v1.CastReq
+	(*CastResp)(nil),           // 46: ds.v1.CastResp
+	(*SkillLevel)(nil),         // 47: ds.v1.SkillLevel
+	(*Cast)(nil),               // 48: ds.v1.Cast
+	(*CastImpact)(nil),         // 49: ds.v1.CastImpact
+	(*ItemInfo)(nil),           // 50: ds.v1.ItemInfo
+	(*ItemLine)(nil),           // 51: ds.v1.ItemLine
+	(*ItemSlot)(nil),           // 52: ds.v1.ItemSlot
+	(*Inventory)(nil),          // 53: ds.v1.Inventory
+	(*InventoryUpdate)(nil),    // 54: ds.v1.InventoryUpdate
+	(*PickupReq)(nil),          // 55: ds.v1.PickupReq
+	(*PickupResp)(nil),         // 56: ds.v1.PickupResp
+	(*EquipReq)(nil),           // 57: ds.v1.EquipReq
+	(*EquipResp)(nil),          // 58: ds.v1.EquipResp
+	(*UnequipReq)(nil),         // 59: ds.v1.UnequipReq
+	(*UnequipResp)(nil),        // 60: ds.v1.UnequipResp
+	(*DiscardReq)(nil),         // 61: ds.v1.DiscardReq
+	(*DiscardResp)(nil),        // 62: ds.v1.DiscardResp
+	(*SortBagReq)(nil),         // 63: ds.v1.SortBagReq
+	(*SortBagResp)(nil),        // 64: ds.v1.SortBagResp
+	(*ItemRef)(nil),            // 65: ds.v1.ItemRef
+	(*EnhanceReq)(nil),         // 66: ds.v1.EnhanceReq
+	(*EnhanceResp)(nil),        // 67: ds.v1.EnhanceResp
+	(*PunchReq)(nil),           // 68: ds.v1.PunchReq
+	(*PunchResp)(nil),          // 69: ds.v1.PunchResp
+	(*SocketReq)(nil),          // 70: ds.v1.SocketReq
+	(*SocketResp)(nil),         // 71: ds.v1.SocketResp
+	(*UnsocketReq)(nil),        // 72: ds.v1.UnsocketReq
+	(*UnsocketResp)(nil),       // 73: ds.v1.UnsocketResp
+	(*RefineReq)(nil),          // 74: ds.v1.RefineReq
+	(*RefineResp)(nil),         // 75: ds.v1.RefineResp
+	(*RefineChooseReq)(nil),    // 76: ds.v1.RefineChooseReq
+	(*RefineChooseResp)(nil),   // 77: ds.v1.RefineChooseResp
+	(*UsePortalReq)(nil),       // 78: ds.v1.UsePortalReq
+	(*ChangeZoneReq)(nil),      // 79: ds.v1.ChangeZoneReq
+	(*ZoneListReq)(nil),        // 80: ds.v1.ZoneListReq
+	(*ZoneListResp)(nil),       // 81: ds.v1.ZoneListResp
+	(*ZoneInfo)(nil),           // 82: ds.v1.ZoneInfo
+	(*BuyReq)(nil),             // 83: ds.v1.BuyReq
+	(*BuyResp)(nil),            // 84: ds.v1.BuyResp
+	(*SellReq)(nil),            // 85: ds.v1.SellReq
+	(*SellResp)(nil),           // 86: ds.v1.SellResp
+	(*UseItemReq)(nil),         // 87: ds.v1.UseItemReq
+	(*UseItemResp)(nil),        // 88: ds.v1.UseItemResp
+	(*ReturnTownReq)(nil),      // 89: ds.v1.ReturnTownReq
+	(*TravelReq)(nil),          // 90: ds.v1.TravelReq
+	(*Stash)(nil),              // 91: ds.v1.Stash
+	(*StashOpenReq)(nil),       // 92: ds.v1.StashOpenReq
+	(*StashOpenResp)(nil),      // 93: ds.v1.StashOpenResp
+	(*StashDepositReq)(nil),    // 94: ds.v1.StashDepositReq
+	(*StashDepositResp)(nil),   // 95: ds.v1.StashDepositResp
+	(*StashWithdrawReq)(nil),   // 96: ds.v1.StashWithdrawReq
+	(*StashWithdrawResp)(nil),  // 97: ds.v1.StashWithdrawResp
+	(*StashExpandReq)(nil),     // 98: ds.v1.StashExpandReq
+	(*StashExpandResp)(nil),    // 99: ds.v1.StashExpandResp
+	(*StashSortReq)(nil),       // 100: ds.v1.StashSortReq
+	(*StashSortResp)(nil),      // 101: ds.v1.StashSortResp
+	(*SetPkReq)(nil),           // 102: ds.v1.SetPkReq
+	(*SetPkResp)(nil),          // 103: ds.v1.SetPkResp
+	(*DeathNotice)(nil),        // 104: ds.v1.DeathNotice
+	(*PartyMember)(nil),        // 105: ds.v1.PartyMember
+	(*PartyInviteReq)(nil),     // 106: ds.v1.PartyInviteReq
+	(*PartyInviteResp)(nil),    // 107: ds.v1.PartyInviteResp
+	(*PartyInvite)(nil),        // 108: ds.v1.PartyInvite
+	(*PartyAnswerReq)(nil),     // 109: ds.v1.PartyAnswerReq
+	(*PartyAnswerResp)(nil),    // 110: ds.v1.PartyAnswerResp
+	(*PartyLeaveReq)(nil),      // 111: ds.v1.PartyLeaveReq
+	(*PartyLeaveResp)(nil),     // 112: ds.v1.PartyLeaveResp
+	(*PartyKickReq)(nil),       // 113: ds.v1.PartyKickReq
+	(*PartyKickResp)(nil),      // 114: ds.v1.PartyKickResp
+	(*PartyState)(nil),         // 115: ds.v1.PartyState
+	(*PartyNotice)(nil),        // 116: ds.v1.PartyNotice
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
-	5,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
-	6,   // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
-	7,   // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
-	8,   // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
-	9,   // 4: ds.v1.Envelope.login_resp:type_name -> ds.v1.LoginResp
-	11,  // 5: ds.v1.Envelope.char_list_req:type_name -> ds.v1.CharListReq
-	12,  // 6: ds.v1.Envelope.char_list_resp:type_name -> ds.v1.CharListResp
-	13,  // 7: ds.v1.Envelope.create_char_req:type_name -> ds.v1.CreateCharReq
-	14,  // 8: ds.v1.Envelope.create_char_resp:type_name -> ds.v1.CreateCharResp
-	15,  // 9: ds.v1.Envelope.delete_char_req:type_name -> ds.v1.DeleteCharReq
-	16,  // 10: ds.v1.Envelope.delete_char_resp:type_name -> ds.v1.DeleteCharResp
-	17,  // 11: ds.v1.Envelope.enter_world_req:type_name -> ds.v1.EnterWorldReq
-	18,  // 12: ds.v1.Envelope.enter_world_resp:type_name -> ds.v1.EnterWorldResp
-	20,  // 13: ds.v1.Envelope.leave_world_req:type_name -> ds.v1.LeaveWorldReq
-	21,  // 14: ds.v1.Envelope.leave_world_resp:type_name -> ds.v1.LeaveWorldResp
-	22,  // 15: ds.v1.Envelope.move_input:type_name -> ds.v1.MoveInput
-	23,  // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
-	24,  // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
-	26,  // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
-	28,  // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
-	29,  // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
-	30,  // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
-	31,  // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
-	32,  // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
-	33,  // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
-	34,  // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
-	35,  // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
-	36,  // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
-	37,  // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
-	42,  // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
-	43,  // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
-	44,  // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
-	45,  // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
-	54,  // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
-	55,  // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
-	56,  // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
-	57,  // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
-	58,  // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
-	59,  // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
-	60,  // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
-	61,  // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
-	62,  // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
-	63,  // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
-	65,  // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
-	66,  // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
-	67,  // 45: ds.v1.Envelope.punch_req:type_name -> ds.v1.PunchReq
-	68,  // 46: ds.v1.Envelope.punch_resp:type_name -> ds.v1.PunchResp
-	69,  // 47: ds.v1.Envelope.socket_req:type_name -> ds.v1.SocketReq
-	70,  // 48: ds.v1.Envelope.socket_resp:type_name -> ds.v1.SocketResp
-	71,  // 49: ds.v1.Envelope.unsocket_req:type_name -> ds.v1.UnsocketReq
-	72,  // 50: ds.v1.Envelope.unsocket_resp:type_name -> ds.v1.UnsocketResp
-	73,  // 51: ds.v1.Envelope.refine_req:type_name -> ds.v1.RefineReq
-	74,  // 52: ds.v1.Envelope.refine_resp:type_name -> ds.v1.RefineResp
-	75,  // 53: ds.v1.Envelope.refine_choose_req:type_name -> ds.v1.RefineChooseReq
-	76,  // 54: ds.v1.Envelope.refine_choose_resp:type_name -> ds.v1.RefineChooseResp
-	77,  // 55: ds.v1.Envelope.use_portal_req:type_name -> ds.v1.UsePortalReq
-	78,  // 56: ds.v1.Envelope.change_zone_req:type_name -> ds.v1.ChangeZoneReq
-	79,  // 57: ds.v1.Envelope.zone_list_req:type_name -> ds.v1.ZoneListReq
-	80,  // 58: ds.v1.Envelope.zone_list_resp:type_name -> ds.v1.ZoneListResp
-	82,  // 59: ds.v1.Envelope.buy_req:type_name -> ds.v1.BuyReq
-	83,  // 60: ds.v1.Envelope.buy_resp:type_name -> ds.v1.BuyResp
-	84,  // 61: ds.v1.Envelope.sell_req:type_name -> ds.v1.SellReq
-	85,  // 62: ds.v1.Envelope.sell_resp:type_name -> ds.v1.SellResp
-	86,  // 63: ds.v1.Envelope.use_item_req:type_name -> ds.v1.UseItemReq
-	87,  // 64: ds.v1.Envelope.use_item_resp:type_name -> ds.v1.UseItemResp
-	88,  // 65: ds.v1.Envelope.return_town_req:type_name -> ds.v1.ReturnTownReq
-	89,  // 66: ds.v1.Envelope.travel_req:type_name -> ds.v1.TravelReq
-	91,  // 67: ds.v1.Envelope.stash_open_req:type_name -> ds.v1.StashOpenReq
-	92,  // 68: ds.v1.Envelope.stash_open_resp:type_name -> ds.v1.StashOpenResp
-	93,  // 69: ds.v1.Envelope.stash_deposit_req:type_name -> ds.v1.StashDepositReq
-	94,  // 70: ds.v1.Envelope.stash_deposit_resp:type_name -> ds.v1.StashDepositResp
-	95,  // 71: ds.v1.Envelope.stash_withdraw_req:type_name -> ds.v1.StashWithdrawReq
-	96,  // 72: ds.v1.Envelope.stash_withdraw_resp:type_name -> ds.v1.StashWithdrawResp
-	97,  // 73: ds.v1.Envelope.stash_expand_req:type_name -> ds.v1.StashExpandReq
-	98,  // 74: ds.v1.Envelope.stash_expand_resp:type_name -> ds.v1.StashExpandResp
-	99,  // 75: ds.v1.Envelope.stash_sort_req:type_name -> ds.v1.StashSortReq
-	100, // 76: ds.v1.Envelope.stash_sort_resp:type_name -> ds.v1.StashSortResp
-	101, // 77: ds.v1.Envelope.set_pk_req:type_name -> ds.v1.SetPkReq
-	102, // 78: ds.v1.Envelope.set_pk_resp:type_name -> ds.v1.SetPkResp
-	103, // 79: ds.v1.Envelope.death_notice:type_name -> ds.v1.DeathNotice
-	0,   // 80: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,   // 81: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10,  // 82: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,   // 83: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10,  // 84: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	37,  // 85: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 86: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	52,  // 87: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	19,  // 88: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
-	3,   // 89: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,   // 90: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	49,  // 91: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	25,  // 92: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	38,  // 93: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	39,  // 94: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	40,  // 95: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	41,  // 96: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	47,  // 97: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	27,  // 98: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,   // 99: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	37,  // 100: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	37,  // 101: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 102: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	48,  // 103: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,   // 104: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	50,  // 105: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	50,  // 106: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	49,  // 107: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	51,  // 108: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	51,  // 109: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	51,  // 110: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	51,  // 111: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	53,  // 112: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 113: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 114: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 115: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 116: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 117: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 118: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	64,  // 119: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	53,  // 120: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 121: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 122: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
-	53,  // 123: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 124: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 125: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 126: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 127: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 128: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 129: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 130: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 131: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
-	50,  // 132: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
-	53,  // 133: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 134: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 135: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 136: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
-	81,  // 137: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
-	53,  // 138: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 139: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 140: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 141: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 142: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 143: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
-	51,  // 144: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
-	90,  // 145: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
-	53,  // 146: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
-	51,  // 147: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
-	53,  // 148: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
-	51,  // 149: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
-	37,  // 150: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
-	51,  // 151: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
-	152, // [152:152] is the sub-list for method output_type
-	152, // [152:152] is the sub-list for method input_type
-	152, // [152:152] is the sub-list for extension type_name
-	152, // [152:152] is the sub-list for extension extendee
-	0,   // [0:152] is the sub-list for field type_name
+	6,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
+	7,   // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
+	8,   // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
+	9,   // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
+	10,  // 4: ds.v1.Envelope.login_resp:type_name -> ds.v1.LoginResp
+	12,  // 5: ds.v1.Envelope.char_list_req:type_name -> ds.v1.CharListReq
+	13,  // 6: ds.v1.Envelope.char_list_resp:type_name -> ds.v1.CharListResp
+	14,  // 7: ds.v1.Envelope.create_char_req:type_name -> ds.v1.CreateCharReq
+	15,  // 8: ds.v1.Envelope.create_char_resp:type_name -> ds.v1.CreateCharResp
+	16,  // 9: ds.v1.Envelope.delete_char_req:type_name -> ds.v1.DeleteCharReq
+	17,  // 10: ds.v1.Envelope.delete_char_resp:type_name -> ds.v1.DeleteCharResp
+	18,  // 11: ds.v1.Envelope.enter_world_req:type_name -> ds.v1.EnterWorldReq
+	19,  // 12: ds.v1.Envelope.enter_world_resp:type_name -> ds.v1.EnterWorldResp
+	21,  // 13: ds.v1.Envelope.leave_world_req:type_name -> ds.v1.LeaveWorldReq
+	22,  // 14: ds.v1.Envelope.leave_world_resp:type_name -> ds.v1.LeaveWorldResp
+	23,  // 15: ds.v1.Envelope.move_input:type_name -> ds.v1.MoveInput
+	24,  // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
+	25,  // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
+	27,  // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
+	29,  // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
+	30,  // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
+	31,  // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
+	32,  // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
+	33,  // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
+	34,  // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
+	35,  // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
+	36,  // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
+	37,  // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
+	38,  // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
+	43,  // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
+	44,  // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
+	45,  // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
+	46,  // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
+	55,  // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
+	56,  // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
+	57,  // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
+	58,  // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
+	59,  // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
+	60,  // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
+	61,  // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
+	62,  // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
+	63,  // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
+	64,  // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
+	66,  // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
+	67,  // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
+	68,  // 45: ds.v1.Envelope.punch_req:type_name -> ds.v1.PunchReq
+	69,  // 46: ds.v1.Envelope.punch_resp:type_name -> ds.v1.PunchResp
+	70,  // 47: ds.v1.Envelope.socket_req:type_name -> ds.v1.SocketReq
+	71,  // 48: ds.v1.Envelope.socket_resp:type_name -> ds.v1.SocketResp
+	72,  // 49: ds.v1.Envelope.unsocket_req:type_name -> ds.v1.UnsocketReq
+	73,  // 50: ds.v1.Envelope.unsocket_resp:type_name -> ds.v1.UnsocketResp
+	74,  // 51: ds.v1.Envelope.refine_req:type_name -> ds.v1.RefineReq
+	75,  // 52: ds.v1.Envelope.refine_resp:type_name -> ds.v1.RefineResp
+	76,  // 53: ds.v1.Envelope.refine_choose_req:type_name -> ds.v1.RefineChooseReq
+	77,  // 54: ds.v1.Envelope.refine_choose_resp:type_name -> ds.v1.RefineChooseResp
+	78,  // 55: ds.v1.Envelope.use_portal_req:type_name -> ds.v1.UsePortalReq
+	79,  // 56: ds.v1.Envelope.change_zone_req:type_name -> ds.v1.ChangeZoneReq
+	80,  // 57: ds.v1.Envelope.zone_list_req:type_name -> ds.v1.ZoneListReq
+	81,  // 58: ds.v1.Envelope.zone_list_resp:type_name -> ds.v1.ZoneListResp
+	83,  // 59: ds.v1.Envelope.buy_req:type_name -> ds.v1.BuyReq
+	84,  // 60: ds.v1.Envelope.buy_resp:type_name -> ds.v1.BuyResp
+	85,  // 61: ds.v1.Envelope.sell_req:type_name -> ds.v1.SellReq
+	86,  // 62: ds.v1.Envelope.sell_resp:type_name -> ds.v1.SellResp
+	87,  // 63: ds.v1.Envelope.use_item_req:type_name -> ds.v1.UseItemReq
+	88,  // 64: ds.v1.Envelope.use_item_resp:type_name -> ds.v1.UseItemResp
+	89,  // 65: ds.v1.Envelope.return_town_req:type_name -> ds.v1.ReturnTownReq
+	90,  // 66: ds.v1.Envelope.travel_req:type_name -> ds.v1.TravelReq
+	92,  // 67: ds.v1.Envelope.stash_open_req:type_name -> ds.v1.StashOpenReq
+	93,  // 68: ds.v1.Envelope.stash_open_resp:type_name -> ds.v1.StashOpenResp
+	94,  // 69: ds.v1.Envelope.stash_deposit_req:type_name -> ds.v1.StashDepositReq
+	95,  // 70: ds.v1.Envelope.stash_deposit_resp:type_name -> ds.v1.StashDepositResp
+	96,  // 71: ds.v1.Envelope.stash_withdraw_req:type_name -> ds.v1.StashWithdrawReq
+	97,  // 72: ds.v1.Envelope.stash_withdraw_resp:type_name -> ds.v1.StashWithdrawResp
+	98,  // 73: ds.v1.Envelope.stash_expand_req:type_name -> ds.v1.StashExpandReq
+	99,  // 74: ds.v1.Envelope.stash_expand_resp:type_name -> ds.v1.StashExpandResp
+	100, // 75: ds.v1.Envelope.stash_sort_req:type_name -> ds.v1.StashSortReq
+	101, // 76: ds.v1.Envelope.stash_sort_resp:type_name -> ds.v1.StashSortResp
+	102, // 77: ds.v1.Envelope.set_pk_req:type_name -> ds.v1.SetPkReq
+	103, // 78: ds.v1.Envelope.set_pk_resp:type_name -> ds.v1.SetPkResp
+	104, // 79: ds.v1.Envelope.death_notice:type_name -> ds.v1.DeathNotice
+	106, // 80: ds.v1.Envelope.party_invite_req:type_name -> ds.v1.PartyInviteReq
+	107, // 81: ds.v1.Envelope.party_invite_resp:type_name -> ds.v1.PartyInviteResp
+	108, // 82: ds.v1.Envelope.party_invite:type_name -> ds.v1.PartyInvite
+	109, // 83: ds.v1.Envelope.party_answer_req:type_name -> ds.v1.PartyAnswerReq
+	110, // 84: ds.v1.Envelope.party_answer_resp:type_name -> ds.v1.PartyAnswerResp
+	111, // 85: ds.v1.Envelope.party_leave_req:type_name -> ds.v1.PartyLeaveReq
+	112, // 86: ds.v1.Envelope.party_leave_resp:type_name -> ds.v1.PartyLeaveResp
+	113, // 87: ds.v1.Envelope.party_kick_req:type_name -> ds.v1.PartyKickReq
+	114, // 88: ds.v1.Envelope.party_kick_resp:type_name -> ds.v1.PartyKickResp
+	115, // 89: ds.v1.Envelope.party_state:type_name -> ds.v1.PartyState
+	116, // 90: ds.v1.Envelope.party_notice:type_name -> ds.v1.PartyNotice
+	0,   // 91: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 92: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	11,  // 93: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 94: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	11,  // 95: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	38,  // 96: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	47,  // 97: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	53,  // 98: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	20,  // 99: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
+	3,   // 100: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 101: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	50,  // 102: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	26,  // 103: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	39,  // 104: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	40,  // 105: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	41,  // 106: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	42,  // 107: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	48,  // 108: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	28,  // 109: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 110: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	38,  // 111: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	38,  // 112: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	47,  // 113: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	49,  // 114: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 115: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	51,  // 116: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	51,  // 117: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	50,  // 118: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	52,  // 119: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	52,  // 120: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	52,  // 121: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	52,  // 122: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	54,  // 123: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	54,  // 124: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 125: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	54,  // 126: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 127: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	54,  // 128: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	54,  // 129: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	65,  // 130: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	54,  // 131: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 132: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	65,  // 133: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	54,  // 134: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 135: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	65,  // 136: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	54,  // 137: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 138: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	65,  // 139: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	54,  // 140: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 141: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	65,  // 142: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	51,  // 143: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	54,  // 144: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 145: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	54,  // 146: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 147: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	82,  // 148: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
+	54,  // 149: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 150: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
+	54,  // 151: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 152: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
+	54,  // 153: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
+	38,  // 154: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
+	52,  // 155: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
+	91,  // 156: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
+	54,  // 157: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
+	52,  // 158: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
+	54,  // 159: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
+	52,  // 160: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
+	38,  // 161: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
+	52,  // 162: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
+	2,   // 163: ds.v1.PartyMember.char_class:type_name -> ds.v1.CharClass
+	2,   // 164: ds.v1.PartyInvite.from_class:type_name -> ds.v1.CharClass
+	105, // 165: ds.v1.PartyState.members:type_name -> ds.v1.PartyMember
+	4,   // 166: ds.v1.PartyNotice.kind:type_name -> ds.v1.PartyNoticeKind
+	167, // [167:167] is the sub-list for method output_type
+	167, // [167:167] is the sub-list for method input_type
+	167, // [167:167] is the sub-list for extension type_name
+	167, // [167:167] is the sub-list for extension extendee
+	0,   // [0:167] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -8364,14 +9313,25 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_SetPkReq)(nil),
 		(*Envelope_SetPkResp)(nil),
 		(*Envelope_DeathNotice)(nil),
+		(*Envelope_PartyInviteReq)(nil),
+		(*Envelope_PartyInviteResp)(nil),
+		(*Envelope_PartyInvite)(nil),
+		(*Envelope_PartyAnswerReq)(nil),
+		(*Envelope_PartyAnswerResp)(nil),
+		(*Envelope_PartyLeaveReq)(nil),
+		(*Envelope_PartyLeaveResp)(nil),
+		(*Envelope_PartyKickReq)(nil),
+		(*Envelope_PartyKickResp)(nil),
+		(*Envelope_PartyState)(nil),
+		(*Envelope_PartyNotice)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   100,
+			NumEnums:      5,
+			NumMessages:   112,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

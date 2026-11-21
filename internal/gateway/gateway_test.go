@@ -523,13 +523,23 @@ func clientFixtures() map[string]*pb.Envelope {
 		"entity_enter_pk": {Payload: &pb.Envelope_EntityEnter{EntityEnter: &pb.EntityEnter{
 			Id: 78, Kind: pb.EntityKind_ENTITY_KIND_PLAYER, Name: "Mai", CharClass: pb.CharClass_CHAR_CLASS_MINH,
 			Level: 30, X: 7.5, Y: 8.5, DirY: -1, Hp: 1500, MaxHp: 1500, PkOn: true}}},
+		"party_invite": {Seq: 0, Payload: &pb.Envelope_PartyInvite{PartyInvite: &pb.PartyInvite{
+			FromId: 78, FromName: "Mai", FromLevel: 30, FromClass: pb.CharClass_CHAR_CLASS_MINH, ExpiresMs: 30000}}},
+		"party_state": {Seq: 0, Payload: &pb.Envelope_PartyState{PartyState: &pb.PartyState{LeaderId: 78, Members: []*pb.PartyMember{
+			{Id: 78, Name: "Mai", CharClass: pb.CharClass_CHAR_CLASS_MINH, Level: 30, MapId: "village", Zone: 1},
+			{Id: 91, Name: "Tanjiro", CharClass: pb.CharClass_CHAR_CLASS_MINH, Level: 28, MapId: "village", Zone: 1},
+			{Id: 104, Name: "Zen", CharClass: pb.CharClass_CHAR_CLASS_MINH, Level: 25, MapId: "forest", Zone: 2}}}}},
+		"party_notice": {Seq: 0, Payload: &pb.Envelope_PartyNotice{PartyNotice: &pb.PartyNotice{
+			Kind: pb.PartyNoticeKind_PARTY_NOTICE_KIND_NEW_LEADER, Name: "Mai"}}},
+		"party_answer_req": {Seq: 27, Payload: &pb.Envelope_PartyAnswerReq{PartyAnswerReq: &pb.PartyAnswerReq{
+			FromId: 78, Accept: true}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 12 {
-		t.Fatalf("ProtocolVersion = %d, want 12", ProtocolVersion)
+	if ProtocolVersion != 13 {
+		t.Fatalf("ProtocolVersion = %d, want 13", ProtocolVersion)
 	}
 }
 
@@ -663,6 +673,30 @@ func TestPkFixturesRoundTrip(t *testing.T) {
 	}
 	if e := readFixture(t, "entity_enter_pk").GetEntityEnter(); e.GetKind() != pb.EntityKind_ENTITY_KIND_PLAYER || !e.GetPkOn() {
 		t.Fatalf("entity %v, want a player with pk_on", e)
+	}
+}
+
+// The party fixtures decode back to their invite, three members on two maps,
+// a notice and the answer.
+func TestPartyFixturesRoundTrip(t *testing.T) {
+	inv := readFixture(t, "party_invite")
+	if i := inv.GetPartyInvite(); inv.GetSeq() != 0 || i.GetFromId() != 78 || i.GetFromName() != "Mai" ||
+		i.GetFromLevel() != 30 || i.GetExpiresMs() != 30000 {
+		t.Fatalf("party invite %v", inv)
+	}
+	st := readFixture(t, "party_state").GetPartyState()
+	m := st.GetMembers()
+	if st.GetLeaderId() != 78 || len(m) != 3 || m[0].GetMapId() != "village" || m[2].GetMapId() != "forest" ||
+		m[2].GetZone() != 2 || m[1].GetName() != "Tanjiro" {
+		t.Fatalf("party state %v", st)
+	}
+	if n := readFixture(t, "party_notice").GetPartyNotice(); n.GetKind() != pb.PartyNoticeKind_PARTY_NOTICE_KIND_NEW_LEADER ||
+		n.GetName() != "Mai" {
+		t.Fatalf("party notice %v", n)
+	}
+	ans := readFixture(t, "party_answer_req")
+	if a := ans.GetPartyAnswerReq(); ans.GetSeq() != 27 || a.GetFromId() != 78 || !a.GetAccept() {
+		t.Fatalf("party answer %v", ans)
 	}
 }
 

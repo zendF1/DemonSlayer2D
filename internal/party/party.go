@@ -32,12 +32,12 @@ const (
 	BadRequest     = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
 	NotInWorld     = pb.ErrorCode_ERROR_CODE_NOT_IN_WORLD
 	InvalidTarget  = pb.ErrorCode_ERROR_CODE_INVALID_TARGET
-	PartyFull      = pb.ErrorCode(47)
-	AlreadyInParty = pb.ErrorCode(48)
-	NotPartyLeader = pb.ErrorCode(49)
-	NotInParty     = pb.ErrorCode(50)
-	InviteNotFound = pb.ErrorCode(51)
-	InvitePending  = pb.ErrorCode(52)
+	PartyFull      = pb.ErrorCode_ERROR_CODE_PARTY_FULL
+	AlreadyInParty = pb.ErrorCode_ERROR_CODE_ALREADY_IN_PARTY
+	NotPartyLeader = pb.ErrorCode_ERROR_CODE_NOT_PARTY_LEADER
+	NotInParty     = pb.ErrorCode_ERROR_CODE_NOT_IN_PARTY
+	InviteNotFound = pb.ErrorCode_ERROR_CODE_INVITE_NOT_FOUND
+	InvitePending  = pb.ErrorCode_ERROR_CODE_INVITE_PENDING
 )
 
 // NoticeKind is a party event shown to a member; the values are those of
@@ -45,13 +45,13 @@ const (
 type NoticeKind int32
 
 const (
-	NoticeJoined        NoticeKind = 1 // Name joined the party
-	NoticeLeft          NoticeKind = 2 // Name left the party
-	NoticeKicked        NoticeKind = 3 // the leader removed Name
-	NoticeYouWereKicked NoticeKind = 4 // the leader removed you
-	NoticeDeclined      NoticeKind = 5 // Name declined your invite
-	NoticeDisbanded     NoticeKind = 6 // you were the last member
-	NoticeNewLeader     NoticeKind = 7 // Name now leads the party
+	NoticeJoined        NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_JOINED)          // Name joined the party
+	NoticeLeft          NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_LEFT)            // Name left the party
+	NoticeKicked        NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_KICKED)          // the leader removed Name
+	NoticeYouWereKicked NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_YOU_WERE_KICKED) // the leader removed you
+	NoticeDeclined      NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DECLINED)        // Name declined your invite
+	NoticeDisbanded     NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_DISBANDED)       // you were the last member
+	NoticeNewLeader     NoticeKind = NoticeKind(pb.PartyNoticeKind_PARTY_NOTICE_KIND_NEW_LEADER)      // Name now leads the party
 )
 
 // Msg is one push: *Invite, *State or *Notice. Receivers must not modify it;
