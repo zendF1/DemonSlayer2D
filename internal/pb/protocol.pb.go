@@ -89,6 +89,12 @@ const (
 	ErrorCode_ERROR_CODE_NOT_SELLABLE ErrorCode = 40
 	// The potion would restore nothing: HP or MP is already full.
 	ErrorCode_ERROR_CODE_ALREADY_FULL ErrorCode = 41
+	// The stash has no room for the item.
+	ErrorCode_ERROR_CODE_STASH_FULL ErrorCode = 42
+	// The stash is already at its largest size.
+	ErrorCode_ERROR_CODE_STASH_MAXED ErrorCode = 43
+	// The wallet holds too little Luong.
+	ErrorCode_ERROR_CODE_NOT_ENOUGH_LUONG ErrorCode = 44
 )
 
 // Enum value maps for ErrorCode.
@@ -136,6 +142,9 @@ var (
 		39: "ERROR_CODE_NPC_TOO_FAR",
 		40: "ERROR_CODE_NOT_SELLABLE",
 		41: "ERROR_CODE_ALREADY_FULL",
+		42: "ERROR_CODE_STASH_FULL",
+		43: "ERROR_CODE_STASH_MAXED",
+		44: "ERROR_CODE_NOT_ENOUGH_LUONG",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":          0,
@@ -180,6 +189,9 @@ var (
 		"ERROR_CODE_NPC_TOO_FAR":          39,
 		"ERROR_CODE_NOT_SELLABLE":         40,
 		"ERROR_CODE_ALREADY_FULL":         41,
+		"ERROR_CODE_STASH_FULL":           42,
+		"ERROR_CODE_STASH_MAXED":          43,
+		"ERROR_CODE_NOT_ENOUGH_LUONG":     44,
 	}
 )
 
@@ -464,6 +476,16 @@ type Envelope struct {
 	//	*Envelope_UseItemResp
 	//	*Envelope_ReturnTownReq
 	//	*Envelope_TravelReq
+	//	*Envelope_StashOpenReq
+	//	*Envelope_StashOpenResp
+	//	*Envelope_StashDepositReq
+	//	*Envelope_StashDepositResp
+	//	*Envelope_StashWithdrawReq
+	//	*Envelope_StashWithdrawResp
+	//	*Envelope_StashExpandReq
+	//	*Envelope_StashExpandResp
+	//	*Envelope_StashSortReq
+	//	*Envelope_StashSortResp
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1116,6 +1138,96 @@ func (x *Envelope) GetTravelReq() *TravelReq {
 	return nil
 }
 
+func (x *Envelope) GetStashOpenReq() *StashOpenReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashOpenReq); ok {
+			return x.StashOpenReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashOpenResp() *StashOpenResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashOpenResp); ok {
+			return x.StashOpenResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashDepositReq() *StashDepositReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashDepositReq); ok {
+			return x.StashDepositReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashDepositResp() *StashDepositResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashDepositResp); ok {
+			return x.StashDepositResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashWithdrawReq() *StashWithdrawReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashWithdrawReq); ok {
+			return x.StashWithdrawReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashWithdrawResp() *StashWithdrawResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashWithdrawResp); ok {
+			return x.StashWithdrawResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashExpandReq() *StashExpandReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashExpandReq); ok {
+			return x.StashExpandReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashExpandResp() *StashExpandResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashExpandResp); ok {
+			return x.StashExpandResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashSortReq() *StashSortReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashSortReq); ok {
+			return x.StashSortReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetStashSortResp() *StashSortResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_StashSortResp); ok {
+			return x.StashSortResp
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1388,6 +1500,46 @@ type Envelope_TravelReq struct {
 	TravelReq *TravelReq `protobuf:"bytes,94,opt,name=travel_req,json=travelReq,proto3,oneof"`
 }
 
+type Envelope_StashOpenReq struct {
+	StashOpenReq *StashOpenReq `protobuf:"bytes,95,opt,name=stash_open_req,json=stashOpenReq,proto3,oneof"`
+}
+
+type Envelope_StashOpenResp struct {
+	StashOpenResp *StashOpenResp `protobuf:"bytes,96,opt,name=stash_open_resp,json=stashOpenResp,proto3,oneof"`
+}
+
+type Envelope_StashDepositReq struct {
+	StashDepositReq *StashDepositReq `protobuf:"bytes,97,opt,name=stash_deposit_req,json=stashDepositReq,proto3,oneof"`
+}
+
+type Envelope_StashDepositResp struct {
+	StashDepositResp *StashDepositResp `protobuf:"bytes,98,opt,name=stash_deposit_resp,json=stashDepositResp,proto3,oneof"`
+}
+
+type Envelope_StashWithdrawReq struct {
+	StashWithdrawReq *StashWithdrawReq `protobuf:"bytes,99,opt,name=stash_withdraw_req,json=stashWithdrawReq,proto3,oneof"`
+}
+
+type Envelope_StashWithdrawResp struct {
+	StashWithdrawResp *StashWithdrawResp `protobuf:"bytes,100,opt,name=stash_withdraw_resp,json=stashWithdrawResp,proto3,oneof"`
+}
+
+type Envelope_StashExpandReq struct {
+	StashExpandReq *StashExpandReq `protobuf:"bytes,101,opt,name=stash_expand_req,json=stashExpandReq,proto3,oneof"`
+}
+
+type Envelope_StashExpandResp struct {
+	StashExpandResp *StashExpandResp `protobuf:"bytes,102,opt,name=stash_expand_resp,json=stashExpandResp,proto3,oneof"`
+}
+
+type Envelope_StashSortReq struct {
+	StashSortReq *StashSortReq `protobuf:"bytes,103,opt,name=stash_sort_req,json=stashSortReq,proto3,oneof"`
+}
+
+type Envelope_StashSortResp struct {
+	StashSortResp *StashSortResp `protobuf:"bytes,104,opt,name=stash_sort_resp,json=stashSortResp,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -1521,6 +1673,26 @@ func (*Envelope_UseItemResp) isEnvelope_Payload() {}
 func (*Envelope_ReturnTownReq) isEnvelope_Payload() {}
 
 func (*Envelope_TravelReq) isEnvelope_Payload() {}
+
+func (*Envelope_StashOpenReq) isEnvelope_Payload() {}
+
+func (*Envelope_StashOpenResp) isEnvelope_Payload() {}
+
+func (*Envelope_StashDepositReq) isEnvelope_Payload() {}
+
+func (*Envelope_StashDepositResp) isEnvelope_Payload() {}
+
+func (*Envelope_StashWithdrawReq) isEnvelope_Payload() {}
+
+func (*Envelope_StashWithdrawResp) isEnvelope_Payload() {}
+
+func (*Envelope_StashExpandReq) isEnvelope_Payload() {}
+
+func (*Envelope_StashExpandResp) isEnvelope_Payload() {}
+
+func (*Envelope_StashSortReq) isEnvelope_Payload() {}
+
+func (*Envelope_StashSortResp) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -3275,8 +3447,11 @@ func (x *AllocatePointsResp) GetStats() *SelfStats {
 	return nil
 }
 
+// Respawns the dead character. in_place spends 1 Luong to rise where it died;
+// otherwise it returns to the map respawn point.
 type RespawnReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	InPlace       bool                   `protobuf:"varint,1,opt,name=in_place,json=inPlace,proto3" json:"in_place,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3309,6 +3484,13 @@ func (x *RespawnReq) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RespawnReq.ProtoReflect.Descriptor instead.
 func (*RespawnReq) Descriptor() ([]byte, []int) {
 	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *RespawnReq) GetInPlace() bool {
+	if x != nil {
+		return x.InPlace
+	}
+	return false
 }
 
 // Where the character stands after respawning.
@@ -3397,7 +3579,9 @@ type SelfStats struct {
 	// points of max HP (100 = 1%).
 	HpRegenBp int32 `protobuf:"varint,22,opt,name=hp_regen_bp,json=hpRegenBp,proto3" json:"hp_regen_bp,omitempty"`
 	// MP regenerated per second from worn enhancement milestones.
-	MpRegen       int32 `protobuf:"varint,23,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
+	MpRegen int32 `protobuf:"varint,23,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
+	// Luong in the account wallet.
+	Luong         int64 `protobuf:"varint,24,opt,name=luong,proto3" json:"luong,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3589,6 +3773,13 @@ func (x *SelfStats) GetHpRegenBp() int32 {
 func (x *SelfStats) GetMpRegen() int32 {
 	if x != nil {
 		return x.MpRegen
+	}
+	return 0
+}
+
+func (x *SelfStats) GetLuong() int64 {
+	if x != nil {
+		return x.Luong
 	}
 	return 0
 }
@@ -6011,10 +6202,12 @@ func (x *ZoneInfo) GetCapacity() int32 {
 
 // Buys count of an item from an NPC shop. Answered with BuyResp.
 type BuyReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
-	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
-	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	NpcId string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	Code  string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	Count int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	// A shop that needs no NPC, such as "luong" (then npc_id is empty).
+	ShopId        string `protobuf:"bytes,4,opt,name=shop_id,json=shopId,proto3" json:"shop_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6068,6 +6261,13 @@ func (x *BuyReq) GetCount() int32 {
 		return x.Count
 	}
 	return 0
+}
+
+func (x *BuyReq) GetShopId() string {
+	if x != nil {
+		return x.ShopId
+	}
+	return ""
 }
 
 type BuyResp struct {
@@ -6439,11 +6639,550 @@ func (x *TravelReq) GetRoute() int32 {
 	return 0
 }
 
+// The account stash: size slots, occupied ones listed.
+type Stash struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Size          int32                  `protobuf:"varint,1,opt,name=size,proto3" json:"size,omitempty"`
+	Items         []*ItemSlot            `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Stash) Reset() {
+	*x = Stash{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Stash) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Stash) ProtoMessage() {}
+
+func (x *Stash) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Stash.ProtoReflect.Descriptor instead.
+func (*Stash) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *Stash) GetSize() int32 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *Stash) GetItems() []*ItemSlot {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+// Opens the stash at a storage keeper NPC. Answered with StashOpenResp.
+type StashOpenReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashOpenReq) Reset() {
+	*x = StashOpenReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashOpenReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashOpenReq) ProtoMessage() {}
+
+func (x *StashOpenReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashOpenReq.ProtoReflect.Descriptor instead.
+func (*StashOpenReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *StashOpenReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+type StashOpenResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Stash         *Stash                 `protobuf:"bytes,1,opt,name=stash,proto3" json:"stash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashOpenResp) Reset() {
+	*x = StashOpenResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashOpenResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashOpenResp) ProtoMessage() {}
+
+func (x *StashOpenResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashOpenResp.ProtoReflect.Descriptor instead.
+func (*StashOpenResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *StashOpenResp) GetStash() *Stash {
+	if x != nil {
+		return x.Stash
+	}
+	return nil
+}
+
+// Moves the item in a bag slot into the stash. Answered with StashDepositResp.
+type StashDepositReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	BagSlot       int32                  `protobuf:"varint,2,opt,name=bag_slot,json=bagSlot,proto3" json:"bag_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashDepositReq) Reset() {
+	*x = StashDepositReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashDepositReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashDepositReq) ProtoMessage() {}
+
+func (x *StashDepositReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashDepositReq.ProtoReflect.Descriptor instead.
+func (*StashDepositReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *StashDepositReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *StashDepositReq) GetBagSlot() int32 {
+	if x != nil {
+		return x.BagSlot
+	}
+	return 0
+}
+
+// The changed bag slots and stash slots; an ItemSlot without an item is now empty.
+type StashDepositResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stash         []*ItemSlot            `protobuf:"bytes,2,rep,name=stash,proto3" json:"stash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashDepositResp) Reset() {
+	*x = StashDepositResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashDepositResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashDepositResp) ProtoMessage() {}
+
+func (x *StashDepositResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashDepositResp.ProtoReflect.Descriptor instead.
+func (*StashDepositResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *StashDepositResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *StashDepositResp) GetStash() []*ItemSlot {
+	if x != nil {
+		return x.Stash
+	}
+	return nil
+}
+
+// Moves the item in a stash slot into the bag. Answered with StashWithdrawResp.
+type StashWithdrawReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	StashSlot     int32                  `protobuf:"varint,2,opt,name=stash_slot,json=stashSlot,proto3" json:"stash_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashWithdrawReq) Reset() {
+	*x = StashWithdrawReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashWithdrawReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashWithdrawReq) ProtoMessage() {}
+
+func (x *StashWithdrawReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashWithdrawReq.ProtoReflect.Descriptor instead.
+func (*StashWithdrawReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *StashWithdrawReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *StashWithdrawReq) GetStashSlot() int32 {
+	if x != nil {
+		return x.StashSlot
+	}
+	return 0
+}
+
+type StashWithdrawResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *InventoryUpdate       `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	Stash         []*ItemSlot            `protobuf:"bytes,2,rep,name=stash,proto3" json:"stash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashWithdrawResp) Reset() {
+	*x = StashWithdrawResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashWithdrawResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashWithdrawResp) ProtoMessage() {}
+
+func (x *StashWithdrawResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashWithdrawResp.ProtoReflect.Descriptor instead.
+func (*StashWithdrawResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *StashWithdrawResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *StashWithdrawResp) GetStash() []*ItemSlot {
+	if x != nil {
+		return x.Stash
+	}
+	return nil
+}
+
+// Grows the stash by one step for Xu. Answered with StashExpandResp.
+type StashExpandReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashExpandReq) Reset() {
+	*x = StashExpandReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashExpandReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashExpandReq) ProtoMessage() {}
+
+func (x *StashExpandReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashExpandReq.ProtoReflect.Descriptor instead.
+func (*StashExpandReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *StashExpandReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+type StashExpandResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Size          int32                  `protobuf:"varint,1,opt,name=size,proto3" json:"size,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,2,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashExpandResp) Reset() {
+	*x = StashExpandResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashExpandResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashExpandResp) ProtoMessage() {}
+
+func (x *StashExpandResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashExpandResp.ProtoReflect.Descriptor instead.
+func (*StashExpandResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *StashExpandResp) GetSize() int32 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *StashExpandResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Packs the stash. Answered with StashSortResp.
+type StashSortReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashSortReq) Reset() {
+	*x = StashSortReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashSortReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashSortReq) ProtoMessage() {}
+
+func (x *StashSortReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashSortReq.ProtoReflect.Descriptor instead.
+func (*StashSortReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *StashSortReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+type StashSortResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Stash         []*ItemSlot            `protobuf:"bytes,1,rep,name=stash,proto3" json:"stash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StashSortResp) Reset() {
+	*x = StashSortResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StashSortResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StashSortResp) ProtoMessage() {}
+
+func (x *StashSortResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StashSortResp.ProtoReflect.Descriptor instead.
+func (*StashSortResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *StashSortResp) GetStash() []*ItemSlot {
+	if x != nil {
+		return x.Stash
+	}
+	return nil
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xc8\x1d\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xef\"\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -6534,7 +7273,17 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\ruse_item_resp\x18\\ \x01(\v2\x12.ds.v1.UseItemRespH\x00R\vuseItemResp\x12>\n" +
 	"\x0freturn_town_req\x18] \x01(\v2\x14.ds.v1.ReturnTownReqH\x00R\rreturnTownReq\x121\n" +
 	"\n" +
-	"travel_req\x18^ \x01(\v2\x10.ds.v1.TravelReqH\x00R\ttravelReqB\t\n" +
+	"travel_req\x18^ \x01(\v2\x10.ds.v1.TravelReqH\x00R\ttravelReq\x12;\n" +
+	"\x0estash_open_req\x18_ \x01(\v2\x13.ds.v1.StashOpenReqH\x00R\fstashOpenReq\x12>\n" +
+	"\x0fstash_open_resp\x18` \x01(\v2\x14.ds.v1.StashOpenRespH\x00R\rstashOpenResp\x12D\n" +
+	"\x11stash_deposit_req\x18a \x01(\v2\x16.ds.v1.StashDepositReqH\x00R\x0fstashDepositReq\x12G\n" +
+	"\x12stash_deposit_resp\x18b \x01(\v2\x17.ds.v1.StashDepositRespH\x00R\x10stashDepositResp\x12G\n" +
+	"\x12stash_withdraw_req\x18c \x01(\v2\x17.ds.v1.StashWithdrawReqH\x00R\x10stashWithdrawReq\x12J\n" +
+	"\x13stash_withdraw_resp\x18d \x01(\v2\x18.ds.v1.StashWithdrawRespH\x00R\x11stashWithdrawResp\x12A\n" +
+	"\x10stash_expand_req\x18e \x01(\v2\x15.ds.v1.StashExpandReqH\x00R\x0estashExpandReq\x12D\n" +
+	"\x11stash_expand_resp\x18f \x01(\v2\x16.ds.v1.StashExpandRespH\x00R\x0fstashExpandResp\x12;\n" +
+	"\x0estash_sort_req\x18g \x01(\v2\x13.ds.v1.StashSortReqH\x00R\fstashSortReq\x12>\n" +
+	"\x0fstash_sort_resp\x18h \x01(\v2\x14.ds.v1.StashSortRespH\x00R\rstashSortRespB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -6662,12 +7411,13 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\bvitality\x18\x03 \x01(\rR\bvitality\x12\x1c\n" +
 	"\tintellect\x18\x04 \x01(\rR\tintellect\"<\n" +
 	"\x12AllocatePointsResp\x12&\n" +
-	"\x05stats\x18\x01 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"\f\n" +
+	"\x05stats\x18\x01 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"'\n" +
 	"\n" +
-	"RespawnReq\")\n" +
+	"RespawnReq\x12\x19\n" +
+	"\bin_place\x18\x01 \x01(\bR\ainPlace\")\n" +
 	"\vRespawnResp\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x02R\x01y\"\xff\x04\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\"\x95\x05\n" +
 	"\tSelfStats\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x10\n" +
 	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x19\n" +
@@ -6695,7 +7445,8 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fskill_points\x18\x14 \x01(\x05R\vskillPoints\x12\x0e\n" +
 	"\x02xu\x18\x15 \x01(\x03R\x02xu\x12\x1e\n" +
 	"\vhp_regen_bp\x18\x16 \x01(\x05R\thpRegenBp\x12\x19\n" +
-	"\bmp_regen\x18\x17 \x01(\x05R\ampRegen\"\xa9\x01\n" +
+	"\bmp_regen\x18\x17 \x01(\x05R\ampRegen\x12\x14\n" +
+	"\x05luong\x18\x18 \x01(\x03R\x05luong\"\xa9\x01\n" +
 	"\x03Hit\x12\x1f\n" +
 	"\vattacker_id\x18\x01 \x01(\x04R\n" +
 	"attackerId\x12\x1b\n" +
@@ -6849,11 +7600,12 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\bZoneInfo\x12\x12\n" +
 	"\x04zone\x18\x01 \x01(\x05R\x04zone\x12\x18\n" +
 	"\aplayers\x18\x02 \x01(\x05R\aplayers\x12\x1a\n" +
-	"\bcapacity\x18\x03 \x01(\x05R\bcapacity\"I\n" +
+	"\bcapacity\x18\x03 \x01(\x05R\bcapacity\"b\n" +
 	"\x06BuyReq\x12\x15\n" +
 	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x14\n" +
-	"\x05count\x18\x03 \x01(\x05R\x05count\"a\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\x12\x17\n" +
+	"\ashop_id\x18\x04 \x01(\tR\x06shopId\"a\n" +
 	"\aBuyResp\x12.\n" +
 	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
 	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"Q\n" +
@@ -6876,7 +7628,37 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\bbag_slot\x18\x01 \x01(\x05R\abagSlot\"8\n" +
 	"\tTravelReq\x12\x15\n" +
 	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x14\n" +
-	"\x05route\x18\x02 \x01(\x05R\x05route*\xe7\t\n" +
+	"\x05route\x18\x02 \x01(\x05R\x05route\"B\n" +
+	"\x05Stash\x12\x12\n" +
+	"\x04size\x18\x01 \x01(\x05R\x04size\x12%\n" +
+	"\x05items\x18\x02 \x03(\v2\x0f.ds.v1.ItemSlotR\x05items\"%\n" +
+	"\fStashOpenReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\"3\n" +
+	"\rStashOpenResp\x12\"\n" +
+	"\x05stash\x18\x01 \x01(\v2\f.ds.v1.StashR\x05stash\"C\n" +
+	"\x0fStashDepositReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bbag_slot\x18\x02 \x01(\x05R\abagSlot\"i\n" +
+	"\x10StashDepositResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12%\n" +
+	"\x05stash\x18\x02 \x03(\v2\x0f.ds.v1.ItemSlotR\x05stash\"H\n" +
+	"\x10StashWithdrawReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x1d\n" +
+	"\n" +
+	"stash_slot\x18\x02 \x01(\x05R\tstashSlot\"j\n" +
+	"\x11StashWithdrawResp\x12.\n" +
+	"\x06update\x18\x01 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12%\n" +
+	"\x05stash\x18\x02 \x03(\v2\x0f.ds.v1.ItemSlotR\x05stash\"'\n" +
+	"\x0eStashExpandReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\"M\n" +
+	"\x0fStashExpandResp\x12\x12\n" +
+	"\x04size\x18\x01 \x01(\x05R\x04size\x12&\n" +
+	"\x05stats\x18\x02 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\"%\n" +
+	"\fStashSortReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\"6\n" +
+	"\rStashSortResp\x12%\n" +
+	"\x05stash\x18\x01 \x03(\v2\x0f.ds.v1.ItemSlotR\x05stash*\xbf\n" +
+	"\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -6920,7 +7702,10 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x19ERROR_CODE_ZONE_NOT_FOUND\x10&\x12\x1a\n" +
 	"\x16ERROR_CODE_NPC_TOO_FAR\x10'\x12\x1b\n" +
 	"\x17ERROR_CODE_NOT_SELLABLE\x10(\x12\x1b\n" +
-	"\x17ERROR_CODE_ALREADY_FULL\x10)*\x84\x02\n" +
+	"\x17ERROR_CODE_ALREADY_FULL\x10)\x12\x19\n" +
+	"\x15ERROR_CODE_STASH_FULL\x10*\x12\x1a\n" +
+	"\x16ERROR_CODE_STASH_MAXED\x10+\x12\x1f\n" +
+	"\x1bERROR_CODE_NOT_ENOUGH_LUONG\x10,*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -6958,7 +7743,7 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 }
 
 var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 97)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
@@ -7050,6 +7835,17 @@ var file_ds_v1_protocol_proto_goTypes = []any{
 	(*UseItemResp)(nil),        // 87: ds.v1.UseItemResp
 	(*ReturnTownReq)(nil),      // 88: ds.v1.ReturnTownReq
 	(*TravelReq)(nil),          // 89: ds.v1.TravelReq
+	(*Stash)(nil),              // 90: ds.v1.Stash
+	(*StashOpenReq)(nil),       // 91: ds.v1.StashOpenReq
+	(*StashOpenResp)(nil),      // 92: ds.v1.StashOpenResp
+	(*StashDepositReq)(nil),    // 93: ds.v1.StashDepositReq
+	(*StashDepositResp)(nil),   // 94: ds.v1.StashDepositResp
+	(*StashWithdrawReq)(nil),   // 95: ds.v1.StashWithdrawReq
+	(*StashWithdrawResp)(nil),  // 96: ds.v1.StashWithdrawResp
+	(*StashExpandReq)(nil),     // 97: ds.v1.StashExpandReq
+	(*StashExpandResp)(nil),    // 98: ds.v1.StashExpandResp
+	(*StashSortReq)(nil),       // 99: ds.v1.StashSortReq
+	(*StashSortResp)(nil),      // 100: ds.v1.StashSortResp
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
 	5,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
@@ -7119,75 +7915,93 @@ var file_ds_v1_protocol_proto_depIdxs = []int32{
 	87,  // 64: ds.v1.Envelope.use_item_resp:type_name -> ds.v1.UseItemResp
 	88,  // 65: ds.v1.Envelope.return_town_req:type_name -> ds.v1.ReturnTownReq
 	89,  // 66: ds.v1.Envelope.travel_req:type_name -> ds.v1.TravelReq
-	0,   // 67: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,   // 68: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	10,  // 69: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,   // 70: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	10,  // 71: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	37,  // 72: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 73: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	52,  // 74: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	19,  // 75: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
-	3,   // 76: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,   // 77: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	49,  // 78: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	25,  // 79: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	38,  // 80: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	39,  // 81: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	40,  // 82: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	41,  // 83: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	47,  // 84: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	27,  // 85: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,   // 86: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	37,  // 87: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	37,  // 88: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	46,  // 89: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	48,  // 90: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,   // 91: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	50,  // 92: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	50,  // 93: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	49,  // 94: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	51,  // 95: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	51,  // 96: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	51,  // 97: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	51,  // 98: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	53,  // 99: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 100: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 101: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 102: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 103: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 104: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	53,  // 105: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	64,  // 106: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	53,  // 107: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 108: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 109: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
-	53,  // 110: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 111: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 112: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 113: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 114: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 115: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
-	53,  // 116: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 117: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
-	64,  // 118: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
-	50,  // 119: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
-	53,  // 120: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 121: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 122: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 123: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
-	81,  // 124: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
-	53,  // 125: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 126: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 127: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 128: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
-	53,  // 129: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
-	37,  // 130: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
-	131, // [131:131] is the sub-list for method output_type
-	131, // [131:131] is the sub-list for method input_type
-	131, // [131:131] is the sub-list for extension type_name
-	131, // [131:131] is the sub-list for extension extendee
-	0,   // [0:131] is the sub-list for field type_name
+	91,  // 67: ds.v1.Envelope.stash_open_req:type_name -> ds.v1.StashOpenReq
+	92,  // 68: ds.v1.Envelope.stash_open_resp:type_name -> ds.v1.StashOpenResp
+	93,  // 69: ds.v1.Envelope.stash_deposit_req:type_name -> ds.v1.StashDepositReq
+	94,  // 70: ds.v1.Envelope.stash_deposit_resp:type_name -> ds.v1.StashDepositResp
+	95,  // 71: ds.v1.Envelope.stash_withdraw_req:type_name -> ds.v1.StashWithdrawReq
+	96,  // 72: ds.v1.Envelope.stash_withdraw_resp:type_name -> ds.v1.StashWithdrawResp
+	97,  // 73: ds.v1.Envelope.stash_expand_req:type_name -> ds.v1.StashExpandReq
+	98,  // 74: ds.v1.Envelope.stash_expand_resp:type_name -> ds.v1.StashExpandResp
+	99,  // 75: ds.v1.Envelope.stash_sort_req:type_name -> ds.v1.StashSortReq
+	100, // 76: ds.v1.Envelope.stash_sort_resp:type_name -> ds.v1.StashSortResp
+	0,   // 77: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 78: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	10,  // 79: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 80: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	10,  // 81: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	37,  // 82: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	46,  // 83: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	52,  // 84: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	19,  // 85: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
+	3,   // 86: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 87: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	49,  // 88: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	25,  // 89: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	38,  // 90: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	39,  // 91: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	40,  // 92: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	41,  // 93: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	47,  // 94: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	27,  // 95: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 96: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	37,  // 97: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	37,  // 98: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	46,  // 99: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	48,  // 100: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 101: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	50,  // 102: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	50,  // 103: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	49,  // 104: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	51,  // 105: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	51,  // 106: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	51,  // 107: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	51,  // 108: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	53,  // 109: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 110: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 111: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 112: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 113: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 114: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 115: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	64,  // 116: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	53,  // 117: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 118: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 119: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	53,  // 120: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 121: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 122: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	53,  // 123: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 124: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 125: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	53,  // 126: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 127: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	64,  // 128: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	50,  // 129: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	53,  // 130: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 131: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 132: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 133: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	81,  // 134: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
+	53,  // 135: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 136: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 137: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 138: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 139: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
+	37,  // 140: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
+	51,  // 141: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
+	90,  // 142: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
+	53,  // 143: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
+	51,  // 144: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
+	53,  // 145: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
+	51,  // 146: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
+	37,  // 147: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
+	51,  // 148: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
+	149, // [149:149] is the sub-list for method output_type
+	149, // [149:149] is the sub-list for method input_type
+	149, // [149:149] is the sub-list for extension type_name
+	149, // [149:149] is the sub-list for extension extendee
+	0,   // [0:149] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -7263,6 +8077,16 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_UseItemResp)(nil),
 		(*Envelope_ReturnTownReq)(nil),
 		(*Envelope_TravelReq)(nil),
+		(*Envelope_StashOpenReq)(nil),
+		(*Envelope_StashOpenResp)(nil),
+		(*Envelope_StashDepositReq)(nil),
+		(*Envelope_StashDepositResp)(nil),
+		(*Envelope_StashWithdrawReq)(nil),
+		(*Envelope_StashWithdrawResp)(nil),
+		(*Envelope_StashExpandReq)(nil),
+		(*Envelope_StashExpandResp)(nil),
+		(*Envelope_StashSortReq)(nil),
+		(*Envelope_StashSortResp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -7270,7 +8094,7 @@ func file_ds_v1_protocol_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   86,
+			NumMessages:   97,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

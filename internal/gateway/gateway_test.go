@@ -488,13 +488,24 @@ func clientFixtures() map[string]*pb.Envelope {
 			CooldownMs: 10000}}},
 		"travel_req": {Seq: 22, Payload: &pb.Envelope_TravelReq{TravelReq: &pb.TravelReq{
 			NpcId: "ubuyashiki_carriage", Route: 1}}},
+		"stash_open_resp": {Seq: 23, Payload: &pb.Envelope_StashOpenResp{StashOpenResp: &pb.StashOpenResp{
+			Stash: &pb.Stash{Size: 40, Items: []*pb.ItemSlot{
+				{Slot: 0, Item: &pb.ItemInfo{Code: "stone_enhance", Count: 500}},
+				{Slot: 4, Item: &pb.ItemInfo{Code: "eq10_armor", Count: 1, Quality: 1, Enhance: 8,
+					Lines: []*pb.ItemLine{{Stat: "hp", Value: 60}}}},
+			}}}}},
+		"stash_deposit_resp": {Seq: 24, Payload: &pb.Envelope_StashDepositResp{StashDepositResp: &pb.StashDepositResp{
+			// Bag slot 2 is now empty; the item landed in stash slot 1.
+			Update: &pb.InventoryUpdate{Bag: []*pb.ItemSlot{{Slot: 2}}},
+			Stash:  []*pb.ItemSlot{{Slot: 1, Item: &pb.ItemInfo{Code: "scroll_protect", Count: 1}}}}}},
+		"respawn_req_in_place": {Seq: 25, Payload: &pb.Envelope_RespawnReq{RespawnReq: &pb.RespawnReq{InPlace: true}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 10 {
-		t.Fatalf("ProtocolVersion = %d, want 10", ProtocolVersion)
+	if ProtocolVersion != 11 {
+		t.Fatalf("ProtocolVersion = %d, want 11", ProtocolVersion)
 	}
 }
 
@@ -590,6 +601,27 @@ func TestShopFixturesRoundTrip(t *testing.T) {
 	tr := readFixture(t, "travel_req")
 	if r := tr.GetTravelReq(); tr.GetSeq() != 22 || r.GetNpcId() != "ubuyashiki_carriage" || r.GetRoute() != 1 {
 		t.Fatalf("travel %v", tr)
+	}
+}
+
+// The stash fixtures decode back to a 40-slot stash with two items, a deposit
+// that empties one bag slot, and an in-place respawn request.
+func TestStashFixturesRoundTrip(t *testing.T) {
+	open := readFixture(t, "stash_open_resp")
+	st := open.GetStashOpenResp().GetStash()
+	if open.GetSeq() != 23 || st.GetSize() != 40 || len(st.GetItems()) != 2 ||
+		st.GetItems()[0].GetItem().GetCount() != 500 || st.GetItems()[1].GetSlot() != 4 {
+		t.Fatalf("stash open %v", open)
+	}
+	dep := readFixture(t, "stash_deposit_resp")
+	d := dep.GetStashDepositResp()
+	if dep.GetSeq() != 24 || len(d.GetUpdate().GetBag()) != 1 || d.GetUpdate().GetBag()[0].GetItem() != nil ||
+		len(d.GetStash()) != 1 || d.GetStash()[0].GetSlot() != 1 || d.GetStash()[0].GetItem().GetCode() != "scroll_protect" {
+		t.Fatalf("stash deposit %v", dep)
+	}
+	rs := readFixture(t, "respawn_req_in_place")
+	if rs.GetSeq() != 25 || !rs.GetRespawnReq().GetInPlace() {
+		t.Fatalf("respawn %v", rs)
 	}
 }
 

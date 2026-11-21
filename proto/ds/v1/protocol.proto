@@ -89,6 +89,16 @@ message Envelope {
     UseItemResp use_item_resp = 92;
     ReturnTownReq return_town_req = 93;
     TravelReq travel_req = 94;
+    StashOpenReq stash_open_req = 95;
+    StashOpenResp stash_open_resp = 96;
+    StashDepositReq stash_deposit_req = 97;
+    StashDepositResp stash_deposit_resp = 98;
+    StashWithdrawReq stash_withdraw_req = 99;
+    StashWithdrawResp stash_withdraw_resp = 100;
+    StashExpandReq stash_expand_req = 101;
+    StashExpandResp stash_expand_resp = 102;
+    StashSortReq stash_sort_req = 103;
+    StashSortResp stash_sort_resp = 104;
   }
 }
 
@@ -158,6 +168,12 @@ enum ErrorCode {
   ERROR_CODE_NOT_SELLABLE = 40;
   // The potion would restore nothing: HP or MP is already full.
   ERROR_CODE_ALREADY_FULL = 41;
+  // The stash has no room for the item.
+  ERROR_CODE_STASH_FULL = 42;
+  // The stash is already at its largest size.
+  ERROR_CODE_STASH_MAXED = 43;
+  // The wallet holds too little Luong.
+  ERROR_CODE_NOT_ENOUGH_LUONG = 44;
 }
 
 enum KickReason {
@@ -378,7 +394,11 @@ message AllocatePointsResp {
   SelfStats stats = 1;
 }
 
-message RespawnReq {}
+// Respawns the dead character. in_place spends 1 Luong to rise where it died;
+// otherwise it returns to the map respawn point.
+message RespawnReq {
+  bool in_place = 1;
+}
 
 // Where the character stands after respawning.
 message RespawnResp {
@@ -419,6 +439,8 @@ message SelfStats {
   int32 hp_regen_bp = 22;
   // MP regenerated per second from worn enhancement milestones.
   int32 mp_regen = 23;
+  // Luong in the account wallet.
+  int64 luong = 24;
 }
 
 message Hit {
@@ -701,6 +723,8 @@ message BuyReq {
   string npc_id = 1;
   string code = 2;
   int32 count = 3;
+  // A shop that needs no NPC, such as "luong" (then npc_id is empty).
+  string shop_id = 4;
 }
 
 message BuyResp {
@@ -741,4 +765,61 @@ message ReturnTownReq {
 message TravelReq {
   string npc_id = 1;
   int32 route = 2;
+}
+
+// The account stash: size slots, occupied ones listed.
+message Stash {
+  int32 size = 1;
+  repeated ItemSlot items = 2;
+}
+
+// Opens the stash at a storage keeper NPC. Answered with StashOpenResp.
+message StashOpenReq {
+  string npc_id = 1;
+}
+
+message StashOpenResp {
+  Stash stash = 1;
+}
+
+// Moves the item in a bag slot into the stash. Answered with StashDepositResp.
+message StashDepositReq {
+  string npc_id = 1;
+  int32 bag_slot = 2;
+}
+
+// The changed bag slots and stash slots; an ItemSlot without an item is now empty.
+message StashDepositResp {
+  InventoryUpdate update = 1;
+  repeated ItemSlot stash = 2;
+}
+
+// Moves the item in a stash slot into the bag. Answered with StashWithdrawResp.
+message StashWithdrawReq {
+  string npc_id = 1;
+  int32 stash_slot = 2;
+}
+
+message StashWithdrawResp {
+  InventoryUpdate update = 1;
+  repeated ItemSlot stash = 2;
+}
+
+// Grows the stash by one step for Xu. Answered with StashExpandResp.
+message StashExpandReq {
+  string npc_id = 1;
+}
+
+message StashExpandResp {
+  int32 size = 1;
+  SelfStats stats = 2;
+}
+
+// Packs the stash. Answered with StashSortResp.
+message StashSortReq {
+  string npc_id = 1;
+}
+
+message StashSortResp {
+  repeated ItemSlot stash = 1;
 }
