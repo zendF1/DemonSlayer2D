@@ -139,6 +139,11 @@ func (c *conn) dispatch(ctx context.Context, env *pb.Envelope) {
 		}
 		r := p.SellReq
 		c.zoneBusyIfDropped(seq, c.member.Sell(seq, r.NpcId, int(r.BagSlot), int(r.Count)))
+	case *pb.Envelope_UseItemReq:
+		if !c.inWorld(seq) {
+			return
+		}
+		c.zoneBusyIfDropped(seq, c.member.UseItem(seq, int(p.UseItemReq.BagSlot)))
 	case *pb.Envelope_SortBagReq:
 		if !c.inWorld(seq) {
 			return

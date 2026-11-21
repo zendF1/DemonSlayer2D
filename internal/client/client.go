@@ -403,6 +403,20 @@ func (c *Client) Sell(ctx context.Context, npcID string, bagSlot, count int) (*p
 	return r, nil
 }
 
+// UseItem drinks the potion in bagSlot.
+func (c *Client) UseItem(ctx context.Context, bagSlot int) (*pb.UseItemResp, error) {
+	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_UseItemReq{UseItemReq: &pb.UseItemReq{
+		BagSlot: int32(bagSlot)}}})
+	if err != nil {
+		return nil, err
+	}
+	r := resp.GetUseItemResp()
+	if r == nil {
+		return nil, fmt.Errorf("client: unexpected response to UseItemReq: %v", resp)
+	}
+	return r, nil
+}
+
 // SortBag sorts the bag and returns every bag slot.
 func (c *Client) SortBag(ctx context.Context) (*pb.SortBagResp, error) {
 	resp, err := c.Request(ctx, &pb.Envelope{Payload: &pb.Envelope_SortBagReq{SortBagReq: &pb.SortBagReq{}}})

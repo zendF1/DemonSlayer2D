@@ -3295,3 +3295,209 @@ func TestNearRole(t *testing.T) {
 		t.Fatal("want near the shop (3 tiles) only, not the smith (4) or a carriage (none)")
 	}
 }
+
+// ______________________TEST POTIONS____________________
+
+func potionInventory() *items.Inventory {
+	inv := items.NewInventory(testItemData.BagSize)
+	inv.Bag[0] = &items.Item{Code: "potion_hp_1", Count: 5}
+	inv.Bag[1] = &items.Item{Code: "potion_hp_10", Count: 2}
+	inv.Bag[2] = &items.Item{Code: "potion_mp_10", Count: 3}
+	inv.Bag[3] = &items.Item{Code: "scroll_return", Count: 1}
+	inv.Bag[4] = &items.Item{Code: "stone_enhance", Count: 1}
+	return inv
+}
+
+// potionZone is shopZone with a player at 500/1640 HP and 0 MP.
+func potionZone(t *testing.T) (*Zone, *player, *fakeSaver) {
+	t.Helper()
+	z, p, sv := shopZone(t, testItemData, potionInventory())
+	z.advance(time.Now())
+	p.maxHP, p.hp, p.mp = 1640, 500, 0
+	p.out.(*fakeOut).take()
+	return z, p, sv
+}
+
+func TestUseItemErrorsInOrder(t *testing.T) {
+	const (
+		dead = pb.ErrorCode_ERROR_CODE_DEAD
+		bad  = pb.ErrorCode_ERROR_CODE_BAD_REQUEST
+		nf   = pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND
+		lvl  = pb.ErrorCode_ERROR_CODE_LEVEL_TOO_LOW
+		cd   = pb.ErrorCode_ERROR_CODE_ON_COOLDOWN
+		full = pb.ErrorCode_ERROR_CODE_ALREADY_FULL
+		ok   = pb.ErrorCode_ERROR_CODE_UNSPECIFIED
+	)
+	for _, c := range []struct {
+		name  string
+		slot  int
+		setup func(z *Zone, p *player)
+		want  pb.ErrorCode
+	}{
+		{"dead before a bad slot", 60, func(z *Zone, p *player) { z.damagePlayer(p, 0, 1<<30, false) }, dead},
+		{"slot -1", -1, nil, bad},
+		{"slot 60", 60, nil, bad},
+		{"empty slot", 9, nil, nf},
+		{"not a potion", 4, nil, bad},
+		{"return scroll", 3, nil, bad},
+		{"level 9 for potion_hp_10", 1, func(z *Zone, p *player) { p.level = 9 }, lvl},
+		{"cooldown before full", 0, func(z *Zone, p *player) { p.hp = p.maxHP; p.useReady = map[string]uint32{"hp": z.tickNo + 5} }, cd},
+		{"level before cooldown", 1, func(z *Zone, p *player) { p.level = 9; p.useReady = map[string]uint32{"hp": z.tickNo + 5} }, lvl},
+		{"hp full", 0, func(z *Zone, p *player) { p.hp = p.maxHP }, full},
+		{"mp full", 2, func(z *Zone, p *player) { p.mp = p.stats.MaxMP }, full},
+		{"ok", 0, nil, ok},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, sv := potionZone(t)
+			if c.setup != nil {
+				c.setup(z, p)
+			}
+			before, saves := p.inv.Clone(), len(sv.all())
+			if got := shopErr(t, z, p, z.UseItem(1, 9, c.slot)); got != c.want {
+				t.Fatalf("code %v, want %v", got, c.want)
+			}
+			if c.want != ok && !reflect.DeepEqual(p.inv, before) {
+				t.Fatal("a refused use cost an item")
+			}
+			if len(sv.all()) != saves {
+				t.Fatal("using a potion saved")
+			}
+		})
+	}
+}
+
+func TestUseItemHeals(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		hp           int
+		slot         int
+		wantHP, want int
+	}{
+		{"500 of 1640", 500, 0, 664, 664},
+		{"capped", 1600, 0, 1640, 1640},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, p, _ := potionZone(t)
+			p.hp = c.hp
+			out := p.out.(*fakeOut)
+			itemNow(t, z, z.UseItem(1, 9, c.slot))
+			if p.hp != c.wantHP || p.inv.Bag[0].Count != 4 {
+				t.Fatalf("hp %d, count %d", p.hp, p.inv.Bag[0].Count)
+			}
+			r := respFor(out.take(), 9, (*pb.Envelope).GetUseItemResp)
+			if r == nil || r.CooldownMs != 10000 || r.Stats.Hp != int32(c.wantHP) || len(r.Update.Bag) != 1 || r.Update.Bag[0].Slot != 0 {
+				t.Fatalf("reply %v", r)
+			}
+		})
+	}
+}
+
+func TestUseItemMPCapped(t *testing.T) {
+	z, p, _ := potionZone(t)
+	max := p.stats.MaxMP
+	p.mp = max - 30
+	itemNow(t, z, z.UseItem(1, 9, 2))
+	if p.mp != max || p.inv.Bag[2].Count != 2 {
+		t.Fatalf("mp %d of %d, count %d", p.mp, max, p.inv.Bag[2].Count)
+	}
+	p.mp, p.useReady = 0, map[string]uint32{}
+	itemNow(t, z, z.UseItem(1, 10, 2))
+	if want := min(max, testItemData.Stackables["potion_mp_10"].Use.Value); p.mp != want {
+		t.Fatalf("mp %d, want %d", p.mp, want)
+	}
+}
+
+func TestUseItemSharedHPCooldown(t *testing.T) {
+	z, p, _ := potionZone(t)
+	itemNow(t, z, z.UseItem(1, 9, 0))
+	if got := shopErr(t, z, p, z.UseItem(1, 9, 1)); got != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("hp_10 right after hp_1: %v", got)
+	}
+	if got := shopErr(t, z, p, z.UseItem(1, 9, 2)); got != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("mp potion: %v", got)
+	}
+	ready := p.useReady["hp"]
+	for z.tickNo+1 < ready-1 { // the probe's own tick runs the command at tickNo+1
+		z.advance(time.Now())
+	}
+	p.hp = 500
+	if got := shopErr(t, z, p, z.UseItem(1, 9, 1)); got != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("one tick early: %v", got)
+	}
+	if got := shopErr(t, z, p, z.UseItem(1, 9, 1)); got != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("after the cooldown: %v", got)
+	}
+}
+
+func TestUseItemViewerSeesHPAndNoSave(t *testing.T) {
+	z, p, sv := potionZone(t)
+	v := joinNow(t, z, 2, 7.5, 5.5)
+	z.advance(time.Now())
+	v.take()
+	p.out.(*fakeOut).take()
+	saves := len(sv.all())
+	itemNow(t, z, z.UseItem(1, 9, 0))
+	if cs := hpChangesIn(v.take()); len(cs) != 1 || cs[0].Id != 1 || cs[0].Hp != 664 {
+		t.Fatalf("viewer HpChanges %v", cs)
+	}
+	if len(sv.all()) != saves {
+		t.Fatal("a potion queued a save")
+	}
+	z.saver.Save(z.state(p), nil)
+	st := sv.all()[len(sv.all())-1]
+	got := 0
+	for _, r := range st.Items {
+		if !r.Equipped && r.Slot == 0 {
+			got = r.Count
+		}
+	}
+	if got != 4 {
+		t.Fatalf("a later save holds %d, want 4", got)
+	}
+}
+
+func TestPotionCooldownCrossesZones(t *testing.T) {
+	za, p, _ := potionZone(t)
+	itemNow(t, za, za.UseItem(1, 9, 0))
+	for range za.ticks(4) {
+		za.advance(time.Now())
+	}
+	r := departNow(t, za, 1, Departure{To: Place{MapID: "m1"}, KeepPos: true, Check: notDead})
+	if r.code != pb.ErrorCode_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("depart %+v", r)
+	}
+	left := r.info.Cooldowns["potion_hp"]
+	if left < 5*time.Second || left > 6*time.Second+200*time.Millisecond {
+		t.Fatalf("handed over %v, want about 6s", left)
+	}
+	if _, ok := r.info.Cooldowns["potion_mp"]; ok {
+		t.Fatal("an unused group was handed over")
+	}
+	_ = p
+	zb, _, _ := shopZone(t, testItemData, potionInventory())
+	zb.players = map[uint64]*player{}
+	out := &fakeOut{}
+	ew := joinByInbox(t, zb, r.info, out)
+	found := false
+	for _, c := range ew.Cooldowns {
+		if c.Key == "potion_hp" && c.RemainingMs > 5000 && c.RemainingMs <= 6200 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("EnterWorldResp cooldowns %v", ew.Cooldowns)
+	}
+	zb.players[1].hp = 100
+	if got := shopErr(t, zb, zb.players[1], zb.UseItem(1, 9, 0)); got != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
+		t.Fatalf("new zone: %v, want ON_COOLDOWN", got)
+	}
+}
+
+func TestUseItemKeepsPendingRefine(t *testing.T) {
+	z, p, _ := potionZone(t)
+	p.refine = &pendingRefine{}
+	itemNow(t, z, z.UseItem(1, 9, 0))
+	if p.refine == nil {
+		t.Fatal("drinking a potion dropped the refine result")
+	}
+}

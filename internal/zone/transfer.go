@@ -176,6 +176,9 @@ func (z *Zone) cooldownsOf(p *player) map[string]time.Duration {
 	for id, ready := range p.skillReady {
 		add(id, ready)
 	}
+	for group, ready := range p.useReady {
+		add(cooldownPotionPrefix+group, ready)
+	}
 	return cd
 }
 
@@ -193,7 +196,11 @@ func (z *Zone) setCooldowns(p *player, cd map[string]time.Duration) {
 		case CooldownZoneChange:
 			p.zoneReady = ready
 		default:
-			p.skillReady[key] = ready
+			if group, ok := potionGroup(key); ok {
+				p.useReady[group] = ready
+			} else {
+				p.skillReady[key] = ready
+			}
 		}
 	}
 }

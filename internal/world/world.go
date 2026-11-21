@@ -295,6 +295,12 @@ func (m *Membership) Sell(seq uint32, npcID string, bagSlot, count int) bool {
 	return m.z.Sell(m.EntityID, seq, npcID, bagSlot, count)
 }
 
+// UseItem queues drinking the potion in bagSlot; the zone answers seq on the
+// outbox. It reports false if the zone's inbox is full.
+func (m *Membership) UseItem(seq uint32, bagSlot int) bool {
+	return m.z.UseItem(m.EntityID, seq, bagSlot)
+}
+
 // Enhance queues up to times attempts at enhancing the item ref points to,
 // with protection charms when protect is set; the zone answers seq on the
 // outbox. It reports false if the zone's inbox is full.

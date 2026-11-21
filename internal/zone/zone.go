@@ -120,6 +120,8 @@ type player struct {
 	pendingCast   *castCmd   // this tick's cast, resolved after the attack
 	// skillReady maps a skill id to the first tick it may be cast again.
 	skillReady map[string]uint32
+	// useReady maps a potion group to the first tick it may be used again.
+	useReady   map[string]uint32
 	zoneReady  uint32 // first tick a zone change may be made again
 	statsDirty bool   // send SelfStats after this tick's WorldTick
 }
@@ -476,6 +478,8 @@ func (z *Zone) handle(c any) {
 		z.buy(c)
 	case sellCmd:
 		z.sell(c)
+	case useItemCmd:
+		z.useItem(c)
 	case enhanceCmd:
 		z.enhance(c)
 	case punchCmd:
@@ -505,7 +509,7 @@ func (z *Zone) join(info PlayerInfo, out Outbox) error {
 		},
 		charID: info.CharID, out: out, visible: make(map[uint64]struct{}),
 		points: info.Points, freePoints: info.FreePoints, exp: info.Exp,
-		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{},
+		skillPoints: info.SkillPoints, skills: maps.Clone(info.Skills), skillReady: map[string]uint32{}, useReady: map[string]uint32{},
 		xu: info.Xu,
 	}
 	if p.skills == nil {
