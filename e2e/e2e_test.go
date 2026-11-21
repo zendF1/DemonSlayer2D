@@ -1732,8 +1732,9 @@ func pvpSpot(t *testing.T, m *mapdata.Map) (a, b mapdata.Point) {
 // attackRetry attacks target, waiting out the swing cooldown.
 func attackRetry(t *testing.T, c *client.Client, target uint64) error {
 	t.Helper()
+	ctx := ctxT(t)
 	for i := 0; i < 100; i++ {
-		err := c.Attack(ctxT(t), target)
+		err := c.Attack(ctx, target)
 		if client.Code(err) != pb.ErrorCode_ERROR_CODE_ON_COOLDOWN {
 			return err
 		}
@@ -1797,7 +1798,7 @@ func TestPvPOverWebSocket(t *testing.T) {
 	}
 
 	expect(attackRetry(t, ca, idB), pb.ErrorCode_ERROR_CODE_PK_FORBIDDEN)
-	if r, err := ca.SetPk(ctx, true); err != nil || !r.On {
+	if r, err := ca.SetPk(ctxT(t), true); err != nil || !r.On {
 		t.Fatalf("SetPk(true) = %v, %v", r, err)
 	}
 	waitFor(t, cb, 5*time.Second, func(e *pb.Envelope) bool {
@@ -1826,10 +1827,10 @@ func TestPvPOverWebSocket(t *testing.T) {
 		t.Fatalf("B strikes back with PK off: %v", err)
 	}
 	waitFor(t, ca, 5*time.Second, isHit(idB, idA))
-	_, err = ca.SetPk(ctx, false)
+	_, err = ca.SetPk(ctxT(t), false)
 	expect(err, pb.ErrorCode_ERROR_CODE_IN_PVP_COMBAT)
 
-	if r, err := cb.SetPk(ctx, true); err != nil || !r.On {
+	if r, err := cb.SetPk(ctxT(t), true); err != nil || !r.On {
 		t.Fatalf("SetPk(true) for B = %v, %v", r, err)
 	}
 	expStart := ewB.Stats.GetExp()
@@ -1866,17 +1867,13 @@ func TestPvPOverWebSocket(t *testing.T) {
 	if notice.KillerId != idA || notice.KillerName != "Ren" || !notice.ByPlayer || notice.ExpLost != lost || lost <= 0 {
 		t.Fatalf("death notice %v, want killer %d Ren by a player, %d EXP lost", notice, idA, lost)
 	}
-	if !gotExp {
+	// SelfStats follows the notice in the same tick and may still be on its
+	// way; earlier ones carry the old EXP.
+	if want := expStart - lost; !gotExp || expNow != want {
 		waitFor(t, cb, 5*time.Second, func(e *pb.Envelope) bool {
-			if st := e.GetSelfStats(); st != nil {
-				expNow, gotExp = st.GetExp(), true
-				return true
-			}
-			return false
+			st := e.GetSelfStats()
+			return st != nil && st.GetExp() == want
 		})
-	}
-	if want := expStart - lost; expNow != want {
-		t.Fatalf("B's SelfStats exp = %d, want %d", expNow, want)
 	}
 
 	if err := cb.LeaveWorld(ctxT(t)); err != nil {
