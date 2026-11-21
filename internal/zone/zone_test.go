@@ -1036,7 +1036,7 @@ func TestLearnErrors(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			z, p, out, sv := learnZone(t, c.level, c.points, c.skills)
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 				z.advance(time.Now())
 				out.take()
 			}
@@ -1354,7 +1354,7 @@ func TestPickupErrors(t *testing.T) {
 			}
 			g := putGround(z, c.owner, Vec2{p.pos.X + c.dx, p.pos.Y}, c.item)
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			out.take()
@@ -1522,7 +1522,7 @@ func TestItemCommandErrors(t *testing.T) {
 				fillBag(p.inv)
 			}
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			out.take()
@@ -1831,7 +1831,7 @@ func TestEnhanceErrors(t *testing.T) {
 			out := p.out.(*fakeOut)
 			c.setup(p)
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			out.take()
@@ -2082,7 +2082,7 @@ func TestRegenFullForge(t *testing.T) {
 func TestRegenDeadAndInCombat(t *testing.T) {
 	z, p, _, _ := regenZone(t, pb.CharClass_CHAR_CLASS_THUY, 19, 0, fullForge())
 	p.mp = 0
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	advanceSec(z, 3)
 	if !p.dead || p.hp != 0 || p.mp != 0 {
 		t.Fatalf("dead player at HP %d MP %d, want 0 and 0", p.hp, p.mp)
@@ -2092,7 +2092,7 @@ func TestRegenDeadAndInCombat(t *testing.T) {
 	p.hp, p.mp = 1000, 0
 	n := 2 * int(z.ticks(1))
 	for range n {
-		z.damagePlayer(p, 0, 1, false)
+		z.damagePlayer(p, killer{}, 1, false)
 		z.advance(time.Now())
 	}
 	gain := 2 * p.maxHP * 150 / 10000
@@ -2291,7 +2291,7 @@ func runForgeErrors(t *testing.T, cases []forgeCase) {
 				c.setup(p)
 			}
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			out.take()
@@ -2636,7 +2636,7 @@ func TestRefineChooseWornWhileDeadOutside(t *testing.T) {
 	}
 	stats, maxHP := p.stats, p.maxHP
 	z.area.NPCs = nil
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	z.advance(time.Now())
 	out.take()
 	r, er := chooseNow(t, z, 10, true)
@@ -3244,7 +3244,7 @@ func TestShopErrors(t *testing.T) {
 				p.pos.X = c.x
 			}
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			p.xu = c.xu
@@ -3397,7 +3397,7 @@ func TestUseItemErrorsInOrder(t *testing.T) {
 		setup func(z *Zone, p *player)
 		want  pb.ErrorCode
 	}{
-		{"dead before a bad slot", 60, func(z *Zone, p *player) { z.damagePlayer(p, 0, 1<<30, false) }, dead},
+		{"dead before a bad slot", 60, func(z *Zone, p *player) { z.damagePlayer(p, killer{}, 1<<30, false) }, dead},
 		{"slot -1", -1, nil, bad},
 		{"slot 60", 60, nil, bad},
 		{"empty slot", 9, nil, nf},
@@ -3973,7 +3973,7 @@ func TestStashErrorsInOrder(t *testing.T) {
 				p.pos.X = c.x
 			}
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			beforeInv, beforeStash, saves := p.inv.Clone(), cloneSlots(p.stash), len(sv.all())
@@ -4192,7 +4192,7 @@ func TestPendingRefineSurvivesRefusedStash(t *testing.T) {
 				p.pos.X = c.x
 			}
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			p.refine = &pendingRefine{}
@@ -4268,7 +4268,7 @@ func TestLuongShopRefusals(t *testing.T) {
 				p.inv.Bag[4] = &items.Item{Code: "charm_protect", Count: testItemData.StackMax}
 			}
 			if c.dead {
-				z.damagePlayer(p, 0, 1<<30, false)
+				z.damagePlayer(p, killer{}, 1<<30, false)
 			}
 			z.advance(time.Now())
 			p.luong, p.xu = c.luong, 77
@@ -4288,7 +4288,7 @@ func TestRespawnInPlace(t *testing.T) {
 	z.advance(time.Now())
 	p.pos = Vec2{X: 20.5, Y: 21.5}
 	p.accountID, p.luong = 9, 1
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	if !p.dead {
 		t.Fatal("not dead")
 	}
@@ -4329,7 +4329,7 @@ func TestRespawnInPlaceRefused(t *testing.T) {
 	}
 	// dead with no Luong
 	p.accountID, p.luong = 9, 0
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	out.take()
 	saves := len(sv.all())
 	z.respawn(respawnCmd{id: 1, seq: 5, inPlace: true})
@@ -4344,7 +4344,7 @@ func TestRespawnToVillageIsFree(t *testing.T) {
 	z.advance(time.Now())
 	p.pos = Vec2{X: 20.5, Y: 21.5}
 	p.luong = 2
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	z.respawn(respawnCmd{id: 1, seq: 4})
 	if p.dead || p.pos != (Vec2{X: 2.5, Y: 2.5}) || p.luong != 2 {
 		t.Fatalf("dead %v at %v luong %d, want the respawn point and 2 Luong", p.dead, p.pos, p.luong)
@@ -4357,7 +4357,7 @@ func TestAutoRespawnIsToVillageAndFree(t *testing.T) {
 	z.advance(time.Now())
 	p.pos = Vec2{X: 20.5, Y: 21.5}
 	p.luong = 2
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	for i := uint32(0); p.dead && i < z.ticks(autoRespawnSec)+5; i++ {
 		z.advance(time.Now())
 	}
@@ -4381,7 +4381,7 @@ func TestSetPkWhileDead(t *testing.T) {
 	z, sv := newTestZone(10, openGrid(64, 64))
 	out := joinNow(t, z, 1, 12.5, 7.5)
 	p := z.players[1]
-	z.damagePlayer(p, 0, 1<<30, false)
+	z.damagePlayer(p, killer{}, 1<<30, false)
 	z.advance(time.Now())
 	out.take()
 	setPkNow(t, z, 1, 9, true)

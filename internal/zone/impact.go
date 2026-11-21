@@ -18,7 +18,8 @@ type impact struct {
 	byMonster bool // the attacker is a monster and the target a player
 	// targetIsPlayer marks a player's hit on another player (phase 5a spec
 	// 4.6); attackerName is then the attacker's name, kept for the death
-	// notice even if the attacker has left.
+	// notice even if the attacker has left. A monster's impact carries its
+	// kind name there too.
 	targetIsPlayer bool
 	attackerName   string
 	target         uint64
@@ -112,7 +113,7 @@ func (z *Zone) applyToMonster(im impact) {
 // has left or is dead, else dealt as damagePlayer does.
 func (z *Zone) applyToPlayer(im impact) {
 	if p := z.players[im.target]; p != nil && !p.dead {
-		z.damagePlayer(p, im.attacker, im.damage, im.ranged)
+		z.damagePlayer(p, killer{id: im.attacker, name: im.attackerName}, im.damage, im.ranged)
 	}
 }
 
@@ -134,5 +135,5 @@ func (z *Zone) applyPvP(im impact) {
 	if a := z.players[im.attacker]; a != nil {
 		a.pvpUntil = lock
 	}
-	z.hurtPlayer(b, &pb.Hit{AttackerId: im.attacker, TargetId: b.id, Damage: int32(im.damage), SkillId: im.skillID})
+	z.hurtPlayer(b, &pb.Hit{AttackerId: im.attacker, TargetId: b.id, Damage: int32(im.damage), SkillId: im.skillID}, killer{id: im.attacker, name: im.attackerName, byPlayer: true})
 }

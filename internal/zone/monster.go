@@ -332,7 +332,7 @@ func (z *Zone) fight(m *monster) {
 // attack: p is still hit if it steps into a safe zone before the impact.
 func (z *Zone) monsterAttack(m *monster, p *player, dmg, windupMS int, flight float64, ranged bool) {
 	due := z.tickNo + z.impactTicks(windupMS, flight)
-	z.schedule(impact{due: due, attacker: m.id, byMonster: true, target: p.id, damage: dmg, ranged: ranged})
+	z.schedule(impact{due: due, attacker: m.id, byMonster: true, attackerName: m.region.Kind.Name, target: p.id, damage: dmg, ranged: ranged})
 	d := dirTo(m.pos, p.pos)
 	z.events.casts = append(z.events.casts, &pb.Cast{CasterId: m.id, TargetId: p.id, DirX: d.X, DirY: d.Y,
 		WindupMs: int32(windupMS), Impacts: []*pb.CastImpact{{TargetId: p.id, ImpactMs: z.impactMS(due)}}, Ranged: ranged})

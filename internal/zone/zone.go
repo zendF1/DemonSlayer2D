@@ -143,6 +143,9 @@ type player struct {
 	// 0 means never locked.
 	pvpUntil   uint32
 	statsDirty bool // send SelfStats after this tick's WorldTick
+	// deathNotice is set by killPlayer and sent, then cleared, after this
+	// tick's WorldTick and before SelfStats.
+	deathNotice *pb.DeathNotice
 }
 
 type joinCmd struct {
@@ -842,6 +845,10 @@ func (z *Zone) syncView(p *player) bool {
 	wt := &pb.WorldTick{Tick: z.tickNo, AckInputSeq: p.inputSeq, Moves: moves}
 	z.addEvents(p, wt)
 	send(&pb.Envelope{Payload: &pb.Envelope_WorldTick{WorldTick: wt}})
+	if p.deathNotice != nil {
+		send(&pb.Envelope{Payload: &pb.Envelope_DeathNotice{DeathNotice: p.deathNotice}})
+		p.deathNotice = nil
+	}
 	if p.statsDirty {
 		p.statsDirty = false
 		send(&pb.Envelope{Payload: &pb.Envelope_SelfStats{SelfStats: z.selfStats(p)}})

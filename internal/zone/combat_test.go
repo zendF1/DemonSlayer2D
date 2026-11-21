@@ -1575,7 +1575,7 @@ func TestChaseFallsBackToRecentAttacker(t *testing.T) {
 			if m.target != 1 {
 				t.Fatalf("target %d, want A", m.target)
 			}
-			z.damagePlayer(z.players[1], 0, 10000, false) // A dies: the monster lets it go
+			z.damagePlayer(z.players[1], killer{}, 10000, false) // A dies: the monster lets it go
 			if c.bOut {
 				teleport(z, 2, Vec2{30.5, 50.5})
 			}
@@ -1602,7 +1602,7 @@ func TestDeadAttackerIsNotFallenBackOn(t *testing.T) {
 	joinNow(t, z, 2, 29.5, 30.5)
 	attackNow(t, z, 1, 1, m.id)  // A first: the target
 	attackLand(t, z, 2, 1, m.id) // both land
-	z.damagePlayer(z.players[2], 0, 10000, false)
+	z.damagePlayer(z.players[2], killer{}, 10000, false)
 	if !z.Respawn(2, 2, false) {
 		t.Fatal("inbox full")
 	}
@@ -1629,7 +1629,7 @@ func TestGiveUpOnRegionTileWandersAtOnce(t *testing.T) {
 	z.updateCell(&m.entity)
 	joinNow(t, z, 1, 31.7, 30.3)
 	engage(m, 1)
-	z.damagePlayer(z.players[1], 0, 10000, false) // the target dies: the monster lets it go
+	z.damagePlayer(z.players[1], killer{}, 10000, false) // the target dies: the monster lets it go
 	z.advance(time.Now())
 	if m.state != wander || m.target != 0 || m.pos != (Vec2{30.7, 30.3}) || m.dir != (Vec2{}) {
 		t.Fatalf("state %v target %d at %v dir %v, want wandering where it stood", m.state, m.target, m.pos, m.dir)
@@ -2678,7 +2678,7 @@ func TestAllocateErrors(t *testing.T) {
 			}
 			p := z.players[1]
 			if c.dead {
-				z.damagePlayer(p, 0, 10000, false)
+				z.damagePlayer(p, killer{}, 10000, false)
 			}
 			before := p.stats
 			allocateNow(t, z, 1, 3, c.pts)
@@ -2734,7 +2734,7 @@ func TestRespawnRequest(t *testing.T) {
 		t.Fatalf("respawn while alive: error %v, want NOT_DEAD", er)
 	}
 
-	z.damagePlayer(p, 0, 10000, false)
+	z.damagePlayer(p, killer{}, 10000, false)
 	z.advance(time.Now())
 	a.take()
 	v.take()
@@ -2783,7 +2783,7 @@ func TestAutoRespawnAfter60s(t *testing.T) {
 	v := joinNow(t, z, 2, 12.5, 5.5)
 	p := z.players[1]
 	z.advance(time.Now())
-	z.damagePlayer(p, 0, 10000, false)
+	z.damagePlayer(p, killer{}, 10000, false)
 	diedAt := z.tickNo
 	now := time.Now()
 	for z.tickNo < diedAt+599 {
@@ -2928,7 +2928,7 @@ func TestRespawnAtNearestPoint(t *testing.T) {
 			p := z.players[1]
 			now := time.Now()
 			z.advance(now)
-			z.damagePlayer(p, 0, 10000, false)
+			z.damagePlayer(p, killer{}, 10000, false)
 			if !p.dead {
 				t.Fatal("the player must be dead")
 			}
@@ -3067,7 +3067,7 @@ func TestRestOnlyInsideRadiusAndAlive(t *testing.T) {
 	}
 
 	z, p, _, _ = newRestZone(t, 100)
-	z.damagePlayer(p, 0, 10000, false)
+	z.damagePlayer(p, killer{}, 10000, false)
 	for i := 0; i < 60; i++ {
 		z.advance(now)
 	}
@@ -4373,7 +4373,7 @@ func TestImpactAfterAttackerDies(t *testing.T) {
 	joinNow(t, z, 1, 31.5, 30.5)
 	attackNow(t, z, 1, 1, m.id)
 	p := z.players[1]
-	z.damagePlayer(p, 0, 10000, false)
+	z.damagePlayer(p, killer{}, 10000, false)
 	settle(z)
 	if m.hp != 42 || p.exp != combat.ExpShare(testLevels[1].Exp, m.maxHP, 14) {
 		t.Fatalf("hp %d exp %d, want the slash landed and paid", m.hp, p.exp)
@@ -4398,7 +4398,7 @@ func TestImpactLevelsUpDeadAttacker(t *testing.T) {
 	attackNow(t, z, 1, 1, m.id)
 	p := z.players[1]
 	p.mp = 7
-	z.damagePlayer(p, 0, 10000, false)
+	z.damagePlayer(p, killer{}, 10000, false)
 	a.take()
 	settle(z)
 	if p.level != 2 || !p.dead || p.hp != 0 || p.mp != 7 {
@@ -4504,7 +4504,7 @@ func TestMonsterShotOnGonePlayerIsDropped(t *testing.T) {
 			v := joinNow(t, z, 2, 30.5, 36.5)
 			p := z.players[1]
 			if gone == "dies" {
-				z.damagePlayer(p, 0, 10000, false)
+				z.damagePlayer(p, killer{}, 10000, false)
 			} else if err := <-z.leave(1); err != nil {
 				t.Fatal(err)
 			}
@@ -4715,7 +4715,7 @@ func TestDeadKillerGetsLoot(t *testing.T) {
 	joinViem(t, z, 1, 31.5, 30.5)
 	attackNow(t, z, 1, 1, m.id)
 	p := z.players[1]
-	z.damagePlayer(p, 0, 10000, false)
+	z.damagePlayer(p, killer{}, 10000, false)
 	settle(z)
 	if gs := groundOf(z); !p.dead || !m.dead || p.xu < 3 || p.xu > 5 || len(gs) != 2 || gs[0].owner != 100 {
 		t.Fatalf("dead %v/%v xu %d ground %+v, want the dead killer paid and two drops", p.dead, m.dead, p.xu, gs)
@@ -5247,5 +5247,157 @@ func TestPvPDashOnPlayer(t *testing.T) {
 	want := combat.PvPDamage(combat.SkillBase(p.stats, false, repoSkills["viem_1"].CoefPct[0]), B.stats.PhysDefense, p.level)
 	if hs := hitsBy(a.take(), 1); len(hs) != 1 || hs[0].TargetId != 2 || hs[0].SkillId != "viem_1" || B.hp != hp-want {
 		t.Fatalf("hits %v hp %d of %d, want one viem_1 hit of %d", hs, B.hp, hp, want)
+	}
+}
+
+// ______________________TEST PK DEATH_____________________
+
+// deathNoticesIn lists the DeathNotice envelopes in envs and the index of
+// each, so a test can check the order against WorldTick and SelfStats.
+func deathNoticesIn(envs []*pb.Envelope) (ns []*pb.DeathNotice, at []int) {
+	for i, e := range envs {
+		if d := e.GetDeathNotice(); d != nil {
+			ns, at = append(ns, d), append(at, i)
+		}
+	}
+	return
+}
+
+// pkKill has player 1 (PK on, level 12) kill player 2 with one slash in a
+// PvP zone: B stands at the given level and EXP, with PK on or off, and the
+// area has the PK penalty or not. It returns the zone, both outboxes and the
+// killer's name.
+func pkKill(t *testing.T, level int, exp int64, bPK, penalty bool) (*Zone, *fakeOut, *fakeOut) {
+	t.Helper()
+	z, _ := pvpZone(t)
+	z.area.PkPenalty = penalty
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	b := joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, bPK, nil)
+	B := z.players[2]
+	B.level, B.exp, B.hp = level, exp, 1
+	z.players[1].name = "Kaito"
+	a.take()
+	b.take()
+	attackLand(t, z, 1, 5, 2)
+	if !B.dead {
+		t.Fatal("B did not die")
+	}
+	return z, a, b
+}
+
+// pkLoss10 is 5% of the EXP to leave level 10 (spec 4.7).
+var pkLoss10 = testExp.ToNext(10) * 5 / 100
+
+func TestPkDeathPenalty(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		level    int
+		bPK, pen bool
+		want     int64 // exp after, from 1000
+		saves    int
+	}{
+		{"PK on, level 10, training", 10, true, true, 1000 - pkLoss10, 1},
+		{"level 90 loses nothing", 90, true, true, 1000, 1},
+		{"PK off", 10, false, true, 1000, 0},
+		{"PvP area without the penalty", 10, true, false, 1000, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			z, _, _ := pkKill(t, c.level, 1000, c.bPK, c.pen)
+			saves := z.saver.(*fakeSaver).all()
+			if got := z.players[2].exp; got != c.want {
+				t.Fatalf("exp %d, want %d", got, c.want)
+			}
+			if len(saves) != c.saves || (c.saves == 1 && saves[0].Exp != c.want) {
+				t.Fatalf("saves %+v, want %d with exp %d", saves, c.saves, c.want)
+			}
+		})
+	}
+}
+
+// The penalty needs a player's blow: a monster's kills PK-on B without cost
+// and tells B the monster's name.
+func TestPkDeathByMonsterCostsNothing(t *testing.T) {
+	z, m := pvpZone(t)
+	z.area.PkPenalty = true
+	b := joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, true, nil)
+	B := z.players[2]
+	B.level, B.exp = 10, 1000
+	b.take()
+	z.monsterAttack(m, B, 100000, 0, 0, false)
+	settle(z)
+	if !B.dead || B.exp != 1000 || len(z.saver.(*fakeSaver).all()) != 0 {
+		t.Fatalf("dead %v exp %d, want dead with the EXP kept and no save", B.dead, B.exp)
+	}
+	ns, _ := deathNoticesIn(b.take())
+	if len(ns) != 1 || ns[0].KillerId != m.id || ns[0].KillerName != testKind.Name || ns[0].ByPlayer || ns[0].ExpLost != 0 {
+		t.Fatalf("notices %v, want the monster's id and name, not by a player, nothing lost", ns)
+	}
+}
+
+// The killer's name comes from the impact: A may have left the zone before it
+// lands, and the kill is still a player's.
+func TestPkDeathKillerGone(t *testing.T) {
+	z, _ := pvpZone(t)
+	z.area.PkPenalty = true
+	joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	b := joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, true, nil)
+	B := z.players[2]
+	B.level, B.exp, B.hp = 10, 1000, 1
+	z.players[1].name = "Kaito"
+	attackNow(t, z, 1, 5, 2)
+	if err := <-z.leave(1); err != nil {
+		t.Fatal(err)
+	}
+	b.take()
+	settle(z)
+	if !B.dead || B.exp != 1000-pkLoss10 {
+		t.Fatalf("dead %v exp %d, want dead and the penalty charged", B.dead, B.exp)
+	}
+	ns, _ := deathNoticesIn(b.take())
+	if len(ns) != 1 || ns[0].KillerId != 1 || ns[0].KillerName != "Kaito" || !ns[0].ByPlayer || ns[0].ExpLost != pkLoss10 {
+		t.Fatalf("notices %v, want Kaito's, by a player, the penalty lost", ns)
+	}
+}
+
+// The notice goes to B alone, between B's WorldTick and its SelfStats of the
+// tick, once.
+func TestPkDeathNotice(t *testing.T) {
+	z, _ := pvpZone(t)
+	z.area.PkPenalty = true
+	a := joinFighter(t, z, 1, Vec2{30.5, 30.5}, pb.CharClass_CHAR_CLASS_VIEM, true, nil)
+	b := joinFighter(t, z, 2, Vec2{31.5, 30.5}, pb.CharClass_CHAR_CLASS_THUY, true, nil)
+	B := z.players[2]
+	B.level, B.exp, B.hp = 10, 1000, 1
+	z.players[1].name = "Kaito"
+	attackNow(t, z, 1, 5, 2)
+	a.take()
+	b.take()
+	settle(z)
+	if ns, _ := deathNoticesIn(a.take()); len(ns) != 0 {
+		t.Fatalf("the killer got %v", ns)
+	}
+	envs := b.take()
+	ns, at := deathNoticesIn(envs)
+	if len(ns) != 1 || ns[0].KillerId != 1 || ns[0].KillerName != "Kaito" || !ns[0].ByPlayer || ns[0].ExpLost != pkLoss10 {
+		t.Fatalf("notices %v, want Kaito's, by a player, the penalty lost", ns)
+	}
+	i := at[0]
+	if envs[i-1].GetWorldTick() == nil || len(deathsIn(envs[i-1:i])) != 1 || envs[i+1].GetSelfStats().GetExp() != 1000-pkLoss10 || envs[i].Seq != 0 {
+		t.Fatalf("envelopes around the notice %v, want the death's WorldTick, the notice, then SelfStats with the new EXP", envs)
+	}
+	z.advance(time.Now())
+	if ns, _ := deathNoticesIn(b.take()); len(ns) != 0 {
+		t.Fatal("the notice was sent twice")
+	}
+}
+
+// Respawning, in place or at the village, is free and gives the EXP back
+// nothing.
+func TestPkDeathRespawnKeepsLoss(t *testing.T) {
+	z, _, _ := pkKill(t, 10, 1000, true, true)
+	z.respawn(respawnCmd{id: 2, seq: 9})
+	B := z.players[2]
+	if B.dead || B.exp != 1000-pkLoss10 {
+		t.Fatalf("dead %v exp %d, want alive at %d", B.dead, B.exp, 1000-pkLoss10)
 	}
 }

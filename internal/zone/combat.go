@@ -35,15 +35,24 @@ type tickEvents struct {
 	looks     []uint64 // entity ids, without duplicates
 }
 
-// damagePlayer applies a hit of dmg from attacker to p and kills p at 0 HP.
-// ranged marks a monster's shot.
-func (z *Zone) damagePlayer(p *player, attacker uint64, dmg int, ranged bool) {
-	z.hurtPlayer(p, &pb.Hit{AttackerId: attacker, TargetId: p.id, Damage: int32(dmg), Ranged: ranged})
+// killer is who landed the blow that brought a player to 0 HP: a monster
+// (its id and kind name) or a player (its id and name, kept from the impact
+// so they survive the attacker leaving the zone).
+type killer struct {
+	id       uint64
+	name     string
+	byPlayer bool
+}
+
+// damagePlayer applies a hit of dmg from the monster k to p and kills p at
+// 0 HP. ranged marks the monster's shot.
+func (z *Zone) damagePlayer(p *player, k killer, dmg int, ranged bool) {
+	z.hurtPlayer(p, &pb.Hit{AttackerId: k.id, TargetId: p.id, Damage: int32(dmg), Ranged: ranged}, k)
 }
 
 // hurtPlayer lands h, whose target is p, filling in its HP after; p dies at
-// 0 HP. A dead p takes nothing and no Hit is sent.
-func (z *Zone) hurtPlayer(p *player, h *pb.Hit) {
+// 0 HP, the blow being k's. A dead p takes nothing and no Hit is sent.
+func (z *Zone) hurtPlayer(p *player, h *pb.Hit, k killer) {
 	if p.dead {
 		return
 	}
@@ -51,14 +60,25 @@ func (z *Zone) hurtPlayer(p *player, h *pb.Hit) {
 	h.HpAfter = int32(p.hp)
 	z.events.hits = append(z.events.hits, h)
 	if p.hp == 0 {
-		z.killPlayer(p)
+		z.killPlayer(p, k)
 	}
 }
 
 // killPlayer makes p a corpse that ignores movement until it respawns, by
 // request or automatically at deadUntil. Its direction is zeroed here, and
-// stays zero while dead because move ignores the dead.
-func (z *Zone) killPlayer(p *player) {
+// stays zero while dead because move ignores the dead. It notes the killer
+// for p's DeathNotice and, when a player killed a PK-on p on a map with the
+// PK penalty (phase 5a spec 4.7), takes combat.PkExpLoss of p's EXP, which
+// may go negative, and saves at once. The killer gets nothing.
+func (z *Zone) killPlayer(p *player, k killer) {
+	var lost int64
+	if k.byPlayer && z.area.PkPenalty && p.pkOn {
+		lost = combat.PkExpLoss(z.area.Exp.ToNext(p.level))
+		p.exp -= lost
+		p.statsDirty = true
+		z.saver.Save(z.state(p), nil)
+	}
+	p.deathNotice = &pb.DeathNotice{KillerId: k.id, KillerName: k.name, ByPlayer: k.byPlayer, ExpLost: lost}
 	p.dead = true
 	if p.dir != (Vec2{}) {
 		p.dir = Vec2{}
