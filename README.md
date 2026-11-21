@@ -217,7 +217,7 @@ within 3.5 tiles (`NPC_TOO_FAR` otherwise).
   buys items back (`SellReq`).
 - **Potions** (`UseItemReq`): 10 s cooldown per group (HP, MP), carried across
   zone changes, not saved.
-- **Return scroll** (`ReturnTownReq`) and **carriage** (`CarriageReq`) move the
+- **Return scroll** (`ReturnTownReq`) and **carriage** (`TravelReq`) move the
   character through `World.Transfer`; the Xu or scroll is taken after the check
   passes.
 - **Forging** (enhance, punch, socket, unsocket, refine) needs the blacksmith
