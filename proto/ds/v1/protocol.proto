@@ -113,6 +113,11 @@ message Envelope {
     PartyKickResp party_kick_resp = 116;
     PartyState party_state = 117;
     PartyNotice party_notice = 118;
+    QuestAcceptReq quest_accept_req = 119;
+    QuestAcceptResp quest_accept_resp = 120;
+    QuestTurnInReq quest_turn_in_req = 121;
+    QuestTurnInResp quest_turn_in_resp = 122;
+    QuestProgress quest_progress = 123;
   }
 }
 
@@ -207,6 +212,14 @@ enum ErrorCode {
   ERROR_CODE_INVITE_NOT_FOUND = 51;
   // The target already holds an invite from someone else.
   ERROR_CODE_INVITE_PENDING = 52;
+  // The quest is taken, done, or the one before it in its chain is not done.
+  ERROR_CODE_QUEST_NOT_AVAILABLE = 53;
+  // The quest is not taken, or is already turned in.
+  ERROR_CODE_QUEST_NOT_ACTIVE = 54;
+  // The objective of the quest is not finished yet.
+  ERROR_CODE_QUEST_NOT_COMPLETE = 55;
+  // First learning of a skill needs its skill book in the bag.
+  ERROR_CODE_NO_SKILL_BOOK = 56;
 }
 
 enum KickReason {
@@ -317,6 +330,10 @@ message EnterWorldResp {
   // Cooldowns still running, sorted by key; empty when entering from the
   // character screen.
   repeated Cooldown cooldowns = 12;
+  // Every quest entry of the character.
+  QuestLog quests = 13;
+  // Skills of this level or lower need no skill book to learn.
+  int32 skill_book_waiver = 14;
 }
 
 // Time left on a cooldown when entering a zone. key: a skill id, "slash",
@@ -519,6 +536,8 @@ message LearnSkillReq {
 message LearnSkillResp {
   SelfStats stats = 1;
   repeated SkillLevel skills = 2;
+  // The bag slot of the skill book just used; empty when no book was used.
+  InventoryUpdate update = 3;
 }
 
 // Casts a skill. target_id is the locked target (0 for none); dir is the
@@ -955,4 +974,51 @@ message PartyState {
 message PartyNotice {
   PartyNoticeKind kind = 1;
   string name = 2;
+}
+
+// ---- Quests (protocol 14) ----
+
+enum QuestState {
+  QUEST_STATE_UNSPECIFIED = 0;
+  QUEST_STATE_ACTIVE = 1; // accepted, objective counted in progress
+  QUEST_STATE_DONE = 2;   // turned in
+}
+
+// One quest of the character. Quests without an entry are not taken.
+message QuestEntry {
+  string quest_id = 1;
+  QuestState state = 2;
+  int32 progress = 3;
+}
+
+// Every quest entry of the character.
+message QuestLog {
+  repeated QuestEntry quests = 1;
+}
+
+message QuestAcceptReq {
+  string npc_id = 1;
+  string quest_id = 2;
+}
+
+message QuestAcceptResp {
+  QuestEntry quest = 1;
+}
+
+message QuestTurnInReq {
+  string npc_id = 1;
+  string quest_id = 2;
+}
+
+message QuestTurnInResp {
+  string quest_id = 1;
+  int64 exp = 2;
+  int64 xu = 3;
+  InventoryUpdate update = 4;
+  SelfStats stats = 5;
+}
+
+// Pushed with seq 0 when objective progress changes; only the changed entries.
+message QuestProgress {
+  repeated QuestEntry quests = 1;
 }

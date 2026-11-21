@@ -556,13 +556,30 @@ func clientFixtures() map[string]*pb.Envelope {
 			Kind: pb.PartyNoticeKind_PARTY_NOTICE_KIND_NEW_LEADER, Name: "Mai"}}},
 		"party_answer_req": {Seq: 27, Payload: &pb.Envelope_PartyAnswerReq{PartyAnswerReq: &pb.PartyAnswerReq{
 			FromId: 78, Accept: true}}},
+		"quest_accept_req": {Seq: 28, Payload: &pb.Envelope_QuestAcceptReq{QuestAcceptReq: &pb.QuestAcceptReq{
+			NpcId: "chi_huy", QuestId: "m11"}}},
+		"quest_turn_in_resp": {Seq: 29, Payload: &pb.Envelope_QuestTurnInResp{QuestTurnInResp: &pb.QuestTurnInResp{
+			QuestId: "m11", Exp: 1200, Xu: 500,
+			// The skill book and the weapon landed in bag slots 0 and 1.
+			Update: &pb.InventoryUpdate{Bag: []*pb.ItemSlot{
+				{Slot: 0, Item: &pb.ItemInfo{Code: "book_viem_1", Count: 1}},
+				{Slot: 1, Item: &pb.ItemInfo{Code: "eq10_weapon_viem", Count: 1}}}},
+			Stats: &pb.SelfStats{Level: 10, Exp: 1500, ExpNext: 9000, Hp: 900, MaxHp: 900, Mp: 120, MaxMp: 120, Xu: 1500}}}},
+		"quest_progress": {Seq: 0, Payload: &pb.Envelope_QuestProgress{QuestProgress: &pb.QuestProgress{
+			Quests: []*pb.QuestEntry{{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 3}}}}},
+		"enter_world_resp_quests": {Seq: 6, Payload: &pb.Envelope_EnterWorldResp{EnterWorldResp: &pb.EnterWorldResp{
+			SelfEntityId: 77, MapId: "kumotori", Zone: 1, X: 10.5, Y: 12.5, ServerTick: 100, MoveSpeed: 6, TickRate: 20,
+			Quests: &pb.QuestLog{Quests: []*pb.QuestEntry{
+				{QuestId: "m01", State: pb.QuestState_QUEST_STATE_DONE, Progress: 5},
+				{QuestId: "m02", State: pb.QuestState_QUEST_STATE_ACTIVE, Progress: 3}}},
+			SkillBookWaiver: 10}}},
 	}
 }
 
 // The client pins the same number in its handshake; bump both together.
 func TestProtocolVersion(t *testing.T) {
-	if ProtocolVersion != 13 {
-		t.Fatalf("ProtocolVersion = %d, want 13", ProtocolVersion)
+	if ProtocolVersion != 14 {
+		t.Fatalf("ProtocolVersion = %d, want 14", ProtocolVersion)
 	}
 }
 
@@ -720,6 +737,32 @@ func TestPartyFixturesRoundTrip(t *testing.T) {
 	ans := readFixture(t, "party_answer_req")
 	if a := ans.GetPartyAnswerReq(); ans.GetSeq() != 27 || a.GetFromId() != 78 || !a.GetAccept() {
 		t.Fatalf("party answer %v", ans)
+	}
+}
+
+// The quest fixtures decode back to their request, the turn-in reply with a
+// book and a weapon, a progress push and the quest log of a login.
+func TestQuestFixturesRoundTrip(t *testing.T) {
+	acc := readFixture(t, "quest_accept_req")
+	if a := acc.GetQuestAcceptReq(); acc.GetSeq() != 28 || a.GetNpcId() != "chi_huy" || a.GetQuestId() != "m11" {
+		t.Fatalf("quest accept %v", acc)
+	}
+	ti := readFixture(t, "quest_turn_in_resp")
+	r := ti.GetQuestTurnInResp()
+	b := r.GetUpdate().GetBag()
+	if ti.GetSeq() != 29 || r.GetQuestId() != "m11" || r.GetExp() != 1200 || r.GetXu() != 500 || len(b) != 2 ||
+		b[0].GetItem().GetCode() != "book_viem_1" || b[1].GetItem().GetCode() != "eq10_weapon_viem" || r.GetStats().GetLevel() != 10 {
+		t.Fatalf("quest turn in %v", ti)
+	}
+	pr := readFixture(t, "quest_progress")
+	if q := pr.GetQuestProgress().GetQuests(); pr.GetSeq() != 0 || len(q) != 1 || q[0].GetQuestId() != "m02" ||
+		q[0].GetState() != pb.QuestState_QUEST_STATE_ACTIVE || q[0].GetProgress() != 3 {
+		t.Fatalf("quest progress %v", pr)
+	}
+	ew := readFixture(t, "enter_world_resp_quests").GetEnterWorldResp()
+	q := ew.GetQuests().GetQuests()
+	if len(q) != 2 || q[0].GetState() != pb.QuestState_QUEST_STATE_DONE || q[1].GetProgress() != 3 || ew.GetSkillBookWaiver() != 10 {
+		t.Fatalf("enter world %v", ew)
 	}
 }
 

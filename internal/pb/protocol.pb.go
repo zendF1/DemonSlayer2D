@@ -114,6 +114,14 @@ const (
 	ErrorCode_ERROR_CODE_INVITE_NOT_FOUND ErrorCode = 51
 	// The target already holds an invite from someone else.
 	ErrorCode_ERROR_CODE_INVITE_PENDING ErrorCode = 52
+	// The quest is taken, done, or the one before it in its chain is not done.
+	ErrorCode_ERROR_CODE_QUEST_NOT_AVAILABLE ErrorCode = 53
+	// The quest is not taken, or is already turned in.
+	ErrorCode_ERROR_CODE_QUEST_NOT_ACTIVE ErrorCode = 54
+	// The objective of the quest is not finished yet.
+	ErrorCode_ERROR_CODE_QUEST_NOT_COMPLETE ErrorCode = 55
+	// First learning of a skill needs its skill book in the bag.
+	ErrorCode_ERROR_CODE_NO_SKILL_BOOK ErrorCode = 56
 )
 
 // Enum value maps for ErrorCode.
@@ -172,6 +180,10 @@ var (
 		50: "ERROR_CODE_NOT_IN_PARTY",
 		51: "ERROR_CODE_INVITE_NOT_FOUND",
 		52: "ERROR_CODE_INVITE_PENDING",
+		53: "ERROR_CODE_QUEST_NOT_AVAILABLE",
+		54: "ERROR_CODE_QUEST_NOT_ACTIVE",
+		55: "ERROR_CODE_QUEST_NOT_COMPLETE",
+		56: "ERROR_CODE_NO_SKILL_BOOK",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":          0,
@@ -227,6 +239,10 @@ var (
 		"ERROR_CODE_NOT_IN_PARTY":         50,
 		"ERROR_CODE_INVITE_NOT_FOUND":     51,
 		"ERROR_CODE_INVITE_PENDING":       52,
+		"ERROR_CODE_QUEST_NOT_AVAILABLE":  53,
+		"ERROR_CODE_QUEST_NOT_ACTIVE":     54,
+		"ERROR_CODE_QUEST_NOT_COMPLETE":   55,
+		"ERROR_CODE_NO_SKILL_BOOK":        56,
 	}
 )
 
@@ -496,6 +512,55 @@ func (PartyNoticeKind) EnumDescriptor() ([]byte, []int) {
 	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{4}
 }
 
+type QuestState int32
+
+const (
+	QuestState_QUEST_STATE_UNSPECIFIED QuestState = 0
+	QuestState_QUEST_STATE_ACTIVE      QuestState = 1 // accepted, objective counted in progress
+	QuestState_QUEST_STATE_DONE        QuestState = 2 // turned in
+)
+
+// Enum value maps for QuestState.
+var (
+	QuestState_name = map[int32]string{
+		0: "QUEST_STATE_UNSPECIFIED",
+		1: "QUEST_STATE_ACTIVE",
+		2: "QUEST_STATE_DONE",
+	}
+	QuestState_value = map[string]int32{
+		"QUEST_STATE_UNSPECIFIED": 0,
+		"QUEST_STATE_ACTIVE":      1,
+		"QUEST_STATE_DONE":        2,
+	}
+)
+
+func (x QuestState) Enum() *QuestState {
+	p := new(QuestState)
+	*p = x
+	return p
+}
+
+func (x QuestState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (QuestState) Descriptor() protoreflect.EnumDescriptor {
+	return file_ds_v1_protocol_proto_enumTypes[5].Descriptor()
+}
+
+func (QuestState) Type() protoreflect.EnumType {
+	return &file_ds_v1_protocol_proto_enumTypes[5]
+}
+
+func (x QuestState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use QuestState.Descriptor instead.
+func (QuestState) EnumDescriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{5}
+}
+
 // Names must also be valid in GDScript: the client generates code with
 // godobuf. Do not name a field `message` or `class`, or a message `Error`.
 // Renames keep field numbers, so the wire format is unchanged.
@@ -599,6 +664,11 @@ type Envelope struct {
 	//	*Envelope_PartyKickResp
 	//	*Envelope_PartyState
 	//	*Envelope_PartyNotice
+	//	*Envelope_QuestAcceptReq
+	//	*Envelope_QuestAcceptResp
+	//	*Envelope_QuestTurnInReq
+	//	*Envelope_QuestTurnInResp
+	//	*Envelope_QuestProgress
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1467,6 +1537,51 @@ func (x *Envelope) GetPartyNotice() *PartyNotice {
 	return nil
 }
 
+func (x *Envelope) GetQuestAcceptReq() *QuestAcceptReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_QuestAcceptReq); ok {
+			return x.QuestAcceptReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetQuestAcceptResp() *QuestAcceptResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_QuestAcceptResp); ok {
+			return x.QuestAcceptResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetQuestTurnInReq() *QuestTurnInReq {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_QuestTurnInReq); ok {
+			return x.QuestTurnInReq
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetQuestTurnInResp() *QuestTurnInResp {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_QuestTurnInResp); ok {
+			return x.QuestTurnInResp
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetQuestProgress() *QuestProgress {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_QuestProgress); ok {
+			return x.QuestProgress
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -1835,6 +1950,26 @@ type Envelope_PartyNotice struct {
 	PartyNotice *PartyNotice `protobuf:"bytes,118,opt,name=party_notice,json=partyNotice,proto3,oneof"`
 }
 
+type Envelope_QuestAcceptReq struct {
+	QuestAcceptReq *QuestAcceptReq `protobuf:"bytes,119,opt,name=quest_accept_req,json=questAcceptReq,proto3,oneof"`
+}
+
+type Envelope_QuestAcceptResp struct {
+	QuestAcceptResp *QuestAcceptResp `protobuf:"bytes,120,opt,name=quest_accept_resp,json=questAcceptResp,proto3,oneof"`
+}
+
+type Envelope_QuestTurnInReq struct {
+	QuestTurnInReq *QuestTurnInReq `protobuf:"bytes,121,opt,name=quest_turn_in_req,json=questTurnInReq,proto3,oneof"`
+}
+
+type Envelope_QuestTurnInResp struct {
+	QuestTurnInResp *QuestTurnInResp `protobuf:"bytes,122,opt,name=quest_turn_in_resp,json=questTurnInResp,proto3,oneof"`
+}
+
+type Envelope_QuestProgress struct {
+	QuestProgress *QuestProgress `protobuf:"bytes,123,opt,name=quest_progress,json=questProgress,proto3,oneof"`
+}
+
 func (*Envelope_Error) isEnvelope_Payload() {}
 
 func (*Envelope_RegisterReq) isEnvelope_Payload() {}
@@ -2016,6 +2151,16 @@ func (*Envelope_PartyKickResp) isEnvelope_Payload() {}
 func (*Envelope_PartyState) isEnvelope_Payload() {}
 
 func (*Envelope_PartyNotice) isEnvelope_Payload() {}
+
+func (*Envelope_QuestAcceptReq) isEnvelope_Payload() {}
+
+func (*Envelope_QuestAcceptResp) isEnvelope_Payload() {}
+
+func (*Envelope_QuestTurnInReq) isEnvelope_Payload() {}
+
+func (*Envelope_QuestTurnInResp) isEnvelope_Payload() {}
+
+func (*Envelope_QuestProgress) isEnvelope_Payload() {}
 
 type ErrorResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2683,9 +2828,13 @@ type EnterWorldResp struct {
 	Inventory *Inventory `protobuf:"bytes,11,opt,name=inventory,proto3" json:"inventory,omitempty"`
 	// Cooldowns still running, sorted by key; empty when entering from the
 	// character screen.
-	Cooldowns     []*Cooldown `protobuf:"bytes,12,rep,name=cooldowns,proto3" json:"cooldowns,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Cooldowns []*Cooldown `protobuf:"bytes,12,rep,name=cooldowns,proto3" json:"cooldowns,omitempty"`
+	// Every quest entry of the character.
+	Quests *QuestLog `protobuf:"bytes,13,opt,name=quests,proto3" json:"quests,omitempty"`
+	// Skills of this level or lower need no skill book to learn.
+	SkillBookWaiver int32 `protobuf:"varint,14,opt,name=skill_book_waiver,json=skillBookWaiver,proto3" json:"skill_book_waiver,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EnterWorldResp) Reset() {
@@ -2800,6 +2949,20 @@ func (x *EnterWorldResp) GetCooldowns() []*Cooldown {
 		return x.Cooldowns
 	}
 	return nil
+}
+
+func (x *EnterWorldResp) GetQuests() *QuestLog {
+	if x != nil {
+		return x.Quests
+	}
+	return nil
+}
+
+func (x *EnterWorldResp) GetSkillBookWaiver() int32 {
+	if x != nil {
+		return x.SkillBookWaiver
+	}
+	return 0
 }
 
 // Time left on a cooldown when entering a zone. key: a skill id, "slash",
@@ -4425,9 +4588,11 @@ func (x *LearnSkillReq) GetSkillId() string {
 }
 
 type LearnSkillResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Stats         *SelfStats             `protobuf:"bytes,1,opt,name=stats,proto3" json:"stats,omitempty"`
-	Skills        []*SkillLevel          `protobuf:"bytes,2,rep,name=skills,proto3" json:"skills,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Stats  *SelfStats             `protobuf:"bytes,1,opt,name=stats,proto3" json:"stats,omitempty"`
+	Skills []*SkillLevel          `protobuf:"bytes,2,rep,name=skills,proto3" json:"skills,omitempty"`
+	// The bag slot of the skill book just used; empty when no book was used.
+	Update        *InventoryUpdate `protobuf:"bytes,3,opt,name=update,proto3" json:"update,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4472,6 +4637,13 @@ func (x *LearnSkillResp) GetStats() *SelfStats {
 func (x *LearnSkillResp) GetSkills() []*SkillLevel {
 	if x != nil {
 		return x.Skills
+	}
+	return nil
+}
+
+func (x *LearnSkillResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
 	}
 	return nil
 }
@@ -8286,11 +8458,386 @@ func (x *PartyNotice) GetName() string {
 	return ""
 }
 
+// One quest of the character. Quests without an entry are not taken.
+type QuestEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestId       string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	State         QuestState             `protobuf:"varint,2,opt,name=state,proto3,enum=ds.v1.QuestState" json:"state,omitempty"`
+	Progress      int32                  `protobuf:"varint,3,opt,name=progress,proto3" json:"progress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestEntry) Reset() {
+	*x = QuestEntry{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestEntry) ProtoMessage() {}
+
+func (x *QuestEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestEntry.ProtoReflect.Descriptor instead.
+func (*QuestEntry) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *QuestEntry) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+func (x *QuestEntry) GetState() QuestState {
+	if x != nil {
+		return x.State
+	}
+	return QuestState_QUEST_STATE_UNSPECIFIED
+}
+
+func (x *QuestEntry) GetProgress() int32 {
+	if x != nil {
+		return x.Progress
+	}
+	return 0
+}
+
+// Every quest entry of the character.
+type QuestLog struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Quests        []*QuestEntry          `protobuf:"bytes,1,rep,name=quests,proto3" json:"quests,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestLog) Reset() {
+	*x = QuestLog{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestLog) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestLog) ProtoMessage() {}
+
+func (x *QuestLog) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestLog.ProtoReflect.Descriptor instead.
+func (*QuestLog) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *QuestLog) GetQuests() []*QuestEntry {
+	if x != nil {
+		return x.Quests
+	}
+	return nil
+}
+
+type QuestAcceptReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	QuestId       string                 `protobuf:"bytes,2,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestAcceptReq) Reset() {
+	*x = QuestAcceptReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestAcceptReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestAcceptReq) ProtoMessage() {}
+
+func (x *QuestAcceptReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestAcceptReq.ProtoReflect.Descriptor instead.
+func (*QuestAcceptReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *QuestAcceptReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *QuestAcceptReq) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+type QuestAcceptResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Quest         *QuestEntry            `protobuf:"bytes,1,opt,name=quest,proto3" json:"quest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestAcceptResp) Reset() {
+	*x = QuestAcceptResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestAcceptResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestAcceptResp) ProtoMessage() {}
+
+func (x *QuestAcceptResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestAcceptResp.ProtoReflect.Descriptor instead.
+func (*QuestAcceptResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{115}
+}
+
+func (x *QuestAcceptResp) GetQuest() *QuestEntry {
+	if x != nil {
+		return x.Quest
+	}
+	return nil
+}
+
+type QuestTurnInReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	QuestId       string                 `protobuf:"bytes,2,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestTurnInReq) Reset() {
+	*x = QuestTurnInReq{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestTurnInReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestTurnInReq) ProtoMessage() {}
+
+func (x *QuestTurnInReq) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestTurnInReq.ProtoReflect.Descriptor instead.
+func (*QuestTurnInReq) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *QuestTurnInReq) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *QuestTurnInReq) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+type QuestTurnInResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestId       string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	Exp           int64                  `protobuf:"varint,2,opt,name=exp,proto3" json:"exp,omitempty"`
+	Xu            int64                  `protobuf:"varint,3,opt,name=xu,proto3" json:"xu,omitempty"`
+	Update        *InventoryUpdate       `protobuf:"bytes,4,opt,name=update,proto3" json:"update,omitempty"`
+	Stats         *SelfStats             `protobuf:"bytes,5,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestTurnInResp) Reset() {
+	*x = QuestTurnInResp{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[117]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestTurnInResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestTurnInResp) ProtoMessage() {}
+
+func (x *QuestTurnInResp) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[117]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestTurnInResp.ProtoReflect.Descriptor instead.
+func (*QuestTurnInResp) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{117}
+}
+
+func (x *QuestTurnInResp) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+func (x *QuestTurnInResp) GetExp() int64 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *QuestTurnInResp) GetXu() int64 {
+	if x != nil {
+		return x.Xu
+	}
+	return 0
+}
+
+func (x *QuestTurnInResp) GetUpdate() *InventoryUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+func (x *QuestTurnInResp) GetStats() *SelfStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// Pushed with seq 0 when objective progress changes; only the changed entries.
+type QuestProgress struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Quests        []*QuestEntry          `protobuf:"bytes,1,rep,name=quests,proto3" json:"quests,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestProgress) Reset() {
+	*x = QuestProgress{}
+	mi := &file_ds_v1_protocol_proto_msgTypes[118]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestProgress) ProtoMessage() {}
+
+func (x *QuestProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_ds_v1_protocol_proto_msgTypes[118]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestProgress.ProtoReflect.Descriptor instead.
+func (*QuestProgress) Descriptor() ([]byte, []int) {
+	return file_ds_v1_protocol_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *QuestProgress) GetQuests() []*QuestEntry {
+	if x != nil {
+		return x.Quests
+	}
+	return nil
+}
+
 var File_ds_v1_protocol_proto protoreflect.FileDescriptor
 
 const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\n" +
-	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\xc7)\n" +
+	"\x14ds/v1/protocol.proto\x12\x05ds.v1\"\x9a,\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12(\n" +
 	"\x05error\x18\x02 \x01(\v2\x10.ds.v1.ErrorRespH\x00R\x05error\x127\n" +
@@ -8407,7 +8954,12 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x0fparty_kick_resp\x18t \x01(\v2\x14.ds.v1.PartyKickRespH\x00R\rpartyKickResp\x124\n" +
 	"\vparty_state\x18u \x01(\v2\x11.ds.v1.PartyStateH\x00R\n" +
 	"partyState\x127\n" +
-	"\fparty_notice\x18v \x01(\v2\x12.ds.v1.PartyNoticeH\x00R\vpartyNoticeB\t\n" +
+	"\fparty_notice\x18v \x01(\v2\x12.ds.v1.PartyNoticeH\x00R\vpartyNotice\x12A\n" +
+	"\x10quest_accept_req\x18w \x01(\v2\x15.ds.v1.QuestAcceptReqH\x00R\x0equestAcceptReq\x12D\n" +
+	"\x11quest_accept_resp\x18x \x01(\v2\x16.ds.v1.QuestAcceptRespH\x00R\x0fquestAcceptResp\x12B\n" +
+	"\x11quest_turn_in_req\x18y \x01(\v2\x15.ds.v1.QuestTurnInReqH\x00R\x0equestTurnInReq\x12E\n" +
+	"\x12quest_turn_in_resp\x18z \x01(\v2\x16.ds.v1.QuestTurnInRespH\x00R\x0fquestTurnInResp\x12=\n" +
+	"\x0equest_progress\x18{ \x01(\v2\x14.ds.v1.QuestProgressH\x00R\rquestProgressB\t\n" +
 	"\apayload\"I\n" +
 	"\tErrorResp\x12$\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x10.ds.v1.ErrorCodeR\x04code\x12\x16\n" +
@@ -8446,7 +8998,7 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\fconfirm_name\x18\x02 \x01(\tR\vconfirmName\"\x10\n" +
 	"\x0eDeleteCharResp\"(\n" +
 	"\rEnterWorldReq\x12\x17\n" +
-	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\x8c\x03\n" +
+	"\achar_id\x18\x01 \x01(\x03R\x06charId\"\xe1\x03\n" +
 	"\x0eEnterWorldResp\x12$\n" +
 	"\x0eself_entity_id\x18\x01 \x01(\x04R\fselfEntityId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x12\n" +
@@ -8462,7 +9014,9 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x06skills\x18\n" +
 	" \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\x12.\n" +
 	"\tinventory\x18\v \x01(\v2\x10.ds.v1.InventoryR\tinventory\x12-\n" +
-	"\tcooldowns\x18\f \x03(\v2\x0f.ds.v1.CooldownR\tcooldowns\"?\n" +
+	"\tcooldowns\x18\f \x03(\v2\x0f.ds.v1.CooldownR\tcooldowns\x12'\n" +
+	"\x06quests\x18\r \x01(\v2\x0f.ds.v1.QuestLogR\x06quests\x12*\n" +
+	"\x11skill_book_waiver\x18\x0e \x01(\x05R\x0fskillBookWaiver\"?\n" +
 	"\bCooldown\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12!\n" +
 	"\fremaining_ms\x18\x02 \x01(\x05R\vremainingMs\"\x0f\n" +
@@ -8592,10 +9146,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\x05R\x05level\"*\n" +
 	"\rLearnSkillReq\x12\x19\n" +
-	"\bskill_id\x18\x01 \x01(\tR\askillId\"c\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\"\x93\x01\n" +
 	"\x0eLearnSkillResp\x12&\n" +
 	"\x05stats\x18\x01 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\x12)\n" +
-	"\x06skills\x18\x02 \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\"k\n" +
+	"\x06skills\x18\x02 \x03(\v2\x11.ds.v1.SkillLevelR\x06skills\x12.\n" +
+	"\x06update\x18\x03 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\"k\n" +
 	"\aCastReq\x12\x19\n" +
 	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x1b\n" +
 	"\ttarget_id\x18\x02 \x01(\x04R\btargetId\x12\x13\n" +
@@ -8830,7 +9385,30 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\amembers\x18\x02 \x03(\v2\x12.ds.v1.PartyMemberR\amembers\"M\n" +
 	"\vPartyNotice\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.ds.v1.PartyNoticeKindR\x04kind\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name*\xb4\f\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"l\n" +
+	"\n" +
+	"QuestEntry\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\x12'\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x11.ds.v1.QuestStateR\x05state\x12\x1a\n" +
+	"\bprogress\x18\x03 \x01(\x05R\bprogress\"5\n" +
+	"\bQuestLog\x12)\n" +
+	"\x06quests\x18\x01 \x03(\v2\x11.ds.v1.QuestEntryR\x06quests\"B\n" +
+	"\x0eQuestAcceptReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bquest_id\x18\x02 \x01(\tR\aquestId\":\n" +
+	"\x0fQuestAcceptResp\x12'\n" +
+	"\x05quest\x18\x01 \x01(\v2\x11.ds.v1.QuestEntryR\x05quest\"B\n" +
+	"\x0eQuestTurnInReq\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bquest_id\x18\x02 \x01(\tR\aquestId\"\xa6\x01\n" +
+	"\x0fQuestTurnInResp\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\x12\x10\n" +
+	"\x03exp\x18\x02 \x01(\x03R\x03exp\x12\x0e\n" +
+	"\x02xu\x18\x03 \x01(\x03R\x02xu\x12.\n" +
+	"\x06update\x18\x04 \x01(\v2\x16.ds.v1.InventoryUpdateR\x06update\x12&\n" +
+	"\x05stats\x18\x05 \x01(\v2\x10.ds.v1.SelfStatsR\x05stats\":\n" +
+	"\rQuestProgress\x12)\n" +
+	"\x06quests\x18\x01 \x03(\v2\x11.ds.v1.QuestEntryR\x06quests*\xba\r\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ERROR_CODE_BAD_REQUEST\x10\x01\x12\x1f\n" +
@@ -8885,7 +9463,11 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"\x1bERROR_CODE_NOT_PARTY_LEADER\x101\x12\x1b\n" +
 	"\x17ERROR_CODE_NOT_IN_PARTY\x102\x12\x1f\n" +
 	"\x1bERROR_CODE_INVITE_NOT_FOUND\x103\x12\x1d\n" +
-	"\x19ERROR_CODE_INVITE_PENDING\x104*\x84\x02\n" +
+	"\x19ERROR_CODE_INVITE_PENDING\x104\x12\"\n" +
+	"\x1eERROR_CODE_QUEST_NOT_AVAILABLE\x105\x12\x1f\n" +
+	"\x1bERROR_CODE_QUEST_NOT_ACTIVE\x106\x12!\n" +
+	"\x1dERROR_CODE_QUEST_NOT_COMPLETE\x107\x12\x1c\n" +
+	"\x18ERROR_CODE_NO_SKILL_BOOK\x108*\x84\x02\n" +
 	"\n" +
 	"KickReason\x12\x1b\n" +
 	"\x17KICK_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
@@ -8917,7 +9499,12 @@ const file_ds_v1_protocol_proto_rawDesc = "" +
 	"!PARTY_NOTICE_KIND_YOU_WERE_KICKED\x10\x04\x12\x1e\n" +
 	"\x1aPARTY_NOTICE_KIND_DECLINED\x10\x05\x12\x1f\n" +
 	"\x1bPARTY_NOTICE_KIND_DISBANDED\x10\x06\x12 \n" +
-	"\x1cPARTY_NOTICE_KIND_NEW_LEADER\x10\aB\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
+	"\x1cPARTY_NOTICE_KIND_NEW_LEADER\x10\a*W\n" +
+	"\n" +
+	"QuestState\x12\x1b\n" +
+	"\x17QUEST_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12QUEST_STATE_ACTIVE\x10\x01\x12\x14\n" +
+	"\x10QUEST_STATE_DONE\x10\x02B\x1eZ\x1cdemonslayer2d/internal/pb;pbb\x06proto3"
 
 var (
 	file_ds_v1_protocol_proto_rawDescOnce sync.Once
@@ -8931,300 +9518,321 @@ func file_ds_v1_protocol_proto_rawDescGZIP() []byte {
 	return file_ds_v1_protocol_proto_rawDescData
 }
 
-var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 112)
+var file_ds_v1_protocol_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_ds_v1_protocol_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
 var file_ds_v1_protocol_proto_goTypes = []any{
 	(ErrorCode)(0),             // 0: ds.v1.ErrorCode
 	(KickReason)(0),            // 1: ds.v1.KickReason
 	(CharClass)(0),             // 2: ds.v1.CharClass
 	(EntityKind)(0),            // 3: ds.v1.EntityKind
 	(PartyNoticeKind)(0),       // 4: ds.v1.PartyNoticeKind
-	(*Envelope)(nil),           // 5: ds.v1.Envelope
-	(*ErrorResp)(nil),          // 6: ds.v1.ErrorResp
-	(*RegisterReq)(nil),        // 7: ds.v1.RegisterReq
-	(*RegisterResp)(nil),       // 8: ds.v1.RegisterResp
-	(*LoginReq)(nil),           // 9: ds.v1.LoginReq
-	(*LoginResp)(nil),          // 10: ds.v1.LoginResp
-	(*CharSummary)(nil),        // 11: ds.v1.CharSummary
-	(*CharListReq)(nil),        // 12: ds.v1.CharListReq
-	(*CharListResp)(nil),       // 13: ds.v1.CharListResp
-	(*CreateCharReq)(nil),      // 14: ds.v1.CreateCharReq
-	(*CreateCharResp)(nil),     // 15: ds.v1.CreateCharResp
-	(*DeleteCharReq)(nil),      // 16: ds.v1.DeleteCharReq
-	(*DeleteCharResp)(nil),     // 17: ds.v1.DeleteCharResp
-	(*EnterWorldReq)(nil),      // 18: ds.v1.EnterWorldReq
-	(*EnterWorldResp)(nil),     // 19: ds.v1.EnterWorldResp
-	(*Cooldown)(nil),           // 20: ds.v1.Cooldown
-	(*LeaveWorldReq)(nil),      // 21: ds.v1.LeaveWorldReq
-	(*LeaveWorldResp)(nil),     // 22: ds.v1.LeaveWorldResp
-	(*MoveInput)(nil),          // 23: ds.v1.MoveInput
-	(*EntityEnter)(nil),        // 24: ds.v1.EntityEnter
-	(*EntityLeave)(nil),        // 25: ds.v1.EntityLeave
-	(*EntityMove)(nil),         // 26: ds.v1.EntityMove
-	(*WorldTick)(nil),          // 27: ds.v1.WorldTick
-	(*LookChange)(nil),         // 28: ds.v1.LookChange
-	(*Ping)(nil),               // 29: ds.v1.Ping
-	(*Pong)(nil),               // 30: ds.v1.Pong
-	(*Kicked)(nil),             // 31: ds.v1.Kicked
-	(*AttackReq)(nil),          // 32: ds.v1.AttackReq
-	(*AttackResp)(nil),         // 33: ds.v1.AttackResp
-	(*AllocatePointsReq)(nil),  // 34: ds.v1.AllocatePointsReq
-	(*AllocatePointsResp)(nil), // 35: ds.v1.AllocatePointsResp
-	(*RespawnReq)(nil),         // 36: ds.v1.RespawnReq
-	(*RespawnResp)(nil),        // 37: ds.v1.RespawnResp
-	(*SelfStats)(nil),          // 38: ds.v1.SelfStats
-	(*Hit)(nil),                // 39: ds.v1.Hit
-	(*Death)(nil),              // 40: ds.v1.Death
-	(*HpChange)(nil),           // 41: ds.v1.HpChange
-	(*LevelUp)(nil),            // 42: ds.v1.LevelUp
-	(*LearnSkillReq)(nil),      // 43: ds.v1.LearnSkillReq
-	(*LearnSkillResp)(nil),     // 44: ds.v1.LearnSkillResp
-	(*CastReq)(nil),            // 45: ds.v1.CastReq
-	(*CastResp)(nil),           // 46: ds.v1.CastResp
-	(*SkillLevel)(nil),         // 47: ds.v1.SkillLevel
-	(*Cast)(nil),               // 48: ds.v1.Cast
-	(*CastImpact)(nil),         // 49: ds.v1.CastImpact
-	(*ItemInfo)(nil),           // 50: ds.v1.ItemInfo
-	(*ItemLine)(nil),           // 51: ds.v1.ItemLine
-	(*ItemSlot)(nil),           // 52: ds.v1.ItemSlot
-	(*Inventory)(nil),          // 53: ds.v1.Inventory
-	(*InventoryUpdate)(nil),    // 54: ds.v1.InventoryUpdate
-	(*PickupReq)(nil),          // 55: ds.v1.PickupReq
-	(*PickupResp)(nil),         // 56: ds.v1.PickupResp
-	(*EquipReq)(nil),           // 57: ds.v1.EquipReq
-	(*EquipResp)(nil),          // 58: ds.v1.EquipResp
-	(*UnequipReq)(nil),         // 59: ds.v1.UnequipReq
-	(*UnequipResp)(nil),        // 60: ds.v1.UnequipResp
-	(*DiscardReq)(nil),         // 61: ds.v1.DiscardReq
-	(*DiscardResp)(nil),        // 62: ds.v1.DiscardResp
-	(*SortBagReq)(nil),         // 63: ds.v1.SortBagReq
-	(*SortBagResp)(nil),        // 64: ds.v1.SortBagResp
-	(*ItemRef)(nil),            // 65: ds.v1.ItemRef
-	(*EnhanceReq)(nil),         // 66: ds.v1.EnhanceReq
-	(*EnhanceResp)(nil),        // 67: ds.v1.EnhanceResp
-	(*PunchReq)(nil),           // 68: ds.v1.PunchReq
-	(*PunchResp)(nil),          // 69: ds.v1.PunchResp
-	(*SocketReq)(nil),          // 70: ds.v1.SocketReq
-	(*SocketResp)(nil),         // 71: ds.v1.SocketResp
-	(*UnsocketReq)(nil),        // 72: ds.v1.UnsocketReq
-	(*UnsocketResp)(nil),       // 73: ds.v1.UnsocketResp
-	(*RefineReq)(nil),          // 74: ds.v1.RefineReq
-	(*RefineResp)(nil),         // 75: ds.v1.RefineResp
-	(*RefineChooseReq)(nil),    // 76: ds.v1.RefineChooseReq
-	(*RefineChooseResp)(nil),   // 77: ds.v1.RefineChooseResp
-	(*UsePortalReq)(nil),       // 78: ds.v1.UsePortalReq
-	(*ChangeZoneReq)(nil),      // 79: ds.v1.ChangeZoneReq
-	(*ZoneListReq)(nil),        // 80: ds.v1.ZoneListReq
-	(*ZoneListResp)(nil),       // 81: ds.v1.ZoneListResp
-	(*ZoneInfo)(nil),           // 82: ds.v1.ZoneInfo
-	(*BuyReq)(nil),             // 83: ds.v1.BuyReq
-	(*BuyResp)(nil),            // 84: ds.v1.BuyResp
-	(*SellReq)(nil),            // 85: ds.v1.SellReq
-	(*SellResp)(nil),           // 86: ds.v1.SellResp
-	(*UseItemReq)(nil),         // 87: ds.v1.UseItemReq
-	(*UseItemResp)(nil),        // 88: ds.v1.UseItemResp
-	(*ReturnTownReq)(nil),      // 89: ds.v1.ReturnTownReq
-	(*TravelReq)(nil),          // 90: ds.v1.TravelReq
-	(*Stash)(nil),              // 91: ds.v1.Stash
-	(*StashOpenReq)(nil),       // 92: ds.v1.StashOpenReq
-	(*StashOpenResp)(nil),      // 93: ds.v1.StashOpenResp
-	(*StashDepositReq)(nil),    // 94: ds.v1.StashDepositReq
-	(*StashDepositResp)(nil),   // 95: ds.v1.StashDepositResp
-	(*StashWithdrawReq)(nil),   // 96: ds.v1.StashWithdrawReq
-	(*StashWithdrawResp)(nil),  // 97: ds.v1.StashWithdrawResp
-	(*StashExpandReq)(nil),     // 98: ds.v1.StashExpandReq
-	(*StashExpandResp)(nil),    // 99: ds.v1.StashExpandResp
-	(*StashSortReq)(nil),       // 100: ds.v1.StashSortReq
-	(*StashSortResp)(nil),      // 101: ds.v1.StashSortResp
-	(*SetPkReq)(nil),           // 102: ds.v1.SetPkReq
-	(*SetPkResp)(nil),          // 103: ds.v1.SetPkResp
-	(*DeathNotice)(nil),        // 104: ds.v1.DeathNotice
-	(*PartyMember)(nil),        // 105: ds.v1.PartyMember
-	(*PartyInviteReq)(nil),     // 106: ds.v1.PartyInviteReq
-	(*PartyInviteResp)(nil),    // 107: ds.v1.PartyInviteResp
-	(*PartyInvite)(nil),        // 108: ds.v1.PartyInvite
-	(*PartyAnswerReq)(nil),     // 109: ds.v1.PartyAnswerReq
-	(*PartyAnswerResp)(nil),    // 110: ds.v1.PartyAnswerResp
-	(*PartyLeaveReq)(nil),      // 111: ds.v1.PartyLeaveReq
-	(*PartyLeaveResp)(nil),     // 112: ds.v1.PartyLeaveResp
-	(*PartyKickReq)(nil),       // 113: ds.v1.PartyKickReq
-	(*PartyKickResp)(nil),      // 114: ds.v1.PartyKickResp
-	(*PartyState)(nil),         // 115: ds.v1.PartyState
-	(*PartyNotice)(nil),        // 116: ds.v1.PartyNotice
+	(QuestState)(0),            // 5: ds.v1.QuestState
+	(*Envelope)(nil),           // 6: ds.v1.Envelope
+	(*ErrorResp)(nil),          // 7: ds.v1.ErrorResp
+	(*RegisterReq)(nil),        // 8: ds.v1.RegisterReq
+	(*RegisterResp)(nil),       // 9: ds.v1.RegisterResp
+	(*LoginReq)(nil),           // 10: ds.v1.LoginReq
+	(*LoginResp)(nil),          // 11: ds.v1.LoginResp
+	(*CharSummary)(nil),        // 12: ds.v1.CharSummary
+	(*CharListReq)(nil),        // 13: ds.v1.CharListReq
+	(*CharListResp)(nil),       // 14: ds.v1.CharListResp
+	(*CreateCharReq)(nil),      // 15: ds.v1.CreateCharReq
+	(*CreateCharResp)(nil),     // 16: ds.v1.CreateCharResp
+	(*DeleteCharReq)(nil),      // 17: ds.v1.DeleteCharReq
+	(*DeleteCharResp)(nil),     // 18: ds.v1.DeleteCharResp
+	(*EnterWorldReq)(nil),      // 19: ds.v1.EnterWorldReq
+	(*EnterWorldResp)(nil),     // 20: ds.v1.EnterWorldResp
+	(*Cooldown)(nil),           // 21: ds.v1.Cooldown
+	(*LeaveWorldReq)(nil),      // 22: ds.v1.LeaveWorldReq
+	(*LeaveWorldResp)(nil),     // 23: ds.v1.LeaveWorldResp
+	(*MoveInput)(nil),          // 24: ds.v1.MoveInput
+	(*EntityEnter)(nil),        // 25: ds.v1.EntityEnter
+	(*EntityLeave)(nil),        // 26: ds.v1.EntityLeave
+	(*EntityMove)(nil),         // 27: ds.v1.EntityMove
+	(*WorldTick)(nil),          // 28: ds.v1.WorldTick
+	(*LookChange)(nil),         // 29: ds.v1.LookChange
+	(*Ping)(nil),               // 30: ds.v1.Ping
+	(*Pong)(nil),               // 31: ds.v1.Pong
+	(*Kicked)(nil),             // 32: ds.v1.Kicked
+	(*AttackReq)(nil),          // 33: ds.v1.AttackReq
+	(*AttackResp)(nil),         // 34: ds.v1.AttackResp
+	(*AllocatePointsReq)(nil),  // 35: ds.v1.AllocatePointsReq
+	(*AllocatePointsResp)(nil), // 36: ds.v1.AllocatePointsResp
+	(*RespawnReq)(nil),         // 37: ds.v1.RespawnReq
+	(*RespawnResp)(nil),        // 38: ds.v1.RespawnResp
+	(*SelfStats)(nil),          // 39: ds.v1.SelfStats
+	(*Hit)(nil),                // 40: ds.v1.Hit
+	(*Death)(nil),              // 41: ds.v1.Death
+	(*HpChange)(nil),           // 42: ds.v1.HpChange
+	(*LevelUp)(nil),            // 43: ds.v1.LevelUp
+	(*LearnSkillReq)(nil),      // 44: ds.v1.LearnSkillReq
+	(*LearnSkillResp)(nil),     // 45: ds.v1.LearnSkillResp
+	(*CastReq)(nil),            // 46: ds.v1.CastReq
+	(*CastResp)(nil),           // 47: ds.v1.CastResp
+	(*SkillLevel)(nil),         // 48: ds.v1.SkillLevel
+	(*Cast)(nil),               // 49: ds.v1.Cast
+	(*CastImpact)(nil),         // 50: ds.v1.CastImpact
+	(*ItemInfo)(nil),           // 51: ds.v1.ItemInfo
+	(*ItemLine)(nil),           // 52: ds.v1.ItemLine
+	(*ItemSlot)(nil),           // 53: ds.v1.ItemSlot
+	(*Inventory)(nil),          // 54: ds.v1.Inventory
+	(*InventoryUpdate)(nil),    // 55: ds.v1.InventoryUpdate
+	(*PickupReq)(nil),          // 56: ds.v1.PickupReq
+	(*PickupResp)(nil),         // 57: ds.v1.PickupResp
+	(*EquipReq)(nil),           // 58: ds.v1.EquipReq
+	(*EquipResp)(nil),          // 59: ds.v1.EquipResp
+	(*UnequipReq)(nil),         // 60: ds.v1.UnequipReq
+	(*UnequipResp)(nil),        // 61: ds.v1.UnequipResp
+	(*DiscardReq)(nil),         // 62: ds.v1.DiscardReq
+	(*DiscardResp)(nil),        // 63: ds.v1.DiscardResp
+	(*SortBagReq)(nil),         // 64: ds.v1.SortBagReq
+	(*SortBagResp)(nil),        // 65: ds.v1.SortBagResp
+	(*ItemRef)(nil),            // 66: ds.v1.ItemRef
+	(*EnhanceReq)(nil),         // 67: ds.v1.EnhanceReq
+	(*EnhanceResp)(nil),        // 68: ds.v1.EnhanceResp
+	(*PunchReq)(nil),           // 69: ds.v1.PunchReq
+	(*PunchResp)(nil),          // 70: ds.v1.PunchResp
+	(*SocketReq)(nil),          // 71: ds.v1.SocketReq
+	(*SocketResp)(nil),         // 72: ds.v1.SocketResp
+	(*UnsocketReq)(nil),        // 73: ds.v1.UnsocketReq
+	(*UnsocketResp)(nil),       // 74: ds.v1.UnsocketResp
+	(*RefineReq)(nil),          // 75: ds.v1.RefineReq
+	(*RefineResp)(nil),         // 76: ds.v1.RefineResp
+	(*RefineChooseReq)(nil),    // 77: ds.v1.RefineChooseReq
+	(*RefineChooseResp)(nil),   // 78: ds.v1.RefineChooseResp
+	(*UsePortalReq)(nil),       // 79: ds.v1.UsePortalReq
+	(*ChangeZoneReq)(nil),      // 80: ds.v1.ChangeZoneReq
+	(*ZoneListReq)(nil),        // 81: ds.v1.ZoneListReq
+	(*ZoneListResp)(nil),       // 82: ds.v1.ZoneListResp
+	(*ZoneInfo)(nil),           // 83: ds.v1.ZoneInfo
+	(*BuyReq)(nil),             // 84: ds.v1.BuyReq
+	(*BuyResp)(nil),            // 85: ds.v1.BuyResp
+	(*SellReq)(nil),            // 86: ds.v1.SellReq
+	(*SellResp)(nil),           // 87: ds.v1.SellResp
+	(*UseItemReq)(nil),         // 88: ds.v1.UseItemReq
+	(*UseItemResp)(nil),        // 89: ds.v1.UseItemResp
+	(*ReturnTownReq)(nil),      // 90: ds.v1.ReturnTownReq
+	(*TravelReq)(nil),          // 91: ds.v1.TravelReq
+	(*Stash)(nil),              // 92: ds.v1.Stash
+	(*StashOpenReq)(nil),       // 93: ds.v1.StashOpenReq
+	(*StashOpenResp)(nil),      // 94: ds.v1.StashOpenResp
+	(*StashDepositReq)(nil),    // 95: ds.v1.StashDepositReq
+	(*StashDepositResp)(nil),   // 96: ds.v1.StashDepositResp
+	(*StashWithdrawReq)(nil),   // 97: ds.v1.StashWithdrawReq
+	(*StashWithdrawResp)(nil),  // 98: ds.v1.StashWithdrawResp
+	(*StashExpandReq)(nil),     // 99: ds.v1.StashExpandReq
+	(*StashExpandResp)(nil),    // 100: ds.v1.StashExpandResp
+	(*StashSortReq)(nil),       // 101: ds.v1.StashSortReq
+	(*StashSortResp)(nil),      // 102: ds.v1.StashSortResp
+	(*SetPkReq)(nil),           // 103: ds.v1.SetPkReq
+	(*SetPkResp)(nil),          // 104: ds.v1.SetPkResp
+	(*DeathNotice)(nil),        // 105: ds.v1.DeathNotice
+	(*PartyMember)(nil),        // 106: ds.v1.PartyMember
+	(*PartyInviteReq)(nil),     // 107: ds.v1.PartyInviteReq
+	(*PartyInviteResp)(nil),    // 108: ds.v1.PartyInviteResp
+	(*PartyInvite)(nil),        // 109: ds.v1.PartyInvite
+	(*PartyAnswerReq)(nil),     // 110: ds.v1.PartyAnswerReq
+	(*PartyAnswerResp)(nil),    // 111: ds.v1.PartyAnswerResp
+	(*PartyLeaveReq)(nil),      // 112: ds.v1.PartyLeaveReq
+	(*PartyLeaveResp)(nil),     // 113: ds.v1.PartyLeaveResp
+	(*PartyKickReq)(nil),       // 114: ds.v1.PartyKickReq
+	(*PartyKickResp)(nil),      // 115: ds.v1.PartyKickResp
+	(*PartyState)(nil),         // 116: ds.v1.PartyState
+	(*PartyNotice)(nil),        // 117: ds.v1.PartyNotice
+	(*QuestEntry)(nil),         // 118: ds.v1.QuestEntry
+	(*QuestLog)(nil),           // 119: ds.v1.QuestLog
+	(*QuestAcceptReq)(nil),     // 120: ds.v1.QuestAcceptReq
+	(*QuestAcceptResp)(nil),    // 121: ds.v1.QuestAcceptResp
+	(*QuestTurnInReq)(nil),     // 122: ds.v1.QuestTurnInReq
+	(*QuestTurnInResp)(nil),    // 123: ds.v1.QuestTurnInResp
+	(*QuestProgress)(nil),      // 124: ds.v1.QuestProgress
 }
 var file_ds_v1_protocol_proto_depIdxs = []int32{
-	6,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
-	7,   // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
-	8,   // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
-	9,   // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
-	10,  // 4: ds.v1.Envelope.login_resp:type_name -> ds.v1.LoginResp
-	12,  // 5: ds.v1.Envelope.char_list_req:type_name -> ds.v1.CharListReq
-	13,  // 6: ds.v1.Envelope.char_list_resp:type_name -> ds.v1.CharListResp
-	14,  // 7: ds.v1.Envelope.create_char_req:type_name -> ds.v1.CreateCharReq
-	15,  // 8: ds.v1.Envelope.create_char_resp:type_name -> ds.v1.CreateCharResp
-	16,  // 9: ds.v1.Envelope.delete_char_req:type_name -> ds.v1.DeleteCharReq
-	17,  // 10: ds.v1.Envelope.delete_char_resp:type_name -> ds.v1.DeleteCharResp
-	18,  // 11: ds.v1.Envelope.enter_world_req:type_name -> ds.v1.EnterWorldReq
-	19,  // 12: ds.v1.Envelope.enter_world_resp:type_name -> ds.v1.EnterWorldResp
-	21,  // 13: ds.v1.Envelope.leave_world_req:type_name -> ds.v1.LeaveWorldReq
-	22,  // 14: ds.v1.Envelope.leave_world_resp:type_name -> ds.v1.LeaveWorldResp
-	23,  // 15: ds.v1.Envelope.move_input:type_name -> ds.v1.MoveInput
-	24,  // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
-	25,  // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
-	27,  // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
-	29,  // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
-	30,  // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
-	31,  // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
-	32,  // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
-	33,  // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
-	34,  // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
-	35,  // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
-	36,  // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
-	37,  // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
-	38,  // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
-	43,  // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
-	44,  // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
-	45,  // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
-	46,  // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
-	55,  // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
-	56,  // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
-	57,  // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
-	58,  // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
-	59,  // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
-	60,  // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
-	61,  // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
-	62,  // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
-	63,  // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
-	64,  // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
-	66,  // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
-	67,  // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
-	68,  // 45: ds.v1.Envelope.punch_req:type_name -> ds.v1.PunchReq
-	69,  // 46: ds.v1.Envelope.punch_resp:type_name -> ds.v1.PunchResp
-	70,  // 47: ds.v1.Envelope.socket_req:type_name -> ds.v1.SocketReq
-	71,  // 48: ds.v1.Envelope.socket_resp:type_name -> ds.v1.SocketResp
-	72,  // 49: ds.v1.Envelope.unsocket_req:type_name -> ds.v1.UnsocketReq
-	73,  // 50: ds.v1.Envelope.unsocket_resp:type_name -> ds.v1.UnsocketResp
-	74,  // 51: ds.v1.Envelope.refine_req:type_name -> ds.v1.RefineReq
-	75,  // 52: ds.v1.Envelope.refine_resp:type_name -> ds.v1.RefineResp
-	76,  // 53: ds.v1.Envelope.refine_choose_req:type_name -> ds.v1.RefineChooseReq
-	77,  // 54: ds.v1.Envelope.refine_choose_resp:type_name -> ds.v1.RefineChooseResp
-	78,  // 55: ds.v1.Envelope.use_portal_req:type_name -> ds.v1.UsePortalReq
-	79,  // 56: ds.v1.Envelope.change_zone_req:type_name -> ds.v1.ChangeZoneReq
-	80,  // 57: ds.v1.Envelope.zone_list_req:type_name -> ds.v1.ZoneListReq
-	81,  // 58: ds.v1.Envelope.zone_list_resp:type_name -> ds.v1.ZoneListResp
-	83,  // 59: ds.v1.Envelope.buy_req:type_name -> ds.v1.BuyReq
-	84,  // 60: ds.v1.Envelope.buy_resp:type_name -> ds.v1.BuyResp
-	85,  // 61: ds.v1.Envelope.sell_req:type_name -> ds.v1.SellReq
-	86,  // 62: ds.v1.Envelope.sell_resp:type_name -> ds.v1.SellResp
-	87,  // 63: ds.v1.Envelope.use_item_req:type_name -> ds.v1.UseItemReq
-	88,  // 64: ds.v1.Envelope.use_item_resp:type_name -> ds.v1.UseItemResp
-	89,  // 65: ds.v1.Envelope.return_town_req:type_name -> ds.v1.ReturnTownReq
-	90,  // 66: ds.v1.Envelope.travel_req:type_name -> ds.v1.TravelReq
-	92,  // 67: ds.v1.Envelope.stash_open_req:type_name -> ds.v1.StashOpenReq
-	93,  // 68: ds.v1.Envelope.stash_open_resp:type_name -> ds.v1.StashOpenResp
-	94,  // 69: ds.v1.Envelope.stash_deposit_req:type_name -> ds.v1.StashDepositReq
-	95,  // 70: ds.v1.Envelope.stash_deposit_resp:type_name -> ds.v1.StashDepositResp
-	96,  // 71: ds.v1.Envelope.stash_withdraw_req:type_name -> ds.v1.StashWithdrawReq
-	97,  // 72: ds.v1.Envelope.stash_withdraw_resp:type_name -> ds.v1.StashWithdrawResp
-	98,  // 73: ds.v1.Envelope.stash_expand_req:type_name -> ds.v1.StashExpandReq
-	99,  // 74: ds.v1.Envelope.stash_expand_resp:type_name -> ds.v1.StashExpandResp
-	100, // 75: ds.v1.Envelope.stash_sort_req:type_name -> ds.v1.StashSortReq
-	101, // 76: ds.v1.Envelope.stash_sort_resp:type_name -> ds.v1.StashSortResp
-	102, // 77: ds.v1.Envelope.set_pk_req:type_name -> ds.v1.SetPkReq
-	103, // 78: ds.v1.Envelope.set_pk_resp:type_name -> ds.v1.SetPkResp
-	104, // 79: ds.v1.Envelope.death_notice:type_name -> ds.v1.DeathNotice
-	106, // 80: ds.v1.Envelope.party_invite_req:type_name -> ds.v1.PartyInviteReq
-	107, // 81: ds.v1.Envelope.party_invite_resp:type_name -> ds.v1.PartyInviteResp
-	108, // 82: ds.v1.Envelope.party_invite:type_name -> ds.v1.PartyInvite
-	109, // 83: ds.v1.Envelope.party_answer_req:type_name -> ds.v1.PartyAnswerReq
-	110, // 84: ds.v1.Envelope.party_answer_resp:type_name -> ds.v1.PartyAnswerResp
-	111, // 85: ds.v1.Envelope.party_leave_req:type_name -> ds.v1.PartyLeaveReq
-	112, // 86: ds.v1.Envelope.party_leave_resp:type_name -> ds.v1.PartyLeaveResp
-	113, // 87: ds.v1.Envelope.party_kick_req:type_name -> ds.v1.PartyKickReq
-	114, // 88: ds.v1.Envelope.party_kick_resp:type_name -> ds.v1.PartyKickResp
-	115, // 89: ds.v1.Envelope.party_state:type_name -> ds.v1.PartyState
-	116, // 90: ds.v1.Envelope.party_notice:type_name -> ds.v1.PartyNotice
-	0,   // 91: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
-	2,   // 92: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
-	11,  // 93: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
-	2,   // 94: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
-	11,  // 95: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
-	38,  // 96: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
-	47,  // 97: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
-	53,  // 98: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
-	20,  // 99: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
-	3,   // 100: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
-	2,   // 101: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
-	50,  // 102: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
-	26,  // 103: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
-	39,  // 104: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
-	40,  // 105: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
-	41,  // 106: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
-	42,  // 107: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
-	48,  // 108: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
-	28,  // 109: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
-	1,   // 110: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
-	38,  // 111: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
-	38,  // 112: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
-	47,  // 113: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
-	49,  // 114: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
-	2,   // 115: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
-	51,  // 116: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
-	51,  // 117: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
-	50,  // 118: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
-	52,  // 119: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
-	52,  // 120: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
-	52,  // 121: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
-	52,  // 122: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
-	54,  // 123: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
-	54,  // 124: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 125: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
-	54,  // 126: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 127: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
-	54,  // 128: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
-	54,  // 129: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
-	65,  // 130: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
-	54,  // 131: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 132: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
-	65,  // 133: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
-	54,  // 134: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 135: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
-	65,  // 136: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
-	54,  // 137: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 138: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
-	65,  // 139: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
-	54,  // 140: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 141: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
-	65,  // 142: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
-	51,  // 143: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
-	54,  // 144: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 145: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
-	54,  // 146: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 147: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
-	82,  // 148: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
-	54,  // 149: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 150: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
-	54,  // 151: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 152: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
-	54,  // 153: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
-	38,  // 154: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
-	52,  // 155: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
-	91,  // 156: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
-	54,  // 157: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
-	52,  // 158: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
-	54,  // 159: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
-	52,  // 160: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
-	38,  // 161: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
-	52,  // 162: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
-	2,   // 163: ds.v1.PartyMember.char_class:type_name -> ds.v1.CharClass
-	2,   // 164: ds.v1.PartyInvite.from_class:type_name -> ds.v1.CharClass
-	105, // 165: ds.v1.PartyState.members:type_name -> ds.v1.PartyMember
-	4,   // 166: ds.v1.PartyNotice.kind:type_name -> ds.v1.PartyNoticeKind
-	167, // [167:167] is the sub-list for method output_type
-	167, // [167:167] is the sub-list for method input_type
-	167, // [167:167] is the sub-list for extension type_name
-	167, // [167:167] is the sub-list for extension extendee
-	0,   // [0:167] is the sub-list for field type_name
+	7,   // 0: ds.v1.Envelope.error:type_name -> ds.v1.ErrorResp
+	8,   // 1: ds.v1.Envelope.register_req:type_name -> ds.v1.RegisterReq
+	9,   // 2: ds.v1.Envelope.register_resp:type_name -> ds.v1.RegisterResp
+	10,  // 3: ds.v1.Envelope.login_req:type_name -> ds.v1.LoginReq
+	11,  // 4: ds.v1.Envelope.login_resp:type_name -> ds.v1.LoginResp
+	13,  // 5: ds.v1.Envelope.char_list_req:type_name -> ds.v1.CharListReq
+	14,  // 6: ds.v1.Envelope.char_list_resp:type_name -> ds.v1.CharListResp
+	15,  // 7: ds.v1.Envelope.create_char_req:type_name -> ds.v1.CreateCharReq
+	16,  // 8: ds.v1.Envelope.create_char_resp:type_name -> ds.v1.CreateCharResp
+	17,  // 9: ds.v1.Envelope.delete_char_req:type_name -> ds.v1.DeleteCharReq
+	18,  // 10: ds.v1.Envelope.delete_char_resp:type_name -> ds.v1.DeleteCharResp
+	19,  // 11: ds.v1.Envelope.enter_world_req:type_name -> ds.v1.EnterWorldReq
+	20,  // 12: ds.v1.Envelope.enter_world_resp:type_name -> ds.v1.EnterWorldResp
+	22,  // 13: ds.v1.Envelope.leave_world_req:type_name -> ds.v1.LeaveWorldReq
+	23,  // 14: ds.v1.Envelope.leave_world_resp:type_name -> ds.v1.LeaveWorldResp
+	24,  // 15: ds.v1.Envelope.move_input:type_name -> ds.v1.MoveInput
+	25,  // 16: ds.v1.Envelope.entity_enter:type_name -> ds.v1.EntityEnter
+	26,  // 17: ds.v1.Envelope.entity_leave:type_name -> ds.v1.EntityLeave
+	28,  // 18: ds.v1.Envelope.world_tick:type_name -> ds.v1.WorldTick
+	30,  // 19: ds.v1.Envelope.ping:type_name -> ds.v1.Ping
+	31,  // 20: ds.v1.Envelope.pong:type_name -> ds.v1.Pong
+	32,  // 21: ds.v1.Envelope.kicked:type_name -> ds.v1.Kicked
+	33,  // 22: ds.v1.Envelope.attack_req:type_name -> ds.v1.AttackReq
+	34,  // 23: ds.v1.Envelope.attack_resp:type_name -> ds.v1.AttackResp
+	35,  // 24: ds.v1.Envelope.allocate_points_req:type_name -> ds.v1.AllocatePointsReq
+	36,  // 25: ds.v1.Envelope.allocate_points_resp:type_name -> ds.v1.AllocatePointsResp
+	37,  // 26: ds.v1.Envelope.respawn_req:type_name -> ds.v1.RespawnReq
+	38,  // 27: ds.v1.Envelope.respawn_resp:type_name -> ds.v1.RespawnResp
+	39,  // 28: ds.v1.Envelope.self_stats:type_name -> ds.v1.SelfStats
+	44,  // 29: ds.v1.Envelope.learn_skill_req:type_name -> ds.v1.LearnSkillReq
+	45,  // 30: ds.v1.Envelope.learn_skill_resp:type_name -> ds.v1.LearnSkillResp
+	46,  // 31: ds.v1.Envelope.cast_req:type_name -> ds.v1.CastReq
+	47,  // 32: ds.v1.Envelope.cast_resp:type_name -> ds.v1.CastResp
+	56,  // 33: ds.v1.Envelope.pickup_req:type_name -> ds.v1.PickupReq
+	57,  // 34: ds.v1.Envelope.pickup_resp:type_name -> ds.v1.PickupResp
+	58,  // 35: ds.v1.Envelope.equip_req:type_name -> ds.v1.EquipReq
+	59,  // 36: ds.v1.Envelope.equip_resp:type_name -> ds.v1.EquipResp
+	60,  // 37: ds.v1.Envelope.unequip_req:type_name -> ds.v1.UnequipReq
+	61,  // 38: ds.v1.Envelope.unequip_resp:type_name -> ds.v1.UnequipResp
+	62,  // 39: ds.v1.Envelope.discard_req:type_name -> ds.v1.DiscardReq
+	63,  // 40: ds.v1.Envelope.discard_resp:type_name -> ds.v1.DiscardResp
+	64,  // 41: ds.v1.Envelope.sort_bag_req:type_name -> ds.v1.SortBagReq
+	65,  // 42: ds.v1.Envelope.sort_bag_resp:type_name -> ds.v1.SortBagResp
+	67,  // 43: ds.v1.Envelope.enhance_req:type_name -> ds.v1.EnhanceReq
+	68,  // 44: ds.v1.Envelope.enhance_resp:type_name -> ds.v1.EnhanceResp
+	69,  // 45: ds.v1.Envelope.punch_req:type_name -> ds.v1.PunchReq
+	70,  // 46: ds.v1.Envelope.punch_resp:type_name -> ds.v1.PunchResp
+	71,  // 47: ds.v1.Envelope.socket_req:type_name -> ds.v1.SocketReq
+	72,  // 48: ds.v1.Envelope.socket_resp:type_name -> ds.v1.SocketResp
+	73,  // 49: ds.v1.Envelope.unsocket_req:type_name -> ds.v1.UnsocketReq
+	74,  // 50: ds.v1.Envelope.unsocket_resp:type_name -> ds.v1.UnsocketResp
+	75,  // 51: ds.v1.Envelope.refine_req:type_name -> ds.v1.RefineReq
+	76,  // 52: ds.v1.Envelope.refine_resp:type_name -> ds.v1.RefineResp
+	77,  // 53: ds.v1.Envelope.refine_choose_req:type_name -> ds.v1.RefineChooseReq
+	78,  // 54: ds.v1.Envelope.refine_choose_resp:type_name -> ds.v1.RefineChooseResp
+	79,  // 55: ds.v1.Envelope.use_portal_req:type_name -> ds.v1.UsePortalReq
+	80,  // 56: ds.v1.Envelope.change_zone_req:type_name -> ds.v1.ChangeZoneReq
+	81,  // 57: ds.v1.Envelope.zone_list_req:type_name -> ds.v1.ZoneListReq
+	82,  // 58: ds.v1.Envelope.zone_list_resp:type_name -> ds.v1.ZoneListResp
+	84,  // 59: ds.v1.Envelope.buy_req:type_name -> ds.v1.BuyReq
+	85,  // 60: ds.v1.Envelope.buy_resp:type_name -> ds.v1.BuyResp
+	86,  // 61: ds.v1.Envelope.sell_req:type_name -> ds.v1.SellReq
+	87,  // 62: ds.v1.Envelope.sell_resp:type_name -> ds.v1.SellResp
+	88,  // 63: ds.v1.Envelope.use_item_req:type_name -> ds.v1.UseItemReq
+	89,  // 64: ds.v1.Envelope.use_item_resp:type_name -> ds.v1.UseItemResp
+	90,  // 65: ds.v1.Envelope.return_town_req:type_name -> ds.v1.ReturnTownReq
+	91,  // 66: ds.v1.Envelope.travel_req:type_name -> ds.v1.TravelReq
+	93,  // 67: ds.v1.Envelope.stash_open_req:type_name -> ds.v1.StashOpenReq
+	94,  // 68: ds.v1.Envelope.stash_open_resp:type_name -> ds.v1.StashOpenResp
+	95,  // 69: ds.v1.Envelope.stash_deposit_req:type_name -> ds.v1.StashDepositReq
+	96,  // 70: ds.v1.Envelope.stash_deposit_resp:type_name -> ds.v1.StashDepositResp
+	97,  // 71: ds.v1.Envelope.stash_withdraw_req:type_name -> ds.v1.StashWithdrawReq
+	98,  // 72: ds.v1.Envelope.stash_withdraw_resp:type_name -> ds.v1.StashWithdrawResp
+	99,  // 73: ds.v1.Envelope.stash_expand_req:type_name -> ds.v1.StashExpandReq
+	100, // 74: ds.v1.Envelope.stash_expand_resp:type_name -> ds.v1.StashExpandResp
+	101, // 75: ds.v1.Envelope.stash_sort_req:type_name -> ds.v1.StashSortReq
+	102, // 76: ds.v1.Envelope.stash_sort_resp:type_name -> ds.v1.StashSortResp
+	103, // 77: ds.v1.Envelope.set_pk_req:type_name -> ds.v1.SetPkReq
+	104, // 78: ds.v1.Envelope.set_pk_resp:type_name -> ds.v1.SetPkResp
+	105, // 79: ds.v1.Envelope.death_notice:type_name -> ds.v1.DeathNotice
+	107, // 80: ds.v1.Envelope.party_invite_req:type_name -> ds.v1.PartyInviteReq
+	108, // 81: ds.v1.Envelope.party_invite_resp:type_name -> ds.v1.PartyInviteResp
+	109, // 82: ds.v1.Envelope.party_invite:type_name -> ds.v1.PartyInvite
+	110, // 83: ds.v1.Envelope.party_answer_req:type_name -> ds.v1.PartyAnswerReq
+	111, // 84: ds.v1.Envelope.party_answer_resp:type_name -> ds.v1.PartyAnswerResp
+	112, // 85: ds.v1.Envelope.party_leave_req:type_name -> ds.v1.PartyLeaveReq
+	113, // 86: ds.v1.Envelope.party_leave_resp:type_name -> ds.v1.PartyLeaveResp
+	114, // 87: ds.v1.Envelope.party_kick_req:type_name -> ds.v1.PartyKickReq
+	115, // 88: ds.v1.Envelope.party_kick_resp:type_name -> ds.v1.PartyKickResp
+	116, // 89: ds.v1.Envelope.party_state:type_name -> ds.v1.PartyState
+	117, // 90: ds.v1.Envelope.party_notice:type_name -> ds.v1.PartyNotice
+	120, // 91: ds.v1.Envelope.quest_accept_req:type_name -> ds.v1.QuestAcceptReq
+	121, // 92: ds.v1.Envelope.quest_accept_resp:type_name -> ds.v1.QuestAcceptResp
+	122, // 93: ds.v1.Envelope.quest_turn_in_req:type_name -> ds.v1.QuestTurnInReq
+	123, // 94: ds.v1.Envelope.quest_turn_in_resp:type_name -> ds.v1.QuestTurnInResp
+	124, // 95: ds.v1.Envelope.quest_progress:type_name -> ds.v1.QuestProgress
+	0,   // 96: ds.v1.ErrorResp.code:type_name -> ds.v1.ErrorCode
+	2,   // 97: ds.v1.CharSummary.char_class:type_name -> ds.v1.CharClass
+	12,  // 98: ds.v1.CharListResp.chars:type_name -> ds.v1.CharSummary
+	2,   // 99: ds.v1.CreateCharReq.char_class:type_name -> ds.v1.CharClass
+	12,  // 100: ds.v1.CreateCharResp.char:type_name -> ds.v1.CharSummary
+	39,  // 101: ds.v1.EnterWorldResp.stats:type_name -> ds.v1.SelfStats
+	48,  // 102: ds.v1.EnterWorldResp.skills:type_name -> ds.v1.SkillLevel
+	54,  // 103: ds.v1.EnterWorldResp.inventory:type_name -> ds.v1.Inventory
+	21,  // 104: ds.v1.EnterWorldResp.cooldowns:type_name -> ds.v1.Cooldown
+	119, // 105: ds.v1.EnterWorldResp.quests:type_name -> ds.v1.QuestLog
+	3,   // 106: ds.v1.EntityEnter.kind:type_name -> ds.v1.EntityKind
+	2,   // 107: ds.v1.EntityEnter.char_class:type_name -> ds.v1.CharClass
+	51,  // 108: ds.v1.EntityEnter.item:type_name -> ds.v1.ItemInfo
+	27,  // 109: ds.v1.WorldTick.moves:type_name -> ds.v1.EntityMove
+	40,  // 110: ds.v1.WorldTick.hits:type_name -> ds.v1.Hit
+	41,  // 111: ds.v1.WorldTick.deaths:type_name -> ds.v1.Death
+	42,  // 112: ds.v1.WorldTick.hp_changes:type_name -> ds.v1.HpChange
+	43,  // 113: ds.v1.WorldTick.level_ups:type_name -> ds.v1.LevelUp
+	49,  // 114: ds.v1.WorldTick.casts:type_name -> ds.v1.Cast
+	29,  // 115: ds.v1.WorldTick.looks:type_name -> ds.v1.LookChange
+	1,   // 116: ds.v1.Kicked.reason:type_name -> ds.v1.KickReason
+	39,  // 117: ds.v1.AllocatePointsResp.stats:type_name -> ds.v1.SelfStats
+	39,  // 118: ds.v1.LearnSkillResp.stats:type_name -> ds.v1.SelfStats
+	48,  // 119: ds.v1.LearnSkillResp.skills:type_name -> ds.v1.SkillLevel
+	55,  // 120: ds.v1.LearnSkillResp.update:type_name -> ds.v1.InventoryUpdate
+	50,  // 121: ds.v1.Cast.impacts:type_name -> ds.v1.CastImpact
+	2,   // 122: ds.v1.ItemInfo.element:type_name -> ds.v1.CharClass
+	52,  // 123: ds.v1.ItemInfo.lines:type_name -> ds.v1.ItemLine
+	52,  // 124: ds.v1.ItemInfo.hidden:type_name -> ds.v1.ItemLine
+	51,  // 125: ds.v1.ItemSlot.item:type_name -> ds.v1.ItemInfo
+	53,  // 126: ds.v1.Inventory.bag:type_name -> ds.v1.ItemSlot
+	53,  // 127: ds.v1.Inventory.equipped:type_name -> ds.v1.ItemSlot
+	53,  // 128: ds.v1.InventoryUpdate.bag:type_name -> ds.v1.ItemSlot
+	53,  // 129: ds.v1.InventoryUpdate.equipped:type_name -> ds.v1.ItemSlot
+	55,  // 130: ds.v1.PickupResp.update:type_name -> ds.v1.InventoryUpdate
+	55,  // 131: ds.v1.EquipResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 132: ds.v1.EquipResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 133: ds.v1.UnequipResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 134: ds.v1.UnequipResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 135: ds.v1.DiscardResp.update:type_name -> ds.v1.InventoryUpdate
+	55,  // 136: ds.v1.SortBagResp.update:type_name -> ds.v1.InventoryUpdate
+	66,  // 137: ds.v1.EnhanceReq.item:type_name -> ds.v1.ItemRef
+	55,  // 138: ds.v1.EnhanceResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 139: ds.v1.EnhanceResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 140: ds.v1.PunchReq.item:type_name -> ds.v1.ItemRef
+	55,  // 141: ds.v1.PunchResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 142: ds.v1.PunchResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 143: ds.v1.SocketReq.item:type_name -> ds.v1.ItemRef
+	55,  // 144: ds.v1.SocketResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 145: ds.v1.SocketResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 146: ds.v1.UnsocketReq.item:type_name -> ds.v1.ItemRef
+	55,  // 147: ds.v1.UnsocketResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 148: ds.v1.UnsocketResp.stats:type_name -> ds.v1.SelfStats
+	66,  // 149: ds.v1.RefineReq.item:type_name -> ds.v1.ItemRef
+	52,  // 150: ds.v1.RefineResp.lines:type_name -> ds.v1.ItemLine
+	55,  // 151: ds.v1.RefineResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 152: ds.v1.RefineResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 153: ds.v1.RefineChooseResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 154: ds.v1.RefineChooseResp.stats:type_name -> ds.v1.SelfStats
+	83,  // 155: ds.v1.ZoneListResp.zones:type_name -> ds.v1.ZoneInfo
+	55,  // 156: ds.v1.BuyResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 157: ds.v1.BuyResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 158: ds.v1.SellResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 159: ds.v1.SellResp.stats:type_name -> ds.v1.SelfStats
+	55,  // 160: ds.v1.UseItemResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 161: ds.v1.UseItemResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 162: ds.v1.Stash.items:type_name -> ds.v1.ItemSlot
+	92,  // 163: ds.v1.StashOpenResp.stash:type_name -> ds.v1.Stash
+	55,  // 164: ds.v1.StashDepositResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 165: ds.v1.StashDepositResp.stash:type_name -> ds.v1.ItemSlot
+	55,  // 166: ds.v1.StashWithdrawResp.update:type_name -> ds.v1.InventoryUpdate
+	53,  // 167: ds.v1.StashWithdrawResp.stash:type_name -> ds.v1.ItemSlot
+	39,  // 168: ds.v1.StashExpandResp.stats:type_name -> ds.v1.SelfStats
+	53,  // 169: ds.v1.StashSortResp.stash:type_name -> ds.v1.ItemSlot
+	2,   // 170: ds.v1.PartyMember.char_class:type_name -> ds.v1.CharClass
+	2,   // 171: ds.v1.PartyInvite.from_class:type_name -> ds.v1.CharClass
+	106, // 172: ds.v1.PartyState.members:type_name -> ds.v1.PartyMember
+	4,   // 173: ds.v1.PartyNotice.kind:type_name -> ds.v1.PartyNoticeKind
+	5,   // 174: ds.v1.QuestEntry.state:type_name -> ds.v1.QuestState
+	118, // 175: ds.v1.QuestLog.quests:type_name -> ds.v1.QuestEntry
+	118, // 176: ds.v1.QuestAcceptResp.quest:type_name -> ds.v1.QuestEntry
+	55,  // 177: ds.v1.QuestTurnInResp.update:type_name -> ds.v1.InventoryUpdate
+	39,  // 178: ds.v1.QuestTurnInResp.stats:type_name -> ds.v1.SelfStats
+	118, // 179: ds.v1.QuestProgress.quests:type_name -> ds.v1.QuestEntry
+	180, // [180:180] is the sub-list for method output_type
+	180, // [180:180] is the sub-list for method input_type
+	180, // [180:180] is the sub-list for extension type_name
+	180, // [180:180] is the sub-list for extension extendee
+	0,   // [0:180] is the sub-list for field type_name
 }
 
 func init() { file_ds_v1_protocol_proto_init() }
@@ -9324,14 +9932,19 @@ func file_ds_v1_protocol_proto_init() {
 		(*Envelope_PartyKickResp)(nil),
 		(*Envelope_PartyState)(nil),
 		(*Envelope_PartyNotice)(nil),
+		(*Envelope_QuestAcceptReq)(nil),
+		(*Envelope_QuestAcceptResp)(nil),
+		(*Envelope_QuestTurnInReq)(nil),
+		(*Envelope_QuestTurnInResp)(nil),
+		(*Envelope_QuestProgress)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ds_v1_protocol_proto_rawDesc), len(file_ds_v1_protocol_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   112,
+			NumEnums:      6,
+			NumMessages:   119,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
