@@ -4099,3 +4099,50 @@ func TestPendingRefineAndStash(t *testing.T) {
 		})
 	}
 }
+
+// A refused stash command keeps the waiting refine result; only a successful
+// deposit, withdraw or sort drops it (phase 4c spec 4.2, like a sale).
+func TestPendingRefineSurvivesRefusedStash(t *testing.T) {
+	two := map[int]*items.Item{0: {Code: "stone_enhance", Count: 999}, 1: {Code: "stone_enhance", Count: 999}}
+	for name, c := range map[string]struct {
+		size  int
+		stash map[int]*items.Item
+		fullB bool
+		dead  bool
+		x     float32
+		cmd   func(*Zone) bool
+		want  pb.ErrorCode
+	}{
+		"deposit stash full":  {2, two, false, false, 0, func(z *Zone) bool { return z.StashDeposit(1, 9, "kho", 0) }, pb.ErrorCode_ERROR_CODE_STASH_FULL},
+		"deposit empty slot":  {30, nil, false, false, 0, func(z *Zone) bool { return z.StashDeposit(1, 9, "kho", 9) }, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		"deposit too far":     {30, nil, false, false, 4.9, func(z *Zone) bool { return z.StashDeposit(1, 9, "kho", 0) }, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
+		"deposit dead":        {30, nil, false, true, 0, func(z *Zone) bool { return z.StashDeposit(1, 9, "kho", 0) }, pb.ErrorCode_ERROR_CODE_DEAD},
+		"withdraw bag full":   {30, map[int]*items.Item{3: {Code: "eq10_helmet", Count: 1}}, true, false, 0, func(z *Zone) bool { return z.StashWithdraw(1, 9, "kho", 3) }, pb.ErrorCode_ERROR_CODE_BAG_FULL},
+		"withdraw empty slot": {30, nil, false, false, 0, func(z *Zone) bool { return z.StashWithdraw(1, 9, "kho", 3) }, pb.ErrorCode_ERROR_CODE_ITEM_NOT_FOUND},
+		"withdraw too far":    {30, nil, false, false, 4.9, func(z *Zone) bool { return z.StashWithdraw(1, 9, "kho", 3) }, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
+		"withdraw dead":       {30, nil, false, true, 0, func(z *Zone) bool { return z.StashWithdraw(1, 9, "kho", 3) }, pb.ErrorCode_ERROR_CODE_DEAD},
+		"sort too far":        {30, nil, false, false, 4.9, func(z *Zone) bool { return z.StashSort(1, 9, "kho") }, pb.ErrorCode_ERROR_CODE_NPC_TOO_FAR},
+		"sort dead":           {30, nil, false, true, 0, func(z *Zone) bool { return z.StashSort(1, 9, "kho") }, pb.ErrorCode_ERROR_CODE_DEAD},
+	} {
+		t.Run(name, func(t *testing.T) {
+			z, p, _ := stashZone(t, c.size, c.stash, stashBag(), 0)
+			if c.fullB {
+				fillBag(p.inv)
+			}
+			if c.x != 0 {
+				p.pos.X = c.x
+			}
+			if c.dead {
+				z.damagePlayer(p, 0, 1<<30, false)
+			}
+			z.advance(time.Now())
+			p.refine = &pendingRefine{}
+			if got := shopErr(t, z, p, c.cmd(z)); got != c.want {
+				t.Fatalf("code %v, want %v", got, c.want)
+			}
+			if p.refine == nil {
+				t.Fatal("a refused stash command dropped the refine result")
+			}
+		})
+	}
+}

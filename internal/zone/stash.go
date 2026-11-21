@@ -113,8 +113,8 @@ func (z *Zone) stashOpen(c stashOpenCmd) {
 }
 
 // stashDeposit moves a whole bag slot into the stash (phase 4c spec 4.2). The
-// stash takes it all or nothing changes; like the other item commands it
-// drops a waiting refine result (dropsRefine); success saves at once.
+// stash takes it all or nothing changes; success drops a waiting refine
+// result (a refusal keeps it, like a sale) and saves at once.
 func (z *Zone) stashDeposit(c stashDepositCmd) {
 	p := z.stashPlayer(c.id, c.seq, c.npcID)
 	if p == nil {
@@ -138,6 +138,7 @@ func (z *Zone) stashDeposit(c stashDepositCmd) {
 		return
 	}
 	p.inv.Bag[c.bagSlot] = nil
+	p.refine = nil // only a successful deposit drops the waiting refine result
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_StashDepositResp{StashDepositResp: &pb.StashDepositResp{
 		Update: inventoryUpdate(p.inv, []int{c.bagSlot}, nil), Stash: z.stashSlots(p, changed)}}})
@@ -163,6 +164,7 @@ func (z *Zone) stashWithdraw(c stashWithdrawCmd) {
 		return
 	}
 	p.stash[c.stashSlot] = nil
+	p.refine = nil // only a successful withdrawal drops the waiting refine result
 	z.saver.Save(z.state(p), nil)
 	p.out.Send(&pb.Envelope{Seq: c.seq, Payload: &pb.Envelope_StashWithdrawResp{StashWithdrawResp: &pb.StashWithdrawResp{
 		Update: inventoryUpdate(p.inv, changed, nil), Stash: z.stashSlots(p, []int{c.stashSlot})}}})
@@ -205,6 +207,7 @@ func (z *Zone) stashSort(c stashSortCmd) {
 		return
 	}
 	items.SortSlots(z.area.Items, p.stash)
+	p.refine = nil // only a successful sort drops the waiting refine result
 	z.saver.Save(z.state(p), nil)
 	all := make([]int, len(p.stash))
 	for i := range all {
